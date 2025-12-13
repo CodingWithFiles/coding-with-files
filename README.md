@@ -24,12 +24,24 @@ We welcome issues, pull requests, and suggestions! This project aims to become a
 
 ## Features
 
+### v2.0 - Hierarchical Workflow System
+- **Infinite Task Nesting**: Decimal numbering (1, 1.1, 1.1.1) with unlimited depth
+- **8-Step Workflow**: Structured progression from planning through retrospective
+- **Token-Efficient Context Inheritance**: Parent context via structural maps (~50-100 tokens vs 500-1000)
+- **Progressive Disclosure**: Commands reference documentation rather than duplicating content
+- **Central Template Pool**: DRY principle with symlink-based templates per task type
+- **Universal Decomposition Signals**: 5 signals guide when to break tasks into subtasks
+- **Dynamic Workflow Transitions**: Non-linear state machine based on step outcomes
+- **Helper Script Automation**: 5 scripts encapsulate deterministic operations
+
+### Core Capabilities
 - **Task Management**: Structured approach to feature, bugfix, hotfix, and chore tasks
 - **Hierarchical Organisation**: Multi-level task breakdown with automatic numbering
-- **Template System**: Consistent documentation templates for all task types
-- **Progress Tracking**: Real-time status monitoring across project hierarchy
-- **Section Extraction**: Targeted retrieval of specific documentation sections
+- **Template System**: Consistent documentation templates for all task types (8 workflow steps)
+- **Progress Tracking**: Real-time status monitoring with progress calculation
+- **Section Extraction**: Task-based and file-based extraction with backward compatibility
 - **Retrospective Analysis**: Post-completion variance tracking and lessons learned
+- **Security Verification**: SHA256 hash verification for all helper scripts
 
 ## Installation
 
@@ -46,19 +58,41 @@ We welcome issues, pull requests, and suggestions! This project aims to become a
 
 ## Commands
 
-### Core Commands
+### Core Commands (v2.0)
 
 - `/cig-init` - Initialise CIG system with project configuration
-- `/cig-new-task <type> [task-id] <description>` - Create categorised implementation guide
-- `/cig-status [path]` - Show progress across implementation guide hierarchy
-- `/cig-subtask <parent-task-name> <subtask-name>` - Create sub-implementation task
+- `/cig-new-task <num> <type> "description"` - **Breaking change**: Create hierarchical implementation guide
+- `/cig-subtask <parent-path> <num> <type> "description"` - **Breaking change**: Create subtask with context inheritance
+- `/cig-status [task-path]` - Show progress across implementation guide hierarchy
+- `/cig-extract <task-path> <section-name>` - **Breaking change**: Extract section (task-based, backward compatible)
+
+### Workflow Commands (v2.0 - New)
+
+Execute structured 8-step workflow for any task:
+
+- `/cig-plan <task-path>` - Guide through planning phase (goals, milestones, risks)
+- `/cig-requirements <task-path>` - Guide through requirements phase (FR/NFR, acceptance criteria)
+- `/cig-design <task-path>` - Guide through design phase (architecture, components, interfaces)
+- `/cig-implementation <task-path>` - Guide through implementation phase (code changes, tests)
+- `/cig-testing <task-path>` - Guide through testing phase (test strategy, validation)
+- `/cig-rollout <task-path>` - Guide through rollout phase (deployment, monitoring)
+- `/cig-maintenance <task-path>` - Guide through maintenance phase (support, optimization)
+- `/cig-retrospective <task-path>` - Guide through retrospective phase (learnings, variance)
 
 ### Utility Commands
 
-- `/cig-extract <file-path> <section-name>` - Extract specific section from implementation guide
-- `/cig-retrospective <task-path>` - Facilitate post-completion analysis
 - `/cig-config [init|list|reset]` - Configure CIG system paths and settings
 - `/cig-security-check [verify|report]` - Verify file integrity and sources for CIG system
+
+### Migration from v1.0
+
+**Breaking Changes**:
+- `/cig-new-task`: Signature changed from `<type> [task-id] <description>` to `<num> <type> "description"`
+- `/cig-subtask`: Signature changed to include task numbers and type
+- `/cig-extract`: Now accepts task-path instead of file-path (backward compatible)
+
+Old v1.0 tasks continue to work. New v2.0 tasks use hierarchical structure with 8 workflow files (a-h).
+See `.cig/docs/workflow/` for complete workflow documentation.
 
 ## Task Types
 
