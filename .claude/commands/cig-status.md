@@ -1,7 +1,7 @@
 ---
 description: Show progress across implementation guide hierarchy (v2.0)
 argument-hint: [task-path]
-allowed-tools: Read, Bash(.cig/scripts/command-helpers/hierarchy-resolver.sh), Bash(.cig/scripts/command-helpers/status-aggregator.sh), Bash(egrep:*), Bash(echo:*), Bash(find:*)
+allowed-tools: Read, Bash(.cig/scripts/command-helpers/hierarchy-resolver.sh:*), Bash(.cig/scripts/command-helpers/status-aggregator.sh:*), Bash(egrep:*), Bash(echo:*), Bash(find:*)
 ---
 
 ## Context

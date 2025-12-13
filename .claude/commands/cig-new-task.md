@@ -1,7 +1,7 @@
 ---
 description: Create categorised implementation guide (v2.0 - hierarchical)
 argument-hint: <num> <type> "description"
-allowed-tools: Write, Read, Bash(ln:*), Bash(cp:*), Bash(git:*), Bash(.cig/scripts/command-helpers/hierarchy-resolver.sh), Bash(.cig/scripts/command-helpers/cig-load-project-config), Bash(egrep:*), Bash(echo:*), Bash(find:*)
+allowed-tools: Write, Read, Bash(ln:*), Bash(cp:*), Bash(git:*), Bash(.cig/scripts/command-helpers/hierarchy-resolver.sh:*), Bash(.cig/scripts/command-helpers/cig-load-project-config), Bash(egrep:*), Bash(echo:*), Bash(find:*)
 ---
 
 ## Context

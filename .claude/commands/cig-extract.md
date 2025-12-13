@@ -1,7 +1,7 @@
 ---
 description: Extract specific section from implementation guide (v2.0 - task-based)
 argument-hint: <task-path> <section-name>
-allowed-tools: Read, Bash(.cig/scripts/command-helpers/hierarchy-resolver.sh), Bash(.cig/scripts/command-helpers/format-detector.sh), Bash(awk:*), Bash(egrep:*), Bash(echo:*)
+allowed-tools: Read, Bash(.cig/scripts/command-helpers/hierarchy-resolver.sh:*), Bash(.cig/scripts/command-helpers/format-detector.sh:*), Bash(awk:*), Bash(egrep:*), Bash(echo:*)
 ---
 
 ## Context

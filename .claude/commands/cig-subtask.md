@@ -1,7 +1,7 @@
 ---
 description: Create sub-implementation task within existing task (v2.0)
 argument-hint: <parent-path> <num> <type> "description"
-allowed-tools: Write, Read, Bash(ln:*), Bash(cp:*), Bash(.cig/scripts/command-helpers/hierarchy-resolver.sh), Bash(.cig/scripts/command-helpers/context-inheritance.pl), Bash(.cig/scripts/command-helpers/cig-load-project-config), Bash(egrep:*), Bash(echo:*), Bash(find:*)
+allowed-tools: Write, Read, Bash(ln:*), Bash(cp:*), Bash(.cig/scripts/command-helpers/hierarchy-resolver.sh:*), Bash(.cig/scripts/command-helpers/context-inheritance.pl:*), Bash(.cig/scripts/command-helpers/cig-load-project-config), Bash(egrep:*), Bash(echo:*), Bash(find:*)
 ---
 
 ## Context
