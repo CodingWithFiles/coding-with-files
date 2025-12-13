@@ -34,7 +34,7 @@
     },
     "migrate-v1-to-v2.sh": {
       "path": ".cig/scripts/migrate-v1-to-v2.sh",
-      "sha256": "e068d76194b5de47c457da18c1eb0996fccadf1f8b05203154811172c9685a76",
+      "sha256": "1b509c949e3d94a74230488c2e822dd3899706f9d7366d04f8990c2ec07bae56",
       "permissions": "0500",
       "description": "Migrate v1.0 tasks to v2.0 hierarchical structure with git-first backup"
     },
