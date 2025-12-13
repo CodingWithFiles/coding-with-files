@@ -9,6 +9,9 @@
 ## Goal
 Implement {{description}} efficiently with minimal disruption to ongoing development.
 
+## Workflow
+Patterns first → Test → Minimal impl → Refactor green → Commit message explains "why"
+
 ## Implementation Strategy
 ### Approach
 - **Method**: Step-by-step approach to complete the work

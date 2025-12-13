@@ -9,6 +9,9 @@
 ## Goal
 Implement minimal, safe hotfix for {{description}} with immediate production deployment.
 
+## Workflow
+Patterns first → Test → Minimal impl → Refactor green → Commit message explains "why"
+
 ## Critical Fix Details
 ### Root Cause Confirmed
 - **Issue**: Verified source of the production problem

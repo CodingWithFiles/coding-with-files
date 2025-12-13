@@ -9,6 +9,12 @@
 ## Goal
 Define architecture and design decisions for {{description}}.
 
+## Design Priorities
+Testability → Readability → Consistency → Simplicity → Reversibility
+
+## Architecture Preferences
+Composition over inheritance. Interfaces over singletons. Explicit over implicit.
+
 ## Key Decisions
 ### Architecture Choice
 - **Decision**: Architecture pattern selected
