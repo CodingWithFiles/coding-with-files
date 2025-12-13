@@ -91,7 +91,37 @@ Execute structured 8-step workflow for any task:
 - `/cig-subtask`: Signature changed to include task numbers and type
 - `/cig-extract`: Now accepts task-path instead of file-path (backward compatible)
 
-Old v1.0 tasks continue to work. New v2.0 tasks use hierarchical structure with 8 workflow files (a-h).
+**Migrating Existing v1.0 Tasks**:
+
+Old v1.0 tasks continue to work, but you can migrate them to v2.0 hierarchical structure using the migration tools:
+
+```bash
+# Preview migration (dry-run - shows changes without applying)
+.cig/scripts/migrate-v1-to-v2.sh --dry-run all
+
+# Migrate all v1.0 tasks to v2.0
+.cig/scripts/migrate-v1-to-v2.sh all
+
+# Migrate specific task only
+.cig/scripts/migrate-v1-to-v2.sh 1
+
+# Rollback if needed
+.cig/scripts/rollback-migration.sh
+```
+
+**Migration Process**:
+1. Creates backup (git tag or manual directory backup)
+2. Moves directories: `implementation-guide/{type}/{num}-{desc}/` → `implementation-guide/{num}-{type}-{desc}/`
+3. Renames workflow files: `plan.md` → `a-plan.md`, `requirements.md` → `b-requirements.md`, etc.
+4. Adds `Template Version: 2.0` and `Migration` tracking fields
+5. Validates content integrity with SHA256 hashes
+6. Provides rollback command if anything fails
+
+**Important**:
+- Migration requires clean git working directory (no uncommitted changes)
+- Git-based rollback uses `git reset --hard` - ensure you have committed work
+- All file contents are preserved, only structure changes
+
 See `.cig/docs/workflow/` for complete workflow documentation.
 
 ## Task Types

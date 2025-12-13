@@ -2,6 +2,10 @@
 scratchpad.md
 scratchpad
 
+# Migration artifacts (v1.0 → v2.0)
+.cig/migration-backup/
+.cig/migration-state.json
+
 # Silly files left around by macOS
 .DS_Store
 Thumbs.db

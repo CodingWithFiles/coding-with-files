@@ -31,6 +31,24 @@
       "sha256": "320771f242c9e7580e4208d017e0b9d68af2c76403dbba615d0176effa37374e",
       "permissions": "0500",
       "description": "Extract parent task context with headers, line ranges, and status markers"
+    },
+    "migrate-v1-to-v2.sh": {
+      "path": ".cig/scripts/migrate-v1-to-v2.sh",
+      "sha256": "e068d76194b5de47c457da18c1eb0996fccadf1f8b05203154811172c9685a76",
+      "permissions": "0500",
+      "description": "Migrate v1.0 tasks to v2.0 hierarchical structure with git-first backup"
+    },
+    "validate-migration.sh": {
+      "path": ".cig/scripts/validate-migration.sh",
+      "sha256": "efb506455b535ef3367491bb1e97d8695e3bdf14956cfc039a64a294f0495d11",
+      "permissions": "0500",
+      "description": "Validate migrated task integrity (Template Version, Migration field, structure)"
+    },
+    "rollback-migration.sh": {
+      "path": ".cig/scripts/rollback-migration.sh",
+      "sha256": "20b653c381c809bd1247aca1a75e218256f80b7262c69fbedd308695b9428730",
+      "permissions": "0500",
+      "description": "Rollback migration to v1.0 using git tag or manual backup"
     }
   }
 }
