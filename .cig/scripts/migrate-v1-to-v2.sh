@@ -374,10 +374,7 @@ main() {
     echo "=== Discovery Phase ===" >&2
     local tasks=$(discover_v1_tasks)
 
-    # Show what we found
-    echo "$tasks" | grep "^SKIP" | while IFS='|' read -r status num path reason; do
-        echo "  ⊘ Task $num: $reason" >&2
-    done
+    # Show what we found (SKIP lines are already on stderr from discover_v1_tasks)
 
     local migrate_tasks=$(echo "$tasks" | grep "^MIGRATE" || echo "")
     if [[ -z "$migrate_tasks" ]]; then
