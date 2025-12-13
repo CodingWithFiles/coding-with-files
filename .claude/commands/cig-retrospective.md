@@ -1,96 +1,57 @@
 ---
-description: Facilitate post-completion analysis and variance tracking
+description: Guide user through retrospective phase
 argument-hint: <task-path>
-allowed-tools: Read, Write, Bash(.cig/scripts/command-helpers/cig-load-status-sections), Bash(.cig/scripts/command-helpers/cig-find-task-numbering-structure), Bash(egrep:*), Bash(echo:*), Bash(find:*)
+allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/hierarchy-resolver.sh), Bash(.cig/scripts/command-helpers/context-inheritance.pl), Bash(.cig/scripts/command-helpers/format-detector.sh), Bash(egrep:*), Bash(echo:*), Bash(find:*)
 ---
 
 ## Context
-- Task sections: !`egrep -rn '^## (Original Estimate|Actual Results|Lessons Learned)' implementation-guide/ --include="*.md" 2>/dev/null || echo "No estimate/results sections found"`
-- Completion status: !`.cig/scripts/command-helpers/cig-load-status-sections`
-- Available tasks: !`.cig/scripts/command-helpers/cig-find-task-numbering-structure`
+See `.cig/docs/context/tools.md` for context tool documentation.
+
+- Task resolution: !`.cig/scripts/command-helpers/hierarchy-resolver.sh $ARGUMENTS 2>/dev/null || echo "Task path required"`
+- Parent context: !`.cig/scripts/command-helpers/context-inheritance.pl $ARGUMENTS 2>/dev/null || echo "No parent context (top-level task or invalid path)"`
 
 ## Your task
-Generate retrospective analysis for: **$ARGUMENTS**
+Guide the user through the retrospective phase for task: **$ARGUMENTS**
 
-**Parse arguments**: `<task-path>`
-- task-path: Path to completed task (e.g., "feature/1-user-auth" or full path)
+Follow the 8-step workflow structure:
 
-**Steps**:
-1. **Locate task documents** by searching for task-path in directory structure
-2. **Extract planning data**:
-   - Original Estimate sections from all task documents
-   - Success Criteria and goals from plan.md
-   - Dependencies and constraints identified during planning
-3. **Gather actual results**:
-   - Current Status sections showing completion
-   - Any existing Actual Results documentation
-   - Implementation timeline and effort data
-4. **Calculate variances**:
-   - Time estimates vs. actual time spent
-   - Scope changes and additions during implementation
-   - Dependency resolution vs. original assumptions
-5. **Generate retrospective report** with:
-   - **What Went Well**: Successes and positive outcomes
-   - **What Could Be Improved**: Areas for enhancement
-   - **Key Learnings**: Insights for future similar work
-   - **Process Improvements**: Suggested changes to approach
-6. **Update task documents**:
-   - Fill in any missing Actual Results sections
-   - Add comprehensive Lessons Learned content
-   - Mark task as completed with retrospective date
+1. **Resolve Task Directory**: Use hierarchy-resolver.sh
+2. **Load Parent Context**: Use context-inheritance.pl for subtasks
+3. **Present Context Summary**: Show structural map with status markers
+4. **LLM Decision**: Read specific parent sections and all task workflow files
+5. **Reference Workflow Documentation**: Read `.cig/docs/workflow/workflow-steps.md#retrospective`
+6. **Execute Retrospective Workflow**:
+   - Open h-retrospective.md (v2.0 only - retrospective is new format only)
+   - **Focus on**: Variance analysis, what went well, what could be improved, key learnings, recommendations
+   - **Avoid**: Future work planning (unless captured as recommendations)
 
-**Retrospective Report Structure**:
-```markdown
-# Retrospective: {Task Name}
+   Steps to complete retrospective:
+   - **Extract planning data**: Read original estimates, success criteria, goals from a-plan.md/plan.md
+   - **Gather actual results**: Review status sections, implementation timeline
+   - **Calculate variances**: Compare time estimates vs actual, scope changes, dependency resolution
+   - **Generate retrospective report**:
+     - Executive Summary: Duration, scope comparison, outcome
+     - Variance Analysis: Time/effort, scope changes, quality metrics
+     - What Went Well: Successes, effective processes, collaboration highlights
+     - What Could Be Improved: Challenges, inefficiencies, gaps
+     - Key Learnings: Technical insights, process learnings, risk mitigation strategies
+     - Recommendations: Process improvements, tool recommendations, future work
+   - **Update task documents**: Fill in Actual Results and Lessons Learned sections in all workflow files
 
-## Executive Summary
-- **Duration**: X days (estimated: Y days, variance: ±Z%)
-- **Scope**: Original vs. final scope comparison
-- **Outcome**: Success level and business impact
+7. **Check Decomposition Signals**: N/A for retrospective (task is complete)
+8. **Suggest Next Steps**:
+   - **Primary**: Task complete, archive materials, update knowledge base
+   - **Alternative**: Create follow-up tasks based on recommendations
+   - **Alternative**: Share learnings with team
 
-## Variance Analysis
-### Time and Effort
-- **Estimated**: Original time estimates by phase
-- **Actual**: Actual time spent by phase
-- **Variance**: Analysis of over/under estimates
-
-### Scope Changes
-- **Additions**: Features/requirements added during implementation
-- **Removals**: Items descoped or deferred
-- **Impact**: Effect on timeline and complexity
-
-## What Went Well
-- Successes and positive outcomes
-- Effective processes and practices
-- Team collaboration highlights
-
-## What Could Be Improved
-- Challenges faced and their impact
-- Process inefficiencies identified
-- Resource or skill gaps encountered
-
-## Key Learnings
-- Technical insights gained
-- Process learnings for future work
-- Risk mitigation strategies discovered
-
-## Recommendations
-- Process improvements for similar future tasks
-- Tool or technique recommendations
-- Team skill development suggestions
-```
-
-**Retrospective Facilitation**:
-- **Prompt for missing data**: If Actual Results are incomplete, guide user to fill them in
-- **Ask clarifying questions**: Help identify lessons learned through guided questions
-- **Suggest improvements**: Based on variance analysis, suggest process improvements
-- **Document insights**: Ensure learnings are captured for future reference
-
-**Error Handling**:
-- **Error**: Task not found or incomplete
-- **Cause**: Task path doesn't exist or task not marked completed
-- **Solution**: Verify task path and completion status before proceeding
-- **Example**: Use /cig-status to see available completed tasks
-- **Uncertainty**: If task completion status unclear, ask user to confirm task is ready for retrospective
-
-**Success**: Comprehensive retrospective completed with actionable insights for future work
+## Success Criteria
+- [ ] Retrospective file (h-retrospective.md) opened and updated
+- [ ] Planning data extracted from workflow files
+- [ ] Actual results gathered from task execution
+- [ ] Variance analysis completed (time, scope, quality)
+- [ ] What went well documented
+- [ ] What could be improved identified
+- [ ] Key learnings captured
+- [ ] Recommendations provided for future work
+- [ ] Actual Results sections updated in all workflow files
+- [ ] Task marked as complete with retrospective date

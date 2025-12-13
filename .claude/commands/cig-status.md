@@ -1,47 +1,64 @@
 ---
-description: Show progress across implementation guide hierarchy
-argument-hint: [path]
-allowed-tools: Read, LS, Bash(.cig/scripts/command-helpers/cig-load-existing-tasks), Bash(.cig/scripts/command-helpers/cig-load-status-sections), Bash(.cig/scripts/command-helpers/cig-find-task-numbering-structure), Bash(egrep:*), Bash(echo:*), Bash(find:*)
+description: Show progress across implementation guide hierarchy (v2.0)
+argument-hint: [task-path]
+allowed-tools: Read, Bash(.cig/scripts/command-helpers/hierarchy-resolver.sh), Bash(.cig/scripts/command-helpers/status-aggregator.sh), Bash(egrep:*), Bash(echo:*), Bash(find:*)
 ---
 
 ## Context
-- Full implementation structure: !`.cig/scripts/command-helpers/cig-load-existing-tasks`
-- Current status sections: !`.cig/scripts/command-helpers/cig-load-status-sections`
-- Directory hierarchy: !`.cig/scripts/command-helpers/cig-find-task-numbering-structure`
+- Task hierarchy with progress: !`.cig/scripts/command-helpers/status-aggregator.sh 2>/dev/null || echo "Unable to load status"`
 
 ## Your task
-Analyse completion status for: **$ARGUMENTS** (or all tasks if no path specified)
+Analyze completion status for: **$ARGUMENTS** (or all tasks if no path specified)
+
+**Arguments**:
+- task-path (optional): Specific task number to show (e.g., "1", "1.1") - shows task and all descendants
+- No argument: Show all tasks in hierarchy
+
+**Examples**:
+- `/cig-status` - Show all tasks
+- `/cig-status 1` - Show task 1 and all subtasks
+- `/cig-status 1.1` - Show task 1.1 and all its subtasks
 
 **Steps**:
-1. **Parse current status sections** from all relevant documents
-2. **Calculate completion percentages** based on:
-   - Success criteria checkboxes completed
-   - Current status indicators (Not Started|In Progress|Completed)
-   - Actual Results vs Original Estimate completion
-3. **Show hierarchical progress** with parent task aggregation
-4. **Identify blockers** from status sections
-5. **Display categorised overview**:
-   - Feature progress (X/Y tasks completed)
-   - Bugfix progress (X/Y tasks completed) 
-   - Hotfix progress (X/Y tasks completed)
-   - Chore progress (X/Y tasks completed)
 
-**Output Format**:
+### 1. Resolve Task Path (if provided)
+- If task-path provided: Use `hierarchy-resolver.sh <task-path>` to verify task exists
+- If no path: Show all tasks starting from implementation-guide/ root
+
+### 2. Calculate Progress with status-aggregator.sh
+- Call `status-aggregator.sh [task-path]` to get progress calculations
+- Returns: Task tree with progress percentages and status indicators
+- Progress calculated using status markers from workflow files
+- Formula: `MAX(IF(MAX(all) >= 25%) THEN 25% ELSE 0%, MIN(all status))`
+
+### 3. Display Visual Tree
+Format output from status-aggregator.sh with visual indicators:
+- ✓ : Finished (100% progress)
+- ⚙️ : In Progress (1-99% progress)
+- ○ : Not Started (0% progress)
+
+Example tree:
 ```
-Implementation Guide Status Report
+Task Progress:
 
-CATEGORY OVERVIEW:
-✅ Feature: 2/3 tasks completed (67%)
-🔧 Bugfix: 1/2 tasks completed (50%)
-🚨 Hotfix: 0/1 tasks completed (0%)
-⚙️ Chore: 3/3 tasks completed (100%)
-
-ACTIVE TASKS:
-📋 feature/1-user-auth [In Progress] - Next: Complete testing
-🐛 bugfix/2-login-error [In Progress] - Blocker: Awaiting staging environment
-
-COMPLETED RECENTLY:
-✅ chore/3-dependency-update [Completed] - Lessons learned captured
+✓ 1 (feature): user-authentication - 100%
+  ⚙️ 1.1 (chore): database-schema - 50%
+    ✓ 1.1.1 (feature): user-model - 100%
+    ○ 1.1.2 (feature): auth-tokens - 0%
+  ○ 1.2 (feature): password-reset - 0%
+○ 2 (bugfix): login-validation - 0%
 ```
 
-**Success**: Clear visibility into project progress and current focus areas
+### 4. Provide Context
+For tasks in progress, optionally show:
+- Current workflow step (based on file status markers)
+- Next recommended action based on workflow progression
+- Blockers if mentioned in status sections
+
+### 5. Summary Statistics (optional)
+If showing all tasks, provide summary:
+- Total tasks by type (feature/bugfix/hotfix/chore)
+- Overall completion percentage
+- Tasks by status (Finished, In Progress, Not Started)
+
+**Success**: Clear hierarchical visibility into project progress with accurate progress calculations

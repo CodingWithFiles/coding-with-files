@@ -1,0 +1,36 @@
+{
+  "version": "2.0",
+  "last_updated": "2025-12-13",
+  "scripts": {
+    "hierarchy-resolver.sh": {
+      "path": ".cig/scripts/command-helpers/hierarchy-resolver.sh",
+      "sha256": "01b217c4f9713bc6925e4424e5ae1eef61b3b11164ec7239750186d0a7bae383",
+      "permissions": "0500",
+      "description": "Resolve task paths to full directory paths with metadata"
+    },
+    "format-detector.sh": {
+      "path": ".cig/scripts/command-helpers/format-detector.sh",
+      "sha256": "550a22fbe442c5879e42342b7929cf8d3abbfa687d1e3449337a41d1f2bad5fd",
+      "permissions": "0500",
+      "description": "Detect template version and compare against expected version"
+    },
+    "status-aggregator.sh": {
+      "path": ".cig/scripts/command-helpers/status-aggregator.sh",
+      "sha256": "0ca00b5b1025bb835205f1c7838d42c41e568e88953d7bade9fbad1cf5e24fd2",
+      "permissions": "0500",
+      "description": "Calculate task progress from status markers"
+    },
+    "template-version-parser.sh": {
+      "path": ".cig/scripts/command-helpers/template-version-parser.sh",
+      "sha256": "5a7e79bc117a82e1a29b3634675c79528f395bc282a34184328820b8371cd765",
+      "permissions": "0500",
+      "description": "Parse Template Version field from workflow files"
+    },
+    "context-inheritance.pl": {
+      "path": ".cig/scripts/command-helpers/context-inheritance.pl",
+      "sha256": "320771f242c9e7580e4208d017e0b9d68af2c76403dbba615d0176effa37374e",
+      "permissions": "0500",
+      "description": "Extract parent task context with headers, line ranges, and status markers"
+    }
+  }
+}

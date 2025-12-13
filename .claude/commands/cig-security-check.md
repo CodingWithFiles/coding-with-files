@@ -7,7 +7,8 @@ allowed-tools: Read, Bash(.cig/scripts/command-helpers/cig-load-project-config),
 ## Context
 - Project config: !`.cig/scripts/command-helpers/cig-load-project-config`
 - CIG commands: !`find .claude/commands -name "cig-*.md" -type f 2>/dev/null || echo "No CIG commands found"`
-- Helper scripts: !`find .cig/scripts/command-helpers -name "cig-*" -type f 2>/dev/null || echo "No helper scripts found"`
+- Helper scripts (v1.0): !`find .cig/scripts/command-helpers -name "cig-*" -type f 2>/dev/null || echo "No v1.0 helper scripts found"`
+- Helper scripts (v2.0): !`find .cig/scripts/command-helpers -name "*.sh" -o -name "*.pl" -type f 2>/dev/null || echo "No v2.0 helper scripts found"`
 
 ## Your task
 Verify security and integrity of CIG system files: **$ARGUMENTS**
@@ -17,20 +18,32 @@ Verify security and integrity of CIG system files: **$ARGUMENTS**
 - report: Generate summary report of current file status
 
 **Steps**:
-1. **Load security configuration** from `cig-project.json` security section
-2. **Verify helper scripts**:
-   - Check script frontmatter for version and source information
-   - Extract expected version from project config
+1. **Load security configuration** from `cig-project.json` security section or `.cig/security/script-hashes.json`
+2. **Verify v2.0 helper scripts** (priority check):
+   - hierarchy-resolver.sh
+   - format-detector.sh
+   - status-aggregator.sh
+   - template-version-parser.sh
+   - context-inheritance.pl
+   - Check permissions: Must have u+rx (at least 0500)
    - Calculate SHA256 hash of each script file
-   - Compare with canonical source (GitHub/GitLab repository)
-3. **Verify CIG commands**:
+   - Compare with expected hashes from `.cig/security/script-hashes.json`
+3. **Verify v1.0 helper scripts** (legacy):
+   - cig-load-autoload-config
+   - cig-load-project-config
+   - cig-load-existing-tasks
+   - cig-find-task-numbering-structure
+   - cig-load-status-sections
+   - Same permission and hash verification
+4. **Verify CIG commands**:
    - Check command files for version indicators
    - Validate against configured patterns in security.file-integrity section
-4. **Generate integrity report**:
+5. **Generate integrity report**:
    - File-by-file verification status
+   - Permission verification (u+rx minimum)
    - Version mismatches or discrepancies
    - Missing frontmatter or source information
-   - Hash verification against remote canonical source
+   - Hash verification against stored hashes
 
 **Verification Process**:
 - **Local Git**: Use `git ls-tree {ref} -- {path}` for local repository verification
