@@ -410,13 +410,67 @@ Helper scripts automate deterministic tasks, LLM provides intelligence.
 - [ ] Migration path documented (subtask 3.1)
 - [ ] All acceptance criteria from requirements.md validated
 
-## Current Status
-**Status**: In Progress
-**Next Action**: Begin Step 1 - Create Template Pool
-**Blockers**: None identified
+## Status
+**Status**: Finished
+**Next Action**: N/A - Implementation complete, merged to main Dec 14, 2025 (commit 14ff27d)
+**Blockers**: None
 
 ## Actual Results
-*To be filled upon completion*
+Successfully implemented complete hierarchical workflow system with v2.0 structure:
+
+**Template Pool** (`.cig/templates/pool/`):
+- 8 lettered workflow templates (a-plan.md through h-retrospective.md)
+- Symlink structure in task type directories (feature, bugfix, hotfix, chore)
+- DRY principle: single source of truth for all templates
+- Type-specific file sets: feature (8 files), bugfix (5 files), hotfix (5 files), chore (4 files)
+
+**Helper Scripts** (`.cig/scripts/command-helpers/`):
+- `hierarchy-resolver.sh` - Resolves task paths from decimal notation (1, 1.1, 1.1.1, etc.)
+- `format-detector.sh` - Detects v1.0 vs v2.0 task format for backward compatibility
+- `status-aggregator.sh` - Calculates hierarchical task progress with configuration-driven status values
+- `version-parser.sh` - Parses git-based version strings (v0.1.1-5-gcea1c19 format)
+- `context-inheritance.pl` - Generates token-efficient parent context maps (~90% reduction)
+
+**Workflow Commands** (`.claude/commands/`):
+- 8 new workflow commands: cig-plan, cig-requirements, cig-design, cig-implementation, cig-testing, cig-rollout, cig-maintenance, cig-retrospective
+- 5 updated core commands: cig-new-task, cig-subtask, cig-status, cig-extract, cig-security-check
+- Progressive disclosure pattern: commands reference documentation instead of duplicating content
+
+**Workflow Documentation** (`.cig/docs/workflow/`):
+- workflow-overview.md - High-level system description and principles
+- workflow-steps.md - Detailed 8-step workflow guide with focus/avoid guidance
+- decomposition-guide.md - Universal decomposition criteria (5 signals)
+
+**Security Configuration**:
+- SHA256 hashes for all helper scripts in `.cig/security/script-hashes.json`
+- Script permissions set to 0500 (u+rx minimum) for security
+- Git-based version tracking and verification
+
+**Project Configuration**:
+- `cig-project.json` with configuration-driven status values
+- Hierarchical directory structure support (5 levels deep)
+- Decimal task numbering (1, 1.1, 1.1.1, etc.)
+
+**Git Stats**: 14 commits merged to main via commit 14ff27d on Dec 14, 2025
 
 ## Lessons Learned
-*To be captured during implementation*
+
+**Dogfooding Challenges**:
+- Building a workflow system while using it creates meta-documentation requirements
+- Task 3's own workflow files were deprioritized during implementation rush
+- Retrospective was skipped due to already working on task 4
+- **Learning**: Even when dogfooding, complete all workflow phases before moving to next task
+
+**Architecture Wins**:
+- Symlink-based template pool eliminated duplication across task types (DRY principle)
+- Token-efficient context inheritance (~90% reduction) proved critical for deep hierarchies
+- Helper scripts encapsulating deterministic operations reduced LLM cognitive load significantly
+- Progressive disclosure pattern improved maintainability and reduced token consumption
+- Security-first approach (SHA256 verification, permission checks) caught issues early
+
+**Process Insights**:
+- Progressive disclosure pattern (commands reference docs, don't duplicate) improved maintainability
+- Security-first approach (SHA256 verification, permission checks) caught issues early
+- Git-first backup strategy in migration tools provided confidence for users
+- Clear decomposition signals (5 criteria) helped identify when tasks need breaking down
+- Configuration-driven status system (cig-project.json) eliminated hardcoded values
