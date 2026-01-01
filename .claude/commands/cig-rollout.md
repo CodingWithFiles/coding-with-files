@@ -13,6 +13,8 @@ See `.cig/docs/context/tools.md` for context tool documentation.
 ## Your task
 Guide the user through the rollout phase for task: **$ARGUMENTS**
 
+**Helper scripts location**: `.cig/scripts/command-helpers/`
+
 Follow the 8-step workflow structure:
 
 1. **Resolve Task Directory**: Use hierarchy-resolver.sh

@@ -10,6 +10,8 @@ allowed-tools: Read, Bash(.cig/scripts/command-helpers/hierarchy-resolver.sh:*),
 ## Your task
 Extract section from task: **$ARGUMENTS**
 
+**Helper scripts location**: `.cig/scripts/command-helpers/`
+
 ⚠️  **BREAKING CHANGE from v1.0**: New signature `<task-path> <section-name>` (task-based instead of file-based)
 
 **Parse arguments**: `<task-path> <section-name>`

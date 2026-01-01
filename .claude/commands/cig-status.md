@@ -10,6 +10,8 @@ allowed-tools: Read, Bash(.cig/scripts/command-helpers/hierarchy-resolver.sh:*),
 ## Your task
 Analyze completion status for: **$ARGUMENTS** (or all tasks if no path specified)
 
+**Helper scripts location**: `.cig/scripts/command-helpers/`
+
 **Arguments**:
 - task-path (optional): Specific task number to show (e.g., "1", "1.1") - shows task and all descendants
 - No argument: Show all tasks in hierarchy

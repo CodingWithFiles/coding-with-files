@@ -12,6 +12,8 @@ allowed-tools: Write, Read, LS, Bash(git:*), Bash(.cig/scripts/command-helpers/c
 ## Your task
 Configure CIG system: **$ARGUMENTS**
 
+**Helper scripts location**: `.cig/scripts/command-helpers/`
+
 **Parse arguments**: `[init|list|reset]`
 - init: Initialise global CIG configuration at `~/.cig/`
 - list: Show current configuration locations and content

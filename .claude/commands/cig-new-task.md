@@ -10,6 +10,8 @@ allowed-tools: Write, Read, Bash(ln:*), Bash(cp:*), Bash(git:*), Bash(.cig/scrip
 ## Your task
 Create new hierarchical implementation guide for: **$ARGUMENTS**
 
+**Helper scripts location**: `.cig/scripts/command-helpers/`
+
 ⚠️  **BREAKING CHANGE from v1.0**: New signature `<num> <type> "description"`
 
 **Parse arguments**: `<num> <type> "description"`

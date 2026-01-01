@@ -14,6 +14,8 @@ See `.cig/docs/context/tools.md` for context tool documentation.
 ## Your task
 Create subtask within parent: **$ARGUMENTS**
 
+**Helper scripts location**: `.cig/scripts/command-helpers/`
+
 **Parse arguments**: `<parent-path> <num> <type> "description"`
 - parent-path: Parent task number (e.g., "1", "1.1", "1.1.1")
 - num: Subtask number component (e.g., for parent "1", use "1.1"; for parent "1.1", use "1.1.1")

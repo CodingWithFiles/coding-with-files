@@ -13,6 +13,8 @@ See `.cig/docs/context/tools.md` for context tool documentation.
 ## Your task
 Guide the user through the planning phase for task: **$ARGUMENTS**
 
+**Helper scripts location**: `.cig/scripts/command-helpers/`
+
 ### Step 1: Resolve Task Directory
 Parse the task path argument and resolve to full directory:
 - Use `hierarchy-resolver.sh <task-path>` to find the task directory

@@ -13,6 +13,8 @@ allowed-tools: Read, Bash(.cig/scripts/command-helpers/cig-load-project-config),
 ## Your task
 Verify security and integrity of CIG system files: **$ARGUMENTS**
 
+**Helper scripts location**: `.cig/scripts/command-helpers/`
+
 **Parse arguments**: `[verify|report]`
 - verify: Perform full integrity verification against canonical source
 - report: Generate summary report of current file status
