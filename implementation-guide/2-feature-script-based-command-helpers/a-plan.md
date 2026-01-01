@@ -41,7 +41,7 @@ Replace compound bash operations in CIG commands with encapsulated shell scripts
 - Must preserve fallback behaviour for missing directories
 
 ## Current Status
-**Status**: Completed
+**Status**: Finished
 **Next Action**: Feature ready for production use
 **Blockers**: None
 

@@ -70,7 +70,7 @@ implementation-guide/
 **Status Markers** (FR2.4):
 Each workflow file includes standardised status markers enabling dynamic workflow transitions:
 - Minimum types: `Backlog`, `To-Do`, `In Progress`, `Implemented`, `Testing`, `Finished`
-- Format: `## Status: <status-type>` or `**Status**: <status-type>`
+- Format: `## Status: <value>` or `Status: <value>` (bold formatting)
 - Parseable by helper scripts and workflow commands
 - Additional project-specific status types permitted
 
@@ -569,7 +569,7 @@ Example: `context-inheritance.pl "1/1.1/1.1.1"`
    - Start: The header line itself
    - End: Line before next header of same/higher level, or EOF
 6. Parse status markers from each file:
-   - Patterns: `## Status: <status-type>` or `**Status**: <status-type>`
+   - Patterns: `## Status: <value>` or `Status: <value>` (bold formatting)
    - Default to "Unknown" if no status marker found
 7. Output markdown with file paths, status, headers, line ranges, and Read tool parameters
 
@@ -619,7 +619,7 @@ Example: `context-inheritance.pl "1/1.1/1.1.1"`
 **Status Parsing Logic** (Perl):
 ```perl
 # Parse status from workflow file
-# Patterns from FR2.4: `## Status: <status-type>` or `**Status**: <status-type>`
+# Patterns from FR2.4: `## Status: <value>` or `Status: <value>` (bold formatting)
 sub parse_status {
     my ($file_path) = @_;
     open(my $fh, '<', $file_path) or return "Unknown";

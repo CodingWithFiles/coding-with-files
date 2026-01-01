@@ -129,8 +129,8 @@ Patterns first → Test → Minimal impl → Refactor green → Commit message e
   - Error handling, permissions 0500
 - [ ] Create `.cig/scripts/command-helpers/status-aggregator.sh`
   - Status marker parsing from workflow files using patterns:
-    - Pattern 1: `## Status: <status-type>` (header format)
-    - Pattern 2: `**Status**: <status-type>` (bold format)
+    - Pattern 1: `## Status: <value>` (header format)
+    - Pattern 2: `Status: <value>` (bold format)
     - Case-insensitive matching for robustness
   - Status-to-percentage mapping (Backlog=0%, To-Do=0%, In Progress=25%, Implemented=50%, Testing=75%, Finished=100%)
   - Progress formula: `MAX(IF(MAX(all) >= 25%) THEN 25% ELSE 0%, MIN(all status))`
@@ -153,7 +153,7 @@ Patterns first → Test → Minimal impl → Refactor green → Commit message e
   - For each parent, find workflow files: a-plan.md, b-requirements.md, c-design.md, d-implementation.md (old format: plan.md, requirements.md, design.md, implementation.md)
   - Extract headers with `grep -n '^#+ '` to get structure and line numbers
   - Calculate section boundaries (start = header line, end = line before next same/higher level header or EOF)
-  - Parse status markers from each file (patterns: `## Status: <status>` or `**Status**: <status>`)
+  - Parse status markers from each file (patterns: `## Status: <value>` or `Status: <value>` bold formatting)
   - Support `--format=json` flag for JSON output (default: markdown)
   - Markdown output: Structural map with file paths, status markers, section headers, line ranges (Lstart-end), Read tool parameters (offset, limit)
   - JSON output: Programmatically parseable structure for automation

@@ -50,7 +50,7 @@ Fix CIG Command Permissions Issue and prevent regression.
 - Testing environment for command validation
 
 ## Current Status
-**Status**: Completed
+**Status**: Finished
 **Next Action**: N/A - Bug resolved
 **Blockers**: None
 

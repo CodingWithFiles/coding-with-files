@@ -32,7 +32,7 @@
 - **FR2.4**: Standardised status markers in workflow files:
   - Minimum status types: `Backlog`, `To-Do`, `In Progress`, `Implemented`, `Testing`, `Finished`
   - Status markers enable dynamic workflow transitions (FR6)
-  - Status format: `## Status: <status-type>` or `**Status**: <status-type>`
+  - Status format: `## Status: <value>` or `Status: <value>` (bold formatting)
   - Helper scripts and commands can parse status to determine workflow state
   - Additional project-specific status types permitted beyond minimum set
 
@@ -154,7 +154,7 @@
     - For each parent, locate workflow files: a-plan.md, b-requirements.md, c-design.md, d-implementation.md (or old format equivalents)
     - Extract document structure via header parsing (markdown headers with line numbers)
     - Calculate section boundaries (start line, end line) for each header
-    - Parse status markers from each file (patterns: `## Status: <status>` or `**Status**: <status>`)
+    - Parse status markers from each file (patterns: `## Status: <value>` or `Status: <value>` bold formatting)
     - Output structural map with: file paths, status markers, section headers, line ranges, Read tool parameters (offset, limit)
   - Output (default markdown): Structural map with headers, line ranges (Lstart-end), and Read tool parameters for LLM navigation
   - Output (JSON with --format=json): Programmatically parseable structure for automation

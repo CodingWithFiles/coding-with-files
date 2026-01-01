@@ -61,7 +61,7 @@ Implement all CIG slash commands (`/cig-init`, `/cig-new-task`, `/cig-status`, e
 - Error handling for invalid configurations required
 
 ## Current Status
-**Status**: Completed
+**Status**: Finished
 **Next Action**: N/A - Implementation finished
 **Blockers**: None
 
