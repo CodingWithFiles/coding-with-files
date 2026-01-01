@@ -1,13 +1,13 @@
 ---
 description: Guide user through planning phase
 argument-hint: <task-path>
-allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/hierarchy-resolver.sh:*), Bash(.cig/scripts/command-helpers/context-inheritance.pl:*), Bash(.cig/scripts/command-helpers/format-detector.sh:*), Bash(egrep:*), Bash(echo:*), Bash(find:*)
+allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/hierarchy-resolver.pl:*), Bash(.cig/scripts/command-helpers/context-inheritance.pl:*), Bash(.cig/scripts/command-helpers/format-detector.pl:*), Bash(egrep:*), Bash(echo:*), Bash(find:*)
 ---
 
 ## Context
 See `.cig/docs/context/tools.md` for context tool documentation.
 
-- Task resolution: !`.cig/scripts/command-helpers/hierarchy-resolver.sh $ARGUMENTS 2>/dev/null || echo "Task path required"`
+- Task resolution: !`.cig/scripts/command-helpers/hierarchy-resolver.pl $ARGUMENTS 2>/dev/null || echo "Task path required"`
 - Parent context: !`.cig/scripts/command-helpers/context-inheritance.pl $ARGUMENTS 2>/dev/null || echo "No parent context (top-level task or invalid path)"`
 
 ## Your task
@@ -17,7 +17,7 @@ Guide the user through the planning phase for task: **$ARGUMENTS**
 
 ### Step 1: Resolve Task Directory
 Parse the task path argument and resolve to full directory:
-- Use `hierarchy-resolver.sh <task-path>` to find the task directory
+- Use `hierarchy-resolver.pl <task-path>` to find the task directory
 - If task not found, provide clear error with available tasks
 - Extract task number, type, and slug from resolution
 
@@ -47,7 +47,7 @@ Review planning workflow guidance:
 
 ### Step 6: Execute Planning Workflow
 Open and work with the planning file (a-plan.md or plan.md based on format):
-- Use `format-detector.sh <task-dir> <workflow-file>` to check version
+- Use `format-detector.pl <task-dir> <workflow-file>` to check version
 - **Focus on**: Goals, success criteria, milestones, risks, decomposition signals
 - **Avoid**: Implementation details, code specifics, detailed design decisions
 - Capture: Original estimates, dependencies, constraints

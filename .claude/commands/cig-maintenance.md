@@ -1,13 +1,13 @@
 ---
 description: Guide user through maintenance phase
 argument-hint: <task-path>
-allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/hierarchy-resolver.sh:*), Bash(.cig/scripts/command-helpers/context-inheritance.pl:*), Bash(.cig/scripts/command-helpers/format-detector.sh:*), Bash(egrep:*), Bash(echo:*), Bash(find:*)
+allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/hierarchy-resolver.pl:*), Bash(.cig/scripts/command-helpers/context-inheritance.pl:*), Bash(.cig/scripts/command-helpers/format-detector.pl:*), Bash(egrep:*), Bash(echo:*), Bash(find:*)
 ---
 
 ## Context
 See `.cig/docs/context/tools.md` for context tool documentation.
 
-- Task resolution: !`.cig/scripts/command-helpers/hierarchy-resolver.sh $ARGUMENTS 2>/dev/null || echo "Task path required"`
+- Task resolution: !`.cig/scripts/command-helpers/hierarchy-resolver.pl $ARGUMENTS 2>/dev/null || echo "Task path required"`
 - Parent context: !`.cig/scripts/command-helpers/context-inheritance.pl $ARGUMENTS 2>/dev/null || echo "No parent context (top-level task or invalid path)"`
 
 ## Your task
@@ -17,7 +17,7 @@ Guide the user through the maintenance phase for task: **$ARGUMENTS**
 
 Follow the 8-step workflow structure:
 
-1. **Resolve Task Directory**: Use hierarchy-resolver.sh
+1. **Resolve Task Directory**: Use hierarchy-resolver.pl
 2. **Load Parent Context**: Use context-inheritance.pl for subtasks
 3. **Present Context Summary**: Show structural map with status markers
 4. **LLM Decision**: Read specific parent sections if needed

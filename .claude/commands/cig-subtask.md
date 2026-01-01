@@ -1,13 +1,13 @@
 ---
 description: Create sub-implementation task within existing task (v2.0)
 argument-hint: <parent-path> <num> <type> "description"
-allowed-tools: Write, Read, Bash(ln:*), Bash(cp:*), Bash(.cig/scripts/command-helpers/hierarchy-resolver.sh:*), Bash(.cig/scripts/command-helpers/context-inheritance.pl:*), Bash(.cig/scripts/command-helpers/cig-load-project-config), Bash(egrep:*), Bash(echo:*), Bash(find:*)
+allowed-tools: Write, Read, Bash(ln:*), Bash(cp:*), Bash(.cig/scripts/command-helpers/hierarchy-resolver.pl:*), Bash(.cig/scripts/command-helpers/context-inheritance.pl:*), Bash(.cig/scripts/command-helpers/cig-load-project-config), Bash(egrep:*), Bash(echo:*), Bash(find:*)
 ---
 
 ## Context
 See `.cig/docs/context/tools.md` for context tool documentation.
 
-- Parent resolution: !`.cig/scripts/command-helpers/hierarchy-resolver.sh ${ARGUMENTS%% *} 2>/dev/null || echo "Parent task required"`
+- Parent resolution: !`.cig/scripts/command-helpers/hierarchy-resolver.pl ${ARGUMENTS%% *} 2>/dev/null || echo "Parent task required"`
 - Parent context: !`.cig/scripts/command-helpers/context-inheritance.pl ${ARGUMENTS%% *} 2>/dev/null || echo "Unable to load parent context"`
 - Project config: !`.cig/scripts/command-helpers/cig-load-project-config`
 
@@ -30,7 +30,7 @@ Create subtask within parent: **$ARGUMENTS**
 **Steps**:
 
 ### 1. Resolve Parent Directory
-- Use `hierarchy-resolver.sh <parent-path>` to find parent directory
+- Use `hierarchy-resolver.pl <parent-path>` to find parent directory
 - Verify parent task exists
 - Extract parent task metadata (num, type, slug)
 

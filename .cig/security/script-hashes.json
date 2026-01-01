@@ -1,22 +1,22 @@
 {
   "version": "2.0",
-  "last_updated": "2025-12-14",
+  "last_updated": "2026-01-01",
   "scripts": {
-    "hierarchy-resolver.sh": {
-      "path": ".cig/scripts/command-helpers/hierarchy-resolver.sh",
-      "sha256": "01b217c4f9713bc6925e4424e5ae1eef61b3b11164ec7239750186d0a7bae383",
+    "hierarchy-resolver.pl": {
+      "path": ".cig/scripts/command-helpers/hierarchy-resolver.pl",
+      "sha256": "729aac8bddc89151c48bf4381ae0d3815ef357c614b507d1e0a18701798296a8",
       "permissions": "0500",
       "description": "Resolve task paths to full directory paths with metadata"
     },
-    "format-detector.sh": {
-      "path": ".cig/scripts/command-helpers/format-detector.sh",
-      "sha256": "550a22fbe442c5879e42342b7929cf8d3abbfa687d1e3449337a41d1f2bad5fd",
+    "format-detector.pl": {
+      "path": ".cig/scripts/command-helpers/format-detector.pl",
+      "sha256": "00622ef538513d10ec4239ff000b2c8d4a4c0bed117c2278c3e7b14184c9fd1b",
       "permissions": "0500",
       "description": "Detect template version and compare against expected version"
     },
-    "status-aggregator.sh": {
-      "path": ".cig/scripts/command-helpers/status-aggregator.sh",
-      "sha256": "905af10f0d25712e298f7d69785cdf7f46ec4f29a87d2bb4b0ff30338694f9f5",
+    "status-aggregator.pl": {
+      "path": ".cig/scripts/command-helpers/status-aggregator.pl",
+      "sha256": "9cd91b537e33a3d0b161ac73a93d8d2e2df8608f0dbce71724b6cae04198c0dc",
       "permissions": "0500",
       "description": "Calculate task progress from status markers"
     },
@@ -28,7 +28,7 @@
     },
     "context-inheritance.pl": {
       "path": ".cig/scripts/command-helpers/context-inheritance.pl",
-      "sha256": "320771f242c9e7580e4208d017e0b9d68af2c76403dbba615d0176effa37374e",
+      "sha256": "98bcd99dd011497e792984a17f742898a65f3bc24983c886f095ac14651080d6",
       "permissions": "0500",
       "description": "Extract parent task context with headers, line ranges, and status markers"
     },
@@ -49,6 +49,23 @@
       "sha256": "20b653c381c809bd1247aca1a75e218256f80b7262c69fbedd308695b9428730",
       "permissions": "0500",
       "description": "Rollback migration to v1.0 using git tag or manual backup"
+    }
+  },
+  "lib": {
+    "CIG::MarkdownParser": {
+      "path": ".cig/lib/CIG/MarkdownParser.pm",
+      "sha256": "cf0f01a455ce49d7e8d63051c91398955ffee4bd3f18042a63d602dde97b0ce1",
+      "description": "Markdown parsing with structure awareness for status extraction"
+    },
+    "CIG::TaskPath": {
+      "path": ".cig/lib/CIG/TaskPath.pm",
+      "sha256": "b3d4ba02d50269f51c72f40bd5797525c2d397b1c89a58ea09a85be6941f1f7e",
+      "description": "Task path normalization, validation, and resolution"
+    },
+    "CIG::WorkflowFiles": {
+      "path": ".cig/lib/CIG/WorkflowFiles.pm",
+      "sha256": "22ff05207155108af8f22ffba31ed1643a47262e373c6108fa16f4950c462a0e",
+      "description": "Workflow file operations, version detection, status mapping"
     }
   }
 }

@@ -1,4 +1,4 @@
-#!/usr/bin/env perl
+#!/usr/bin/perl -CDSL
 #
 # context-inheritance.pl - Extract parent task context with headers, line ranges, and status
 #
@@ -18,8 +18,12 @@
 use strict;
 use warnings;
 use File::Basename;
-use File::Spec;
-use Cwd 'abs_path';
+use FindBin;
+use lib "$FindBin::Bin/../../lib";
+
+use CIG::TaskPath qw(normalize validate build_glob resolve get_parent get_depth find_base_dir);
+use CIG::WorkflowFiles qw(list workflow_file_mappings);
+use CIG::MarkdownParser qw(extract_status);
 
 # Parse arguments
 if (@ARGV < 1) {
@@ -35,85 +39,50 @@ if (@ARGV > 1 && $ARGV[1] eq "--format=json") {
     $format = "json";
 }
 
-# Normalize task path (replace slashes with dots)
-$task_path =~ s/\//./g;
+# Normalize and validate task path
+$task_path = normalize($task_path);
 
-# Validate task path format
-unless ($task_path =~ /^[0-9]+(\.[0-9]+)*$/) {
+unless (validate($task_path)) {
     print STDERR "Error: Invalid task path format: $task_path\n";
     exit 1;
 }
 
-# Find the task directory
-my @path_parts = split(/\./, $task_path);
-my $search_pattern = "implementation-guide";
-
-foreach my $i (0 .. $#path_parts) {
-    my $component;
-    if ($i == 0) {
-        $component = "$path_parts[0]-*-*";
-    } else {
-        my $dot_path = join(".", @path_parts[0..$i]);
-        $component = "$dot_path-*-*";
-    }
-    $search_pattern .= "/$component";
+# Find base directory
+my $base_dir = find_base_dir();
+unless ($base_dir) {
+    print STDERR "Error: Cannot find implementation-guide directory\n";
+    exit 1;
 }
 
-# Find matching directory
-my @matches = glob($search_pattern);
-
-if (@matches == 0) {
+# Resolve task to verify it exists
+my $task_info = resolve($task_path, $base_dir);
+unless ($task_info) {
     print STDERR "Error: Task not found: $task_path\n";
     exit 2;
 }
 
-my $task_dir = $matches[0];
-
-# Extract parent paths (all except the last component)
-if (@path_parts <= 1) {
+# Check if this is a top-level task
+my $depth = get_depth($task_path);
+if ($depth <= 1) {
     print STDERR "Error: No parent tasks found (this is a top-level task)\n";
     exit 3;
 }
 
 # Build list of parent tasks
 my @parent_tasks;
-for my $depth (1 .. $#path_parts) {
-    my @parent_parts = @path_parts[0 .. $depth-1];
-    my $parent_num = join(".", @parent_parts);
+my @path_parts = split(/\./, $task_path);
 
-    # Find parent directory
-    my $parent_search = "implementation-guide";
-    foreach my $i (0 .. $#parent_parts) {
-        my $component;
-        if ($i == 0) {
-            $component = "$parent_parts[0]-*-*";
-        } else {
-            my $dot_path = join(".", @parent_parts[0..$i]);
-            $component = "$dot_path-*-*";
-        }
-        $parent_search .= "/$component";
-    }
+for my $d (1 .. $#path_parts) {
+    my $parent_num = join(".", @path_parts[0 .. $d-1]);
+    my $parent_info = resolve($parent_num, $base_dir);
 
-    my @parent_matches = glob($parent_search);
-    if (@parent_matches > 0) {
+    if ($parent_info) {
         push @parent_tasks, {
             num => $parent_num,
-            dir => $parent_matches[0]
+            dir => $parent_info->{full_path}
         };
     }
 }
-
-# Workflow files to check (both old and new format)
-my @workflow_files = (
-    {old => 'plan.md', new => 'a-plan.md'},
-    {old => 'requirements.md', new => 'b-requirements.md'},
-    {old => 'design.md', new => 'c-design.md'},
-    {old => 'implementation.md', new => 'd-implementation.md'},
-    {old => 'testing.md', new => 'e-testing.md'},
-    {old => 'rollout.md', new => 'f-rollout.md'},
-    {old => 'maintenance.md', new => 'g-maintenance.md'},
-    {old => '', new => 'h-retrospective.md'}  # retrospective is new format only
-);
 
 # Function to extract headers with line numbers
 sub extract_headers {
@@ -177,32 +146,7 @@ sub calculate_boundaries {
     return @sections;
 }
 
-# Function to parse status marker from file
-sub parse_status {
-    my ($file_path) = @_;
-
-    open(my $fh, '<', $file_path) or return "Unknown";
-
-    while (my $line = <$fh>) {
-        # Pattern 1: ## Status: <status>
-        if ($line =~ /^##\s+Status:\s+(.+)$/i) {
-            close($fh);
-            my $status = $1;
-            $status =~ s/\s+$//;
-            return $status;
-        }
-        # Pattern 2: **Status**: <status>
-        if ($line =~ /\*\*Status\*\*:\s+(.+)$/i) {
-            close($fh);
-            my $status = $1;
-            $status =~ s/\s+$//;
-            return $status;
-        }
-    }
-
-    close($fh);
-    return "Unknown";
-}
+# parse_status is now provided by CIG::MarkdownParser::extract_status
 
 # Function to count lines in file
 sub count_lines {
@@ -223,8 +167,9 @@ foreach my $parent (@parent_tasks) {
 
     my @files_data;
 
-    # Check each workflow file
-    foreach my $wf (@workflow_files) {
+    # Check each workflow file using shared mappings
+    my $mappings = workflow_file_mappings();
+    foreach my $wf (@$mappings) {
         my $file_path;
         my $file_name;
 
@@ -239,8 +184,8 @@ foreach my $parent (@parent_tasks) {
             next;  # File doesn't exist, skip
         }
 
-        # Extract status
-        my $status = parse_status($file_path);
+        # Extract status using shared library
+        my $status = extract_status($file_path);
 
         # Extract headers
         my @headers = extract_headers($file_path);

@@ -1,7 +1,7 @@
 ---
 description: Create categorised implementation guide (v2.0 - hierarchical)
 argument-hint: <num> <type> "description"
-allowed-tools: Write, Read, Bash(ln:*), Bash(cp:*), Bash(git:*), Bash(.cig/scripts/command-helpers/hierarchy-resolver.sh:*), Bash(.cig/scripts/command-helpers/cig-load-project-config), Bash(egrep:*), Bash(echo:*), Bash(find:*)
+allowed-tools: Write, Read, Bash(ln:*), Bash(cp:*), Bash(git:*), Bash(.cig/scripts/command-helpers/hierarchy-resolver.pl:*), Bash(.cig/scripts/command-helpers/cig-load-project-config), Bash(egrep:*), Bash(echo:*), Bash(find:*)
 ---
 
 ## Context
@@ -43,7 +43,7 @@ Apply slug generation algorithm:
 - If top-level (e.g., "1"): `implementation-guide/1-{type}-{slug}/`
 - If subtask (e.g., "1.1"): Find parent directory, create subdirectory
   - Parent "1" → `implementation-guide/1-{parent-type}-{parent-slug}/1.1-{type}-{slug}/`
-  - Use hierarchy-resolver.sh to find parent if it exists
+  - Use hierarchy-resolver.pl to find parent if it exists
 
 ### 4. Create Directory
 - Create directory: `<num>-<type>-<slug>/`

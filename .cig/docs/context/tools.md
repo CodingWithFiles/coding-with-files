@@ -9,10 +9,10 @@ All workflow commands accept a single argument:
 
 ## Context Tools
 
-### hierarchy-resolver.sh
+### hierarchy-resolver.pl
 **Purpose**: Resolve task paths to full directory paths with metadata
 
-**Usage**: `.cig/scripts/command-helpers/hierarchy-resolver.sh <task-path>`
+**Usage**: `.cig/scripts/command-helpers/hierarchy-resolver.pl <task-path>`
 
 **Returns**:
 - Full directory path to task
@@ -54,7 +54,7 @@ Workflow commands should include this context section:
 
 ```markdown
 ## Context
-- Task resolution: !`.cig/scripts/command-helpers/hierarchy-resolver.sh $ARGUMENTS 2>/dev/null || echo "Task path required"`
+- Task resolution: !`.cig/scripts/command-helpers/hierarchy-resolver.pl $ARGUMENTS 2>/dev/null || echo "Task path required"`
 - Parent context: !`.cig/scripts/command-helpers/context-inheritance.pl $ARGUMENTS 2>/dev/null || echo "No parent context (top-level task or invalid path)"`
 ```
 
@@ -62,7 +62,7 @@ This provides automatic task resolution and parent context loading for every wor
 
 ## Progressive Disclosure Pattern
 
-1. **Step 1**: hierarchy-resolver.sh provides task location and metadata
+1. **Step 1**: hierarchy-resolver.pl provides task location and metadata
 2. **Step 2**: context-inheritance.pl provides structural map of parent context
 3. **Step 3**: LLM reviews structural map and decides what parent sections are relevant
 4. **Step 4**: LLM uses Read tool with offset/limit parameters to read only necessary parent sections
