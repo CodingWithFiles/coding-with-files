@@ -4,9 +4,10 @@
   "version": "v0.2.1",
   "supported-task-types": [
     "feature",
-    "bugfix", 
+    "bugfix",
     "hotfix",
-    "chore"
+    "chore",
+    "discovery"
   ],
   "branch-naming-convention": "{{task-type}}/{{task-id}}-{{description-slug}}",
   "task-tracking": {
@@ -49,6 +50,14 @@
       "implementation.md",
       "validation.md",
       "maintenance.md"
+    ],
+    "discovery": [
+      "plan.md",
+      "requirements.md",
+      "design.md",
+      "implementation.md",
+      "testing.md",
+      "retrospective.md"
     ]
   },
   "workflow": {

@@ -15,7 +15,12 @@ Each task progresses through lettered workflow steps (a-h), with each step havin
 7. **g-maintenance** (`/cig-maintenance`) - Establish ongoing support and optimization
 8. **h-retrospective** (`/cig-retrospective`) - Capture learnings and variance analysis
 
-Not all task types require all steps. Bugfixes skip requirements and rollout. Hotfixes focus on emergency deployment. Chores skip requirements, design, rollout, and maintenance.
+Not all task types require all steps:
+- **Feature**: All 8 steps (a-h)
+- **Bugfix**: 5 steps - skips requirements, rollout (a, c, d, e, h)
+- **Hotfix**: 5 steps - emergency focus (a, d, e, f, h)
+- **Chore**: 4 steps - skips requirements, design, rollout, maintenance (a, d, e, h)
+- **Discovery**: 6 steps - for research/analysis tasks, skips rollout and maintenance (a, b, c, d, e, h)
 
 ## Universal Decomposition Principle
 

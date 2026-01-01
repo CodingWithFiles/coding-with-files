@@ -16,7 +16,7 @@ Create new hierarchical implementation guide for: **$ARGUMENTS**
 
 **Parse arguments**: `<num> <type> "description"`
 - num: Task number in decimal notation (1, 1.1, 1.1.1, etc.)
-- type: feature|bugfix|hotfix|chore
+- type: feature|bugfix|hotfix|chore|discovery
 - description: Brief task description (will be slugified)
 
 **Examples**:
@@ -62,6 +62,7 @@ This automatically ensures correct template subset per task type:
 - **bugfix**: 5 files (a, c, d, e, h)
 - **hotfix**: 5 files (a, d, e, f, h)
 - **chore**: 4 files (a, d, e, h)
+- **discovery**: 6 files (a, b, c, d, e, h) - for research/analysis tasks
 
 ### 6. Populate Task Reference in All Files
 For each created workflow file, replace template placeholders:
