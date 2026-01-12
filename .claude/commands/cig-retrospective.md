@@ -7,18 +7,37 @@ allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/hierarchy-re
 ## Context
 See `.cig/docs/context/tools.md` for context tool documentation.
 
-- Task resolution: !`.cig/scripts/command-helpers/hierarchy-resolver.pl $ARGUMENTS 2>/dev/null || echo "Task path required"`
-- Parent context: !`.cig/scripts/command-helpers/context-inheritance.pl $ARGUMENTS 2>/dev/null || echo "No parent context (top-level task or invalid path)"`
-
-## Your task
-Guide the user through the retrospective phase for task: **$ARGUMENTS**
+**Task arguments**: $ARGUMENTS
 
 **Helper scripts location**: `.cig/scripts/command-helpers/`
 
+## Your task
+Guide the user through the retrospective phase.
+
+**CRITICAL - Argument Parsing**:
+- Extract the FIRST space-separated word from the task arguments above as the task path
+- Any additional words after the first provide user context about their intent
+- Use the extra words to understand what the user wants, but do NOT pass them to script calls
+- Example: "11 update the design" → task path is "11", extra text explains what to do
+
+**CRITICAL - Task Path Validation**:
+- Task paths MUST match hierarchical number format: digits separated by dots
+- Valid formats: "11", "1.2", "12.2.3", "1.1.1.1"
+- Invalid formats: "some text", "`date`", "11; rm -rf", "text.text"
+- If first word does NOT match valid format, inform user and do not invoke scripts
+- This prevents command injection and ensures only valid task identifiers reach scripts
+
 Follow the 8-step workflow structure:
 
-1. **Resolve Task Directory**: Use hierarchy-resolver.pl
-2. **Load Parent Context**: Use context-inheritance.pl for subtasks
+1. **Resolve Task Directory**:
+   - Extract first word from task arguments
+   - Validate it matches hierarchical number format (digits and dots only)
+   - If valid: call `.cig/scripts/command-helpers/hierarchy-resolver.pl <task-path>` using the Bash tool
+   - If invalid: inform user the task path format is invalid, do not invoke script
+
+2. **Load Parent Context**:
+   - Use the validated task path from step 1
+   - Call `.cig/scripts/command-helpers/context-inheritance.pl <task-path>` using the Bash tool
 3. **Present Context Summary**: Show structural map with status markers
 4. **LLM Decision**: Read specific parent sections and all task workflow files
 5. **Reference Workflow Documentation**: Read `.cig/docs/workflow/workflow-steps.md#retrospective`
