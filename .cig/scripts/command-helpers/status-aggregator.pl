@@ -18,6 +18,7 @@ use strict;
 use warnings;
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
+use File::Basename;
 
 use CIG::TaskPath qw(normalize validate resolve find_base_dir);
 use CIG::WorkflowFiles qw(list status_to_percent);
@@ -84,13 +85,22 @@ sub build_tree {
     # Build search pattern
     my $pattern;
     if ($task_num) {
-        $pattern = "$base_path/${task_num}-*-*";
+        $pattern = "$base_path/*-*-*";  # Glob all, filter below for hierarchical matching
     } else {
         $pattern = "$base_path/[0-9]*-*-*";
     }
 
     for my $dir (sort glob($pattern)) {
         next unless -d $dir;
+
+        # Filter for hierarchical task matches
+        if ($task_num) {
+            my $dir_name = (split('/', $dir))[-1];
+            # Match task_num followed by dot (subtask) or hyphen (same level)
+            # e.g., task_num="1" matches "1-*" and "1.1-*" but not "10-*"
+            # Edge cases handled: 1 vs 10, 1.1 vs 1.10, 99 vs 999
+            next unless $dir_name =~ /^${task_num}(?:\.|-)./;
+        }
 
         # Extract task info from directory name
         my $dir_name = (split('/', $dir))[-1];
@@ -147,6 +157,13 @@ if ($task_path) {
     unless ($result) {
         print STDERR "Error: Task not found: $task_path\n";
         exit 2;
+    }
+
+    # FIX 2: For nested tasks (depth > 1), search within parent directory
+    # This enables direct nested queries like "status-aggregator.pl 1.4"
+    # to work correctly by searching in the parent's subdirectories
+    if ($result->{depth} > 1) {
+        $base_dir = dirname($result->{full_path});
     }
 }
 
