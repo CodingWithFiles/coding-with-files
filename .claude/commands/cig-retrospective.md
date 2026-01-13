@@ -1,7 +1,7 @@
 ---
 description: Guide user through retrospective phase
 argument-hint: <task-path>
-allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/hierarchy-resolver.pl:*), Bash(.cig/scripts/command-helpers/context-inheritance.pl:*), Bash(.cig/scripts/command-helpers/format-detector.pl:*), Bash(egrep:*), Bash(echo:*), Bash(find:*)
+allowed-tools: Read, Write, Edit, Bash(git branch:*), Bash(git add:*), Bash(.cig/scripts/command-helpers/hierarchy-resolver.pl:*), Bash(.cig/scripts/command-helpers/context-inheritance.pl:*), Bash(.cig/scripts/command-helpers/format-detector.pl:*), Bash(egrep:*), Bash(echo:*), Bash(find:*)
 ---
 
 ## Context
@@ -35,13 +35,49 @@ Follow the 8-step workflow structure:
    - If valid: call `.cig/scripts/command-helpers/hierarchy-resolver.pl <task-path>` using the Bash tool
    - If invalid: inform user the task path format is invalid, do not invoke script
 
+1.5. **Verify Git Branch**:
+
+Before proceeding with retrospective, verify you're on the correct task branch:
+
+1. **Check current branch**:
+   ```bash
+   git branch --show-current
+   ```
+
+2. **Expected branch format**:
+   - Feature: `feature/<task-num>-<slug>`
+   - Bugfix: `bugfix/<task-num>-<slug>`
+   - Hotfix: `hotfix/<task-num>-<slug>`
+   - Chore: `chore/<task-num>-<slug>`
+
+3. **If on wrong branch**:
+   - STOP execution
+   - Inform user they should be on task branch for retrospective
+   - Suggest checking out correct branch: `git checkout <task-branch>`
+   - Do not proceed with retrospective until on correct branch
+
+**Rationale**: Retrospective should be executed on task branch to ensure git operations (status updates, commit amendments) are applied to correct branch before merging to main.
+
 2. **Load Parent Context**:
    - Use the validated task path from step 1
    - Call `.cig/scripts/command-helpers/context-inheritance.pl <task-path>` using the Bash tool
 3. **Present Context Summary**: Show structural map with status markers
 4. **LLM Decision**: Read specific parent sections and all task workflow files
 5. **Reference Workflow Documentation**: Read `.cig/docs/workflow/workflow-steps.md#retrospective`
-6. **Execute Retrospective Workflow**:
+6. **Verify Task Status**:
+
+Before documenting retrospective learnings, verify task is actually finished:
+
+1. **Verify workflow docs match reality**:
+   - Update all workflow step docs to match what has been finished
+   - If any required phase isn't finished, task cannot proceed to merge
+
+2. **Verify Task Status**:
+   - Run `/cig-status <task-path>` to verify 100% (all phases "Finished")
+   - **If <100%**: Task not finished - identify and finish missing work or create follow-up tasks
+   - **If 100%**: Proceed to Step 7 (Execute Retrospective)
+
+7. **Execute Retrospective Workflow**:
    - Open h-retrospective.md (v2.0 only - retrospective is new format only)
    - **Focus on**: Variance analysis, what went well, what could be improved, key learnings, recommendations
    - **Avoid**: Future work planning (unless captured as recommendations)
@@ -60,12 +96,39 @@ Follow the 8-step workflow structure:
    - **Update task documents**: Fill in Actual Results and Lessons Learned sections in all workflow files
 
    **Status Field**: Use valid status values only. See `.cig/docs/workflow/workflow-steps.md#status-values`.
+8. **Prepare Final Commit and Suggest Next Steps**:
 
-7. **Check Decomposition Signals**: N/A for retrospective (task is complete)
-8. **Suggest Next Steps**:
-   - **Primary**: Task complete, archive materials, update knowledge base
-   - **Alternative**: Create follow-up tasks based on recommendations
-   - **Alternative**: Share learnings with team
+With verification and retrospective finished (Steps 6-7):
+
+1. **Stage all files**:
+   ```bash
+   git add implementation-guide/<task-dir>/*.md <other-changed-files>
+   ```
+
+2. **Amend checkpoint commit** (if exists):
+   ```bash
+   git commit --amend
+   ```
+   Update commit message:
+   - Remove "(planning complete)" suffix from title
+   - Update status line from "Planning complete, ready for..." to "Finished with retrospective"
+   - Keep all technical details about changes made
+
+3. **Or create new commit** (if no checkpoint):
+   ```bash
+   git commit -m "Task <num>: [description] - Finished with retrospective
+
+   Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
+   ```
+
+4. **Suggest merge to main**:
+   ```bash
+   git checkout main
+   git merge --ff-only <task-branch>
+   ```
+
+**Primary Path**: Merge to main (task 100% finished with retrospective)
+**Alternative Paths**: Create follow-up tasks, share learnings with team
 
 ## Success Criteria
 - [ ] Retrospective file (h-retrospective.md) opened and updated
@@ -77,4 +140,7 @@ Follow the 8-step workflow structure:
 - [ ] Key learnings captured
 - [ ] Recommendations provided for future work
 - [ ] Actual Results sections updated in all workflow files
-- [ ] Task marked as complete with retrospective date
+- [ ] Verify task completion and update retrospective date
+- [ ] All workflow file statuses updated to "Finished"
+- [ ] Task verified at 100% via /cig-status
+- [ ] Final commit created/amended with retrospective
