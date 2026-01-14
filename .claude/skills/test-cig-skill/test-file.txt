@@ -1,0 +1,2 @@
+Test file to trigger PreToolUse and PostToolUse hooks.
+This write operation should trigger both hooks if they are working.

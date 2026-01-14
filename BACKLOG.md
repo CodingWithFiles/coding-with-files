@@ -64,3 +64,12 @@ Submit issue or PR to Claude Code repository to correct documentation showing `$
 **Priority**: Needs-Triage
 
 Create reusable documentation for the secure argument parsing pattern developed in Task 11. This pattern (LLM validates format → extracts arguments → invokes bash with literals) prevents command injection and handles arbitrary user input safely. Should be documented in `.cig/docs/` for use in future CIG commands or similar systems. Include: (1) Security model explanation, (2) Format validation regex patterns, (3) Example implementation, (4) Test scenarios.
+
+---
+
+## Task: Add --workflow Option to status-aggregator.pl
+
+**Task-Type**: feature
+**Priority**: Medium
+
+Add a `--workflow` command line option to `status-aggregator.pl` that provides a status breakdown for all workflow steps (a-plan.md, b-requirements.md, c-design.md, d-implementation.md, e-testing.md, f-rollout.md, g-maintenance.md, h-retrospective.md). Currently, `/cig-status` shows overall task progress (e.g., "25%") but doesn't show which specific workflow files are Finished, In Progress, or Backlog. The --workflow option would display: (1) Status of each workflow file, (2) Current workflow step highlighted, (3) Next recommended action based on progression. This improves visibility into task state and helps identify which phase a task is currently in.
