@@ -16,7 +16,7 @@
     },
     "status-aggregator.pl": {
       "path": ".cig/scripts/command-helpers/status-aggregator.pl",
-      "sha256": "9cd91b537e33a3d0b161ac73a93d8d2e2df8608f0dbce71724b6cae04198c0dc",
+      "sha256": "47eb97a2d5889a9eed3f3a9480c1495e6a256f9476ccd4ee53ecbf54d328a723",
       "permissions": "0500",
       "description": "Calculate task progress from status markers"
     },
@@ -72,6 +72,11 @@
       "path": ".cig/lib/CIG/WorkflowFiles.pm",
       "sha256": "22ff05207155108af8f22ffba31ed1643a47262e373c6108fa16f4950c462a0e",
       "description": "Workflow file operations, version detection, status mapping"
+    },
+    "CIG::Options": {
+      "path": ".cig/lib/CIG/Options.pm",
+      "sha256": "3deaf54bbb71dffa8a59ae4564a07fae57e433895249063354ea7fc45184bd22",
+      "description": "Simple command-line option parser with long/short option support"
     }
   }
 }

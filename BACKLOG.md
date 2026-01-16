@@ -97,3 +97,25 @@ Scripts to update: hierarchy-resolver.pl, context-inheritance.pl, status-aggrega
 **Priority**: Low
 
 Improve error message in `status-aggregator.pl` to clarify that it expects a task number (e.g., "17", "1.2.3"), not a full file path. Current error "Invalid task path format: 17-feature-new-helper-script-to-setup-templates-for-new-task" is confusing because users might provide the directory name or full path. Updated error should say something like "Error: Invalid task number format. Expected decimal notation (e.g., '17', '1.2', '1.2.3'), not a file path or directory name." This improves usability by helping users understand the correct input format immediately.
+
+---
+
+## Task: Fix d-implementation.md Template to Reference e-testing.md
+
+**Task-Type**: chore
+**Priority**: Low
+
+Remove duplicate "Test Coverage" and "Validation Criteria" sections from d-implementation.md template and replace with static reference to e-testing.md. Currently the d-implementation.md template (`.cig/templates/pool/d-implementation.md.template`) contains:
+1. **Line 67-70**: "Test Coverage" section with placeholder test cases
+2. **Line 72-76**: "Validation Criteria" section with test-related checkboxes
+
+**Problem**: This creates confusion about where tests belong and duplicates content between d-implementation.md and e-testing.md. The testing phase (e-testing.md) should be the single source of truth for test strategy, test cases, and validation criteria.
+
+**Solution**:
+1. Verify all 5 task types (feature, bugfix, hotfix, chore, discovery) use e-testing.md.template (VERIFIED: all include it)
+2. Replace "Test Coverage" section with: "**See e-testing.md for complete test plan**"
+3. Replace "Validation Criteria" with: "**See e-testing.md for validation criteria and test results**"
+4. Keep "Implementation Steps" as-is (includes Step 3: Testing and Step 5: Validation which reference executing the tests defined in e-testing.md)
+5. Update any existing tasks using the old template pattern (consider migration script or manual update)
+
+**Rationale**: Maintains single source of truth for testing, eliminates confusion about workflow phase responsibilities, and follows DRY principle.
