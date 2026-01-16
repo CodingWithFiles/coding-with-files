@@ -13,48 +13,20 @@ Deploy the updated CIG command files with secure argument parsing pattern. All 8
 
 ---
 
-## Task: Update cig-subtask.md with Secure Argument Parsing
-
-**Task-Type**: bugfix
-**Priority**: Medium
-
-Apply the same secure argument parsing pattern to `cig-subtask.md` that was implemented for the 8 workflow commands in Task 11. This command may use bash expansion with `$ARGUMENTS` and could have the same command injection vulnerability. Requires: (1) Remove inline bash execution, (2) Add LLM argument parsing instructions, (3) Add format validation for task paths, (4) Test with special characters and injection attempts.
-
----
-
-## Task: Verify and Update cig-status.md
-
-**Task-Type**: bugfix
-**Priority**: Medium
-
-Check if `cig-status.md` uses inline bash execution with `$ARGUMENTS` and update if needed. This command takes optional task path argument and may be vulnerable to command injection if using unsafe pattern. If vulnerable, apply same secure argument parsing pattern as Task 11. If already safe, document why and close task.
-
----
-
-## Task: Threat Model CIG Bash Invocations
+## Task: Security Review and Hardening of CIG Bash Invocations
 
 **Task-Type**: discovery
 **Priority**: Medium
 
-Systematic security review of all bash invocations in the CIG system to identify potential command injection vulnerabilities. Task 11 revealed that LLM-level validation is critical for security. Review all command files, helper scripts, and workflow documentation for places where user input reaches bash. Document threat model with attack scenarios and existing defenses. Create bugfix tasks for any vulnerabilities found.
+Comprehensive security review and hardening of all bash invocations in the CIG system to prevent command injection vulnerabilities. Task 11 revealed that LLM-level validation is critical for security.
 
----
+**Scope**:
+1. **Systematic review**: Audit all command files (`.claude/commands/cig-*.md`), helper scripts, and workflow documentation for places where user input reaches bash
+2. **Fix vulnerabilities**: Apply secure argument parsing pattern to any vulnerable commands (known candidates: cig-subtask.md, cig-status.md)
+3. **Complete testing**: Run TC-8 testing coverage for all commands (8 workflow commands + cig-subtask + cig-status) with special character patterns (quotes, backticks, shell metacharacters)
+4. **Document threat model**: Create comprehensive threat model with attack scenarios, existing defenses, and mitigation strategies
 
-## Task: Complete TC-8 Testing Coverage
-
-**Task-Type**: chore
-**Priority**: Low
-
-Test all 7 remaining workflow commands (cig-plan, cig-requirements, cig-design, cig-implementation, cig-rollout, cig-maintenance, cig-retrospective) with special character patterns to complete test coverage. TC-8 was deferred from Task 11 testing phase. While cig-testing was thoroughly tested (TC-1 through TC-7), the other 7 commands should be validated to ensure consistent behaviour. Test with at least one pattern containing quotes, backticks, or shell metacharacters per command.
-
----
-
-## Task: Submit Claude Code Documentation Fix
-
-**Task-Type**: chore
-**Priority**: Low
-
-Submit issue or PR to Claude Code repository to correct documentation showing `$1`, `$2`, `$3` variables that don't actually exist. Official docs at https://code.claude.com/docs/en/slash-commands.md show these variables, but GitHub issues #4370 and #5520 confirm only `$ARGUMENTS` exists. This caused significant time waste during Task 11 implementation. Documentation correction will help future developers avoid this pitfall.
+**Related to**: Task 11 (secure argument parsing pattern implementation)
 
 ---
 
@@ -64,15 +36,6 @@ Submit issue or PR to Claude Code repository to correct documentation showing `$
 **Priority**: Needs-Triage
 
 Create reusable documentation for the secure argument parsing pattern developed in Task 11. This pattern (LLM validates format → extracts arguments → invokes bash with literals) prevents command injection and handles arbitrary user input safely. Should be documented in `.cig/docs/` for use in future CIG commands or similar systems. Include: (1) Security model explanation, (2) Format validation regex patterns, (3) Example implementation, (4) Test scenarios.
-
----
-
-## Task: Add --workflow Option to status-aggregator.pl
-
-**Task-Type**: feature
-**Priority**: Medium
-
-Add a `--workflow` command line option to `status-aggregator.pl` that provides a status breakdown for all workflow steps (a-plan.md, b-requirements.md, c-design.md, d-implementation.md, e-testing.md, f-rollout.md, g-maintenance.md, h-retrospective.md). Currently, `/cig-status` shows overall task progress (e.g., "25%") but doesn't show which specific workflow files are Finished, In Progress, or Backlog. The --workflow option would display: (1) Status of each workflow file, (2) Current workflow step highlighted, (3) Next recommended action based on progression. This improves visibility into task state and helps identify which phase a task is currently in.
 
 ---
 

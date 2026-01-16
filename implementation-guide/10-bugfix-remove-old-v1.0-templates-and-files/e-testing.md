@@ -89,8 +89,8 @@ cat .cig/templates/feature/a-plan.md.template | head -5
 - [ ] TC-6: Discovery task creation works
 
 ## Status
-**Status**: Testing
-**Next Action**: Run manual test cases TC-4, TC-5, TC-6
+**Status**: Finished
+**Next Action**: None - testing complete
 **Blockers**: None
 
 ## Actual Results
