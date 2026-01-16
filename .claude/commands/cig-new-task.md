@@ -1,7 +1,7 @@
 ---
 description: Create categorised implementation guide (v2.0 - hierarchical)
 argument-hint: <num> <type> "description"
-allowed-tools: Write, Read, Bash(ln:*), Bash(cp:*), Bash(git:*), Bash(.cig/scripts/command-helpers/hierarchy-resolver.pl:*), Bash(.cig/scripts/command-helpers/cig-load-project-config), Bash(egrep:*), Bash(echo:*), Bash(find:*)
+allowed-tools: Write, Read, Bash(ln:*), Bash(cp:*), Bash(git:*), Bash(.cig/scripts/command-helpers/hierarchy-resolver.pl:*), Bash(.cig/scripts/command-helpers/template-copier.pl:*), Bash(.cig/scripts/command-helpers/cig-load-project-config), Bash(egrep:*), Bash(echo:*), Bash(find:*)
 ---
 
 ## Context
@@ -49,39 +49,49 @@ Apply slug generation algorithm:
 - Create directory: `<num>-<type>-<slug>/`
 - Verify directory doesn't already exist
 
-### 5. Copy Template Files via Symlinks
-**Key change**: Copy files based on symlinks in `.cig/templates/<type>/`
-- List symlinks in `.cig/templates/<type>/` directory
-- For each symlink (e.g., `a-plan.md.template`):
-  - Read the target file from pool
-  - Copy to task directory with .md extension (remove .template)
-  - Example: `a-plan.md.template` → `a-plan.md`
+### 5. Copy and Populate Template Files
+**Key change**: Use template-copier.pl helper script
 
-This automatically ensures correct template subset per task type:
-- **feature**: 8 files (a-h)
-- **bugfix**: 5 files (a, c, d, e, h)
-- **hotfix**: 5 files (a, d, e, f, h)
-- **chore**: 4 files (a, d, e, h)
-- **discovery**: 6 files (a, b, c, d, e, h) - for research/analysis tasks
+Call template-copier.pl to copy templates and substitute variables:
 
-### 6. Populate Task Reference in All Files
-For each created workflow file, replace template placeholders:
-- `{{description}}` → task description
-- `{{taskId}}` → from tracking integration or "internal-{num}"
-- `{{taskUrl}}` → from tracking integration or "N/A (internal task)"
-- `{{parentTask}}` → parent task number or "N/A"
-- `{{branchName}}` → suggested branch name using `branch-naming-convention`
+```bash
+.cig/scripts/command-helpers/template-copier.pl \
+  --task-type="$TYPE" \
+  --destination="$TASK_DIR" \
+  --task-num="$NUM" \
+  --description="$DESCRIPTION"
 
-**Template Version**: All files should already have `- **Template Version**: 2.0` from pool templates
+# Check exit code
+if [ $? -ne 0 ]; then
+    echo "Error: Template copying failed"
+    exit 1
+fi
+```
 
-### 7. Suggest Git Branch
+This automatically:
+- Discovers templates via symlinks in `.cig/templates/<type>/`
+- Copies correct template subset per task type:
+  - **feature**: 8 files (a-h)
+  - **bugfix**: 5 files (a, c, d, e, h)
+  - **hotfix**: 5 files (a, d, e, f, h)
+  - **chore**: 4 files (a, d, e, h)
+  - **discovery**: 6 files (a, b, c, d, e, h)
+- Substitutes template variables:
+  - `{{description}}` → task description
+  - `{{taskId}}` → "internal-{num}"
+  - `{{taskUrl}}` → "N/A (internal task)"
+  - `{{parentTask}}` → parent task number or "N/A"
+  - `{{branchName}}` → from `branch-naming-convention` pattern
+- Sets file permissions to 0600
+
+### 6. Suggest Git Branch
 Generate branch name using `branch-naming-convention` from config:
 - Default pattern: `<type>/<num>-<slug>`
 - Example: `feature/1-add-user-authentication`
 
 Suggest: `git checkout -b <branch-name>`
 
-### 8. Provide Next Steps
+### 7. Provide Next Steps
 Inform user:
 - Directory created: `<full-path>`
 - Files created: List of workflow files (a-plan.md, b-requirements.md, etc.)

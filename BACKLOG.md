@@ -73,3 +73,27 @@ Create reusable documentation for the secure argument parsing pattern developed 
 **Priority**: Medium
 
 Add a `--workflow` command line option to `status-aggregator.pl` that provides a status breakdown for all workflow steps (a-plan.md, b-requirements.md, c-design.md, d-implementation.md, e-testing.md, f-rollout.md, g-maintenance.md, h-retrospective.md). Currently, `/cig-status` shows overall task progress (e.g., "25%") but doesn't show which specific workflow files are Finished, In Progress, or Backlog. The --workflow option would display: (1) Status of each workflow file, (2) Current workflow step highlighted, (3) Next recommended action based on progression. This improves visibility into task state and helps identify which phase a task is currently in.
+
+---
+
+## Task: Standardize Exit Codes to errno-Style Values
+
+**Task-Type**: chore
+**Priority**: Low
+
+Consolidate exit codes across all CIG helper scripts to use errno-compatible values for better semantic meaning and consistency. Currently, exit codes are inconsistent across scripts (e.g., exit 3 means "Missing required argument" in hierarchy-resolver.pl but "No parent tasks" in context-inheritance.pl). Proposed standard:
+- 0 = Success
+- 2 = ENOENT (No such file or directory) - for "not found" errors
+- 13 = EACCES (Permission denied) - for permission errors
+- 22 = EINVAL (Invalid argument) - for validation errors
+
+Scripts to update: hierarchy-resolver.pl, context-inheritance.pl, status-aggregator.pl, format-detector.pl, template-version-parser.sh, and any future helper scripts. Update documentation in script headers and `.cig/docs/` to reflect standard.
+
+---
+
+## Task: Improve status-aggregator.pl Error Message Clarity
+
+**Task-Type**: chore
+**Priority**: Low
+
+Improve error message in `status-aggregator.pl` to clarify that it expects a task number (e.g., "17", "1.2.3"), not a full file path. Current error "Invalid task path format: 17-feature-new-helper-script-to-setup-templates-for-new-task" is confusing because users might provide the directory name or full path. Updated error should say something like "Error: Invalid task number format. Expected decimal notation (e.g., '17', '1.2', '1.2.3'), not a file path or directory name." This improves usability by helping users understand the correct input format immediately.

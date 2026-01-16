@@ -32,6 +32,12 @@
       "permissions": "0500",
       "description": "Extract parent task context with headers, line ranges, and status markers"
     },
+    "template-copier.pl": {
+      "path": ".cig/scripts/command-helpers/template-copier.pl",
+      "sha256": "a7f7aab66e3ca713d393230fcf1941712d9563689ee8dee0b6aded261fb22adf",
+      "permissions": "0500",
+      "description": "Copy and populate template files for CIG tasks with variable substitution"
+    },
     "migrate-v1-to-v2.sh": {
       "path": ".cig/scripts/migrate-v1-to-v2.sh",
       "sha256": "1b509c949e3d94a74230488c2e822dd3899706f9d7366d04f8990c2ec07bae56",
