@@ -25,6 +25,7 @@ jq -r '.workflow["status-values"]["In Progress"]' \
 The following status values are defined in the project configuration:
 
 - **Backlog** (0%): Task not started, queued for future work
+- **Blocked** (15%): Task started but cannot proceed until blocker resolved
 - **To-Do** (0%): Task ready to begin, prioritized
 - **In Progress** (25%): Work actively underway
 - **Implemented** (50%): Code complete, not yet tested

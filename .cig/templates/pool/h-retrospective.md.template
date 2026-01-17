@@ -101,6 +101,8 @@
 **Completion Date**: YYYY-MM-DD
 **Sign-off**: Name/team who completed retrospective
 
+**See `.cig/docs/workflow/workflow-steps.md#status-values` for valid status values**
+
 ## Archived Materials
 - Links to planning documents and artefacts
 - Links to implementation PRs and commits

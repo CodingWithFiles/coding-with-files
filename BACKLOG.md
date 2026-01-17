@@ -4,6 +4,121 @@ Future tasks and improvements for the Code Implementation Guide system.
 
 ---
 
+## Task: Add Active Maintenance Cost Analysis to g-maintenance Template
+
+**Task-Type**: chore
+**Priority**: Medium
+
+Update the g-maintenance.md template to require explicit analysis of active maintenance costs versus passive benefits, preventing open-ended future commitments.
+
+**Problem**: Current g-maintenance.md template doesn't distinguish between:
+- **Active scheduled tasks**: Work that MUST be done on a regular schedule (maintenance, noun form)
+- **Reactive support**: Work that MIGHT be needed IF issues arise
+- **Passive benefits**: Value delivered without ongoing work
+
+This leads to proposals for "quarterly reviews" or "monthly checks" without justifying the time commitment. Maintenance is an ongoing cost that needs explicit justification.
+
+**Solution**: Add required section to g-maintenance.md template:
+
+```markdown
+## Active Maintenance Requirements
+
+### Scheduled Maintenance Tasks
+List tasks that MUST be done on a regular schedule:
+- [Task description] - [Frequency] - [Estimated time]
+
+**Total scheduled cost**: [Hours per year]
+
+If NONE: Explicitly state "NONE - no scheduled maintenance required"
+
+### Reactive Maintenance Only
+List scenarios where action MIGHT be required (IF/THEN format):
+- **IF** [trigger condition] → **THEN** [action] ([estimated time])
+
+**Estimated reactive burden**: [Hours per year, may be zero]
+
+### Cost/Benefit Analysis
+**Active costs**: [Scheduled + reactive estimates]
+**Benefits**: [Concrete value delivered, if feature used]
+**Justification**: [Why ongoing cost is worth it, or why zero cost makes it low-risk]
+**Deprecation trigger**: [When would we remove this feature?]
+```
+
+**Scope**:
+1. Update `.cig/templates/pool/g-maintenance.md.template` with new section
+2. Position after "Monitoring Requirements" section, before "Status"
+3. Include examples for both scenarios:
+   - Example A: Feature with scheduled maintenance (database cleanup, log rotation)
+   - Example B: Feature with zero scheduled maintenance (configuration/documentation changes)
+4. Update documentation to explain distinction between active/reactive/passive
+
+**Rationale**: Prevents open-ended future commitments by requiring explicit justification of ongoing work. Makes maintenance costs visible upfront, enabling better decisions about feature complexity.
+
+---
+
+## Task: Research and Consolidate Cross-Document Reference Patterns
+
+**Task-Type**: discovery
+**Priority**: Medium
+
+Analyse and standardise cross-document reference patterns used throughout CIG system documentation, templates, and command files.
+
+**Problem**: Currently inconsistent patterns for referencing other documents:
+- Templates use bold text: `**See e-testing.md for complete test plan**`
+- Some locations may use markdown links: `[text](path)`
+- Some locations may use HTML comments
+- No clear guidelines on when to use which pattern
+
+**Scope**:
+1. **Audit existing patterns**: Survey all templates, command files, and documentation for cross-reference patterns
+2. **Categorise use cases**: Different contexts may need different patterns (intra-task vs external, LLM-facing vs human-facing)
+3. **Define standard patterns**: Establish clear guidelines for each use case
+4. **Document rationale**: Explain why each pattern is used (progressive disclosure, readability, tooling support)
+5. **Update style guide**: Document patterns in `.cig/docs/` for future reference
+6. **Migration plan**: Optionally create plan to standardise existing references
+
+**Examples to analyse**:
+- Intra-task references: `d-implementation.md` → `e-testing.md`
+- External doc references: Templates → `workflow-steps.md`
+- Config references: Command files → `cig-project.json`
+
+**Outcome**: Clear, documented standard for cross-document references that follows DRY and progressive disclosure principles.
+
+---
+
+## Task: Remove Decomposition Checks from Non-Planning Workflow Steps
+
+**Task-Type**: chore
+**Priority**: Medium
+
+Remove decomposition check steps from all workflow command files except cig-plan.md, as decomposition decisions should only be made during the planning phase.
+
+**Problem**: Currently, all workflow command files (cig-requirements, cig-design, cig-implementation, cig-testing, cig-rollout, cig-maintenance, cig-retrospective) include "Step 7: Check Decomposition Signals" which:
+- Creates confusion about when to decompose tasks
+- Adds unnecessary cognitive load during execution phases
+- Violates single-responsibility principle (planning decisions during execution)
+- Decomposition decisions should be made once during planning, not reconsidered at every workflow step
+
+**Solution**: Remove "Check Decomposition Signals" step from all workflow commands except cig-plan.md
+
+**Scope**:
+1. **Audit**: Verify which command files currently include decomposition checks
+2. **Update commands**: Remove Step 7 (decomposition checks) from:
+   - `.claude/commands/cig-requirements.md`
+   - `.claude/commands/cig-design.md`
+   - `.claude/commands/cig-implementation.md`
+   - `.claude/commands/cig-testing.md`
+   - `.claude/commands/cig-rollout.md`
+   - `.claude/commands/cig-maintenance.md`
+   - `.claude/commands/cig-retrospective.md`
+3. **Keep in planning**: Retain decomposition checks in `.claude/commands/cig-plan.md` (where they belong)
+4. **Update step numbers**: Renumber subsequent steps after removing Step 7
+5. **Update documentation**: Clarify in workflow-steps.md that decomposition is a planning-phase decision
+
+**Rationale**: Decomposition is a planning decision that should be made once upfront, not reconsidered during each workflow phase. This simplifies workflow steps and makes the planning phase the clear decision point for task breakdown.
+
+---
+
 ## Task: Rollout Task 11 - Secure Argument Parsing
 
 **Task-Type**: chore
@@ -125,31 +240,6 @@ This creates ambiguity - when you see "1." it's unclear whether it's:
 - `.claude/commands/cig-retrospective.md`
 
 **Rationale**: Hierarchical numbering makes the document structure immediately clear and eliminates parsing ambiguity when scanning the workflow steps.
-
----
-
-## Task: Add "Blocked" to Standard Status Values
-
-**Task-Type**: feature
-**Priority**: Medium
-
-Add "Blocked" as a standard status value to the CIG workflow system to better represent tasks that are stopped due to dependencies, external factors, or other blockers.
-
-**Problem**: Currently, there's no clear status to indicate when a task cannot proceed due to external factors. Users must choose between:
-- "In Progress" (inaccurate - work has stopped)
-- "Backlog" (inaccurate - work has started but is now blocked)
-- Using "Blockers" field with another status (unclear in status reports)
-
-**Solution**: Add "Blocked" as a valid status value alongside existing values (Backlog, In Progress, Finished, etc.).
-
-**Scope**:
-1. Update `.cig/docs/workflow/workflow-steps.md#status-values` to include "Blocked"
-2. Update `status-aggregator.pl` to handle "Blocked" status in progress calculations
-3. Update all workflow command files to mention "Blocked" as valid status
-4. Define semantics: "Blocked" means work has started but cannot proceed until blocker is resolved
-5. Update workflow templates to include guidance on when to use "Blocked"
-
-**Rationale**: Explicit "Blocked" status improves task visibility and makes it clear when tasks need external intervention to proceed.
 
 ---
 

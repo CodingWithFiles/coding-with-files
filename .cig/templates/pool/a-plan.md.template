@@ -55,6 +55,8 @@ Review these signals to determine if this task should be broken into subtasks:
 **Next Action**: Begin requirements analysis
 **Blockers**: None identified
 
+**See `.cig/docs/workflow/workflow-steps.md#status-values` for valid status values**
+
 ## Actual Results
 *To be filled upon completion*
 

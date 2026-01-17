@@ -68,6 +68,7 @@
     ],
     "status-values": {
       "Backlog": 0,
+      "Blocked": 15,
       "To-Do": 0,
       "In Progress": 25,
       "Implemented": 50,

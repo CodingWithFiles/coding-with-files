@@ -76,6 +76,8 @@ Define deployment strategy and rollout plan for {{description}}.
 **Next Action**: Finalise deployment procedures
 **Blockers**: None identified
 
+**See `.cig/docs/workflow/workflow-steps.md#status-values` for valid status values**
+
 ## Actual Results
 *To be filled upon completion*
 

@@ -64,6 +64,8 @@ Define test strategy and validation approach for {{description}}.
 **Next Action**: Begin test implementation
 **Blockers**: None identified
 
+**See `.cig/docs/workflow/workflow-steps.md#status-values` for valid status values**
+
 ## Actual Results
 *To be filled upon completion*
 
