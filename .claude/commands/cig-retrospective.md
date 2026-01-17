@@ -27,7 +27,7 @@ Guide the user through the retrospective phase.
 - If first word does NOT match valid format, inform user and do not invoke scripts
 - This prevents command injection and ensures only valid task identifiers reach scripts
 
-Follow the 8-step workflow structure:
+Follow the 10-step workflow structure:
 
 1. **Resolve Task Directory**:
    - Extract first word from task arguments
@@ -35,7 +35,7 @@ Follow the 8-step workflow structure:
    - If valid: call `.cig/scripts/command-helpers/hierarchy-resolver.pl <task-path>` using the Bash tool
    - If invalid: inform user the task path format is invalid, do not invoke script
 
-1.5. **Verify Git Branch**:
+2. **Verify Git Branch**:
 
 Before proceeding with retrospective, verify you're on the correct task branch:
 
@@ -58,13 +58,13 @@ Before proceeding with retrospective, verify you're on the correct task branch:
 
 **Rationale**: Retrospective should be executed on task branch to ensure git operations (status updates, commit amendments) are applied to correct branch before merging to main.
 
-2. **Load Parent Context**:
+3. **Load Parent Context**:
    - Use the validated task path from step 1
    - Call `.cig/scripts/command-helpers/context-inheritance.pl <task-path>` using the Bash tool
-3. **Present Context Summary**: Show structural map with status markers
-4. **LLM Decision**: Read specific parent sections and all task workflow files
-5. **Reference Workflow Documentation**: Read `.cig/docs/workflow/workflow-steps.md#retrospective`
-6. **Verify Task Status**:
+4. **Present Context Summary**: Show structural map with status markers
+5. **LLM Decision**: Read specific parent sections and all task workflow files
+6. **Reference Workflow Documentation**: Read `.cig/docs/workflow/workflow-steps.md#retrospective`
+7. **Verify Task Status**:
 
 Before documenting retrospective learnings, verify task is actually finished:
 
@@ -75,9 +75,9 @@ Before documenting retrospective learnings, verify task is actually finished:
 2. **Verify Task Status**:
    - Run `/cig-status <task-path>` to verify 100% (all phases "Finished")
    - **If <100%**: Task not finished - identify and finish missing work or create follow-up tasks
-   - **If 100%**: Proceed to Step 7 (Execute Retrospective)
+   - **If 100%**: Proceed to Step 8 (Execute Retrospective)
 
-7. **Execute Retrospective Workflow**:
+8. **Execute Retrospective Workflow**:
    - Open h-retrospective.md (v2.0 only - retrospective is new format only)
    - **Focus on**: Variance analysis, what went well, what could be improved, key learnings, recommendations
    - **Avoid**: Future work planning (unless captured as recommendations)
@@ -96,9 +96,40 @@ Before documenting retrospective learnings, verify task is actually finished:
    - **Update task documents**: Fill in Actual Results and Lessons Learned sections in all workflow files
 
    **Status Field**: Use valid status values only. See `.cig/docs/workflow/workflow-steps.md#status-values`.
-8. **Prepare Final Commit and Suggest Next Steps**:
 
-With verification and retrospective finished (Steps 6-7):
+9. **Update BACKLOG.md**:
+
+Synchronise BACKLOG.md with task completion and retrospective findings:
+
+1. **Check for completed BACKLOG items**:
+   - Review BACKLOG.md for items this task addressed
+   - Mark items complete or remove them from BACKLOG.md
+   - Example: Task 20 completed "Fix d-implementation.md Template to Reference e-testing.md"
+
+2. **Check retrospective for new items**:
+   - Review h-retrospective.md Recommendations/Future Work sections
+   - Add new tasks identified during retrospective to BACKLOG.md
+   - Example: Task 20 identified "Rename Constraints section headers in templates"
+
+3. **Stage changes if BACKLOG.md modified**:
+   ```bash
+   git add BACKLOG.md
+   ```
+
+**Rationale**: BACKLOG.md synchronisation ensures completed work is tracked and new discoveries captured atomically with task completion.
+
+10. **Prepare Final Commit and Suggest Next Steps**:
+
+With verification, retrospective, and BACKLOG.md update finished (Steps 7-9):
+
+**Commit Message Guidelines**:
+- Keep title concise (~50 chars): "Task N: Brief description"
+- Body should explain WHY, not just WHAT
+  - What changed is visible in the diff
+  - Why it changed provides context for future readers
+- Include technical details that aren't obvious from code
+- Avoid redundant suffixes like "Finished with retrospective" (wastes signal-to-noise ratio)
+- End with Co-Authored-By line
 
 1. **Stage all files**:
    ```bash
@@ -143,4 +174,5 @@ With verification and retrospective finished (Steps 6-7):
 - [ ] Verify task completion and update retrospective date
 - [ ] All workflow file statuses updated to "Finished"
 - [ ] Task verified at 100% via /cig-status
+- [ ] BACKLOG.md updated if task completed items or identified new ones
 - [ ] Final commit created/amended with retrospective
