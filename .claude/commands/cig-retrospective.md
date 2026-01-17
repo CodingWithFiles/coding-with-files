@@ -39,18 +39,18 @@ Follow the 10-step workflow structure:
 
 Before proceeding with retrospective, verify you're on the correct task branch:
 
-1. **Check current branch**:
+2.1. **Check current branch**:
    ```bash
    git branch --show-current
    ```
 
-2. **Expected branch format**:
+2.2. **Expected branch format**:
    - Feature: `feature/<task-num>-<slug>`
    - Bugfix: `bugfix/<task-num>-<slug>`
    - Hotfix: `hotfix/<task-num>-<slug>`
    - Chore: `chore/<task-num>-<slug>`
 
-3. **If on wrong branch**:
+2.3. **If on wrong branch**:
    - STOP execution
    - Inform user they should be on task branch for retrospective
    - Suggest checking out correct branch: `git checkout <task-branch>`
@@ -68,11 +68,11 @@ Before proceeding with retrospective, verify you're on the correct task branch:
 
 Before documenting retrospective learnings, verify task is actually finished:
 
-1. **Verify workflow docs match reality**:
+7.1. **Verify workflow docs match reality**:
    - Update all workflow step docs to match what has been finished
    - If any required phase isn't finished, task cannot proceed to merge
 
-2. **Verify Task Status**:
+7.2. **Verify Task Status**:
    - Run `/cig-status <task-path>` to verify 100% (all phases "Finished")
    - **If <100%**: Task not finished - identify and finish missing work or create follow-up tasks
    - **If 100%**: Proceed to Step 8 (Execute Retrospective)
@@ -101,17 +101,17 @@ Before documenting retrospective learnings, verify task is actually finished:
 
 Synchronise BACKLOG.md with task completion and retrospective findings:
 
-1. **Check for completed BACKLOG items**:
+9.1. **Check for completed BACKLOG items**:
    - Review BACKLOG.md for items this task addressed
    - Mark items complete or remove them from BACKLOG.md
    - Example: Task 20 completed "Fix d-implementation.md Template to Reference e-testing.md"
 
-2. **Check retrospective for new items**:
+9.2. **Check retrospective for new items**:
    - Review h-retrospective.md Recommendations/Future Work sections
    - Add new tasks identified during retrospective to BACKLOG.md
    - Example: Task 20 identified "Rename Constraints section headers in templates"
 
-3. **Stage changes if BACKLOG.md modified**:
+9.3. **Stage changes if BACKLOG.md modified**:
    ```bash
    git add BACKLOG.md
    ```
@@ -131,12 +131,12 @@ With verification, retrospective, and BACKLOG.md update finished (Steps 7-9):
 - Avoid redundant suffixes like "Finished with retrospective" (wastes signal-to-noise ratio)
 - End with Co-Authored-By line
 
-1. **Stage all files**:
+10.1. **Stage all files**:
    ```bash
    git add implementation-guide/<task-dir>/*.md <other-changed-files>
    ```
 
-2. **Amend checkpoint commit** (if exists):
+10.2. **Amend checkpoint commit** (if exists):
    ```bash
    git commit --amend
    ```
@@ -145,14 +145,14 @@ With verification, retrospective, and BACKLOG.md update finished (Steps 7-9):
    - Update status line from "Planning complete, ready for..." to "Finished with retrospective"
    - Keep all technical details about changes made
 
-3. **Or create new commit** (if no checkpoint):
+10.3. **Or create new commit** (if no checkpoint):
    ```bash
    git commit -m "Task <num>: [description] - Finished with retrospective
 
    Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
    ```
 
-4. **Suggest merge to main**:
+10.4. **Suggest merge to main**:
    ```bash
    git checkout main
    git merge --ff-only <task-branch>

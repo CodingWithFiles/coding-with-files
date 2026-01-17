@@ -27,7 +27,8 @@ Guide the user through the planning phase.
 - If first word does NOT match valid format, inform user and do not invoke scripts
 - This prevents command injection and ensures only valid task identifiers reach scripts
 
-### Step 1: Resolve Task Directory
+1. **Resolve Task Directory**:
+
 Parse the task path argument and resolve to full directory:
 - Extract first word from task arguments
 - Validate it matches hierarchical number format (digits and dots only)
@@ -36,32 +37,37 @@ Parse the task path argument and resolve to full directory:
 - If task not found, provide clear error with available tasks
 - Extract task number, type, and slug from resolution
 
-### Step 2: Load Parent Context
+2. **Load Parent Context**:
+
 If this is a subtask (not top-level), load parent context for inherited context:
 - Use the validated task path from Step 1
 - Call `.cig/scripts/command-helpers/context-inheritance.pl <task-path>` using the Bash tool
 - Parent context includes: file paths, status markers, section headers, line ranges
 - This provides ~50-100 tokens per parent instead of 500-1000 for full files
 
-### Step 3: Present Context Summary
+3. **Present Context Summary**:
+
 Present the parent context structural map to help inform planning:
 - Show navigable links with file paths and line ranges
 - Display status markers to indicate reliability of parent context
 - Highlight key parent decisions that may influence this task's planning
 
-### Step 4: LLM Decision Point - Read Parent Details
+4. **LLM Decision Point - Read Parent Details**:
+
 Based on the structural map, decide if you need to read specific parent sections:
 - Use Read tool with offset/limit parameters from structural map
 - Only read sections that directly inform this task's planning
 - Skip irrelevant parent context to conserve tokens
 
-### Step 5: Reference Workflow Documentation
+5. **Reference Workflow Documentation**:
+
 Review planning workflow guidance:
 - Read `.cig/docs/workflow/workflow-steps.md#planning` for detailed guidance
 - Understand focus/avoid guidelines for planning phase
 - Apply key questions and typical structure
 
-### Step 6: Execute Planning Workflow
+6. **Execute Planning Workflow**:
+
 Open and work with the planning file (a-plan.md or plan.md based on format):
 - Use `format-detector.pl <task-dir> <workflow-file>` to check version
 - **Focus on**: Goals, success criteria, milestones, risks, decomposition signals
@@ -78,7 +84,8 @@ Key questions to address:
 
 **Status Field**: Use valid status values only. See `.cig/docs/workflow/workflow-steps.md#status-values`.
 
-### Step 7: Check Universal Decomposition Signals
+7. **Check Universal Decomposition Signals**:
+
 Review these 5 signals to determine if this task should be broken into subtasks:
 1. **Time Signal**: Will this take >1 week? If yes, consider decomposition
 2. **People Signal**: Does this need >2 people working on different parts? If yes, consider decomposition
@@ -88,7 +95,8 @@ Review these 5 signals to determine if this task should be broken into subtasks:
 
 If 2+ signals are triggered, strongly recommend creating subtasks.
 
-### Step 8: Suggest Next Steps with Reasoning
+8. **Suggest Next Steps with Reasoning**:
+
 Analyze the planning outcome and suggest the next step:
 
 **Primary Next Step** (if planning is complete and approved):

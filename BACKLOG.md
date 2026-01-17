@@ -4,6 +4,130 @@ Future tasks and improvements for the Code Implementation Guide system.
 
 ---
 
+## Task: Separate Planning from Execution Phases with Explicit Execution Commands
+
+**Task-Type**: feature
+**Priority**: High
+
+Add explicit execution workflow commands (`cig-implementation-exec` and `cig-testing-exec`) to separate planning phases from execution phases, and formalize blocker-driven workflow reversion.
+
+**Problem**: Current workflow conflates planning and execution within single phases:
+- `cig-implementation` mixes implementation planning with actual code writing
+- `cig-testing` mixes test strategy definition with actual test execution
+- No explicit workflow guidance for handling blockers that require reverting to earlier phases
+- Unclear when to actually execute implementation vs when to plan it
+
+**Solution**: Introduce execution-specific workflow commands and formalize iterative workflow with blocker handling.
+
+### New Workflow Order (10 phases):
+1. **cig-plan** - High-level planning (goals, milestones, risks)
+2. **cig-requirements** - Define functional/non-functional requirements
+3. **cig-design** - Architecture and design decisions
+4. **cig-implementation** - Implementation planning (files to modify, steps, approach)
+5. **cig-testing** - Test strategy and test case definition
+6. **cig-implementation-exec** - **NEW**: Execute actual implementation (write code, make changes)
+7. **cig-testing-exec** - **NEW**: Execute actual tests (run tests, validate results)
+8. **cig-rollout** - Deployment strategy and execution
+9. **cig-maintenance** - Ongoing support planning
+10. **cig-retrospective** - Capture learnings and commit
+
+### Blocker-Driven Workflow Reversion
+
+**Key Principle**: When any workflow step encounters a blocker, it may need to revert to an earlier workflow step and restart the order to resolve the blocker.
+
+**Examples**:
+- **cig-implementation-exec discovers design gap** → Revert to `cig-design`, update design, proceed through cig-implementation → cig-testing → cig-implementation-exec
+- **cig-testing-exec reveals missing requirements** → Revert to `cig-requirements`, add requirements, proceed through cig-design → cig-implementation → cig-testing → cig-implementation-exec → cig-testing-exec
+- **cig-implementation-exec hits technical blocker** → Revert to `cig-plan`, re-evaluate approach, proceed through full workflow
+
+**Workflow State Machine**:
+- **Forward progress**: Each phase can proceed to next phase when complete
+- **Backward reversion**: Any phase can revert to earlier phase when blocker encountered
+- **Restart from reversion point**: After updating earlier phase, restart workflow from that point (not from current phase)
+
+### New Commands to Create
+
+**cig-implementation-exec**:
+- **Purpose**: Execute the implementation following the plan in d-implementation.md
+- **Focus**: Writing actual code, making actual file changes, executing implementation steps
+- **Workflow**: Read d-implementation.md → Execute each step → Check off implementation steps → Update actual results
+- **Blocker handling**: If blocked, identify which earlier phase needs updating (design, requirements, plan)
+- **Output**: Working implementation with all implementation steps checked off
+
+**cig-testing-exec**:
+- **Purpose**: Execute the tests defined in e-testing.md test strategy
+- **Focus**: Running actual tests, validating actual results, capturing test outcomes
+- **Workflow**: Read e-testing.md → Execute each test case → Record pass/fail → Update actual results
+- **Blocker handling**: If tests fail, determine if implementation needs fixes (→ cig-implementation-exec) or design needs revision (→ cig-design)
+- **Output**: Test results with all test cases executed and results recorded
+
+### Changes Required
+
+**1. Command Files** (2 new):
+- Create `.claude/commands/cig-implementation-exec.md`
+- Create `.claude/commands/cig-testing-exec.md`
+
+**2. Template Files** (2 new):
+- Create `.cig/templates/pool/d2-implementation-exec.md.template` (or similar naming)
+- Create `.cig/templates/pool/e2-testing-exec.md.template` (or similar naming)
+- **Alternative**: Reuse d-implementation.md and e-testing.md but add execution-specific sections
+
+**3. Documentation Updates**:
+- Update `.cig/docs/workflow/workflow-steps.md` with:
+  - New 10-phase workflow order
+  - Implementation vs Implementation-Exec distinction
+  - Testing vs Testing-Exec distinction
+  - Blocker-driven workflow reversion guidance
+  - State machine diagram (forward/backward transitions)
+
+**4. Status Aggregator**:
+- Update `status-aggregator.pl` to recognize new workflow files (if separate files used)
+- Handle 10-phase workflow instead of 8-phase
+
+**5. Template Symlinks**:
+- Update task-type-specific symlinks to include execution phase files
+- Feature: 10 files (a-h + d2-implementation-exec + e2-testing-exec)
+- Bugfix: 7 files (a, c, d, d2, e, e2, h)
+- Hotfix: 7 files (a, d, d2, e, e2, f, h)
+- Chore: 6 files (a, d, d2, e, e2, h)
+
+**6. Helper Scripts**:
+- Update `template-copier.pl` to handle new file count per task type
+- Update workflow step references in all command files
+
+### Design Considerations
+
+**Naming Convention**:
+- Option A: `d-implementation.md` (planning) + `d2-implementation-exec.md` (execution)
+- Option B: `d-implementation.md` (planning) + `d-implementation-results.md` (execution)
+- Option C: Keep single `d-implementation.md` with clear separation of planning vs execution sections
+- **Recommendation**: Option A for clear file-level separation
+
+**Backward Compatibility**:
+- Existing tasks use 8-phase workflow (a-h)
+- New tasks use 10-phase workflow (a-h + d2 + e2)
+- `format-detector.pl` can detect which workflow version based on file presence
+- Migration path: Existing tasks can stay on 8-phase, new tasks use 10-phase
+
+**Blocker Documentation**:
+- Each workflow command file should have "Blocker Handling" section
+- Guidance on when to revert to earlier phases
+- Examples of common blocker scenarios and appropriate reversion points
+
+### Success Criteria
+- [ ] `cig-implementation-exec` command created with execution focus
+- [ ] `cig-testing-exec` command created with execution focus
+- [ ] 10-phase workflow documented in workflow-steps.md
+- [ ] Blocker-driven reversion guidance documented
+- [ ] Template files created for execution phases
+- [ ] Status aggregator supports 10-phase workflow
+- [ ] All 10 workflow commands include blocker handling guidance
+- [ ] Backward compatibility maintained for existing 8-phase tasks
+
+**Rationale**: Separating planning from execution provides clearer workflow phases and makes it explicit when to plan vs when to execute. Formalizing blocker-driven reversion acknowledges that software development is iterative and blockers often require revisiting earlier decisions.
+
+---
+
 ## Task: Add Active Maintenance Cost Analysis to g-maintenance Template
 
 **Task-Type**: chore
@@ -197,49 +321,6 @@ Remove duplicate "Test Coverage" and "Validation Criteria" sections from d-imple
 5. Update any existing tasks using the old template pattern (consider migration script or manual update)
 
 **Rationale**: Maintains single source of truth for testing, eliminates confusion about workflow phase responsibilities, and follows DRY principle.
-
----
-
-## Task: Use Hierarchical Numbering for Sub-steps in Workflow Templates
-
-**Task-Type**: chore
-**Priority**: Medium
-
-Update all workflow command files to use hierarchical numbering (e.g., 9.1, 9.2, 9.3) for sub-steps instead of restarting at 1 within each main step. This eliminates ambiguity when reading the workflow structure.
-
-**Problem**: Current workflow templates use patterns like:
-```markdown
-9. **Update BACKLOG.md**:
-
-1. **Check for completed BACKLOG items**:
-2. **Check retrospective for new items**:
-3. **Stage changes if BACKLOG.md modified**:
-```
-
-This creates ambiguity - when you see "1." it's unclear whether it's:
-- A top-level workflow step
-- A sub-step of step 9
-
-**Solution**: Use hierarchical numbering:
-```markdown
-9. **Update BACKLOG.md**:
-
-9.1. **Check for completed BACKLOG items**:
-9.2. **Check retrospective for new items**:
-9.3. **Stage changes if BACKLOG.md modified**:
-```
-
-**Scope**: Update all 8 workflow command files:
-- `.claude/commands/cig-plan.md`
-- `.claude/commands/cig-requirements.md`
-- `.claude/commands/cig-design.md`
-- `.claude/commands/cig-implementation.md`
-- `.claude/commands/cig-testing.md`
-- `.claude/commands/cig-rollout.md`
-- `.claude/commands/cig-maintenance.md`
-- `.claude/commands/cig-retrospective.md`
-
-**Rationale**: Hierarchical numbering makes the document structure immediately clear and eliminates parsing ambiguity when scanning the workflow steps.
 
 ---
 
