@@ -82,3 +82,36 @@ Remove duplicate "Test Coverage" and "Validation Criteria" sections from d-imple
 5. Update any existing tasks using the old template pattern (consider migration script or manual update)
 
 **Rationale**: Maintains single source of truth for testing, eliminates confusion about workflow phase responsibilities, and follows DRY principle.
+
+---
+
+## Task: Fix h-retrospective.md Template Default Status
+
+**Task-Type**: bugfix
+**Priority**: Medium
+
+Fix h-retrospective.md.template to use "Backlog" as default status instead of "Finished". Currently, the retrospective template defaults to `**Status**: Finished`, which causes tasks to incorrectly show 100% completion via status-aggregator.pl even when the retrospective hasn't actually been completed.
+
+**Problem**: All other workflow templates (a-plan, b-requirements, c-design, d-implementation, e-testing, f-rollout, g-maintenance) default to "Backlog" status, but h-retrospective.md.template defaults to "Finished". This inconsistency creates confusion:
+- Tasks show 100% complete when retrospective file is created from template
+- status-aggregator.pl reports task as finished before retrospective is actually done
+- Manual verification required to distinguish template default from actual completion
+- Observed in Task 10 and Task 19 where retrospective showed "Finished" despite being incomplete
+
+**Solution**:
+1. Change h-retrospective.md.template default status from "Finished" to "Backlog"
+2. Update default next action to match other templates (e.g., "Begin retrospective")
+3. Verify change doesn't break template substitution
+4. No migration needed for existing tasks (they're already completed or will be updated manually)
+
+**Expected change**:
+```diff
+## Status
+-**Status**: Finished
+-**Completion Date**: YYYY-MM-DD
++**Status**: Backlog
++**Next Action**: Begin retrospective
++**Blockers**: None identified
+```
+
+**Rationale**: Consistent default status across all workflow templates prevents false positive completion reports and reduces confusion during task status verification.
