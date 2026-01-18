@@ -161,6 +161,27 @@ With verification, retrospective, and BACKLOG.md update finished (Steps 7-9):
 **Primary Path**: Merge to main (task 100% finished with retrospective)
 **Alternative Paths**: Create follow-up tasks, share learnings with team
 
+## Blocker Handling
+
+**Common Blockers in Retrospective**:
+- Task not actually finished → Cannot proceed to retrospective, return to incomplete phase
+- Missing workflow files → Complete all required phases before retrospective
+- Merge conflicts detected → Resolve conflicts before retrospective merge
+- Required learnings not captured → Complete workflow files before retrospective
+- Team review not complete → Schedule review session before finalizing retrospective
+
+**Reversion Guidance**:
+- If task incomplete: Return to the incomplete phase, update that phase's status
+- If workflow files missing: Complete required phases (cannot skip phases)
+- If merge conflicts: Resolve on task branch, then return to retrospective
+- Document the blocker in "Actual Results" section of j-retrospective.md
+- Update status to "Blocked" until blocker is resolved
+
+**When to Revert**:
+- Retrospective reveals task was marked complete prematurely
+- Critical phases were skipped (e.g., no testing performed)
+- Merge to main is blocked by conflicts or review requirements
+
 ## Success Criteria
 - [ ] Retrospective file (h-retrospective.md) opened and updated
 - [ ] Planning data extracted from workflow files

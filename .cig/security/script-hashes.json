@@ -1,6 +1,6 @@
 {
-  "version": "2.0",
-  "last_updated": "2026-01-01",
+  "version": "2.1",
+  "last_updated": "2026-01-18",
   "scripts": {
     "hierarchy-resolver.pl": {
       "path": ".cig/scripts/command-helpers/hierarchy-resolver.pl",
@@ -14,11 +14,23 @@
       "permissions": "0500",
       "description": "Detect template version and compare against expected version"
     },
-    "status-aggregator.pl": {
-      "path": ".cig/scripts/command-helpers/status-aggregator.pl",
+    "status-aggregator": {
+      "path": ".cig/scripts/command-helpers/status-aggregator",
+      "sha256": "2c41ef5c06c6e551ed399f332bba525cce643337fe56a92492c2d1be9b563a84",
+      "permissions": "0500",
+      "description": "Entry point for status aggregation (trampolines to version-specific script)"
+    },
+    "status-aggregator-v2.0": {
+      "path": ".cig/scripts/command-helpers/status-aggregator-v2.0",
       "sha256": "47eb97a2d5889a9eed3f3a9480c1495e6a256f9476ccd4ee53ecbf54d328a723",
       "permissions": "0500",
-      "description": "Calculate task progress from status markers"
+      "description": "Status aggregation for v2.0 format (8-phase workflow)"
+    },
+    "status-aggregator-v2.1": {
+      "path": ".cig/scripts/command-helpers/status-aggregator-v2.1",
+      "sha256": "85a701f4d8fc3a53fa36f99a2e5c41d1431a9be2cccb591051de26041cb20a9a",
+      "permissions": "0500",
+      "description": "Status aggregation for v2.1 format (10-phase workflow)"
     },
     "template-version-parser.sh": {
       "path": ".cig/scripts/command-helpers/template-version-parser.sh",
@@ -26,17 +38,41 @@
       "permissions": "0500",
       "description": "Parse Template Version field from workflow files"
     },
-    "context-inheritance.pl": {
-      "path": ".cig/scripts/command-helpers/context-inheritance.pl",
+    "context-inheritance": {
+      "path": ".cig/scripts/command-helpers/context-inheritance",
+      "sha256": "61791642dcf7c2fcc59d4ace08ecd263f5aaa1b9abf7eff69c90f560b2dacfd8",
+      "permissions": "0500",
+      "description": "Entry point for context inheritance (trampolines to version-specific script)"
+    },
+    "context-inheritance-v2.0": {
+      "path": ".cig/scripts/command-helpers/context-inheritance-v2.0",
       "sha256": "98bcd99dd011497e792984a17f742898a65f3bc24983c886f095ac14651080d6",
       "permissions": "0500",
-      "description": "Extract parent task context with headers, line ranges, and status markers"
+      "description": "Context inheritance for v2.0 format (8-phase workflow)"
     },
-    "template-copier.pl": {
-      "path": ".cig/scripts/command-helpers/template-copier.pl",
+    "context-inheritance-v2.1": {
+      "path": ".cig/scripts/command-helpers/context-inheritance-v2.1",
+      "sha256": "ef976c51245cc871b2316aed187cc0a74f5ab4e5a5312a7d9a09fb8091998cd8",
+      "permissions": "0500",
+      "description": "Context inheritance for v2.1 format (10-phase workflow)"
+    },
+    "template-copier": {
+      "path": ".cig/scripts/command-helpers/template-copier",
+      "sha256": "908c4308a9870c5bedbad22da4bf35d9137dcdc57bb6c2025b38379cb0b2dfa1",
+      "permissions": "0500",
+      "description": "Entry point for template copying (trampolines to version-specific script)"
+    },
+    "template-copier-v2.0": {
+      "path": ".cig/scripts/command-helpers/template-copier-v2.0",
       "sha256": "a7f7aab66e3ca713d393230fcf1941712d9563689ee8dee0b6aded261fb22adf",
       "permissions": "0500",
-      "description": "Copy and populate template files for CIG tasks with variable substitution"
+      "description": "Template copying for v2.0 format (8-phase workflow)"
+    },
+    "template-copier-v2.1": {
+      "path": ".cig/scripts/command-helpers/template-copier-v2.1",
+      "sha256": "d65567baa0cf81e11b57aabb09fa7b6b70a08b53055ff3397db08d8dfa391e54",
+      "permissions": "0500",
+      "description": "Template copying for v2.1 format (10-phase workflow)"
     },
     "migrate-v1-to-v2.sh": {
       "path": ".cig/scripts/migrate-v1-to-v2.sh",
@@ -77,6 +113,31 @@
       "path": ".cig/lib/CIG/Options.pm",
       "sha256": "3deaf54bbb71dffa8a59ae4564a07fae57e433895249063354ea7fc45184bd22",
       "description": "Simple command-line option parser with long/short option support"
+    },
+    "CIG::StatusAggregator::Core": {
+      "path": ".cig/lib/CIG/StatusAggregator/Core.pm",
+      "sha256": "d560a69bb9d1ae8029094f8a5572c7ccb91bb46290e0343f54348498cff6d972",
+      "description": "Version-agnostic status aggregation algorithm (shared by v2.0 and v2.1)"
+    },
+    "CIG::TemplateCopier::Core": {
+      "path": ".cig/lib/CIG/TemplateCopier/Core.pm",
+      "sha256": "e89fb3d9ee9d842cf4642bd1573363c0679aff3485043f6b8f6a7fa84355e8f2",
+      "description": "Version-agnostic template copying logic (shared by v2.0 and v2.1)"
+    },
+    "CIG::ContextInheritance::Core": {
+      "path": ".cig/lib/CIG/ContextInheritance/Core.pm",
+      "sha256": "54e436f79dfcef8a8b21c807109601387f7561d86ebb2c3818ff100802be86ab",
+      "description": "Version-agnostic context inheritance logic (shared by v2.0 and v2.1)"
+    },
+    "CIG::WorkflowFiles::V20": {
+      "path": ".cig/lib/CIG/WorkflowFiles/V20.pm",
+      "sha256": "ed464de8be5f67915694b30fbbfbf35de39faf331c25cc8c2f6c986c51026a86",
+      "description": "Workflow file mappings for v2.0 format (8-phase workflow)"
+    },
+    "CIG::WorkflowFiles::V21": {
+      "path": ".cig/lib/CIG/WorkflowFiles/V21.pm",
+      "sha256": "4938c74f414270985728ec385e13f3a4b41bc7bec3389415472bbd419d072645",
+      "description": "Workflow file mappings for v2.1 format (10-phase workflow)"
     }
   }
 }

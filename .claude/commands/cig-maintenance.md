@@ -70,6 +70,27 @@ Follow the 8-step workflow structure:
    - **Alternative**: Create follow-up tasks for identified improvements
    - **Alternative**: Update monitoring if new issues discovered
 
+## Blocker Handling
+
+**Common Blockers in Maintenance**:
+- Monitoring tools not available → Create infrastructure subtask for monitoring setup
+- Performance issues discovered → Create optimization subtask
+- Security vulnerabilities found → Create security fix hotfix task immediately
+- Scaling issues emerging → Create scaling subtask or infrastructure task
+- Documentation gaps prevent support → Create documentation subtask
+
+**Reversion Guidance**:
+- If critical issues found: Create hotfix task, document in i-maintenance.md
+- If monitoring infrastructure missing: Update status to "Blocked", create setup task
+- Document the blocker in "Actual Results" section of i-maintenance.md
+- Update status to "Blocked" until monitoring infrastructure is ready
+- When blocker resolved, complete maintenance planning
+
+**When to Revert**:
+- Maintenance phase reveals the rollout was premature
+- Critical monitoring gaps indicate system is not production-ready
+- Performance issues require redesign rather than optimization
+
 ## Success Criteria
 - [ ] Maintenance file opened and updated
 - [ ] Monitoring and alerting configured

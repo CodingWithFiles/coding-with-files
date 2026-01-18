@@ -69,6 +69,27 @@ Follow the 8-step workflow structure:
    - **Alternative**: Execute rollback if issues detected
    - **Alternative**: Extend monitoring period if uncertainty remains
 
+## Blocker Handling
+
+**Common Blockers in Rollout**:
+- Production environment not ready → Create infrastructure preparation subtask
+- Rollback procedure untested → Execute rollback dry run before proceeding
+- Monitoring infrastructure missing → Set up monitoring before rollout
+- Stakeholders not ready for rollout → Schedule alignment meeting, document concerns
+- Critical production issue discovered → Execute rollback, create hotfix task
+
+**Reversion Guidance**:
+- If rollback needed: Document rollback in h-rollout.md, create hotfix task for issues
+- If environment not ready: Update status to "Blocked", document infrastructure gaps
+- If monitoring gaps found: Create monitoring subtask, complete before rollout
+- Document the blocker in "Actual Results" section of h-rollout.md
+- Update status to "Blocked" until blocker is resolved
+
+**When to Revert**:
+- Rollout reveals critical defects that escaped testing
+- Production environment incompatibilities discovered
+- Stakeholder concerns indicate premature rollout
+
 ## Success Criteria
 - [ ] Rollout file opened and updated
 - [ ] Deployment strategy defined with rationale

@@ -1,0 +1,43 @@
+#!/usr/bin/perl -CDSL
+#
+# template-copier - Entry point for template copying (trampolines to version-specific script)
+#
+# Usage: template-copier --task-type=TYPE --destination=PATH --task-num=NUM --description=DESC [--format=json]
+#
+
+use strict;
+use warnings;
+use FindBin;
+
+# Detect version by checking for v2.1 templates in pool
+sub detect_version {
+    # Check if v2.1 templates exist in pool
+    my $git_root = `git rev-parse --show-toplevel 2>/dev/null`;
+    chomp $git_root;
+
+    my $pool_dir = "$git_root/.cig/templates/pool";
+    $pool_dir = ".cig/templates/pool" unless -d $pool_dir;
+
+    # v2.1 indicator: e-implementation-exec.md.template exists
+    if (-f "$pool_dir/e-implementation-exec.md.template") {
+        return 'v2.1';
+    }
+
+    return 'v2.0';  # Default to v2.0
+}
+
+# Main: Detect version and trampoline to appropriate orchestration script
+my $version = detect_version();
+
+if ($version eq 'v2.1') {
+    exec("$FindBin::Bin/template-copier-v2.1", @ARGV);
+} elsif ($version eq 'v2.0') {
+    exec("$FindBin::Bin/template-copier-v2.0", @ARGV);
+} elsif ($version eq 'v1.0') {
+    die "ERROR: v1.0 format deprecated. Use migration tools to upgrade to v2.0.\n";
+} else {
+    die "ERROR: Unknown format version: $version\n";
+}
+
+# If exec fails
+die "Error: Failed to execute template-copier-$version\n";

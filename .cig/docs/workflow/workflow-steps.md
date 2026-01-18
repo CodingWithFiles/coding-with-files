@@ -1,6 +1,17 @@
 # Workflow Steps
 
-Detailed guidance for each of the 8 workflow steps. Each step includes purpose, focus/avoid guidelines, key questions, typical structure, and transition triggers.
+Detailed guidance for workflow steps in the CIG system. Each step includes purpose, focus/avoid guidelines, key questions, typical structure, and transition triggers.
+
+## Version Differences
+
+**v2.0 Format** (8 phases): a-task-plan, b-requirements-plan, c-design-plan, d-implementation-plan, f-testing-plan, h-rollout, i-maintenance, j-retrospective
+
+**v2.1 Format** (10 phases): v2.0 phases + e-implementation-exec, g-testing-exec
+- Separates planning from execution for implementation and testing
+- Enables clear distinction between "what we'll do" (planning) and "what we did" (execution)
+- Planning phases focus on approach, execution phases focus on actual results
+
+This document covers all phases for both v2.0 and v2.1 formats.
 
 ## Status Values
 
@@ -177,9 +188,11 @@ The following status values are defined in the project configuration:
 
 ---
 
-## Implementation
+## Implementation Planning
 
-**Purpose**: Execute the implementation following approved design, using test-driven approach with clear validation criteria.
+**File**: `d-implementation-plan.md` (v2.0 and v2.1)
+
+**Purpose**: Plan the implementation approach following approved design, defining steps, files to modify, and validation criteria.
 
 **Focus on**:
 - Files to modify (primary and supporting changes)
@@ -214,13 +227,59 @@ The following status values are defined in the project configuration:
 - Validation Criteria: How to verify success
 
 **Transition Triggers**:
-- **Primary → Testing**: Implementation complete, all tests passing
-- **Alternative → Design**: Implementation reveals design gaps
-- **Alternative → Decomposition**: Implementation too complex, create subtasks
+- **Primary → Implementation Execution** (v2.1): Plan complete, ready to execute `/cig-implementation-exec`
+- **Primary → Testing** (v2.0): Implementation complete, all tests passing
+- **Alternative → Design**: Planning reveals design gaps
+- **Alternative → Decomposition**: Planning shows task too complex, create subtasks
 
 ---
 
-## Testing
+## Implementation Execution
+
+**File**: `e-implementation-exec.md` (v2.1 only)
+
+**Purpose**: Execute the implementation following the approved plan, recording actual results and deviations.
+
+**Focus on**:
+- Executing steps from d-implementation-plan.md sequentially
+- Making code changes according to the design
+- Testing changes locally to verify they work
+- Recording actual results for each step
+- Documenting deviations from plan with rationale
+- Noting blockers encountered during execution
+
+**Avoid**:
+- Changing the plan (update d-implementation-plan.md if needed)
+- Skipping steps without documentation
+- Implementing features not in the plan
+- Moving to testing before all implementation steps complete
+
+**Key Questions**:
+- What steps from the plan have been executed?
+- What were the actual results for each step?
+- Did any steps deviate from the plan? Why?
+- Were any blockers encountered?
+- What remains to be done?
+
+**Typical Structure**:
+- Goal: Execute implementation following plan
+- Execution Checklist: Steps from d-implementation-plan.md with completion status
+- Actual Results: What actually happened for each step
+- Deviations: Differences from plan with rationale
+- Blockers Encountered: Issues that prevented progress
+- Status: Updated based on execution progress
+
+**Transition Triggers**:
+- **Primary → Testing Planning**: Execution complete, all implementation steps done
+- **Alternative → Implementation Planning**: Execution reveals plan is insufficient
+- **Alternative → Design**: Execution reveals design flaws
+- **Blocked**: Critical blocker prevents progress
+
+---
+
+## Testing Planning
+
+**File**: `f-testing-plan.md` (v2.0 and v2.1)
 
 **Purpose**: Define test strategy and validate both functional and non-functional requirements through comprehensive test coverage.
 
@@ -256,9 +315,54 @@ The following status values are defined in the project configuration:
 - Validation Criteria: Success metrics
 
 **Transition Triggers**:
-- **Primary → Rollout**: All tests passing, coverage targets met
-- **Alternative → Implementation**: Tests reveal defects requiring fixes
-- **Alternative → Testing Extension**: Coverage insufficient, add more tests
+- **Primary → Testing Execution** (v2.1): Test plan complete, ready to execute `/cig-testing-exec`
+- **Primary → Rollout** (v2.0): All tests passing, coverage targets met
+- **Alternative → Implementation**: Planning reveals implementation gaps
+- **Alternative → Requirements**: Test plan reveals missing acceptance criteria
+
+---
+
+## Testing Execution
+
+**File**: `g-testing-exec.md` (v2.1 only)
+
+**Purpose**: Execute the test plan, record test results, and document failures with reproduction steps.
+
+**Focus on**:
+- Executing test cases from f-testing-plan.md sequentially
+- Setting up test environment as specified
+- Recording PASS/FAIL status for each test case
+- Documenting test failures with reproduction steps
+- Measuring and recording test coverage
+- Executing non-functional tests (performance, security, etc.)
+
+**Avoid**:
+- Changing the test plan (update f-testing-plan.md if needed)
+- Skipping test cases without documentation
+- Marking tests as passing when they fail
+- Moving to rollout before all tests pass
+
+**Key Questions**:
+- What tests from the plan have been executed?
+- What were the actual test results (PASS/FAIL)?
+- Were any test failures encountered? What are the reproduction steps?
+- What is the test coverage achieved?
+- What remains to be tested?
+
+**Typical Structure**:
+- Goal: Execute tests following plan
+- Execution Checklist: Steps from f-testing-plan.md
+- Test Results: Tables with PASS/FAIL status for each test
+- Test Failures: Detailed documentation with reproduction steps
+- Coverage Report: Metrics showing achieved coverage
+- Status: Updated based on test execution progress
+
+**Transition Triggers**:
+- **Primary → Rollout**: All tests pass, coverage targets met
+- **Alternative → Implementation Execution**: Test failures require bug fixes
+- **Alternative → Testing Planning**: Test plan proves insufficient
+- **Alternative → Design**: Tests reveal fundamental design flaws
+- **Blocked**: Test environment issues prevent execution
 
 ---
 
