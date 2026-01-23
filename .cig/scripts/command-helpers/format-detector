@@ -21,6 +21,13 @@ use lib "$FindBin::Bin/../../lib";
 
 use CIG::WorkflowFiles qw(get_template_version);
 
+# Check PERL5OPT configuration
+unless ($ENV{PERL5OPT} && $ENV{PERL5OPT} =~ /-C/) {
+    warn "WARNING: PERL5OPT not configured for Unicode handling.\n";
+    warn "Add the following to ~/.claude/settings.json:\n";
+    warn "  \"env\": { \"PERL5OPT\": \"-CDSL\" }\n\n";
+}
+
 # Embedded versions
 my $CIG_SOFTWARE_VERSION = "2.0";
 my $EXPECTED_TEMPLATE_VERSION = "2.0";
