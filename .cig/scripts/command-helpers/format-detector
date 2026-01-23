@@ -1,4 +1,4 @@
-#!/usr/bin/perl -CDSL
+#!/usr/bin/env perl
 #
 # format-detector.pl - Detect template version and compare against expected version
 #

@@ -1,4 +1,4 @@
-#!/usr/bin/perl -CDSL
+#!/usr/bin/env perl
 #
 # hierarchy-resolver.pl - Resolve task paths to full directory paths
 #

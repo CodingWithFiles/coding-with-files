@@ -1,4 +1,4 @@
-#!/usr/bin/perl -CDSL
+#!/usr/bin/env perl
 #
 # template-copier - Entry point for template copying (trampolines to version-specific script)
 #

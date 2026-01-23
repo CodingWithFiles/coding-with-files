@@ -1,4 +1,4 @@
-#!/usr/bin/perl -CDSL
+#!/usr/bin/env perl
 #
 # status-aggregator - Entry point for status aggregation (trampolines to version-specific script)
 #
