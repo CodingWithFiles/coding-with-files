@@ -42,6 +42,14 @@ The Code Implementation Guide (CIG) system v2.0 is **implemented and operational
 - `/cig-security-check [verify|report]` - Verify system integrity
 - `/cig-config [init|list|reset]` - Configure CIG system
 
+## Conventions
+
+**Commit Messages**: Follow Linux kernel conventions with proper AI attribution. See `docs/conventions/commit-messages.md` for:
+- Standard commit message structure (subject, body, trailers)
+- AI attribution using `Co-developed-by:` trailer
+- Proper use of `Signed-off-by:` (human only, legal certification)
+- Examples of AI-assisted commits
+
 ## Architecture Overview
 
 **Hierarchical Workflow System (v2.0)**: Eight lettered workflow steps (a-h) guide tasks from planning through retrospective. Non-linear state machine with dynamic transitions based on step outcomes. Universal decomposition signals (5 criteria) guide task breakdown into subtasks.
