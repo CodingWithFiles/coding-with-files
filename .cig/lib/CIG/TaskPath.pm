@@ -3,7 +3,7 @@ package CIG::TaskPath;
 # CIG::TaskPath - Task path operations for hierarchical task management
 #
 # Consolidates path normalization, validation, and resolution logic
-# that was previously duplicated in hierarchy-resolver.sh and context-inheritance.pl
+# that was previously duplicated in hierarchy-resolver.sh and context-inheritance
 #
 
 use strict;

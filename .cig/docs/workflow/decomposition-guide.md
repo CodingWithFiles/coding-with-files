@@ -54,7 +54,7 @@ implementation-guide/
 
 Subtasks inherit parent context through token-efficient structural maps:
 
-- **Automatic**: `/cig-subtask` and workflow commands automatically load parent context via `context-inheritance.pl`
+- **Automatic**: `/cig-subtask` and workflow commands automatically load parent context via `context-inheritance`
 - **Structural Maps**: Headers and line ranges (~50-100 tokens) instead of full files (~500-1000 tokens)
 - **LLM Agency**: LLM decides which parent sections to read in detail using Read tool
 - **Status Awareness**: Parent status markers indicate reliability of inherited context

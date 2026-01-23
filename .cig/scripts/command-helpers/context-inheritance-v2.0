@@ -1,13 +1,13 @@
 #!/usr/bin/perl -CDSL
 #
-# context-inheritance.pl - Extract parent task context with headers, line ranges, and status
+# context-inheritance - Extract parent task context with headers, line ranges, and status
 #
-# Usage: context-inheritance.pl <task-path> [--format=json]
+# Usage: context-inheritance <task-path> [--format=json]
 #
 # Examples:
-#   context-inheritance.pl 1.1.1
-#   context-inheritance.pl 1/1.1/1.1.1
-#   context-inheritance.pl 1.1 --format=json
+#   context-inheritance 1.1.1
+#   context-inheritance 1/1.1/1.1.1
+#   context-inheritance 1.1 --format=json
 #
 # Exit codes:
 #   0 - Success
@@ -28,7 +28,7 @@ use CIG::MarkdownParser qw(extract_status);
 # Parse arguments
 if (@ARGV < 1) {
     print STDERR "Error: Missing required argument <task-path>\n";
-    print STDERR "Usage: context-inheritance.pl <task-path> [--format=json]\n";
+    print STDERR "Usage: context-inheritance <task-path> [--format=json]\n";
     exit 1;
 }
 

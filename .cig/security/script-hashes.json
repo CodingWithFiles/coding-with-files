@@ -2,14 +2,14 @@
   "version": "2.1",
   "last_updated": "2026-01-18",
   "scripts": {
-    "hierarchy-resolver.pl": {
-      "path": ".cig/scripts/command-helpers/hierarchy-resolver.pl",
+    "hierarchy-resolver": {
+      "path": ".cig/scripts/command-helpers/hierarchy-resolver",
       "sha256": "729aac8bddc89151c48bf4381ae0d3815ef357c614b507d1e0a18701798296a8",
       "permissions": "0500",
       "description": "Resolve task paths to full directory paths with metadata"
     },
-    "format-detector.pl": {
-      "path": ".cig/scripts/command-helpers/format-detector.pl",
+    "format-detector": {
+      "path": ".cig/scripts/command-helpers/format-detector",
       "sha256": "00622ef538513d10ec4239ff000b2c8d4a4c0bed117c2278c3e7b14184c9fd1b",
       "permissions": "0500",
       "description": "Detect template version and compare against expected version"
@@ -32,8 +32,8 @@
       "permissions": "0500",
       "description": "Status aggregation for v2.1 format (10-phase workflow)"
     },
-    "template-version-parser.sh": {
-      "path": ".cig/scripts/command-helpers/template-version-parser.sh",
+    "template-version-parser": {
+      "path": ".cig/scripts/command-helpers/template-version-parser",
       "sha256": "5a7e79bc117a82e1a29b3634675c79528f395bc282a34184328820b8371cd765",
       "permissions": "0500",
       "description": "Parse Template Version field from workflow files"

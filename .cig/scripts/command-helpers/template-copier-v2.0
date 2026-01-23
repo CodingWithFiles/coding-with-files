@@ -1,8 +1,8 @@
 #!/usr/bin/perl -CDSL
 #
-# template-copier.pl - Copy and populate template files for CIG tasks
+# template-copier - Copy and populate template files for CIG tasks
 #
-# Usage: template-copier.pl --task-type=TYPE --destination=PATH --task-num=NUM --description=DESC [--format=json]
+# Usage: template-copier --task-type=TYPE --destination=PATH --task-num=NUM --description=DESC [--format=json]
 #
 # Parameters:
 #   --task-type=TYPE     Task type (feature, bugfix, hotfix, chore, discovery)
@@ -13,8 +13,8 @@
 #   --help               Show this help message
 #
 # Examples:
-#   template-copier.pl --task-type=feature --destination=/tmp/test --task-num=17 --description="test task"
-#   template-copier.pl --task-type=bugfix --destination=/tmp/test --task-num=1.2 --description="test" --format=json
+#   template-copier --task-type=feature --destination=/tmp/test --task-num=17 --description="test task"
+#   template-copier --task-type=bugfix --destination=/tmp/test --task-num=1.2 --description="test" --format=json
 #
 # Exit codes:
 #   0 - Success (files copied and substituted)
@@ -89,9 +89,9 @@ sub parse_parameters {
 # Print usage information
 sub print_usage {
     print <<'USAGE';
-template-copier.pl - Copy and populate template files for CIG tasks
+template-copier - Copy and populate template files for CIG tasks
 
-Usage: template-copier.pl --task-type=TYPE --destination=PATH --task-num=NUM --description=DESC [--format=json]
+Usage: template-copier --task-type=TYPE --destination=PATH --task-num=NUM --description=DESC [--format=json]
 
 Parameters:
   --task-type=TYPE     Task type (feature, bugfix, hotfix, chore, discovery)
@@ -102,8 +102,8 @@ Parameters:
   --help               Show this help message
 
 Examples:
-  template-copier.pl --task-type=feature --destination=/tmp/test --task-num=17 --description="test task"
-  template-copier.pl --task-type=bugfix --destination=/tmp/test --task-num=1.2 --description="test" --format=json
+  template-copier --task-type=feature --destination=/tmp/test --task-num=17 --description="test task"
+  template-copier --task-type=bugfix --destination=/tmp/test --task-num=1.2 --description="test" --format=json
 
 Exit codes:
   0 - Success

@@ -1,13 +1,13 @@
 #!/usr/bin/perl -CDSL
 #
-# status-aggregator.pl - Calculate task progress from status markers
+# status-aggregator - Calculate task progress from status markers
 #
-# Usage: status-aggregator.pl [task-path] [--format=json]
+# Usage: status-aggregator [task-path] [--format=json]
 #
 # Examples:
-#   status-aggregator.pl                    # All tasks
-#   status-aggregator.pl 1                  # Task 1 and descendants
-#   status-aggregator.pl 1.1 --format=json  # Task 1.1 in JSON format
+#   status-aggregator                    # All tasks
+#   status-aggregator 1                  # Task 1 and descendants
+#   status-aggregator 1.1 --format=json  # Task 1.1 in JSON format
 #
 # Exit codes:
 #   0 - Success
@@ -28,7 +28,7 @@ use CIG::Options;
 
 # Parse arguments using CIG::Options
 my $spec = {
-    description => "status-aggregator.pl - Calculate task progress from status markers",
+    description => "status-aggregator - Calculate task progress from status markers",
     options => [
         { short => 'h', long => 'help', type => 'flag', desc => 'Show this help message' },
         { short => 'w', long => 'workflow', type => 'flag', desc => 'Show individual workflow file statuses' },
@@ -303,7 +303,7 @@ if ($task_path) {
     }
 
     # FIX 2: For nested tasks (depth > 1), search within parent directory
-    # This enables direct nested queries like "status-aggregator.pl 1.4"
+    # This enables direct nested queries like "status-aggregator 1.4"
     # to work correctly by searching in the parent's subdirectories
     if ($result->{depth} > 1) {
         $base_dir = dirname($result->{full_path});

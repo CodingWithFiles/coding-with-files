@@ -1,7 +1,7 @@
 ---
 description: Show progress across implementation guide hierarchy (v2.0)
 argument-hint: [task-path]
-allowed-tools: Read, Bash(.cig/scripts/command-helpers/hierarchy-resolver.pl:*), Bash(.cig/scripts/command-helpers/status-aggregator:*), Bash(egrep:*), Bash(echo:*), Bash(find:*)
+allowed-tools: Read, Bash(.cig/scripts/command-helpers/hierarchy-resolver:*), Bash(.cig/scripts/command-helpers/status-aggregator:*), Bash(egrep:*), Bash(echo:*), Bash(find:*)
 ---
 
 ## Context
@@ -24,7 +24,7 @@ Analyze completion status for: **$ARGUMENTS** (or all tasks if no path specified
 **Steps**:
 
 ### 1. Resolve Task Path (if provided)
-- If task-path provided: Use `hierarchy-resolver.pl <task-path>` to verify task exists
+- If task-path provided: Use `hierarchy-resolver <task-path>` to verify task exists
 - If no path: Show all tasks starting from implementation-guide/ root
 
 ### 2. Calculate Progress with status-aggregator
@@ -38,7 +38,7 @@ Analyze completion status for: **$ARGUMENTS** (or all tasks if no path specified
 - Formula: `MAX(IF(MAX(all) >= 25%) THEN 25% ELSE 0%, MIN(all status))`
 
 ### 3. Display Visual Tree
-Format output from status-aggregator.pl with visual indicators:
+Format output from status-aggregator with visual indicators:
 - ✓ : Finished (100% progress)
 - ⚙️ : In Progress (1-99% progress)
 - ○ : Not Started (0% progress)

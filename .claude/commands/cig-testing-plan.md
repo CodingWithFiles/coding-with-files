@@ -1,7 +1,7 @@
 ---
 description: Guide user through testing phase
 argument-hint: <task-path>
-allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/hierarchy-resolver.pl:*), Bash(.cig/scripts/command-helpers/context-inheritance.pl:*), Bash(.cig/scripts/command-helpers/format-detector.pl:*), Bash(egrep:*), Bash(echo:*), Bash(find:*)
+allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/hierarchy-resolver:*), Bash(.cig/scripts/command-helpers/context-inheritance:*), Bash(.cig/scripts/command-helpers/format-detector:*), Bash(egrep:*), Bash(echo:*), Bash(find:*)
 ---
 
 ## Context
@@ -32,12 +32,12 @@ Follow the 8-step workflow structure:
 1. **Resolve Task Directory**:
    - Extract first word from task arguments
    - Validate it matches hierarchical number format (digits and dots only)
-   - If valid: call `.cig/scripts/command-helpers/hierarchy-resolver.pl <task-path>` using the Bash tool
+   - If valid: call `.cig/scripts/command-helpers/hierarchy-resolver <task-path>` using the Bash tool
    - If invalid: inform user the task path format is invalid, do not invoke script
 
 2. **Load Parent Context**:
    - Use the validated task path from step 1
-   - Call `.cig/scripts/command-helpers/context-inheritance.pl <task-path>` using the Bash tool
+   - Call `.cig/scripts/command-helpers/context-inheritance <task-path>` using the Bash tool
 3. **Present Context Summary**: Show structural map with status markers
 4. **LLM Decision**: Read specific parent sections if needed
 5. **Reference Workflow Documentation**: Read `.cig/docs/workflow/workflow-steps.md#testing`

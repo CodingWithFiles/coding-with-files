@@ -1,14 +1,14 @@
 #!/usr/bin/env perl
 #
-# hierarchy-resolver.pl - Resolve task paths to full directory paths
+# hierarchy-resolver - Resolve task paths to full directory paths
 #
-# Usage: hierarchy-resolver.pl <task-path> [--format=json]
+# Usage: hierarchy-resolver <task-path> [--format=json]
 #
 # Examples:
-#   hierarchy-resolver.pl 1
-#   hierarchy-resolver.pl 1.1
-#   hierarchy-resolver.pl 1/1.1/1.1.1
-#   hierarchy-resolver.pl 3.2 --format=json
+#   hierarchy-resolver 1
+#   hierarchy-resolver 1.1
+#   hierarchy-resolver 1/1.1/1.1.1
+#   hierarchy-resolver 3.2 --format=json
 #
 # Exit codes:
 #   0 - Success
@@ -26,7 +26,7 @@ use CIG::TaskPath qw(normalize validate resolve);
 # Parse arguments
 if (@ARGV < 1) {
     print STDERR "Error: Missing required argument <task-path>\n";
-    print STDERR "Usage: hierarchy-resolver.pl <task-path> [--format=json]\n";
+    print STDERR "Usage: hierarchy-resolver <task-path> [--format=json]\n";
     exit 3;
 }
 

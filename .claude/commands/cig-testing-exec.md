@@ -1,7 +1,7 @@
 ---
 description: Guide user through testing execution phase
 argument-hint: <task-path>
-allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/hierarchy-resolver.pl:*), Bash(.cig/scripts/command-helpers/context-inheritance.pl:*), Bash(.cig/scripts/command-helpers/format-detector.pl:*), Bash(egrep:*), Bash(echo:*), Bash(find:*), Bash(npm:*), Bash(pytest:*), Bash(cargo:*), Bash(go:*)
+allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/hierarchy-resolver:*), Bash(.cig/scripts/command-helpers/context-inheritance:*), Bash(.cig/scripts/command-helpers/format-detector:*), Bash(egrep:*), Bash(echo:*), Bash(find:*), Bash(npm:*), Bash(pytest:*), Bash(cargo:*), Bash(go:*)
 ---
 
 ## Context
@@ -32,7 +32,7 @@ Guide the user through the testing execution phase.
 Parse the task path argument and resolve to full directory:
 - Extract first word from task arguments
 - Validate it matches hierarchical number format (digits and dots only)
-- If valid: call `.cig/scripts/command-helpers/hierarchy-resolver.pl <task-path>` using the Bash tool
+- If valid: call `.cig/scripts/command-helpers/hierarchy-resolver <task-path>` using the Bash tool
 - If invalid: inform user the task path format is invalid, do not invoke script
 - If task not found, provide clear error with available tasks
 - Extract task number, type, and slug from resolution
@@ -41,7 +41,7 @@ Parse the task path argument and resolve to full directory:
 
 If this is a subtask (not top-level), load parent context for inherited context:
 - Use the validated task path from Step 1
-- Call `.cig/scripts/command-helpers/context-inheritance.pl <task-path>` using the Bash tool
+- Call `.cig/scripts/command-helpers/context-inheritance <task-path>` using the Bash tool
 - Parent context includes: file paths, status markers, section headers, line ranges
 - This provides ~50-100 tokens per parent instead of 500-1000 for full files
 
@@ -69,7 +69,7 @@ Read the test plan to understand what tests need to be executed:
 6. **Execute Testing Workflow**:
 
 Open and work with the testing execution file (g-testing-exec.md):
-- Use `format-detector.pl <task-dir> <workflow-file>` to check version
+- Use `format-detector <task-dir> <workflow-file>` to check version
 - **Focus on**: Executing planned tests, recording results, documenting failures
 - **Avoid**: Changing the test plan (update f-testing-plan.md if plan needs adjustment)
 - Capture: Test results (PASS/FAIL), failure details, coverage metrics

@@ -1,7 +1,7 @@
 ---
 description: Create categorised implementation guide (v2.0 - hierarchical)
 argument-hint: <num> <type> "description"
-allowed-tools: Write, Read, Bash(ln:*), Bash(cp:*), Bash(git:*), Bash(.cig/scripts/command-helpers/hierarchy-resolver.pl:*), Bash(.cig/scripts/command-helpers/template-copier.pl:*), Bash(.cig/scripts/command-helpers/cig-load-project-config), Bash(egrep:*), Bash(echo:*), Bash(find:*)
+allowed-tools: Write, Read, Bash(ln:*), Bash(cp:*), Bash(git:*), Bash(.cig/scripts/command-helpers/hierarchy-resolver:*), Bash(.cig/scripts/command-helpers/template-copier:*), Bash(.cig/scripts/command-helpers/cig-load-project-config), Bash(egrep:*), Bash(echo:*), Bash(find:*)
 ---
 
 ## Context
@@ -43,19 +43,19 @@ Apply slug generation algorithm:
 - If top-level (e.g., "1"): `implementation-guide/1-{type}-{slug}/`
 - If subtask (e.g., "1.1"): Find parent directory, create subdirectory
   - Parent "1" → `implementation-guide/1-{parent-type}-{parent-slug}/1.1-{type}-{slug}/`
-  - Use hierarchy-resolver.pl to find parent if it exists
+  - Use hierarchy-resolver to find parent if it exists
 
 ### 4. Create Directory
 - Create directory: `<num>-<type>-<slug>/`
 - Verify directory doesn't already exist
 
 ### 5. Copy and Populate Template Files
-**Key change**: Use template-copier.pl helper script
+**Key change**: Use template-copier helper script
 
-Call template-copier.pl to copy templates and substitute variables:
+Call template-copier to copy templates and substitute variables:
 
 ```bash
-.cig/scripts/command-helpers/template-copier.pl \
+.cig/scripts/command-helpers/template-copier \
   --task-type="$TYPE" \
   --destination="$TASK_DIR" \
   --task-num="$NUM" \

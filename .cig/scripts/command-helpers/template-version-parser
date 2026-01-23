@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 #
-# template-version-parser.sh - Parse Template Version field from workflow files
+# template-version-parser - Parse Template Version field from workflow files
 #
-# Usage: template-version-parser.sh <workflow-file-path> [--format=json]
+# Usage: template-version-parser <workflow-file-path> [--format=json]
 #
 # Examples:
-#   template-version-parser.sh implementation-guide/1-feature-auth/a-plan.md
-#   template-version-parser.sh implementation-guide/1-feature-auth/d-implementation.md --format=json
+#   template-version-parser implementation-guide/1-feature-auth/a-plan.md
+#   template-version-parser implementation-guide/1-feature-auth/d-implementation.md --format=json
 #
 # Exit codes:
 #   0 - Success
@@ -18,7 +18,7 @@ set -euo pipefail
 # Parse arguments
 if [[ $# -lt 1 ]]; then
     echo "Error: Missing required argument <workflow-file-path>" >&2
-    echo "Usage: template-version-parser.sh <workflow-file-path> [--format=json]" >&2
+    echo "Usage: template-version-parser <workflow-file-path> [--format=json]" >&2
     exit 1
 fi
 

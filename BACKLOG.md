@@ -201,7 +201,7 @@ This understanding **informs** the implementation. You write better code because
 1. `.cig/templates/pool/` - Rename template files
 2. All existing v2.1 tasks (Task 25, Task 26) - Rename actual workflow files
 3. Template symlinks for each task type (feature, bugfix, etc.)
-4. `template-copier.pl` - Update file name mappings
+4. `template-copier` - Update file name mappings
 5. `status-aggregator-v2.1` - Update file name recognition
 6. All workflow commands - Update file references
 
@@ -230,7 +230,7 @@ This understanding **informs** the implementation. You write better code because
    - e-implementation-exec.md.template → f-implementation-exec.md.template
    - f-testing-plan.md.template → e-testing-plan.md.template
 2. Update template symlinks for all task types (feature, bugfix, hotfix, chore, discovery)
-3. Update `template-copier.pl` file mapping logic
+3. Update `template-copier` file mapping logic
 4. Update `status-aggregator-v2.1` file recognition patterns
 5. Rename existing v2.1 task files:
    - Task 25: Rename e→f, f→e
@@ -320,9 +320,9 @@ This understanding **informs** the implementation. You write better code because
 
 Create trampoline entry point for hierarchy-resolver to match Task 25 architecture pattern.
 
-**Problem**: hierarchy-resolver.pl is missing its trampoline entry point:
+**Problem**: hierarchy-resolver is missing its trampoline entry point:
 - Other Task 25 scripts have entry points: `status-aggregator`, `template-copier`, `context-inheritance`
-- hierarchy-resolver only exists as `hierarchy-resolver.pl` (no entry point)
+- hierarchy-resolver only exists as `hierarchy-resolver` (no entry point)
 - Command files and documentation reference `hierarchy-resolver` (no .pl extension)
 - This breaks when commands try to call `.cig/scripts/command-helpers/hierarchy-resolver`
 
@@ -338,7 +338,7 @@ Create trampoline entry point for hierarchy-resolver to match Task 25 architectu
 3. Optionally: Extract `.cig/lib/CIG/HierarchyResolver/Core.pm` module
 
 **Alternative (simpler)**: If hierarchy-resolver doesn't need version-specific logic:
-- Create entry point that directly calls existing hierarchy-resolver.pl
+- Create entry point that directly calls existing hierarchy-resolver
 - Maintains API consistency with other scripts
 
 **Scope**:
@@ -365,7 +365,7 @@ Create trampoline entry point for hierarchy-resolver to match Task 25 architectu
 
 Fix format detection logic to correctly identify v2.1 (10-phase) tasks instead of misreporting them as v1.0.
 
-**Problem**: hierarchy-resolver.pl reports Task 26 as "Format: v1.0" when it should be v2.1:
+**Problem**: hierarchy-resolver reports Task 26 as "Format: v1.0" when it should be v2.1:
 - Task 26 created with template-copier (v2.1 workflow)
 - Has 10 workflow files (a-j) including execution phases (e-implementation-exec.md, g-testing-exec.md)
 - Template Version header says "2.0" (which covers v2.1)
@@ -375,7 +375,7 @@ Fix format detection logic to correctly identify v2.1 (10-phase) tasks instead o
 - Should detect v2.1 by presence of `e-implementation-exec.md` file
 - Currently may only distinguish v1.0 vs v2.0 (not v2.1)
 
-**Solution**: Update format detection in hierarchy-resolver.pl (and potentially format-detector.pl):
+**Solution**: Update format detection in hierarchy-resolver (and potentially format-detector):
 
 **Detection logic should be**:
 1. Check for `e-implementation-exec.md` → v2.1 (10-phase)
@@ -383,12 +383,12 @@ Fix format detection logic to correctly identify v2.1 (10-phase) tasks instead o
 3. Else check for `plan.md` → v1.0
 
 **Files to check/update**:
-- `.cig/scripts/command-helpers/hierarchy-resolver.pl` (primary)
-- `.cig/scripts/command-helpers/format-detector.pl` (if used by hierarchy-resolver)
+- `.cig/scripts/command-helpers/hierarchy-resolver` (primary)
+- `.cig/scripts/command-helpers/format-detector` (if used by hierarchy-resolver)
 - Any other scripts that detect format
 
 **Scope**:
-1. Review format detection logic in hierarchy-resolver.pl
+1. Review format detection logic in hierarchy-resolver
 2. Add v2.1 detection (check for e-implementation-exec.md)
 3. Update return value to distinguish v2.0 vs v2.1
 4. Test with v1.0, v2.0, and v2.1 tasks
@@ -810,20 +810,20 @@ Task completion percentage is calculated by aggregating the `## Status` field fr
 
 ---
 
-## Task: Update Documentation References from status-aggregator.pl to status-aggregator
+## Task: Update Documentation References from status-aggregator to status-aggregator
 
 **Task-Type**: chore
 **Priority**: Low
 **Status**: Proposed (identified during Task 25 retrospective discussion)
 
-Update all documentation and command references to use `status-aggregator` entry point script instead of outdated `status-aggregator.pl` direct module reference.
+Update all documentation and command references to use `status-aggregator` entry point script instead of outdated `status-aggregator` direct module reference.
 
 **Problem**: Task 25 implemented trampoline architecture where helper scripts are invoked via entry points (no .pl extension), not by calling .pl files directly:
 - Entry point: `.cig/scripts/command-helpers/status-aggregator`
 - Routes to: `status-aggregator-v2.0` or `status-aggregator-v2.1` orchestration
 - Uses: Core::StatusAggregator module
 
-Documentation and commands may still reference `status-aggregator.pl` which:
+Documentation and commands may still reference `status-aggregator` which:
 - Is technically incorrect (should call entry point, not .pl directly)
 - Bypasses trampoline version routing
 - Confusing for users who see `status-aggregator` in directory listings
@@ -838,18 +838,18 @@ Documentation and commands may still reference `status-aggregator.pl` which:
 - BACKLOG.md (this file)
 
 **Change pattern**:
-- `status-aggregator.pl <task-path>` → `status-aggregator <task-path>`
-- References to "status-aggregator.pl script" → "status-aggregator script"
+- `status-aggregator <task-path>` → `status-aggregator <task-path>`
+- References to "status-aggregator script" → "status-aggregator script"
 
 **Scope**:
-1. Grep for all `status-aggregator.pl` references
+1. Grep for all `status-aggregator` references
 2. Update to `status-aggregator` (entry point)
 3. Verify no functional changes (entry point routes to same logic)
-4. Update this BACKLOG item itself (contains status-aggregator.pl references)
+4. Update this BACKLOG item itself (contains status-aggregator references)
 
 **Success Criteria**:
 - [ ] All references updated to use entry point (no .pl)
-- [ ] No references to status-aggregator.pl remain
+- [ ] No references to status-aggregator remain
 - [ ] Documentation reflects trampoline architecture
 
 **Rationale**: Documentation should reflect actual implementation (trampoline architecture). Entry point scripts are the public interface, .pl modules are internal implementation details.
@@ -1011,22 +1011,22 @@ Create reusable documentation for the secure argument parsing pattern developed 
 **Task-Type**: chore
 **Priority**: Low
 
-Consolidate exit codes across all CIG helper scripts to use errno-compatible values for better semantic meaning and consistency. Currently, exit codes are inconsistent across scripts (e.g., exit 3 means "Missing required argument" in hierarchy-resolver.pl but "No parent tasks" in context-inheritance.pl). Proposed standard:
+Consolidate exit codes across all CIG helper scripts to use errno-compatible values for better semantic meaning and consistency. Currently, exit codes are inconsistent across scripts (e.g., exit 3 means "Missing required argument" in hierarchy-resolver but "No parent tasks" in context-inheritance). Proposed standard:
 - 0 = Success
 - 2 = ENOENT (No such file or directory) - for "not found" errors
 - 13 = EACCES (Permission denied) - for permission errors
 - 22 = EINVAL (Invalid argument) - for validation errors
 
-Scripts to update: hierarchy-resolver.pl, context-inheritance.pl, status-aggregator.pl, format-detector.pl, template-version-parser.sh, and any future helper scripts. Update documentation in script headers and `.cig/docs/` to reflect standard.
+Scripts to update: hierarchy-resolver, context-inheritance, status-aggregator, format-detector, template-version-parser, and any future helper scripts. Update documentation in script headers and `.cig/docs/` to reflect standard.
 
 ---
 
-## Task: Improve status-aggregator.pl Error Message Clarity
+## Task: Improve status-aggregator Error Message Clarity
 
 **Task-Type**: chore
 **Priority**: Low
 
-Improve error message in `status-aggregator.pl` to clarify that it expects a task number (e.g., "17", "1.2.3"), not a full file path. Current error "Invalid task path format: 17-feature-new-helper-script-to-setup-templates-for-new-task" is confusing because users might provide the directory name or full path. Updated error should say something like "Error: Invalid task number format. Expected decimal notation (e.g., '17', '1.2', '1.2.3'), not a file path or directory name." This improves usability by helping users understand the correct input format immediately.
+Improve error message in `status-aggregator` to clarify that it expects a task number (e.g., "17", "1.2.3"), not a full file path. Current error "Invalid task path format: 17-feature-new-helper-script-to-setup-templates-for-new-task" is confusing because users might provide the directory name or full path. Updated error should say something like "Error: Invalid task number format. Expected decimal notation (e.g., '17', '1.2', '1.2.3'), not a file path or directory name." This improves usability by helping users understand the correct input format immediately.
 
 ---
 
@@ -1057,13 +1057,13 @@ Remove duplicate "Test Coverage" and "Validation Criteria" sections from d-imple
 **Task-Type**: feature
 **Priority**: Medium
 
-Update `.claude/commands/cig-status.md` to use `status-aggregator.pl --workflow <task-path>` for detailed workflow phase visibility when showing a specific task.
+Update `.claude/commands/cig-status.md` to use `status-aggregator --workflow <task-path>` for detailed workflow phase visibility when showing a specific task.
 
-**Problem**: Currently, cig-status shows overall progress percentage but doesn't break down which workflow phases (a-plan, b-requirements, c-design, etc.) are completed vs pending. The status-aggregator.pl script already supports a `--workflow` flag that provides this detailed view, but cig-status doesn't use it.
+**Problem**: Currently, cig-status shows overall progress percentage but doesn't break down which workflow phases (a-plan, b-requirements, c-design, etc.) are completed vs pending. The status-aggregator script already supports a `--workflow` flag that provides this detailed view, but cig-status doesn't use it.
 
 **Solution**: Update cig-status command to:
-1. Use `status-aggregator.pl <task-path>` for hierarchical tree view (current behavior)
-2. Use `status-aggregator.pl --workflow <task-path>` for detailed workflow phase breakdown when showing a single task
+1. Use `status-aggregator <task-path>` for hierarchical tree view (current behavior)
+2. Use `status-aggregator --workflow <task-path>` for detailed workflow phase breakdown when showing a single task
 3. Display both views for single-task queries to provide comprehensive status
 
 **Example output**:
@@ -1080,7 +1080,7 @@ Workflow Status:
 ```
 
 **Scope**:
-- Update `.claude/commands/cig-status.md` to call status-aggregator.pl with --workflow flag
+- Update `.claude/commands/cig-status.md` to call status-aggregator with --workflow flag
 - Add workflow status display to output format
 - Update documentation and examples
 
@@ -1247,7 +1247,7 @@ This creates several issues:
 - No single source of truth for slug generation algorithm
 - Difficult to test slug generation independently
 - Changes require updating multiple command files
-- Inconsistent with other CIG helpers (template-copier.pl, hierarchy-resolver.pl, etc.)
+- Inconsistent with other CIG helpers (template-copier, hierarchy-resolver, etc.)
 
 **Solution**: Create `.cig/scripts/command-helpers/slug-generator.pl` (or similar) following the pattern of existing helper scripts.
 
@@ -1293,7 +1293,7 @@ slug-generator.pl "Description Text Here"
 
 **References**:
 - Current implementation: `.claude/commands/cig-new-task.md` (inline bash pipeline)
-- Similar pattern: `template-copier.pl`, `hierarchy-resolver.pl` (deterministic helpers)
+- Similar pattern: `template-copier`, `hierarchy-resolver` (deterministic helpers)
 
 **Rationale**: Extracting slug generation to a dedicated helper script improves maintainability, testability, and consistency across CIG commands. Follows the established pattern of using Perl helper scripts for deterministic operations.
 
@@ -1933,10 +1933,10 @@ Remove file extensions from all CIG helper scripts and standardize invocation us
 **Inconsistent naming**:
 ```bash
 # Scripts WITH extensions:
-.cig/scripts/command-helpers/hierarchy-resolver.pl
-.cig/scripts/command-helpers/context-inheritance.pl
-.cig/scripts/command-helpers/template-copier.pl
-.cig/scripts/command-helpers/format-detector.pl
+.cig/scripts/command-helpers/hierarchy-resolver
+.cig/scripts/command-helpers/context-inheritance
+.cig/scripts/command-helpers/template-copier
+.cig/scripts/command-helpers/format-detector
 
 # Scripts WITHOUT extensions:
 .cig/scripts/command-helpers/status-aggregator
@@ -1945,7 +1945,7 @@ Remove file extensions from all CIG helper scripts and standardize invocation us
 ```
 
 **Reference brittleness**:
-- Command prompts reference "hierarchy-resolver.pl"
+- Command prompts reference "hierarchy-resolver"
 - If rewritten in Python → becomes "hierarchy-resolver.py"
 - All references break throughout system
 
@@ -1999,10 +1999,10 @@ Rename all helper scripts:
 ```bash
 cd .cig/scripts/command-helpers/
 
-mv hierarchy-resolver.pl hierarchy-resolver
-mv context-inheritance.pl context-inheritance
-mv template-copier.pl template-copier
-mv format-detector.pl format-detector
+mv hierarchy-resolver hierarchy-resolver
+mv context-inheritance context-inheritance
+mv template-copier template-copier
+mv format-detector format-detector
 ```
 
 ### Step 4: Update All References
@@ -2080,10 +2080,10 @@ So: `d-implementation-plan.md.template` stays as-is.
 ## Affected Components
 
 **Scripts to rename** (4 files):
-- `hierarchy-resolver.pl` → `hierarchy-resolver`
-- `context-inheritance.pl` → `context-inheritance`
-- `template-copier.pl` → `template-copier`
-- `format-detector.pl` → `format-detector`
+- `hierarchy-resolver` → `hierarchy-resolver`
+- `context-inheritance` → `context-inheritance`
+- `template-copier` → `template-copier`
+- `format-detector` → `format-detector`
 
 **Scripts already correct** (3 files):
 - `status-aggregator` (already no extension)
@@ -2107,7 +2107,7 @@ So: `d-implementation-plan.md.template` stays as-is.
 ## Rationale
 
 This is a **reference architecture improvement** that prevents brittleness:
-- Current state: 50+ references to "hierarchy-resolver.pl" break if script rewritten
+- Current state: 50+ references to "hierarchy-resolver" break if script rewritten
 - Future state: References to "hierarchy-resolver" work regardless of implementation
 - Cost: ~2 hours to rename and update references
 - Benefit: Permanent reduction in maintenance burden + consistency

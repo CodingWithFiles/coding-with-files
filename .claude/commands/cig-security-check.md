@@ -22,11 +22,11 @@ Verify security and integrity of CIG system files: **$ARGUMENTS**
 **Steps**:
 1. **Load security configuration** from `cig-project.json` security section or `.cig/security/script-hashes.json`
 2. **Verify v2.0 helper scripts** (priority check):
-   - hierarchy-resolver.pl
-   - format-detector.pl
-   - status-aggregator.pl
-   - template-version-parser.sh
-   - context-inheritance.pl
+   - hierarchy-resolver
+   - format-detector
+   - status-aggregator
+   - template-version-parser
+   - context-inheritance
    - Check permissions: Must have u+rx (at least 0500)
    - Calculate SHA256 hash of each script file
    - Compare with expected hashes from `.cig/security/script-hashes.json`

@@ -3,7 +3,7 @@ package CIG::WorkflowFiles;
 # CIG::WorkflowFiles - Workflow file operations for task management
 #
 # Consolidates workflow file listing, version detection, and status mapping
-# that was previously duplicated in status-aggregator.sh and context-inheritance.pl
+# that was previously duplicated in status-aggregator.sh and context-inheritance
 #
 
 use strict;

@@ -1,12 +1,12 @@
 #!/usr/bin/env perl
 #
-# format-detector.pl - Detect template version and compare against expected version
+# format-detector - Detect template version and compare against expected version
 #
-# Usage: format-detector.pl <task-directory> <workflow-file> [--format=json]
+# Usage: format-detector <task-directory> <workflow-file> [--format=json]
 #
 # Examples:
-#   format-detector.pl implementation-guide/1-feature-auth a-plan.md
-#   format-detector.pl implementation-guide/1-feature-auth d-implementation.md --format=json
+#   format-detector implementation-guide/1-feature-auth a-plan.md
+#   format-detector implementation-guide/1-feature-auth d-implementation.md --format=json
 #
 # Exit codes:
 #   0 - Success
@@ -28,7 +28,7 @@ my $EXPECTED_TEMPLATE_VERSION = "2.0";
 # Parse arguments
 if (@ARGV < 2) {
     print STDERR "Error: Missing required arguments\n";
-    print STDERR "Usage: format-detector.pl <task-directory> <workflow-file> [--format=json]\n";
+    print STDERR "Usage: format-detector <task-directory> <workflow-file> [--format=json]\n";
     exit 1;
 }
 

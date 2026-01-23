@@ -9,10 +9,10 @@ All workflow commands accept a single argument:
 
 ## Context Tools
 
-### hierarchy-resolver.pl
+### hierarchy-resolver
 **Purpose**: Resolve task paths to full directory paths with metadata
 
-**Usage**: `.cig/scripts/command-helpers/hierarchy-resolver.pl <task-path>`
+**Usage**: `.cig/scripts/command-helpers/hierarchy-resolver <task-path>`
 
 **Returns**:
 - Full directory path to task
@@ -27,10 +27,10 @@ All workflow commands accept a single argument:
 - 2: Task not found
 - 3: Missing required argument
 
-### context-inheritance.pl
+### context-inheritance
 **Purpose**: Extract parent task context with headers, line ranges, and status markers
 
-**Usage**: `.cig/scripts/command-helpers/context-inheritance.pl <task-path>`
+**Usage**: `.cig/scripts/command-helpers/context-inheritance <task-path>`
 
 **Returns**:
 - Structural map of all parent tasks
@@ -54,16 +54,16 @@ Workflow commands should include this context section:
 
 ```markdown
 ## Context
-- Task resolution: !`.cig/scripts/command-helpers/hierarchy-resolver.pl $ARGUMENTS 2>/dev/null || echo "Task path required"`
-- Parent context: !`.cig/scripts/command-helpers/context-inheritance.pl $ARGUMENTS 2>/dev/null || echo "No parent context (top-level task or invalid path)"`
+- Task resolution: !`.cig/scripts/command-helpers/hierarchy-resolver $ARGUMENTS 2>/dev/null || echo "Task path required"`
+- Parent context: !`.cig/scripts/command-helpers/context-inheritance $ARGUMENTS 2>/dev/null || echo "No parent context (top-level task or invalid path)"`
 ```
 
 This provides automatic task resolution and parent context loading for every workflow command invocation.
 
 ## Progressive Disclosure Pattern
 
-1. **Step 1**: hierarchy-resolver.pl provides task location and metadata
-2. **Step 2**: context-inheritance.pl provides structural map of parent context
+1. **Step 1**: hierarchy-resolver provides task location and metadata
+2. **Step 2**: context-inheritance provides structural map of parent context
 3. **Step 3**: LLM reviews structural map and decides what parent sections are relevant
 4. **Step 4**: LLM uses Read tool with offset/limit parameters to read only necessary parent sections
 
