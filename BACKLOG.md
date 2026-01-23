@@ -4,6 +4,406 @@ Future tasks and improvements for the Code Implementation Guide system.
 
 ---
 
+## Task: Add Process Adherence Guards to All Workflow Commands
+
+**Task-Type**: chore
+**Priority**: Critical
+**Status**: Discovered in Task 26 (jumped from design planning to implementation execution)
+
+Add explicit process adherence instructions at the top of every CIG workflow command and skill to prevent LLMs from being "over eager" and skipping established process steps.
+
+**Problem**: LLMs are trained to be helpful, which creates a tendency to jump ahead and execute tasks without following the proper workflow sequence:
+- Example: Task 26 jumped from "design planning" phase directly to "implementation execution"
+- User said "Implement the following plan" (referring to completing the design planning phase)
+- LLM interpreted this as "write the code now" and skipped implementation planning entirely
+- This bypasses critical planning steps and violates the established CIG workflow
+
+**Root Cause**:
+- LLM helpfulness bias → over-eager to "get things done"
+- Commands don't explicitly warn "STAY IN THIS PHASE, DON'T SKIP AHEAD"
+- No clear instruction about what to do if there's a reason to deviate from process
+
+**Solution**: Add prominent process adherence section to EVERY workflow command file (and future skills)
+
+### Required Section Format
+
+Add immediately after the `---` frontmatter block, before "## Context":
+
+```markdown
+---
+description: [existing description]
+argument-hint: [existing hint]
+allowed-tools: [existing tools]
+---
+
+## ⚠️ CRITICAL: Follow the Process
+
+**YOU ARE IN THE [PHASE NAME] PHASE**
+
+Your job is to complete THIS phase according to the steps below. Do NOT jump ahead to later phases.
+
+**If you think there's an overriding reason to skip this process or move to a different phase:**
+1. STOP
+2. Ask the user explicitly: "I'm in the [phase] phase, but [reason]. Should I proceed with [alternative action] or stick to the process?"
+3. Wait for user confirmation
+
+**Common mistake**: Seeing "implement the plan" and jumping to code writing. In planning phases, "implement" means "complete the planning work", not "write code".
+
+## Context
+[rest of existing content]
+```
+
+### Commands to Update
+
+All workflow commands need this section:
+- `.claude/commands/cig-plan.md` → "TASK PLANNING PHASE"
+- `.claude/commands/cig-requirements.md` → "REQUIREMENTS PLANNING PHASE"
+- `.claude/commands/cig-design.md` → "DESIGN PLANNING PHASE"
+- `.claude/commands/cig-implementation.md` → "IMPLEMENTATION PLANNING PHASE"
+- `.claude/commands/cig-testing.md` → "TESTING PLANNING PHASE"
+- `.claude/commands/cig-rollout.md` → "ROLLOUT PHASE"
+- `.claude/commands/cig-maintenance.md` → "MAINTENANCE PLANNING PHASE"
+- `.claude/commands/cig-retrospective.md` → "RETROSPECTIVE PHASE"
+
+Execution commands (when created for v2.1):
+- `.claude/commands/cig-implementation-exec.md` → "IMPLEMENTATION EXECUTION PHASE - Now you write code"
+- `.claude/commands/cig-testing-exec.md` → "TESTING EXECUTION PHASE - Now you run tests"
+
+### Customization Per Phase
+
+**Planning phases** (plan, requirements, design, implementation planning, testing planning, maintenance planning):
+- Emphasize: "You are PLANNING, not executing"
+- Warning: "Do NOT write code, do NOT run tests, do NOT make changes"
+- Clarify: "'Implement the plan' means complete the planning document, not write code"
+
+**Execution phases** (implementation exec, testing exec):
+- Emphasize: "NOW you can write code / run tests"
+- Prerequisite check: "Verify planning is complete first"
+
+**Deployment phases** (rollout):
+- Emphasize: "You are deploying completed work"
+- Prerequisite check: "Implementation and testing must be finished"
+
+**Reflection phases** (retrospective):
+- Emphasize: "You are reflecting on completed work"
+- Warning: "Do NOT start new work, this task is done"
+
+### Scope
+
+1. **Update all 8+ command files** with process adherence section
+2. **Customize wording** for each phase (planning vs execution vs deployment)
+3. **Test with LLM**: Verify that warnings reduce over-eager behavior
+4. **Update skills during migration**: When converting commands → skills, preserve these warnings
+5. **Document pattern**: Add to `.cig/docs/` as standard for future commands/skills
+
+### Success Criteria
+
+- [ ] All workflow commands have "⚠️ CRITICAL: Follow the Process" section
+- [ ] Section appears immediately after frontmatter, before Context
+- [ ] Wording customized appropriately per phase type
+- [ ] LLM demonstrates reduced over-eager behavior (anecdotal testing)
+- [ ] Pattern documented for future command/skill development
+
+### Testing
+
+**Test Case: Design Planning Phase**
+1. User runs `/cig-design 26`
+2. User says "Implement the following plan: [design plan content]"
+3. **Expected**: LLM completes design planning document, does NOT write code
+4. **Actual (before fix)**: LLM jumps to implementation execution, writes code
+5. **Actual (after fix)**: LLM follows process, completes design planning
+
+**Test Case: Ambiguous Instruction**
+1. User runs `/cig-requirements 27`
+2. User says "Go ahead and build this"
+3. **Expected**: LLM asks "Should I exit requirements planning and move to implementation, or continue with requirements planning?"
+4. **Actual (before fix)**: LLM jumps to implementation
+5. **Actual (after fix)**: LLM asks for clarification
+
+### Priority Justification
+
+**Critical Priority** because:
+- **Workflow integrity**: Skipping phases undermines the entire CIG system
+- **User frustration**: Having to constantly correct LLM about which phase we're in
+- **Quality impact**: Skipping planning leads to poor implementation decisions
+- **Systemic issue**: Affects ALL workflow commands, not just one
+- **Simple fix**: Documentation change, high impact, low implementation cost
+
+**Rationale**: LLM helpfulness bias is a fundamental behavior that won't change. We must explicitly guard against over-eager execution by making process adherence a prominent, unavoidable instruction in every workflow command. The cost of skipping planning steps (poor designs, missed requirements, inadequate testing) far exceeds the cost of adding explicit warnings.
+
+---
+
+## Task: Fix v2.1 Workflow File Order and Next Step References
+
+**Task-Type**: bugfix
+**Priority**: Critical
+**Status**: Discovered in Task 26 (testing planning phase revealed incorrect workflow order)
+
+Fix the v2.1 workflow file naming/ordering to follow correct test-first approach: plan implementation, plan testing, execute implementation, execute testing.
+
+**Problem**: Current v2.1 workflow has incorrect file order that violates test-first principles:
+- **Current order**: d-implementation-plan → e-implementation-exec → f-testing-plan → g-testing-exec
+- **Problem**: Tests are planned AFTER implementation is executed, defeating purpose of planning-as-thinking
+- **Impact**:
+  - Encourages implementing without knowing what success looks like
+  - Tests become afterthoughts rather than driving implementation
+  - Violates "Patterns first → Test → Minimal impl" workflow
+  - All "Next Step" sections in workflow files point to wrong next file
+  - **Misses cognitive benefit**: Implementation happens before thinking through what's measurable/feasible
+
+**Philosophy: Test Planning as a Thinking Tool**
+
+The v2.1 workflow is NOT traditional TDD (write failing test → implement → make test pass). It's a **hybrid of TDD and planning-driven development** where test planning serves as a thinking tool.
+
+**Key insight**: The primary purpose of test planning isn't to have a perfect test suite ready to execute. The primary purpose is to **understand the problem better** by forcing yourself to think deeply about what "working" means BEFORE you implement.
+
+By planning tests, you're forced to ask:
+- What's actually **measurable**? (All tests are measurements)
+- What does success look like **concretely**?
+- What **edge cases** exist?
+- What's **feasible** vs. theoretical?
+
+This understanding **informs** the implementation. You write better code because you've already thought through:
+- How you'll validate it works
+- What could go wrong
+- What the acceptance criteria mean in practice
+- What's actually measurable vs. what's aspirational
+
+**Why correct order matters**:
+- **Wrong order** (plan impl → exec impl → plan tests): You implement before you've thought through what "working" means. You miss the cognitive benefit.
+- **Correct order** (plan impl → plan tests → exec impl): Test planning deepens your understanding of feasibility and success criteria, leading to better implementation decisions.
+
+**Correct Order**: Tests should be planned BEFORE implementation execution:
+1. a-task-plan.md → Plan the task
+2. b-requirements-plan.md → Define requirements
+3. c-design-plan.md → Design architecture
+4. d-implementation-plan.md → Plan implementation steps
+5. **e-testing-plan.md** → Plan tests (know what success looks like!)
+6. **f-implementation-exec.md** → Execute implementation
+7. **g-testing-exec.md** → Execute tests
+8. h-rollout.md → Deploy
+9. i-maintenance.md → Maintain
+10. j-retrospective.md → Reflect
+
+**Root Cause**: Task 25 implementation of v2.1 workflow used incorrect sequencing. The file naming (e-implementation-exec, f-testing-plan) bakes the wrong order into the file names.
+
+**Solution**: Two-phase fix required:
+
+### Phase 1: Fix File Naming Convention
+**Rename workflow files** to correct order:
+- e-implementation-exec.md → **f-implementation-exec.md**
+- f-testing-plan.md → **e-testing-plan.md**
+- g-testing-exec.md → **g-testing-exec.md** (stays same)
+- h-rollout.md → **h-rollout.md** (stays same)
+- etc.
+
+**Affected components**:
+1. `.cig/templates/pool/` - Rename template files
+2. All existing v2.1 tasks (Task 25, Task 26) - Rename actual workflow files
+3. Template symlinks for each task type (feature, bugfix, etc.)
+4. `template-copier.pl` - Update file name mappings
+5. `status-aggregator-v2.1` - Update file name recognition
+6. All workflow commands - Update file references
+
+### Phase 2: Fix "Next Step" References
+**Update all workflow template files** to reference correct next step:
+- a-task-plan.md: "Next: `/cig-requirements-plan <task>`"
+- b-requirements-plan.md: "Next: `/cig-design-plan <task>`"
+- c-design-plan.md: "Next: `/cig-implementation-plan <task>`"
+- d-implementation-plan.md: "Next: `/cig-testing-plan <task>`" ← **CRITICAL CHANGE**
+- **e-testing-plan.md**: "Next: `/cig-implementation-exec <task>`" ← **NEW**
+- **f-implementation-exec.md**: "Next: `/cig-testing-exec <task>`" ← **CRITICAL CHANGE**
+- g-testing-exec.md: "Next: `/cig-rollout <task>`"
+- h-rollout.md: "Next: `/cig-maintenance <task>`"
+- i-maintenance.md: "Next: `/cig-retrospective <task>`"
+- j-retrospective.md: "Task complete"
+
+**Update workflow command files** to reference correct next step:
+- `.claude/commands/cig-implementation-plan.md`: Suggest `/cig-testing-plan` next (not `/cig-implementation-exec`)
+- `.claude/commands/cig-testing-plan.md`: Suggest `/cig-implementation-exec` next (not `/cig-rollout`)
+- `.claude/commands/cig-implementation-exec.md`: Suggest `/cig-testing-exec` next
+- `.claude/commands/cig-testing-exec.md`: Suggest `/cig-rollout` next
+
+### Scope
+**Phase 1: File Renaming**
+1. Rename template files in `.cig/templates/pool/`:
+   - e-implementation-exec.md.template → f-implementation-exec.md.template
+   - f-testing-plan.md.template → e-testing-plan.md.template
+2. Update template symlinks for all task types (feature, bugfix, hotfix, chore, discovery)
+3. Update `template-copier.pl` file mapping logic
+4. Update `status-aggregator-v2.1` file recognition patterns
+5. Rename existing v2.1 task files:
+   - Task 25: Rename e→f, f→e
+   - Task 26: Rename e→f, f→e (if e exists - currently doesn't)
+6. Update git history / document breaking change
+
+**Phase 2: Next Step References**
+1. Update all 10 template files (a-j) with correct "Next Action" in Status sections
+2. Update all workflow command files (8 commands) with correct next step suggestions
+3. Update `.cig/docs/workflow/workflow-steps.md`:
+   - Reflect correct file order (e-testing-plan, f-implementation-exec)
+   - Update section on Testing Planning to explain it comes BEFORE implementation execution
+   - Add philosophy explanation: test planning as thinking tool for understanding feasibility
+4. Update `.cig/docs/workflow/workflow-overview.md`:
+   - Update workflow sequence diagram/list to show correct order
+   - Add philosophy section explaining test planning as cognitive tool
+   - Clarify this is planning-driven development, not traditional TDD
+   - Explain why order matters: test planning deepens understanding before implementation
+5. Update any other documentation referencing workflow order
+
+### Testing
+1. Create new v2.1 task with `template-copier` - verify files created with correct names (e-testing-plan, f-implementation-exec)
+2. Verify symlinks point to correct renamed templates
+3. Verify `status-aggregator-v2.1 --workflow` recognizes all 10 files
+4. Walk through workflow: plan → requirements → design → implementation → **testing** → **exec impl** → **exec test** → rollout
+5. Verify "Next Action" references in each file point to correct next file
+
+### Migration Strategy
+**For existing v2.1 tasks** (Task 25, Task 26):
+- Option A: Rename files in place (breaks existing references)
+- Option B: Leave existing tasks as-is, only fix templates for future tasks
+- Option C: Create migration script to rename files and update internal cross-references
+
+**Recommended**: Option C - Create migration script
+- Safer than manual renaming
+- Can be run on Tasks 25, 26 to bring them into compliance
+- Documents the transformation for future reference
+
+### Success Criteria
+- [ ] Template files renamed: e-testing-plan, f-implementation-exec
+- [ ] Template symlinks updated for all task types
+- [ ] template-copier creates files with correct names
+- [ ] status-aggregator-v2.1 recognizes all 10 files in correct order
+- [ ] All "Next Action" references point to correct next step
+- [ ] All workflow commands suggest correct next step
+- [ ] Documentation reflects correct order
+- [ ] Existing v2.1 tasks (25, 26) migrated to new naming
+- [ ] New v2.1 tasks created with correct file order
+- [ ] Workflow follows test-first approach: plan tests BEFORE executing implementation
+
+### Risks and Mitigations
+**Risk 1: Breaking existing v2.1 tasks**
+- **Likelihood**: High (Tasks 25, 26 have files with old names)
+- **Impact**: High (status-aggregator won't find files, workflow broken)
+- **Mitigation**: Create migration script, test on Task 25 first, document rollback procedure
+
+**Risk 2: Confusion during transition**
+- **Likelihood**: Medium (users/LLM may reference old file names)
+- **Impact**: Medium (frustration, need to re-explain)
+- **Mitigation**: Clear communication in commit message, update CHANGELOG, add note to workflow docs
+
+**Risk 3: Internal cross-references break**
+- **Likelihood**: Medium (workflow files may reference each other by name)
+- **Impact**: Medium (broken links, confusing documentation)
+- **Mitigation**: Migration script updates internal references, manual review of all templates
+
+### Priority Justification
+**Critical Priority** because:
+- **Fundamental workflow flaw**: Current order violates test-first principles
+- **Affects all future v2.1 tasks**: Every new task will be created with wrong order
+- **Affects existing tasks**: Tasks 25 and 26 already have wrong file names
+- **Workflow integrity**: Wrong order encourages bad practices (implement first, test later)
+- **User confusion**: "Next Step" sections point to wrong files, causing workflow interruptions
+- **Breaks TDD**: Cannot follow "Patterns first → Test → Minimal impl" with current order
+
+**Rationale**: The v2.1 workflow is fundamentally broken. Test planning must come before implementation execution to enable test-first development. The current file naming (e-implementation-exec, f-testing-plan) bakes the wrong workflow into the file structure. This must be fixed before creating more v2.1 tasks.
+
+**Discovered**: During Task 26 testing planning phase when cig-testing-plan command suggested "/cig-rollout 26" next, skipping implementation and test execution entirely.
+
+---
+
+## Task: Create hierarchy-resolver Trampoline Entry Point
+
+**Task-Type**: bugfix
+**Priority**: High
+**Status**: Bug discovered in Task 26 planning phase
+
+Create trampoline entry point for hierarchy-resolver to match Task 25 architecture pattern.
+
+**Problem**: hierarchy-resolver.pl is missing its trampoline entry point:
+- Other Task 25 scripts have entry points: `status-aggregator`, `template-copier`, `context-inheritance`
+- hierarchy-resolver only exists as `hierarchy-resolver.pl` (no entry point)
+- Command files and documentation reference `hierarchy-resolver` (no .pl extension)
+- This breaks when commands try to call `.cig/scripts/command-helpers/hierarchy-resolver`
+
+**Solution**: Create trampoline infrastructure for hierarchy-resolver matching Task 25 pattern:
+
+**Files to create**:
+1. `.cig/scripts/command-helpers/hierarchy-resolver` (entry point)
+   - Detects task format version (v1.0/v2.0/v2.1)
+   - Routes to appropriate orchestration script
+2. `.cig/scripts/command-helpers/hierarchy-resolver-v2.0` (orchestration)
+   - Handles v2.0 and v2.1 tasks (same logic)
+   - Loads Core::HierarchyResolver module
+3. Optionally: Extract `.cig/lib/CIG/HierarchyResolver/Core.pm` module
+
+**Alternative (simpler)**: If hierarchy-resolver doesn't need version-specific logic:
+- Create entry point that directly calls existing hierarchy-resolver.pl
+- Maintains API consistency with other scripts
+
+**Scope**:
+1. Create hierarchy-resolver entry point (no .pl extension)
+2. Update script-hashes.json with new entry point
+3. Test with existing commands that reference hierarchy-resolver
+4. Verify permissions (0500 for entry point)
+
+**Success Criteria**:
+- [ ] Entry point created: `.cig/scripts/command-helpers/hierarchy-resolver`
+- [ ] Commands can call `hierarchy-resolver <task-path>` successfully
+- [ ] Follows same trampoline pattern as status-aggregator, template-copier, context-inheritance
+- [ ] script-hashes.json updated
+
+**Rationale**: Inconsistent architecture creates confusion and breaks command references. All helper scripts should follow same trampoline pattern established in Task 25.
+
+---
+
+## Task: Fix Format Detector to Correctly Identify v2.1 Tasks
+
+**Task-Type**: bugfix
+**Priority**: High
+**Status**: Bug discovered in Task 26 planning phase
+
+Fix format detection logic to correctly identify v2.1 (10-phase) tasks instead of misreporting them as v1.0.
+
+**Problem**: hierarchy-resolver.pl reports Task 26 as "Format: v1.0" when it should be v2.1:
+- Task 26 created with template-copier (v2.1 workflow)
+- Has 10 workflow files (a-j) including execution phases (e-implementation-exec.md, g-testing-exec.md)
+- Template Version header says "2.0" (which covers v2.1)
+- But hierarchy-resolver reports "Format: v1.0"
+
+**Root Cause**: Format detection logic may not check for v2.1 indicators:
+- Should detect v2.1 by presence of `e-implementation-exec.md` file
+- Currently may only distinguish v1.0 vs v2.0 (not v2.1)
+
+**Solution**: Update format detection in hierarchy-resolver.pl (and potentially format-detector.pl):
+
+**Detection logic should be**:
+1. Check for `e-implementation-exec.md` → v2.1 (10-phase)
+2. Else check for `a-task-plan.md` or Template Version: 2.0 → v2.0 (8-phase)
+3. Else check for `plan.md` → v1.0
+
+**Files to check/update**:
+- `.cig/scripts/command-helpers/hierarchy-resolver.pl` (primary)
+- `.cig/scripts/command-helpers/format-detector.pl` (if used by hierarchy-resolver)
+- Any other scripts that detect format
+
+**Scope**:
+1. Review format detection logic in hierarchy-resolver.pl
+2. Add v2.1 detection (check for e-implementation-exec.md)
+3. Update return value to distinguish v2.0 vs v2.1
+4. Test with v1.0, v2.0, and v2.1 tasks
+5. Update documentation if format detection API changes
+
+**Success Criteria**:
+- [ ] Task 26 (v2.1) correctly reported as "Format: v2.1" (not v1.0)
+- [ ] Existing v2.0 tasks still reported as "Format: v2.0"
+- [ ] Existing v1.0 tasks still reported as "Format: v1.0"
+- [ ] Detection based on file presence (not just Template Version header)
+
+**Rationale**: Incorrect format detection can cause scripts to use wrong workflow file mappings, breaking task operations. Critical for correct v2.1 functionality.
+
+---
+
 ## Task: Create v2.0 to v2.1 Workflow Migration Tools
 
 **Task-Type**: feature
@@ -970,3 +1370,746 @@ Current language may be ambiguous:
 - **Quick fix available**: Documentation changes can be done quickly to address immediate pain
 
 **Rationale**: LLM misunderstanding of what constitutes "planning" creates friction in CIG workflow. Clear documentation provides immediate relief. Plan mode auto-triggering can be implemented later during skills migration.
+
+---
+
+## Task: Add Re-Execution Detection to Implementation and Testing Exec Commands
+
+**Task-Type**: feature
+**Priority**: High
+**Status**: Discovered in Task 26 (re-running implementation-exec after plan was revised)
+
+Add logic to cig-implementation-exec and cig-testing-exec commands to detect when they're being re-executed and assess what changed in the plan so that only necessary steps are re-executed.
+
+**Problem**: When execution steps (e-implementation-exec.md, g-testing-exec.md) are re-visited after plan changes:
+- LLM doesn't know if this is first execution or re-execution
+- No clear guidance on what changed in the plan since last execution
+- Risk of false blockers ("plan is outdated") when execution file just needs updating
+- Risk of blindly re-executing everything when only some steps changed
+
+**Scenario (from Task 26)**:
+1. User ran `/cig-implementation-exec 26`
+2. LLM saw execution file had OLD results from reverted implementation
+3. LLM incorrectly called this a BLOCKER ("plan is outdated")
+4. User had to manually re-run `/cig-implementation-plan 26` to "update" an already-correct plan
+5. Wasted time in circular navigation
+
+**What LLM Should Have Done**:
+1. Detect: "Execution file has old results, but let me check if the plan changed"
+2. Read implementation plan (d-implementation-plan.md)
+3. Compare: Plan version/timestamp vs execution file results
+4. Decision:
+   - If plan unchanged → Clear old results, start executing from Step 1
+   - If plan changed → Identify what changed, determine which steps need re-execution
+   - If plan is missing/invalid → THEN it's a real blocker
+
+**Solution**: Add re-execution detection logic to exec commands
+
+### Implementation Approach
+
+**For cig-implementation-exec.md**:
+
+Add step before "Execute Implementation Workflow":
+
+```markdown
+## Re-Execution Detection
+
+**Check if this is a re-visit**:
+1. Read e-implementation-exec.md (this file)
+2. Check if "Actual Results" section has content
+3. If YES → This is re-execution, assess what changed
+
+**Assess Changes**:
+1. Read d-implementation-plan.md
+2. Compare plan version/last-modified with execution file timestamp
+3. Identify what changed:
+   - New files to modify?
+   - New steps added?
+   - Steps re-ordered?
+   - Code changes updated?
+
+**Determine Re-Execution Strategy**:
+- **If plan unchanged**: Clear old results, execute all steps fresh
+- **If plan has minor changes**: Document changes, execute only affected steps
+- **If plan has major changes**: Clear all results, start from Step 1
+- **If plan is missing/invalid**: BLOCKER - revert to implementation planning
+
+**NOT a Blocker**:
+- Execution file having old results is NOT a blocker by itself
+- Only a blocker if plan is invalid/missing or fundamentally incompatible with current architecture
+```
+
+**For cig-testing-exec.md**:
+
+Similar logic but check f-testing-plan.md for changes:
+- Test cases added/removed?
+- Test environment changed?
+- Validation criteria updated?
+
+### Commands to Update
+
+**Primary**:
+- `.claude/commands/cig-implementation-exec.md` (v2.1 only)
+- `.claude/commands/cig-testing-exec.md` (v2.1 only)
+
+**Note**: cig-implementation.md and cig-testing.md don't need this (they're planning, not execution)
+
+### Detection Criteria
+
+**Indicators of Re-Execution**:
+1. Execution file has content in "Actual Results" section
+2. Execution file has "Status: Implemented" or "Status: Testing" (not "Backlog")
+3. Execution file timestamp < plan file timestamp (plan changed after last execution)
+
+**Indicators this is First Execution**:
+1. Execution file says "Status: Backlog"
+2. "Actual Results" section is empty or has placeholder text
+3. No step completion markers (all checkboxes unchecked)
+
+### Change Assessment
+
+**What to Check in Implementation Plan**:
+- Goal changed?
+- Files to modify changed?
+- Implementation steps changed (added, removed, reordered)?
+- Code changes updated (different approach)?
+
+**What to Check in Testing Plan**:
+- Test strategy changed?
+- Test cases added/removed?
+- Validation criteria changed?
+- Test environment requirements changed?
+
+### Scope
+
+1. **Update cig-implementation-exec command**:
+   - Add re-execution detection step
+   - Add change assessment logic
+   - Document strategy decision tree
+   - Clarify what IS and IS NOT a blocker
+
+2. **Update cig-testing-exec command**:
+   - Add re-execution detection step
+   - Add change assessment logic
+   - Document strategy decision tree
+   - Clarify what IS and IS NOT a blocker
+
+3. **Update execution templates** (e-implementation-exec.md, g-testing-exec.md):
+   - Add "Previous Execution" section to track what was done before
+   - Add "Plan Changes" section to document what changed since last execution
+   - Make it clear when results are from OLD execution vs NEW execution
+
+4. **Update documentation**:
+   - Document re-execution handling in workflow-steps.md
+   - Explain difference between "old results exist" (NOT a blocker) vs "plan is invalid" (IS a blocker)
+
+### Success Criteria
+
+- [ ] cig-implementation-exec detects re-execution correctly
+- [ ] cig-implementation-exec assesses plan changes correctly
+- [ ] cig-implementation-exec only re-executes changed steps (not everything)
+- [ ] cig-testing-exec has same capabilities
+- [ ] False blockers eliminated ("old results exist" doesn't trigger blocker)
+- [ ] Real blockers still caught (invalid/missing plan)
+- [ ] Execution files track previous vs current execution
+
+### Benefits
+
+**User Experience**:
+- No more circular navigation (implement → block → replan → implement)
+- Clear understanding of what changed and what needs re-execution
+- Faster re-execution (only changed steps, not everything)
+
+**LLM Behavior**:
+- Smarter detection of re-execution vs first execution
+- Better assessment of what constitutes a real blocker
+- More efficient execution (skip unchanged steps)
+
+**Workflow Integrity**:
+- Preserves previous execution results for reference
+- Documents what changed between executions
+- Maintains audit trail of execution history
+
+### Priority Justification
+
+**High Priority** because:
+- **User frustration**: Circular navigation wastes time and is frustrating
+- **Workflow efficiency**: Re-executing unchanged steps is inefficient
+- **False blockers**: Current behavior creates false blockers that interrupt workflow
+- **Common scenario**: Plan revisions are normal during implementation, should be handled gracefully
+
+**Rationale**: Execution commands should be smart about re-execution. Having old results is NOT a blocker - it's normal when plans are revised. Only missing/invalid plans are real blockers. This task adds the intelligence to distinguish between these cases and handle re-execution efficiently.
+
+**Discovered**: During Task 26 when re-running `/cig-implementation-exec 26` after updating implementation plan to new architecture. LLM incorrectly flagged as blocker when execution file just needed clearing/updating.
+
+---
+
+## Task: Implement Interface-Based Version Dispatch for status-aggregator
+
+**Task-Type**: refactor
+**Priority**: Medium
+**Status**: Discovered in Task 26 (TC-F11 test failure)
+
+Refactor status-aggregator to use interface-based version dispatch pattern instead of separate version-specific scripts, enabling proper workflow display for mixed-version projects.
+
+**Problem**: `status-aggregator --workflow` doesn't show workflow breakdown for all tasks in mixed-version projects.
+
+**Current Behavior**:
+```bash
+# Project has Tasks 1-25 (v2.0) and Task 26 (v2.1)
+status-aggregator --workflow
+
+# Result: Only Task 26 shows workflow breakdown
+# Tasks 1-25 show no workflow files
+```
+
+**Expected Behavior**: All tasks should show workflow breakdown with their respective version-specific files:
+- v2.0 tasks: 8 workflow files (a,b,c,d,f,h,i,j - skips e,g)
+- v2.1 tasks: 10 workflow files (a-j)
+
+**Root Cause**: Version detection happens ONCE at trampoline level, not per-task
+1. Trampoline detects version globally (finds ANY v2.1 file → routes to v2.1 script)
+2. Routes to single version-specific script (status-aggregator-v2.0 or v2.1)
+3. That script processes ALL tasks using its hardcoded version logic
+4. v2.1 script can't find workflow files for v2.0 tasks (tries to find 10 files that don't exist)
+
+**Affected Test Case**: TC-F11 from Task 26 testing plan - currently marked as "KNOWN LIMITATION"
+
+### Solution: Interface-Based Dispatch Pattern
+
+Implement Go-style interface pattern using Perl dispatch tables:
+
+**Key Insight**: "The modules know about versions, the scripts shouldn't have to."
+
+#### Architecture
+
+```perl
+# CIG::WorkflowFiles::Dispatch
+package CIG::WorkflowFiles::Dispatch;
+
+use strict;
+use warnings;
+use CIG::WorkflowFiles::V20;
+use CIG::WorkflowFiles::V21;
+
+# Dispatch table - each version implements the same interface
+our %DISPATCH = (
+    '2.0' => {
+        list_wf_steps => sub {
+            my ($opts) = @_;
+            # v2.0 specific workflow file listing
+            return CIG::WorkflowFiles::V20::get_workflow_files(
+                $opts->{task_dir},
+                $opts->{task_type}
+            );
+        },
+
+        get_task_progress => sub {
+            my ($opts) = @_;
+            # v2.0 specific progress calculation
+        },
+
+        format_output => sub {
+            my ($opts) = @_;
+            # v2.0 specific formatting
+        },
+    },
+
+    '2.1' => {
+        list_wf_steps => sub { ... },
+        get_task_progress => sub { ... },
+        format_output => sub { ... },
+    },
+);
+
+# Get dispatch table for a version
+sub get_dispatch {
+    my ($version) = @_;
+    return $DISPATCH{$version} or die "Unsupported version: $version";
+}
+
+# Validate all versions implement required interface
+my @REQUIRED_OPERATIONS = qw(list_wf_steps get_task_progress format_output);
+
+sub validate_interfaces {
+    for my $version (keys %DISPATCH) {
+        for my $op (@REQUIRED_OPERATIONS) {
+            die "Version $version missing operation: $op"
+                unless exists $DISPATCH{$version}{$op};
+        }
+    }
+}
+
+validate_interfaces();  # Compile-time-ish checking
+1;
+```
+
+#### Usage in Unified Script
+
+```perl
+# Single status-aggregator script (replaces v2.0 and v2.1 scripts)
+use CIG::WorkflowFiles::Dispatch;
+
+for my $task (@all_tasks) {
+    # Detect version PER TASK
+    my $version = detect_task_version($task->{dir});
+
+    # Get version-specific operations (interface dispatch)
+    my $ops = CIG::WorkflowFiles::Dispatch::get_dispatch($version);
+
+    # Call through interface - version-agnostic!
+    my @wf_files = $ops->{list_wf_steps}({
+        task_dir  => $task->{dir},
+        task_type => $task->{type},
+        limit     => $opts->{limit},
+        workflow  => $opts->{workflow},
+        sort      => $opts->{sort},
+        order     => $opts->{order},
+    });
+
+    if ($opts->{workflow}) {
+        my $progress = $ops->{get_task_progress}({
+            workflow_files => \@wf_files,
+            task_dir       => $task->{dir},
+        });
+
+        $ops->{format_output}({
+            task          => $task,
+            workflow_files => \@wf_files,
+            progress      => $progress,
+        });
+    }
+}
+```
+
+### Implementation Steps
+
+1. **Create `CIG::WorkflowFiles::Dispatch` module**
+   - Define interface (required operations: list_wf_steps, get_task_progress, format_output)
+   - Build dispatch table for v2.0 and v2.1
+   - Add interface validation
+
+2. **Refactor version-specific modules**
+   - Extract logic from status-aggregator-v2.0 into V20 module operations
+   - Extract logic from status-aggregator-v2.1 into V21 module operations
+   - Ensure both implement complete interface
+
+3. **Create unified status-aggregator script**
+   - Replace separate v2.0/v2.1 scripts with single version-agnostic script
+   - Use per-task version detection + dispatch
+   - Preserve all existing flags and behavior
+
+4. **Update trampoline**
+   - Simplify or remove version detection (now handled per-task)
+   - Route to unified script instead of version-specific scripts
+
+5. **Testing**
+   - Verify TC-F11 passes (mixed-version workflow display)
+   - Regression test all existing functionality
+   - Test with v2.0-only, v2.1-only, and mixed projects
+
+### Benefits
+
+1. **Fixes TC-F11**: `--workflow` works correctly for mixed-version projects
+2. **Go-like interfaces**: Each version MUST implement required operations
+3. **Version-agnostic scripts**: No version conditionals in orchestration code
+4. **Easy version addition**: Add v2.2 by adding dispatch table entry only
+5. **Better modularity**: Version logic in version modules, dispatch in dispatch module
+6. **Testability**: Can inject mock dispatch for testing, validate interface compliance
+
+### Success Criteria
+
+- [ ] TC-F11 passes: `status-aggregator --workflow` shows workflow for all tasks
+- [ ] All existing tests continue passing (no regressions)
+- [ ] Single unified status-aggregator script (no v2.0/v2.1 split)
+- [ ] Interface validation ensures version compliance at load time
+- [ ] Code reduction (eliminate duplication between v2.0/v2.1 scripts)
+
+### Files to Create/Modify
+
+**Create**:
+- `.cig/lib/CIG/WorkflowFiles/Dispatch.pm` - Interface dispatch module
+
+**Modify**:
+- `.cig/lib/CIG/WorkflowFiles/V20.pm` - Add operations to match interface
+- `.cig/lib/CIG/WorkflowFiles/V21.pm` - Add operations to match interface
+- `.cig/scripts/command-helpers/status-aggregator` - Simplify or unify
+- `.cig/scripts/command-helpers/status-aggregator-v2.0` - Refactor or remove
+- `.cig/scripts/command-helpers/status-aggregator-v2.1` - Refactor or remove
+
+### Scope Note
+
+This is a **significant refactor** touching the core status aggregation architecture. Estimate: 8-16 hours for experienced Perl developer.
+
+**Not in scope for Task 26** due to:
+- Size/complexity (would delay current feature)
+- Requires careful testing with multiple version scenarios
+- Current workaround acceptable (use task-specific queries)
+
+### Priority Justification
+
+**Medium Priority** because:
+- **Primary use case works**: Task-specific queries (`/cig-status 26`) work correctly
+- **Workaround exists**: Use explicit task paths instead of `--workflow` alone
+- **Edge case impact**: Only affects `--workflow` without task argument in mixed-version projects
+- **Quality improvement**: Reduces code duplication, improves architecture
+- **Future-proofing**: Makes version additions easier (v2.2, v2.3, etc.)
+
+**Not High Priority** because:
+- Not blocking current work
+- Has documented workaround
+- Affects power-user feature, not core functionality
+
+**Discovered**: During Task 26 testing execution (TC-F11) when validating `status-aggregator --workflow` behavior with mixed v2.0/v2.1 project.
+
+---
+
+## Task: Fix v2.1 Template File Ordering to Match Logical Workflow
+
+**Task-Type**: bugfix
+**Priority**: High
+**Status**: Discovered in Task 26 (template ordering inconsistency with workflow logic)
+
+Rename v2.1 template files to match the logical workflow order: all planning phases before execution phases.
+
+**Problem**: Current v2.1 template naming interleaves planning and execution phases incorrectly.
+
+**Current (Incorrect) Order**:
+```
+d-implementation-plan.md    (Planning)
+e-implementation-exec.md    (Execution) ← WRONG: executes before testing is planned
+f-testing-plan.md           (Planning)  ← WRONG: plans after implementation executes
+g-testing-exec.md           (Execution)
+```
+
+**Correct Order Should Be**:
+```
+d-implementation-plan.md    (Planning)
+e-testing-plan.md           (Planning)  ← Plan testing BEFORE executing anything
+f-implementation-exec.md    (Execution) ← Execute implementation
+g-testing-exec.md           (Execution) ← Execute testing
+```
+
+**Rationale**:
+- Workflow best practice: Complete all planning phases before execution
+- Current order forces implementation execution before testing is planned
+- Logical sequence: Plan → Plan → Execute → Execute, not Plan → Execute → Plan → Execute
+- Matches natural work progression: understand what to build AND how to test it, then build it, then test it
+
+### Impact
+
+**Current Template Order Creates Confusion**:
+- Users complete d-implementation-plan, then are directed to e-implementation-exec
+- They execute implementation without having planned testing approach
+- Testing plan (f-testing-plan) comes AFTER implementation is done
+- This is backwards from proper workflow
+
+**Affects**:
+- `.cig/templates/pool/` - Template file names
+- `CIG::WorkflowFiles::V21` - File list definitions
+- All existing v2.1 tasks (currently just Task 26)
+- Future v2.1 tasks
+
+### Solution
+
+Rename template files to correct logical order:
+
+**Step 1: Rename Templates in Pool**
+```bash
+# In .cig/templates/pool/
+mv e-implementation-exec.md.template e-testing-plan.md.template.tmp
+mv f-testing-plan.md.template f-implementation-exec.md.template.tmp
+mv e-testing-plan.md.template.tmp f-implementation-exec.md.template
+mv f-implementation-exec.md.template.tmp e-testing-plan.md.template
+
+# Result:
+# d-implementation-plan.md.template
+# e-testing-plan.md.template (was f)
+# f-implementation-exec.md.template (was e)
+# g-testing-exec.md.template (unchanged)
+```
+
+**Step 2: Update V21 Module**
+```perl
+# In .cig/lib/CIG/WorkflowFiles/V21.pm
+our %WORKFLOW_FILES = (
+    feature => [
+        'a-task-plan.md',
+        'b-requirements-plan.md',
+        'c-design-plan.md',
+        'd-implementation-plan.md',
+        'e-testing-plan.md',          # CHANGED: was f
+        'f-implementation-exec.md',   # CHANGED: was e
+        'g-testing-exec.md',
+        'h-rollout.md',
+        'i-maintenance.md',
+        'j-retrospective.md',
+    ],
+    # ... update other task types similarly
+);
+```
+
+**Step 3: Update Documentation**
+- `.cig/lib/CIG/WorkflowFiles/V21.pm` POD documentation
+- `.cig/docs/workflow/workflow-steps.md` if it references specific file names
+- Any other docs mentioning v2.1 file order
+
+**Step 4: Migrate Existing v2.1 Tasks**
+
+Task 26 files need renaming:
+```bash
+cd implementation-guide/26-feature-update-cig-status-to-use-workflow-flag/
+mv e-implementation-exec.md e-implementation-exec.md.old
+mv f-testing-plan.md e-testing-plan.md
+mv e-implementation-exec.md.old f-implementation-exec.md
+mv g-testing-exec.md g-testing-exec.md.tmp
+mv g-testing-exec.md.tmp g-testing-exec.md
+```
+
+**Step 5: Update Internal References**
+
+Update any file that references specific v2.1 file names:
+- Task 26 workflow files (cross-references between files)
+- Command files that might reference specific phases
+- Scripts that might hardcode file names (check status-aggregator, etc.)
+
+### Testing
+
+- [ ] Verify all template files renamed correctly in pool
+- [ ] Verify V21 module returns correct file lists
+- [ ] Verify Task 26 files renamed and still readable
+- [ ] Verify status-aggregator shows correct file order for Task 26
+- [ ] Create new v2.1 task to verify templates work correctly
+- [ ] Verify no broken references in documentation
+
+### Success Criteria
+
+- [ ] Template pool has correct file order (d, e-testing, f-impl, g)
+- [ ] V21 module reflects correct order
+- [ ] Task 26 files renamed to match
+- [ ] All cross-references updated
+- [ ] New v2.1 tasks created with correct file order
+- [ ] Documentation accurate
+
+### Root Cause
+
+**Introduced By**: Task 25 - "Implement v2.1 workflow with planning/execution separation"
+
+Task 25 implemented the v2.1 format with interleaved planning/execution order:
+- Commit: `91b0202 Task 25: Implement v2.1 workflow with planning/execution separation`
+- File: `implementation-guide/25-feature-separate-planning-from-execution-phases-with-expli/c-design.md`
+- Design specified: d-impl-plan, e-impl-exec, f-test-plan, g-test-exec
+
+**Why It Was Wrong**: The design focused on "separating planning from execution" but didn't consider the logical workflow order should be "all planning, then all execution" rather than "plan-execute-plan-execute".
+
+### Priority Justification
+
+**High Priority** because:
+- **Workflow Logic Broken**: Forces implementation execution before test planning
+- **Affects All Future v2.1 Tasks**: Every new v2.1 task will have wrong order
+- **Migration Needed**: Task 26 already exists with wrong naming
+- **Breaking Change**: Better to fix now before more v2.1 tasks exist
+- **Template Pool Core**: Affects fundamental template structure
+
+**Not Critical** because:
+- Only affects v2.1 tasks (Task 26 is the only one currently)
+- Doesn't break functionality, just ordering logic
+- Can be fixed with file renames (no code changes)
+
+**Discovered**: During Task 26 when reviewing template ordering and realizing execution happens before planning is complete.
+
+---
+
+## Task: Standardize Script Naming and Invocation (Remove Extensions)
+
+**Task-Type**: refactor
+**Priority**: Medium
+**Status**: Discovered in Task 26 retrospective (reference brittleness pattern)
+
+Remove file extensions from all CIG helper scripts and standardize invocation using portable shebangs with PERL5OPT environment configuration.
+
+**Problem**: Current script naming is inconsistent and brittle:
+
+**Inconsistent naming**:
+```bash
+# Scripts WITH extensions:
+.cig/scripts/command-helpers/hierarchy-resolver.pl
+.cig/scripts/command-helpers/context-inheritance.pl
+.cig/scripts/command-helpers/template-copier.pl
+.cig/scripts/command-helpers/format-detector.pl
+
+# Scripts WITHOUT extensions:
+.cig/scripts/command-helpers/status-aggregator
+.cig/scripts/command-helpers/status-aggregator-v2.0
+.cig/scripts/command-helpers/status-aggregator-v2.1
+```
+
+**Reference brittleness**:
+- Command prompts reference "hierarchy-resolver.pl"
+- If rewritten in Python → becomes "hierarchy-resolver.py"
+- All references break throughout system
+
+**Shebang issues**:
+- Currently use `#!/usr/bin/perl -CDSL` (hardcoded path)
+- Or `#!/usr/bin/env perl` (can't pass flags)
+- Need `-CDSL` flags for Unicode handling at execution time (before `use` statements)
+
+**Implementation leakage**:
+- `.pl` extension exposes implementation detail
+- Users shouldn't care if script is Perl, Python, shell, or compiled binary
+- Unix philosophy: executables are executables
+
+## Solution: Unix Best Practices
+
+### Step 1: Configure PERL5OPT in Claude Code
+
+Add to `.claude/settings.json`:
+```json
+{
+  "env": {
+    "PERL5OPT": "-CDSL"
+  }
+}
+```
+
+**What `-CDSL` does**:
+- `-C`: Enable Unicode support for streams
+- `-D`: UTF-8 for default file I/O layer
+- `-S`: UTF-8 for STDIN
+- `-L`: UTF-8 for STDOUT/STDERR
+
+This ensures Unicode handling before script execution (not after `use utf8`).
+
+### Step 2: Standardize Shebangs
+
+Change all Perl script shebangs:
+```perl
+# OLD (hardcoded path):
+#!/usr/bin/perl -CDSL
+
+# NEW (portable):
+#!/usr/bin/env perl
+```
+
+**Benefit**: Flags come from `PERL5OPT`, shebang finds perl in PATH.
+
+### Step 3: Remove Script Extensions
+
+Rename all helper scripts:
+```bash
+cd .cig/scripts/command-helpers/
+
+mv hierarchy-resolver.pl hierarchy-resolver
+mv context-inheritance.pl context-inheritance
+mv template-copier.pl template-copier
+mv format-detector.pl format-detector
+```
+
+### Step 4: Update All References
+
+**Files to update**:
+1. `.claude/commands/*.md` - All command prompts that reference scripts
+2. `CLAUDE.md` - Documentation references
+3. `README.md` - Usage examples
+4. This BACKLOG.md - Task descriptions
+5. Any workflow templates that mention scripts
+6. Git history documentation (note: references in committed tasks will be stale but acceptable)
+
+**Search pattern**:
+```bash
+grep -r "hierarchy-resolver\.pl" .claude/
+grep -r "context-inheritance\.pl" .claude/
+grep -r "template-copier\.pl" .claude/
+grep -r "format-detector\.pl" .claude/
+```
+
+### Step 5: Test Unicode Handling
+
+Verify PERL5OPT works correctly:
+```bash
+# Test that flags are applied
+perl -V | grep -i cdsl
+
+# Test script execution with Unicode
+echo "Testing: ñ ü 日本語" | .cig/scripts/command-helpers/hierarchy-resolver 1
+```
+
+## Implementation Checklist
+
+- [ ] Add `PERL5OPT="-CDSL"` to `.claude/settings.json`
+- [ ] Update all Perl shebangs to `#!/usr/bin/env perl`
+- [ ] Rename all `.pl` scripts (remove extension)
+- [ ] Update all command prompt references (*.md in .claude/commands/)
+- [ ] Update CLAUDE.md documentation
+- [ ] Update README.md examples
+- [ ] Update BACKLOG.md task descriptions
+- [ ] Test all scripts still execute correctly
+- [ ] Test Unicode handling works (PERL5OPT applied)
+- [ ] Verify no broken references remain
+
+## Success Criteria
+
+- [ ] All helper scripts have no file extensions
+- [ ] All shebangs use `#!/usr/bin/env perl` (portable)
+- [ ] PERL5OPT configured in `.claude/settings.json`
+- [ ] All command prompts reference extensionless names
+- [ ] Documentation updated (CLAUDE.md, README.md)
+- [ ] Unicode test passes (scripts handle UTF-8 correctly)
+- [ ] No grep hits for "*.pl" in command references
+
+## Benefits
+
+1. **Refactor-safe**: Can rewrite in any language without breaking references
+2. **Unix philosophy**: Implementation hidden, interface stable
+3. **Consistency**: All scripts follow same naming convention
+4. **Portable**: `#!/usr/bin/env perl` finds perl in PATH
+5. **Unicode-correct**: `-CDSL` flags applied at execution time
+6. **Future-proof**: Tomorrow you could rewrite in Python/Go/Rust
+7. **Team-wide**: Settings file ensures all Claude Code sessions get PERL5OPT
+
+## Note: Templates Are Different
+
+Template files keep `.template` extension because:
+- They're **data files**, not executables
+- Extension distinguishes templates from actual workflow files
+- Never executed directly, always copied/processed
+- Extension indicates "this is a template, not a real file"
+
+So: `d-implementation-plan.md.template` stays as-is.
+
+## Affected Components
+
+**Scripts to rename** (4 files):
+- `hierarchy-resolver.pl` → `hierarchy-resolver`
+- `context-inheritance.pl` → `context-inheritance`
+- `template-copier.pl` → `template-copier`
+- `format-detector.pl` → `format-detector`
+
+**Scripts already correct** (3 files):
+- `status-aggregator` (already no extension)
+- `status-aggregator-v2.0` (already no extension)
+- `status-aggregator-v2.1` (already no extension)
+
+**Command files to update** (~19 files):
+- All files in `.claude/commands/cig-*.md`
+
+**Documentation to update**:
+- `CLAUDE.md` - Helper script references
+- `README.md` - Usage examples
+- `.cig/docs/workflow/` - Any script references
+
+## Related Tasks
+
+- **Research and Consolidate Cross-Document Reference Patterns** - This implements one standard (extensionless scripts)
+- **Fix v2.1 Workflow File Order** - Both involve fixing reference consistency
+- **Create version-detector helper** - Would be created without `.pl` extension
+
+## Rationale
+
+This is a **reference architecture improvement** that prevents brittleness:
+- Current state: 50+ references to "hierarchy-resolver.pl" break if script rewritten
+- Future state: References to "hierarchy-resolver" work regardless of implementation
+- Cost: ~2 hours to rename and update references
+- Benefit: Permanent reduction in maintenance burden + consistency
+
+**Discovered**: During Task 26 retrospective when analyzing file naming confusion pattern and discussing how to prevent reference brittleness across the CIG system.

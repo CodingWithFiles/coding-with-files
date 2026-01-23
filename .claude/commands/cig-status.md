@@ -1,11 +1,11 @@
 ---
 description: Show progress across implementation guide hierarchy (v2.0)
 argument-hint: [task-path]
-allowed-tools: Read, Bash(.cig/scripts/command-helpers/hierarchy-resolver.pl:*), Bash(.cig/scripts/command-helpers/status-aggregator.pl:*), Bash(egrep:*), Bash(echo:*), Bash(find:*)
+allowed-tools: Read, Bash(.cig/scripts/command-helpers/hierarchy-resolver.pl:*), Bash(.cig/scripts/command-helpers/status-aggregator:*), Bash(egrep:*), Bash(echo:*), Bash(find:*)
 ---
 
 ## Context
-- Task hierarchy with progress: !`.cig/scripts/command-helpers/status-aggregator.pl 2>/dev/null || echo "Unable to load status"`
+- Task hierarchy with progress: !`.cig/scripts/command-helpers/status-aggregator $ARGUMENTS 2>/dev/null || echo "Unable to load status"`
 
 ## Your task
 Analyze completion status for: **$ARGUMENTS** (or all tasks if no path specified)
@@ -27,8 +27,12 @@ Analyze completion status for: **$ARGUMENTS** (or all tasks if no path specified
 - If task-path provided: Use `hierarchy-resolver.pl <task-path>` to verify task exists
 - If no path: Show all tasks starting from implementation-guide/ root
 
-### 2. Calculate Progress with status-aggregator.pl
-- Call `status-aggregator.pl [task-path]` to get progress calculations
+### 2. Calculate Progress with status-aggregator
+- **With task argument**: Calls `status-aggregator [task-path]` (auto-enables --workflow)
+  - Shows tree view + workflow file breakdown for the task
+- **Without task argument**: Calls `status-aggregator` (auto-enables --sort=modified --limit=5)
+  - Shows 5 most recent tasks, sorted by modification time
+- **Override defaults**: Use explicit flags (--workflow, --no-workflow, --limit=N) to customize
 - Returns: Task tree with progress percentages and status indicators
 - Progress calculated using status markers from workflow files
 - Formula: `MAX(IF(MAX(all) >= 25%) THEN 25% ELSE 0%, MIN(all status))`

@@ -32,8 +32,10 @@ my $spec = {
     options => [
         { short => 'h', long => 'help', type => 'flag', desc => 'Show this help message' },
         { short => 'w', long => 'workflow', type => 'flag', desc => 'Show individual workflow file statuses' },
+        { long => 'no-workflow', type => 'flag', desc => 'Suppress workflow file breakdown' },
         { long => 'depth', type => 'value', desc => 'Hierarchy depth (0=top-level, -1=unlimited, default: 0)' },
         { long => 'sort', type => 'value', desc => 'Sort order (numeric|date|modified, default: numeric)' },
+        { long => 'limit', type => 'value', desc => 'Limit output to N top-level tasks (applies to tasks only, not subtasks or workflow files)' },
         { long => 'format', type => 'value', desc => 'Output format (markdown|json, default: markdown)' },
     ],
     positional => { name => 'task-path', optional => 1, desc => 'Task number to filter (e.g., "1", "1.1")' }
@@ -72,6 +74,14 @@ my %valid_sort_modes = (numeric => 1, date => 1, modified => 1);
 unless (exists $valid_sort_modes{$opts->{sort}}) {
     print STDERR "Error: Invalid sort mode '$opts->{sort}', expected one of: numeric, date, modified\n";
     exit 1;
+}
+
+# Validate --limit option
+if (defined $opts->{limit}) {
+    unless ($opts->{limit} =~ /^\d+$/ && $opts->{limit} > 0) {
+        print STDERR "Error: Invalid limit value '$opts->{limit}', expected positive integer\n";
+        exit 1;
+    }
 }
 
 # Calculate progress for a task directory
@@ -303,8 +313,8 @@ if ($task_path) {
 # Build tree
 my @tree = build_tree($base_dir, "", $task_path, $opts->{depth}, 0);
 
-# Enrich with workflow file details if --workflow flag set
-if ($opts->{workflow}) {
+# Enrich with workflow file details if --workflow flag set (and NOT suppressed by --no-workflow)
+if ($opts->{workflow} && !$opts->{'no-workflow'}) {
     for my $task (@tree) {
         $task->{workflow_files} = get_workflow_status($task->{dir});
     }
@@ -321,9 +331,43 @@ if ($opts->{sort} eq 'date' || $opts->{sort} eq 'modified') {
 if ($opts->{sort} eq 'date') {
     @tree = sort { $a->{timestamps}{created} <=> $b->{timestamps}{created} } @tree;
 } elsif ($opts->{sort} eq 'modified') {
-    @tree = sort { $a->{timestamps}{modified} <=> $b->{timestamps}{modified} } @tree;
+    # Sort by most recent first (descending order)
+    @tree = sort { $b->{timestamps}{modified} <=> $a->{timestamps}{modified} } @tree;
 }
 # numeric sort is already applied in build_tree()
+
+# Apply --limit to top-level tasks only (not subtasks or workflow files)
+if (defined $opts->{limit} && $opts->{limit} > 0) {
+    my @limited_tree;
+    my $top_level_count = 0;
+    my $current_top_level_dir = '';
+
+    for my $task (@tree) {
+        # Extract directory basename to identify unique top-level tasks
+        my $dir_name = (split('/', $task->{dir}))[-1];
+
+        # Extract the top-level portion (before first dot, if any)
+        my ($top_level_part) = $task->{num} =~ /^(\d+)/;
+        my $top_level_key = "$top_level_part-$task->{type}-$task->{slug}";
+
+        # Check if this is a top-level task (no dots) or a subtask
+        my $is_top_level = ($task->{num} !~ /\./);
+
+        # If this is a new top-level task (not a subtask of current top-level)
+        if ($is_top_level && $top_level_key ne $current_top_level_dir) {
+            $top_level_count++;
+            $current_top_level_dir = $top_level_key;
+
+            # Stop if we've reached the limit
+            last if $top_level_count > $opts->{limit};
+        }
+
+        # Include this task (either top-level or subtask within limit)
+        push @limited_tree, $task;
+    }
+
+    @tree = @limited_tree;
+}
 
 # Output
 if ($format eq "json") {
