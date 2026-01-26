@@ -57,9 +57,9 @@ sub detect_version {
         }
     }
 
-    # Fallback: check for v2.1 indicators (e-implementation-exec.md presence)
+    # Fallback: check for v2.1 indicators (f-implementation-exec.md presence)
     if (-d $base_dir) {
-        my @v21_files = glob("$base_dir/*-*-*/e-implementation-exec.md");
+        my @v21_files = glob("$base_dir/*-*-*/f-implementation-exec.md");
         return 'v2.1' if @v21_files;
     }
 

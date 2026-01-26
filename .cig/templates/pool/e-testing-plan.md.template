@@ -61,7 +61,7 @@ Define test strategy and validation approach for {{description}}.
 
 ## Status
 **Status**: Backlog
-**Next Action**: Begin test implementation
+**Next Action**: Move to implementation execution → `/cig-implementation-exec <task>`
 **Blockers**: None identified
 
 **See `.cig/docs/workflow/workflow-steps.md#status-values` for valid status values**

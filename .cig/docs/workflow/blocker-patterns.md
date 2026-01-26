@@ -86,7 +86,7 @@ Centralized blocker handling guidance for all CIG workflow phases. This document
 - Plan shows implementation requires 3x more work than estimated
 - Critical dependencies are missing or incompatible
 
-### Implementation Execution Phase (e-implementation-exec.md)
+### Implementation Execution Phase (f-implementation-exec.md)
 
 **Common Blockers**:
 - Code changes cause unexpected test failures → Debug root cause, may need design revision
@@ -107,7 +107,7 @@ Centralized blocker handling guidance for all CIG workflow phases. This document
 - Unforeseen technical constraints make plan impossible
 - Implementation reveals fundamental design flaws
 
-### Testing Planning Phase (f-testing-plan.md)
+### Testing Planning Phase (e-testing-plan.md)
 
 **Common Blockers**:
 - Test environment cannot be set up → Create infrastructure subtask or escalate to ops
@@ -131,10 +131,10 @@ Centralized blocker handling guidance for all CIG workflow phases. This document
 ### Testing Execution Phase (g-testing-exec.md)
 
 **Common Blockers**:
-- Tests reveal critical defects → Revert to e-implementation-exec.md to fix issues
+- Tests reveal critical defects → Revert to f-implementation-exec.md to fix issues
 - Test environment failures → Resolve infrastructure issues, may need infrastructure subtask
 - Tests uncover design flaws → Revert to c-design-plan.md to address fundamental issues
-- Coverage targets cannot be met → Revert to f-testing-plan.md to adjust strategy
+- Coverage targets cannot be met → Revert to e-testing-plan.md to adjust strategy
 - Missing test data or fixtures → Create test data generation subtask
 
 **Reversion Guidance**:
@@ -160,7 +160,7 @@ Centralized blocker handling guidance for all CIG workflow phases. This document
 
 **Reversion Guidance**:
 - If deployment fails: Rollback to previous version, document issue
-- If critical issues found: Revert to e-implementation-exec.md to fix, retest, redeploy
+- If critical issues found: Revert to f-implementation-exec.md to fix, retest, redeploy
 - Document the blocker in "Actual Results" section
 - Update status to "Blocked" until blocker is resolved
 - When blocker resolved, attempt rollout again with fixes

@@ -8,7 +8,7 @@ allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/hierarchy-re
 
 **This step**: Complete the implementation planning document (d-implementation-plan.md) with files to modify, implementation steps, and validation criteria.
 
-**Not this step**: Writing code (that's e-implementation-exec), testing, or deployment.
+**Not this step**: Writing code (that's f-implementation-exec), testing, or deployment.
 
 **If blocked or finished**: Call `workflow-control --current-step=d-implementation-plan --task-path=<path>` to determine next action. See `.cig/docs/workflow/blocker-patterns.md` for detailed blocker handling guidance.
 
@@ -73,7 +73,7 @@ Follow the 8-step workflow structure:
 
 7. **Check Decomposition Signals**: Review 5 universal signals
 8. **Suggest Next Steps**:
-   - **Primary**: Move to testing → `/cig-testing <task-path>`
+   - **Primary**: Move to testing planning → `/cig-testing-plan <task-path>`
    - **Alternative**: Return to design if implementation reveals design gaps
    - **Alternative**: Create subtasks if implementation is too complex
 

@@ -8,7 +8,7 @@ allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/hierarchy-re
 
 **This step**: Complete the design planning document (c-design-plan.md) with architecture decisions, component design, and interface specifications.
 
-**Not this step**: Implementation (that's d-implementation-plan + e-implementation-exec), testing, or deployment.
+**Not this step**: Implementation (that's d-implementation-plan + f-implementation-exec), testing, or deployment.
 
 **If blocked or finished**: Call `workflow-control --current-step=c-design-plan --task-path=<path>` to determine next action. See `.cig/docs/workflow/blocker-patterns.md` for detailed blocker handling guidance.
 

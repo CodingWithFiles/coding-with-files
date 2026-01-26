@@ -18,8 +18,8 @@ sub detect_version {
     my $pool_dir = "$git_root/.cig/templates/pool";
     $pool_dir = ".cig/templates/pool" unless -d $pool_dir;
 
-    # v2.1 indicator: e-implementation-exec.md.template exists
-    if (-f "$pool_dir/e-implementation-exec.md.template") {
+    # v2.1 indicator: f-implementation-exec.md.template exists
+    if (-f "$pool_dir/f-implementation-exec.md.template") {
         return 'v2.1';
     }
 

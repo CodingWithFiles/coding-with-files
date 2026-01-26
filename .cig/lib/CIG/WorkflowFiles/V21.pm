@@ -28,16 +28,16 @@ use warnings;
 =head1 WORKFLOW FILES
 
 v2.1 format uses sequential a-j lettering:
-  a-task-plan.md          (Planning)
-  b-requirements-plan.md  (Planning)
-  c-design-plan.md        (Planning)
+  a-task-plan.md           (Planning)
+  b-requirements-plan.md   (Planning)
+  c-design-plan.md         (Planning)
   d-implementation-plan.md (Planning)
-  e-implementation-exec.md (Execution - NEW in v2.1)
-  f-testing-plan.md       (Planning)
-  g-testing-exec.md       (Execution - NEW in v2.1)
-  h-rollout.md            (Execution)
-  i-maintenance.md        (Execution)
-  j-retrospective.md      (Retrospective)
+  e-testing-plan.md        (Planning - NEW POSITION in v2.1)
+  f-implementation-exec.md (Execution - NEW in v2.1)
+  g-testing-exec.md        (Execution - NEW in v2.1)
+  h-rollout.md             (Execution)
+  i-maintenance.md         (Execution)
+  j-retrospective.md       (Retrospective)
 
 =cut
 
@@ -48,8 +48,8 @@ our %WORKFLOW_FILES = (
         'b-requirements-plan.md',
         'c-design-plan.md',
         'd-implementation-plan.md',
-        'e-implementation-exec.md',
-        'f-testing-plan.md',
+        'e-testing-plan.md',
+        'f-implementation-exec.md',
         'g-testing-exec.md',
         'h-rollout.md',
         'i-maintenance.md',
@@ -59,16 +59,16 @@ our %WORKFLOW_FILES = (
         'a-task-plan.md',
         'c-design-plan.md',
         'd-implementation-plan.md',
-        'e-implementation-exec.md',
-        'f-testing-plan.md',
+        'e-testing-plan.md',
+        'f-implementation-exec.md',
         'g-testing-exec.md',
         'j-retrospective.md',
     ],
     hotfix => [
         'a-task-plan.md',
         'd-implementation-plan.md',
-        'e-implementation-exec.md',
-        'f-testing-plan.md',
+        'e-testing-plan.md',
+        'f-implementation-exec.md',
         'g-testing-exec.md',
         'h-rollout.md',
         'j-retrospective.md',
@@ -76,8 +76,8 @@ our %WORKFLOW_FILES = (
     chore => [
         'a-task-plan.md',
         'd-implementation-plan.md',
-        'e-implementation-exec.md',
-        'f-testing-plan.md',
+        'e-testing-plan.md',
+        'f-implementation-exec.md',
         'g-testing-exec.md',
         'j-retrospective.md',
     ],
@@ -86,8 +86,8 @@ our %WORKFLOW_FILES = (
         'b-requirements-plan.md',
         'c-design-plan.md',
         'd-implementation-plan.md',
-        'e-implementation-exec.md',
-        'f-testing-plan.md',
+        'e-testing-plan.md',
+        'f-implementation-exec.md',
         'g-testing-exec.md',
         'j-retrospective.md',
     ],

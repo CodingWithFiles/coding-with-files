@@ -1,0 +1,124 @@
+#!/usr/bin/env perl
+#
+# migrate-v2.1-file-order - Migrate v2.1 tasks to corrected file order
+#
+# Usage: migrate-v2.1-file-order <task-path>
+#
+# Renames workflow files in existing v2.1 tasks:
+#   e-implementation-exec.md → f-implementation-exec.md
+#   f-testing-plan.md → e-testing-plan.md
+#
+# Task 29: Fix v2.1 workflow file order (swap e and f files)
+#
+
+use strict;
+use warnings;
+use FindBin;
+use File::Basename;
+use Cwd 'abs_path';
+
+# Validate arguments
+unless (@ARGV == 1 && $ARGV[0] =~ /^\d+(\.\d+)*$/) {
+    die "Usage: $0 <task-path>\n" .
+        "Example: $0 25\n" .
+        "Task path must be hierarchical number format (digits and dots only)\n";
+}
+
+my $task_path = $ARGV[0];
+
+# Find git root
+my $git_root = `git rev-parse --show-toplevel 2>/dev/null`;
+chomp $git_root;
+die "ERROR: Not in a git repository\n" unless $git_root && -d $git_root;
+
+# Use hierarchy-resolver to find task directory
+my $resolver_path = "$git_root/.cig/scripts/command-helpers/hierarchy-resolver";
+die "ERROR: hierarchy-resolver not found at $resolver_path\n" unless -x $resolver_path;
+
+my $task_info = `$resolver_path $task_path 2>&1`;
+my $exit_code = $? >> 8;
+
+if ($exit_code != 0) {
+    print STDERR "ERROR: Task $task_path not found\n";
+    print STDERR $task_info;
+    exit 1;
+}
+
+# Parse task directory from resolver output
+my ($task_dir) = $task_info =~ /^Path:\s*(.+)$/m;
+unless ($task_dir && -d $task_dir) {
+    die "ERROR: Could not determine task directory from resolver output\n";
+}
+
+print "Migrating task $task_path in $task_dir\n";
+
+# Check if task is v2.1 format
+my $is_v21 = 0;
+
+# Check for Template Version header in any workflow file
+opendir(my $dh, $task_dir) or die "ERROR: Cannot open directory $task_dir: $!\n";
+my @workflow_files = grep { /\.md$/ && -f "$task_dir/$_" } readdir($dh);
+closedir($dh);
+
+for my $file (@workflow_files) {
+    open(my $fh, '<', "$task_dir/$file") or next;
+    while (my $line = <$fh>) {
+        if ($line =~ /^\- \*\*Template Version\*\*:\s*2\.1/) {
+            $is_v21 = 1;
+            last;
+        }
+        last if $line =~ /^## / && $line !~ /^## Task Reference/;
+    }
+    close($fh);
+    last if $is_v21;
+}
+
+# Fallback: check for presence of old filename
+$is_v21 = 1 if -f "$task_dir/e-implementation-exec.md";
+
+unless ($is_v21) {
+    print "Task $task_path is not v2.1 format - skipping migration\n";
+    exit 0;
+}
+
+print "Task $task_path is v2.1 format - proceeding with migration\n";
+
+# Check if already migrated
+if (-f "$task_dir/f-implementation-exec.md" && -f "$task_dir/e-testing-plan.md") {
+    print "Task $task_path already migrated - files have correct names\n";
+    exit 0;
+}
+
+# Perform migration using three-way swap
+my $old_e = "$task_dir/e-implementation-exec.md";
+my $old_f = "$task_dir/f-testing-plan.md";
+my $new_e = "$task_dir/e-testing-plan.md";
+my $new_f = "$task_dir/f-implementation-exec.md";
+my $temp  = "$task_dir/temp-migration-f.md";
+
+# Check source files exist
+my @missing;
+push @missing, "e-implementation-exec.md" unless -f $old_e;
+push @missing, "f-testing-plan.md" unless -f $old_f;
+
+if (@missing) {
+    print "WARNING: Missing files in $task_dir: " . join(", ", @missing) . "\n";
+    print "Partial migration may have occurred. Please check task directory.\n";
+    exit 1;
+}
+
+# Perform three-way swap (same as git mv in Phase 1)
+print "  Renaming e-implementation-exec.md → temp-migration-f.md\n";
+rename($old_e, $temp) or die "ERROR: Failed to rename $old_e → $temp: $!\n";
+
+print "  Renaming f-testing-plan.md → e-testing-plan.md\n";
+rename($old_f, $new_e) or die "ERROR: Failed to rename $old_f → $new_e: $!\n";
+
+print "  Renaming temp-migration-f.md → f-implementation-exec.md\n";
+rename($temp, $new_f) or die "ERROR: Failed to rename $temp → $new_f: $!\n";
+
+print "Migration complete for task $task_path\n";
+print "  e-implementation-exec.md → f-implementation-exec.md\n";
+print "  f-testing-plan.md → e-testing-plan.md\n";
+
+exit 0;

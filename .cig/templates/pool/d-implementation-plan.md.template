@@ -72,7 +72,7 @@ function improvedApproach() {
 
 ## Status
 **Status**: Backlog
-**Next Action**: Begin implementation
+**Next Action**: Move to testing planning → `/cig-testing-plan <task>`
 **Blockers**: None identified
 
 **See `.cig/docs/workflow/workflow-steps.md#status-values` for valid status values**

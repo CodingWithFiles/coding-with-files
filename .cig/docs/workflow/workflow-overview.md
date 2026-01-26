@@ -1,26 +1,53 @@
 # Workflow Overview
 
-The CIG hierarchical workflow system guides tasks through 8 structured steps from planning to retrospective. This system enables infinite task nesting while maintaining clarity and preventing scope creep through universal decomposition signals.
+The CIG hierarchical workflow system guides tasks through structured steps from planning to retrospective. This system enables infinite task nesting while maintaining clarity and preventing scope creep through universal decomposition signals.
 
-## Eight Workflow Steps
+## Version Differences
 
-Each task progresses through lettered workflow steps (a-h), with each step having a dedicated workflow file and command:
+**v2.0 Format** (8 phases): Eight lettered workflow steps (a-h) covering plan, requirements, design, implementation, testing, rollout, maintenance, retrospective.
 
-1. **a-plan** (`/cig-plan`) - Define goals, success criteria, and high-level approach
-2. **b-requirements** (`/cig-requirements`) - Specify functional and non-functional requirements
-3. **c-design** (`/cig-design`) - Document architecture decisions and component design
-4. **d-implementation** (`/cig-implementation`) - Execute implementation with test-driven approach
-5. **e-testing** (`/cig-testing`) - Validate functionality and non-functional requirements
-6. **f-rollout** (`/cig-rollout`) - Deploy with phased rollout and monitoring
-7. **g-maintenance** (`/cig-maintenance`) - Establish ongoing support and optimization
-8. **h-retrospective** (`/cig-retrospective`) - Capture learnings and variance analysis
+**v2.1 Format** (10 phases): Extends v2.0 by separating planning from execution for implementation and testing. This creates distinct phases for "what we'll do" (planning) versus "what we did" (execution). File order was corrected to place test planning (e) before implementation execution (f), reflecting the philosophy that **test planning is a thinking tool** - it forces you to understand what "working" means before you start implementing.
+
+This document describes the v2.1 workflow format.
+
+## Ten Workflow Steps (v2.1)
+
+Each task progresses through lettered workflow steps (a-j), with each step having a dedicated workflow file and command:
+
+### Planning Phases
+1. **a-task-plan** (`/cig-task-plan`) - Define goals, success criteria, and high-level approach
+2. **b-requirements-plan** (`/cig-requirements-plan`) - Specify functional and non-functional requirements
+3. **c-design-plan** (`/cig-design-plan`) - Document architecture decisions and component design
+4. **d-implementation-plan** (`/cig-implementation-plan`) - Plan implementation approach, files to modify, steps
+5. **e-testing-plan** (`/cig-testing-plan`) - Define test strategy, test cases, validation criteria (moved before implementation execution)
+
+### Execution Phases
+6. **f-implementation-exec** (`/cig-implementation-exec`) - Execute implementation following the plan (separated from planning)
+7. **g-testing-exec** (`/cig-testing-exec`) - Execute tests following the test plan (separated from planning)
+8. **h-rollout** (`/cig-rollout`) - Deploy with phased rollout and monitoring
+
+### Support Phases
+9. **i-maintenance** (`/cig-maintenance`) - Establish ongoing support and optimization
+10. **j-retrospective** (`/cig-retrospective`) - Capture learnings and variance analysis
+
+### Philosophy: Test Planning as Thinking Tool
+
+The v2.1 workflow places test planning (e-testing-plan.md) before implementation execution (f-implementation-exec.md) because **test planning is fundamentally a thinking tool**. By defining what "working" means and how you'll verify it before you start writing implementation code, you:
+- Clarify requirements and acceptance criteria
+- Identify edge cases and error conditions early
+- Establish measurable success criteria
+- Enable true TDD workflow: plan tests → write failing tests → implement → tests pass
+
+This is planning-driven development with TDD principles, not traditional TDD. You're not writing test code before implementation code - you're planning your test approach to force clarity about requirements and outcomes.
+
+### Task Type Variations
 
 Not all task types require all steps:
-- **Feature**: All 8 steps (a-h)
-- **Bugfix**: 5 steps - skips requirements, rollout (a, c, d, e, h)
-- **Hotfix**: 5 steps - emergency focus (a, d, e, f, h)
-- **Chore**: 4 steps - skips requirements, design, rollout, maintenance (a, d, e, h)
-- **Discovery**: 6 steps - for research/analysis tasks, skips rollout and maintenance (a, b, c, d, e, h)
+- **Feature**: All 10 steps (a-j)
+- **Bugfix**: 7 steps (a, c, d, e, f, g, h) - skips requirements, maintenance, retrospective
+- **Hotfix**: 5 steps (a, d, e, f, g) - emergency focus, minimal ceremony
+- **Chore**: 4 steps (a, d, f, h) - maintenance work, skips test planning/execution
+- **Discovery**: 7 steps (a, b, c, d, e, g, h) - research/analysis, skips implementation execution
 
 ## Universal Decomposition Principle
 

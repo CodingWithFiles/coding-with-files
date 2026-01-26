@@ -6,11 +6,11 @@ allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/hierarchy-re
 
 ## Scope & Boundaries
 
-**This step**: Now you write code. Execute the implementation steps from d-implementation-plan.md and document actual results in e-implementation-exec.md.
+**This step**: Now you write code. Execute the implementation steps from d-implementation-plan.md and document actual results in f-implementation-exec.md.
 
-**Not this step**: Planning what to implement (that's d-implementation-plan), testing (that's f-testing-plan + g-testing-exec), or deployment.
+**Not this step**: Planning what to implement (that's d-implementation-plan), testing (that's e-testing-plan + g-testing-exec), or deployment.
 
-**If blocked or finished**: Call `workflow-control --current-step=e-implementation-exec --task-path=<path>` to determine next action. See `.cig/docs/workflow/blocker-patterns.md` for detailed blocker handling guidance.
+**If blocked or finished**: Call `workflow-control --current-step=f-implementation-exec --task-path=<path>` to determine next action. See `.cig/docs/workflow/blocker-patterns.md` for detailed blocker handling guidance.
 
 ## Context
 See `.cig/docs/context/tools.md` for context tool documentation.
@@ -76,7 +76,7 @@ Read the implementation plan to understand what needs to be executed:
 
 6. **Execute Implementation Workflow**:
 
-Open and work with the execution file (e-implementation-exec.md):
+Open and work with the execution file (f-implementation-exec.md):
 - Use `format-detector <task-dir> <workflow-file>` to check version
 - **Focus on**: Executing planned steps, recording actual results, documenting deviations
 - **Avoid**: Changing the plan (update d-implementation-plan.md if plan needs adjustment)
@@ -100,7 +100,7 @@ Work through the implementation plan systematically:
 - Execute steps sequentially as planned in d-implementation-plan.md
 - Make code changes according to the design
 - Test changes locally to verify they work
-- Document actual results in e-implementation-exec.md
+- Document actual results in f-implementation-exec.md
 - Note any deviations from the plan with rationale
 
 8. **Suggest Next Steps with Reasoning**:
@@ -123,7 +123,7 @@ Provide clear reasoning for the suggested path based on execution outcome.
 - [ ] Task directory resolved successfully
 - [ ] Parent context loaded (if applicable) and relevant sections reviewed
 - [ ] Implementation plan (d-implementation-plan.md) reviewed
-- [ ] Execution file (e-implementation-exec.md) opened and updated
+- [ ] Execution file (f-implementation-exec.md) opened and updated
 - [ ] Implementation steps executed according to plan
 - [ ] Actual results documented for each step
 - [ ] Deviations from plan documented with rationale

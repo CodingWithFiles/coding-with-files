@@ -6,7 +6,7 @@ Detailed guidance for workflow steps in the CIG system. Each step includes purpo
 
 **v2.0 Format** (8 phases): a-task-plan, b-requirements-plan, c-design-plan, d-implementation-plan, f-testing-plan, h-rollout, i-maintenance, j-retrospective
 
-**v2.1 Format** (10 phases): v2.0 phases + e-implementation-exec, g-testing-exec
+**v2.1 Format** (10 phases): v2.0 phases + e-testing-plan (moved from f), f-implementation-exec, g-testing-exec (note: e and f swapped from v2.0 order)
 - Separates planning from execution for implementation and testing
 - Enables clear distinction between "what we'll do" (planning) and "what we did" (execution)
 - Planning phases focus on approach, execution phases focus on actual results
@@ -236,7 +236,7 @@ The following status values are defined in the project configuration:
 
 ## Implementation Execution
 
-**File**: `e-implementation-exec.md` (v2.1 only)
+**File**: `f-implementation-exec.md` (v2.1 only)
 
 **Purpose**: Execute the implementation following the approved plan, recording actual results and deviations.
 
@@ -279,7 +279,7 @@ The following status values are defined in the project configuration:
 
 ## Testing Planning
 
-**File**: `f-testing-plan.md` (v2.0 and v2.1)
+**File**: `e-testing-plan.md` (v2.1 - moved from f position) OR `f-testing-plan.md` (v2.0 only)
 
 **Purpose**: Define test strategy and validate both functional and non-functional requirements through comprehensive test coverage.
 
@@ -329,7 +329,7 @@ The following status values are defined in the project configuration:
 **Purpose**: Execute the test plan, record test results, and document failures with reproduction steps.
 
 **Focus on**:
-- Executing test cases from f-testing-plan.md sequentially
+- Executing test cases from testing plan file (e-testing-plan.md for v2.1, f-testing-plan.md for v2.0) sequentially
 - Setting up test environment as specified
 - Recording PASS/FAIL status for each test case
 - Documenting test failures with reproduction steps
@@ -337,7 +337,7 @@ The following status values are defined in the project configuration:
 - Executing non-functional tests (performance, security, etc.)
 
 **Avoid**:
-- Changing the test plan (update f-testing-plan.md if needed)
+- Changing the test plan (update testing plan file if needed)
 - Skipping test cases without documentation
 - Marking tests as passing when they fail
 - Moving to rollout before all tests pass
@@ -351,7 +351,7 @@ The following status values are defined in the project configuration:
 
 **Typical Structure**:
 - Goal: Execute tests following plan
-- Execution Checklist: Steps from f-testing-plan.md
+- Execution Checklist: Steps from testing plan file (e-testing-plan.md for v2.1, f-testing-plan.md for v2.0)
 - Test Results: Tables with PASS/FAIL status for each test
 - Test Failures: Detailed documentation with reproduction steps
 - Coverage Report: Metrics showing achieved coverage

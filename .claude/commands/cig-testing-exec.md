@@ -6,9 +6,9 @@ allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/hierarchy-re
 
 ## Scope & Boundaries
 
-**This step**: Now you run tests. Execute test cases from f-testing-plan.md and document results in g-testing-exec.md.
+**This step**: Now you run tests. Execute test cases from e-testing-plan.md and document results in g-testing-exec.md.
 
-**Not this step**: Planning tests (that's f-testing-plan), fixing bugs (that's e-implementation-exec), or deployment.
+**Not this step**: Planning tests (that's e-testing-plan), fixing bugs (that's f-implementation-exec), or deployment.
 
 **If blocked or finished**: Call `workflow-control --current-step=g-testing-exec --task-path=<path>` to determine next action. See `.cig/docs/workflow/blocker-patterns.md` for detailed blocker handling guidance.
 
@@ -70,7 +70,7 @@ Based on the structural map, decide if you need to read specific parent sections
 5. **Reference Test Plan**:
 
 Read the test plan to understand what tests need to be executed:
-- Read `f-testing-plan.md` for test strategy, test cases, and success criteria
+- Read `e-testing-plan.md` for test strategy, test cases, and success criteria
 - Understand the planned test approach, test levels, and coverage targets
 - Review functional and non-functional test specifications
 
@@ -79,7 +79,7 @@ Read the test plan to understand what tests need to be executed:
 Open and work with the testing execution file (g-testing-exec.md):
 - Use `format-detector <task-dir> <workflow-file>` to check version
 - **Focus on**: Executing planned tests, recording results, documenting failures
-- **Avoid**: Changing the test plan (update f-testing-plan.md if plan needs adjustment)
+- **Avoid**: Changing the test plan (update e-testing-plan.md if plan needs adjustment)
 - Capture: Test results (PASS/FAIL), failure details, coverage metrics
 
 Key questions to address:
@@ -97,7 +97,7 @@ Key questions to address:
 7. **Execute Test Cases**:
 
 Work through the test plan systematically:
-- Set up test environment as specified in f-testing-plan.md
+- Set up test environment as specified in e-testing-plan.md
 - Execute functional test cases sequentially
 - Execute non-functional tests (performance, security, usability, reliability)
 - Record PASS/FAIL status for each test case in results table
@@ -124,7 +124,7 @@ Provide clear reasoning for the suggested path based on testing outcome.
 ## Success Criteria
 - [ ] Task directory resolved successfully
 - [ ] Parent context loaded (if applicable) and relevant sections reviewed
-- [ ] Test plan (f-testing-plan.md) reviewed
+- [ ] Test plan (e-testing-plan.md) reviewed
 - [ ] Execution file (g-testing-exec.md) opened and updated
 - [ ] Test environment set up successfully
 - [ ] All functional test cases executed and results recorded

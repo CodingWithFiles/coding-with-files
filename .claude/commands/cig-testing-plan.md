@@ -6,11 +6,11 @@ allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/hierarchy-re
 
 ## Scope & Boundaries
 
-**This step**: Complete the testing planning document (f-testing-plan.md) with test strategy, test cases, and validation criteria.
+**This step**: Complete the testing planning document (e-testing-plan.md) with test strategy, test cases, and validation criteria.
 
 **Not this step**: Running tests (that's g-testing-exec), deployment, or maintenance.
 
-**If blocked or finished**: Call `workflow-control --current-step=f-testing-plan --task-path=<path>` to determine next action. See `.cig/docs/workflow/blocker-patterns.md` for detailed blocker handling guidance.
+**If blocked or finished**: Call `workflow-control --current-step=e-testing-plan --task-path=<path>` to determine next action. See `.cig/docs/workflow/blocker-patterns.md` for detailed blocker handling guidance.
 
 ## Context
 See `.cig/docs/context/tools.md` for context tool documentation.
@@ -74,7 +74,7 @@ Follow the 8-step workflow structure:
 
 7. **Check Decomposition Signals**: Review 5 universal signals
 8. **Suggest Next Steps**:
-   - **Primary**: Move to rollout → `/cig-rollout <task-path>`
+   - **Primary**: Move to implementation execution → `/cig-implementation-exec <task-path>`
    - **Alternative**: Return to implementation if tests reveal defects
    - **Alternative**: Extend testing if coverage is insufficient
 

@@ -97,6 +97,12 @@
       "sha256": "20b653c381c809bd1247aca1a75e218256f80b7262c69fbedd308695b9428730",
       "permissions": "0500",
       "description": "Rollback migration to v1.0 using git tag or manual backup"
+    },
+    "migrate-v2.1-file-order": {
+      "path": ".cig/scripts/migrations/migrate-v2.1-file-order",
+      "sha256": "70e21c8a9fc27306e61428e8c439d2d3fa5405176719149775037a77164f35bc",
+      "permissions": "0755",
+      "description": "Migrate v2.1 tasks to corrected file order (e=testing-plan, f=implementation-exec)"
     }
   },
   "lib": {

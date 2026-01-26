@@ -4,182 +4,44 @@ Future tasks and improvements for the Code Implementation Guide system.
 
 ---
 
-## Task: Fix v2.1 Workflow File Order and Next Step References
+---
 
-**Task-Type**: bugfix
-**Priority**: Critical
-**Status**: Discovered in Task 26 (testing planning phase revealed incorrect workflow order)
+## Task: Create Template Reference Linter for Pre-Commit Hook
 
-Fix the v2.1 workflow file naming/ordering to follow correct test-first approach: plan implementation, plan testing, execute implementation, execute testing.
+**Task-Type**: chore
+**Priority**: Medium
+**Status**: Recommended from Task 29 retrospective
 
-**Problem**: Current v2.1 workflow has incorrect file order that violates test-first principles:
-- **Current order**: d-implementation-plan → e-implementation-exec → f-testing-plan → g-testing-exec
-- **Problem**: Tests are planned AFTER implementation is executed, defeating purpose of planning-as-thinking
-- **Impact**:
-  - Encourages implementing without knowing what success looks like
-  - Tests become afterthoughts rather than driving implementation
-  - Violates "Patterns first → Test → Minimal impl" workflow
-  - All "Next Step" sections in workflow files point to wrong next file
-  - **Misses cognitive benefit**: Implementation happens before thinking through what's measurable/feasible
+Create automated linter to detect hardcoded template filename references and verify they point to current template names.
 
-**Philosophy: Test Planning as a Thinking Tool**
+**Problem**: Template filename references must be updated manually across codebase:
+- No automated way to detect orphaned template filename references
+- Manual grep required for verification (e.g., Task 29 found 60+ references)
+- Risk of missing references during template changes
+- Version-specific references (v2.0 vs v2.1) need distinction
 
-The v2.1 workflow is NOT traditional TDD (write failing test → implement → make test pass). It's a **hybrid of TDD and planning-driven development** where test planning serves as a thinking tool.
+**Solution**: Create `template-reference-linter` script:
+- Detect hardcoded template filenames in `.md`, `.pl`, `.pm` files
+- Verify references point to current template names (not deprecated)
+- Distinguish v2.0 refs (acceptable in V20.pm) from v2.1 refs (should use new names)
+- Run as pre-commit hook or CI check
+- Report orphaned references with file:line information
 
-**Key insight**: The primary purpose of test planning isn't to have a perfect test suite ready to execute. The primary purpose is to **understand the problem better** by forcing yourself to think deeply about what "working" means BEFORE you implement.
+**Benefits**:
+- Prevents orphaned references during template renames
+- Automates manual grep verification step
+- Catches errors before commit
+- Documents expected template filenames
 
-By planning tests, you're forced to ask:
-- What's actually **measurable**? (All tests are measurements)
-- What does success look like **concretely**?
-- What **edge cases** exist?
-- What's **feasible** vs. theoretical?
+**Implementation**:
+1. Add to `.cig/scripts/` as `template-reference-linter`
+2. Parse all `.md`, `.pl`, `.pm` files for template filename patterns
+3. Cross-reference against current template pool contents
+4. Flag deprecated names (e.g., "e-implementation-exec.md" in v2.1 context)
+5. Allow v2.0-specific references (V20.pm uses "f-testing-plan.md" correctly)
+6. Integrate with pre-commit hook or CI pipeline
 
-This understanding **informs** the implementation. You write better code because you've already thought through:
-- How you'll validate it works
-- What could go wrong
-- What the acceptance criteria mean in practice
-- What's actually measurable vs. what's aspirational
-
-**Why correct order matters**:
-- **Wrong order** (plan impl → exec impl → plan tests): You implement before you've thought through what "working" means. You miss the cognitive benefit.
-- **Correct order** (plan impl → plan tests → exec impl): Test planning deepens your understanding of feasibility and success criteria, leading to better implementation decisions.
-
-**Correct Order**: Tests should be planned BEFORE implementation execution:
-1. a-task-plan.md → Plan the task
-2. b-requirements-plan.md → Define requirements
-3. c-design-plan.md → Design architecture
-4. d-implementation-plan.md → Plan implementation steps
-5. **e-testing-plan.md** → Plan tests (know what success looks like!)
-6. **f-implementation-exec.md** → Execute implementation
-7. **g-testing-exec.md** → Execute tests
-8. h-rollout.md → Deploy
-9. i-maintenance.md → Maintain
-10. j-retrospective.md → Reflect
-
-**Root Cause**: Task 25 implementation of v2.1 workflow used incorrect sequencing. The file naming (e-implementation-exec, f-testing-plan) bakes the wrong order into the file names.
-
-**Solution**: Two-phase fix required:
-
-### Phase 1: Fix File Naming Convention
-**Rename workflow files** to correct order:
-- e-implementation-exec.md → **f-implementation-exec.md**
-- f-testing-plan.md → **e-testing-plan.md**
-- g-testing-exec.md → **g-testing-exec.md** (stays same)
-- h-rollout.md → **h-rollout.md** (stays same)
-- etc.
-
-**Affected components**:
-1. `.cig/templates/pool/` - Rename template files
-2. All existing v2.1 tasks (Task 25, Task 26) - Rename actual workflow files
-3. Template symlinks for each task type (feature, bugfix, etc.)
-4. `template-copier` - Update file name mappings
-5. `status-aggregator-v2.1` - Update file name recognition
-6. All workflow commands - Update file references
-
-### Phase 2: Fix "Next Step" References
-**Update all workflow template files** to reference correct next step:
-- a-task-plan.md: "Next: `/cig-requirements-plan <task>`"
-- b-requirements-plan.md: "Next: `/cig-design-plan <task>`"
-- c-design-plan.md: "Next: `/cig-implementation-plan <task>`"
-- d-implementation-plan.md: "Next: `/cig-testing-plan <task>`" ← **CRITICAL CHANGE**
-- **e-testing-plan.md**: "Next: `/cig-implementation-exec <task>`" ← **NEW**
-- **f-implementation-exec.md**: "Next: `/cig-testing-exec <task>`" ← **CRITICAL CHANGE**
-- g-testing-exec.md: "Next: `/cig-rollout <task>`"
-- h-rollout.md: "Next: `/cig-maintenance <task>`"
-- i-maintenance.md: "Next: `/cig-retrospective <task>`"
-- j-retrospective.md: "Task complete"
-
-**Update workflow command files** to reference correct next step:
-- `.claude/commands/cig-implementation-plan.md`: Suggest `/cig-testing-plan` next (not `/cig-implementation-exec`)
-- `.claude/commands/cig-testing-plan.md`: Suggest `/cig-implementation-exec` next (not `/cig-rollout`)
-- `.claude/commands/cig-implementation-exec.md`: Suggest `/cig-testing-exec` next
-- `.claude/commands/cig-testing-exec.md`: Suggest `/cig-rollout` next
-
-### Scope
-**Phase 1: File Renaming**
-1. Rename template files in `.cig/templates/pool/`:
-   - e-implementation-exec.md.template → f-implementation-exec.md.template
-   - f-testing-plan.md.template → e-testing-plan.md.template
-2. Update template symlinks for all task types (feature, bugfix, hotfix, chore, discovery)
-3. Update `template-copier` file mapping logic
-4. Update `status-aggregator-v2.1` file recognition patterns
-5. Rename existing v2.1 task files:
-   - Task 25: Rename e→f, f→e
-   - Task 26: Rename e→f, f→e (if e exists - currently doesn't)
-6. Update git history / document breaking change
-
-**Phase 2: Next Step References**
-1. Update all 10 template files (a-j) with correct "Next Action" in Status sections
-2. Update all workflow command files (8 commands) with correct next step suggestions
-3. Update `.cig/docs/workflow/workflow-steps.md`:
-   - Reflect correct file order (e-testing-plan, f-implementation-exec)
-   - Update section on Testing Planning to explain it comes BEFORE implementation execution
-   - Add philosophy explanation: test planning as thinking tool for understanding feasibility
-4. Update `.cig/docs/workflow/workflow-overview.md`:
-   - Update workflow sequence diagram/list to show correct order
-   - Add philosophy section explaining test planning as cognitive tool
-   - Clarify this is planning-driven development, not traditional TDD
-   - Explain why order matters: test planning deepens understanding before implementation
-5. Update any other documentation referencing workflow order
-
-### Testing
-1. Create new v2.1 task with `template-copier` - verify files created with correct names (e-testing-plan, f-implementation-exec)
-2. Verify symlinks point to correct renamed templates
-3. Verify `status-aggregator-v2.1 --workflow` recognizes all 10 files
-4. Walk through workflow: plan → requirements → design → implementation → **testing** → **exec impl** → **exec test** → rollout
-5. Verify "Next Action" references in each file point to correct next file
-
-### Migration Strategy
-**For existing v2.1 tasks** (Task 25, Task 26):
-- Option A: Rename files in place (breaks existing references)
-- Option B: Leave existing tasks as-is, only fix templates for future tasks
-- Option C: Create migration script to rename files and update internal cross-references
-
-**Recommended**: Option C - Create migration script
-- Safer than manual renaming
-- Can be run on Tasks 25, 26 to bring them into compliance
-- Documents the transformation for future reference
-
-### Success Criteria
-- [ ] Template files renamed: e-testing-plan, f-implementation-exec
-- [ ] Template symlinks updated for all task types
-- [ ] template-copier creates files with correct names
-- [ ] status-aggregator-v2.1 recognizes all 10 files in correct order
-- [ ] All "Next Action" references point to correct next step
-- [ ] All workflow commands suggest correct next step
-- [ ] Documentation reflects correct order
-- [ ] Existing v2.1 tasks (25, 26) migrated to new naming
-- [ ] New v2.1 tasks created with correct file order
-- [ ] Workflow follows test-first approach: plan tests BEFORE executing implementation
-
-### Risks and Mitigations
-**Risk 1: Breaking existing v2.1 tasks**
-- **Likelihood**: High (Tasks 25, 26 have files with old names)
-- **Impact**: High (status-aggregator won't find files, workflow broken)
-- **Mitigation**: Create migration script, test on Task 25 first, document rollback procedure
-
-**Risk 2: Confusion during transition**
-- **Likelihood**: Medium (users/LLM may reference old file names)
-- **Impact**: Medium (frustration, need to re-explain)
-- **Mitigation**: Clear communication in commit message, update CHANGELOG, add note to workflow docs
-
-**Risk 3: Internal cross-references break**
-- **Likelihood**: Medium (workflow files may reference each other by name)
-- **Impact**: Medium (broken links, confusing documentation)
-- **Mitigation**: Migration script updates internal references, manual review of all templates
-
-### Priority Justification
-**Critical Priority** because:
-- **Fundamental workflow flaw**: Current order violates test-first principles
-- **Affects all future v2.1 tasks**: Every new task will be created with wrong order
-- **Affects existing tasks**: Tasks 25 and 26 already have wrong file names
-- **Workflow integrity**: Wrong order encourages bad practices (implement first, test later)
-- **User confusion**: "Next Step" sections point to wrong files, causing workflow interruptions
-- **Breaks TDD**: Cannot follow "Patterns first → Test → Minimal impl" with current order
-
-**Rationale**: The v2.1 workflow is fundamentally broken. Test planning must come before implementation execution to enable test-first development. The current file naming (e-implementation-exec, f-testing-plan) bakes the wrong workflow into the file structure. This must be fixed before creating more v2.1 tasks.
-
-**Discovered**: During Task 26 testing planning phase when cig-testing-plan command suggested "/cig-rollout 26" next, skipping implementation and test execution entirely.
+**Estimated Effort**: 0.5-1 day
 
 ---
 
@@ -1632,162 +1494,6 @@ This is a **significant refactor** touching the core status aggregation architec
 - Affects power-user feature, not core functionality
 
 **Discovered**: During Task 26 testing execution (TC-F11) when validating `status-aggregator --workflow` behavior with mixed v2.0/v2.1 project.
-
----
-
-## Task: Fix v2.1 Template File Ordering to Match Logical Workflow
-
-**Task-Type**: bugfix
-**Priority**: High
-**Status**: Discovered in Task 26 (template ordering inconsistency with workflow logic)
-
-Rename v2.1 template files to match the logical workflow order: all planning phases before execution phases.
-
-**Problem**: Current v2.1 template naming interleaves planning and execution phases incorrectly.
-
-**Current (Incorrect) Order**:
-```
-d-implementation-plan.md    (Planning)
-e-implementation-exec.md    (Execution) ← WRONG: executes before testing is planned
-f-testing-plan.md           (Planning)  ← WRONG: plans after implementation executes
-g-testing-exec.md           (Execution)
-```
-
-**Correct Order Should Be**:
-```
-d-implementation-plan.md    (Planning)
-e-testing-plan.md           (Planning)  ← Plan testing BEFORE executing anything
-f-implementation-exec.md    (Execution) ← Execute implementation
-g-testing-exec.md           (Execution) ← Execute testing
-```
-
-**Rationale**:
-- Workflow best practice: Complete all planning phases before execution
-- Current order forces implementation execution before testing is planned
-- Logical sequence: Plan → Plan → Execute → Execute, not Plan → Execute → Plan → Execute
-- Matches natural work progression: understand what to build AND how to test it, then build it, then test it
-
-### Impact
-
-**Current Template Order Creates Confusion**:
-- Users complete d-implementation-plan, then are directed to e-implementation-exec
-- They execute implementation without having planned testing approach
-- Testing plan (f-testing-plan) comes AFTER implementation is done
-- This is backwards from proper workflow
-
-**Affects**:
-- `.cig/templates/pool/` - Template file names
-- `CIG::WorkflowFiles::V21` - File list definitions
-- All existing v2.1 tasks (currently just Task 26)
-- Future v2.1 tasks
-
-### Solution
-
-Rename template files to correct logical order:
-
-**Step 1: Rename Templates in Pool**
-```bash
-# In .cig/templates/pool/
-mv e-implementation-exec.md.template e-testing-plan.md.template.tmp
-mv f-testing-plan.md.template f-implementation-exec.md.template.tmp
-mv e-testing-plan.md.template.tmp f-implementation-exec.md.template
-mv f-implementation-exec.md.template.tmp e-testing-plan.md.template
-
-# Result:
-# d-implementation-plan.md.template
-# e-testing-plan.md.template (was f)
-# f-implementation-exec.md.template (was e)
-# g-testing-exec.md.template (unchanged)
-```
-
-**Step 2: Update V21 Module**
-```perl
-# In .cig/lib/CIG/WorkflowFiles/V21.pm
-our %WORKFLOW_FILES = (
-    feature => [
-        'a-task-plan.md',
-        'b-requirements-plan.md',
-        'c-design-plan.md',
-        'd-implementation-plan.md',
-        'e-testing-plan.md',          # CHANGED: was f
-        'f-implementation-exec.md',   # CHANGED: was e
-        'g-testing-exec.md',
-        'h-rollout.md',
-        'i-maintenance.md',
-        'j-retrospective.md',
-    ],
-    # ... update other task types similarly
-);
-```
-
-**Step 3: Update Documentation**
-- `.cig/lib/CIG/WorkflowFiles/V21.pm` POD documentation
-- `.cig/docs/workflow/workflow-steps.md` if it references specific file names
-- Any other docs mentioning v2.1 file order
-
-**Step 4: Migrate Existing v2.1 Tasks**
-
-Task 26 files need renaming:
-```bash
-cd implementation-guide/26-feature-update-cig-status-to-use-workflow-flag/
-mv e-implementation-exec.md e-implementation-exec.md.old
-mv f-testing-plan.md e-testing-plan.md
-mv e-implementation-exec.md.old f-implementation-exec.md
-mv g-testing-exec.md g-testing-exec.md.tmp
-mv g-testing-exec.md.tmp g-testing-exec.md
-```
-
-**Step 5: Update Internal References**
-
-Update any file that references specific v2.1 file names:
-- Task 26 workflow files (cross-references between files)
-- Command files that might reference specific phases
-- Scripts that might hardcode file names (check status-aggregator, etc.)
-
-### Testing
-
-- [ ] Verify all template files renamed correctly in pool
-- [ ] Verify V21 module returns correct file lists
-- [ ] Verify Task 26 files renamed and still readable
-- [ ] Verify status-aggregator shows correct file order for Task 26
-- [ ] Create new v2.1 task to verify templates work correctly
-- [ ] Verify no broken references in documentation
-
-### Success Criteria
-
-- [ ] Template pool has correct file order (d, e-testing, f-impl, g)
-- [ ] V21 module reflects correct order
-- [ ] Task 26 files renamed to match
-- [ ] All cross-references updated
-- [ ] New v2.1 tasks created with correct file order
-- [ ] Documentation accurate
-
-### Root Cause
-
-**Introduced By**: Task 25 - "Implement v2.1 workflow with planning/execution separation"
-
-Task 25 implemented the v2.1 format with interleaved planning/execution order:
-- Commit: `91b0202 Task 25: Implement v2.1 workflow with planning/execution separation`
-- File: `implementation-guide/25-feature-separate-planning-from-execution-phases-with-expli/c-design.md`
-- Design specified: d-impl-plan, e-impl-exec, f-test-plan, g-test-exec
-
-**Why It Was Wrong**: The design focused on "separating planning from execution" but didn't consider the logical workflow order should be "all planning, then all execution" rather than "plan-execute-plan-execute".
-
-### Priority Justification
-
-**High Priority** because:
-- **Workflow Logic Broken**: Forces implementation execution before test planning
-- **Affects All Future v2.1 Tasks**: Every new v2.1 task will have wrong order
-- **Migration Needed**: Task 26 already exists with wrong naming
-- **Breaking Change**: Better to fix now before more v2.1 tasks exist
-- **Template Pool Core**: Affects fundamental template structure
-
-**Not Critical** because:
-- Only affects v2.1 tasks (Task 26 is the only one currently)
-- Doesn't break functionality, just ordering logic
-- Can be fixed with file renames (no code changes)
-
-**Discovered**: During Task 26 when reviewing template ordering and realizing execution happens before planning is complete.
 
 ---
 

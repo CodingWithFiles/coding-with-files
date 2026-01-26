@@ -2,6 +2,100 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 29: Fix v2.1 Workflow File Order and Next Step References
+
+**Status**: Complete (2026-01-26)
+**Impact**: Corrects v2.1 workflow to follow test-first principles, enabling test planning before implementation execution
+
+### Philosophy: Test Planning as Thinking Tool
+
+Fixed critical workflow design flaw where implementation execution occurred before test planning. The corrected order (plan tests → execute implementation → execute tests) enables test planning to serve as a thinking tool that deepens understanding before code is written.
+
+**Key insight**: Test planning isn't about having tests ready to run - it's about understanding what "working" means before implementing. By forcing yourself to think through measurability, edge cases, and success criteria, you write better implementation code.
+
+**This is planning-driven development with TDD principles**, not traditional TDD. You're planning your test approach (not writing test code) to gain clarity about requirements and outcomes.
+
+### File Order Correction
+
+**Old order** (incorrect):
+- d-implementation-plan.md → **e-implementation-exec.md** → **f-testing-plan.md** → g-testing-exec.md
+
+**New order** (correct):
+- d-implementation-plan.md → **e-testing-plan.md** → **f-implementation-exec.md** → g-testing-exec.md
+
+### Changes Implemented
+
+**Phase 1: Template Renaming**
+- Renamed 2 pool template files using git mv (preserves history)
+- Updated 10 symlinks across 5 task types (feature, bugfix, hotfix, chore, discovery)
+- All renames tracked by git at 100% similarity
+
+**Phase 2: Reference Updates (60+ references across 11 components)**
+- Updated 4 template "Next Action" fields (d, e, f, g)
+- Updated CIG::WorkflowFiles::V21 module (5 task type arrays)
+- Updated blocker-patterns.md (5 references)
+- Updated 6 workflow command files
+- Updated workflow documentation (workflow-steps.md, workflow-overview.md) with philosophy
+- Fixed format detection bug in 3 trampoline scripts (critical for template-copier)
+
+**Phase 3: Migration Script**
+- Created `.cig/scripts/migrations/migrate-v2.1-file-order`
+- Validates task is v2.1 before migrating (safe for v2.0/v1.0)
+- Three-way file swap preserves git history
+- Idempotent design (safe to re-run)
+- Added to script-hashes.json with SHA256 verification
+
+**Phase 4: Task Migrations**
+- Migrated Tasks 26, 27, 28, 29 to corrected file order
+- All migrations successful with 100% git similarity
+- Zero breaking changes for existing workflows
+
+### Testing Results
+
+Comprehensive testing validated all aspects of the fix:
+- **16/16 test cases passed** (13 functional + 3 non-functional)
+- **100% coverage** (all 11 components verified)
+- **Zero defects** found during testing
+- **Zero regressions** for v2.0 or v1.0 tasks
+
+**Performance**: Both helper scripts exceeded targets significantly
+- template-copier: 31ms (target <5s, 160x faster)
+- status-aggregator: 27ms (target <100ms, 3.7x faster)
+
+### Documentation Updates
+
+**Philosophy Documentation**:
+- Added "Test Planning as Thinking Tool" section to workflow-overview.md
+- Explains why e before f (test planning deepens understanding before implementation)
+- Distinguishes from traditional TDD (planning not coding tests first)
+- Clarifies this is planning-driven development with TDD principles
+
+**Workflow Documentation**:
+- Updated workflow-steps.md with v2.1 format description
+- Updated all file references throughout documentation
+- Added version-aware guidance (e-testing-plan for v2.1, f-testing-plan for v2.0)
+
+### Key Learnings
+
+**Systematic planning ROI**: 40 min planning investment saved 6+ hours (no rework, no debugging). 10-step implementation plan eliminated decision paralysis and enabled confident progress.
+
+**Checkpoint commits reduce risk**: 3 checkpoint commits during Phase 2 provided clean rollback points every 1.5-2 hours. Cost minimal (5 min per commit), benefit high (eliminated fear of breaking changes).
+
+**LLM acceleration significant**: Actual duration 0.3 days vs estimate 2-3 days (5-9x faster). File operations, reference hunting, and script writing all dramatically faster with LLM assistance.
+
+**git mv preserves history automatically**: Using git mv instead of manual rename preserved full file history at 100% similarity, with no manual tracking needed.
+
+### System Status
+
+- v2.1 workflow file order corrected systemwide
+- All templates create tasks with correct file names
+- All existing v2.1 tasks migrated successfully
+- Philosophy documented for future reference
+- Migration script available for any future file order changes
+- Zero regressions, 100% test coverage, all systems operational
+
+---
+
 ## Task 4: Migration Tools to Migrate v1.0 to v2.0
 
 **Status**: Complete

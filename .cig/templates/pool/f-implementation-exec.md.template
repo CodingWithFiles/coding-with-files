@@ -35,7 +35,7 @@ Execute the implementation following the plan in d-implementation-plan.md.
 
 ## Status
 **Status**: Backlog
-**Next Action**: Execute implementation following plan in d-implementation-plan.md
+**Next Action**: Move to testing execution → `/cig-testing-exec <task>`
 **Blockers**: None identified
 
 **See `.cig/docs/workflow/workflow-steps.md#status-values` for valid status values**
