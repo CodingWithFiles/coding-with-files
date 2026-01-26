@@ -1,8 +1,16 @@
 ---
 description: Guide user through retrospective phase
 argument-hint: <task-path>
-allowed-tools: Read, Write, Edit, Bash(git branch:*), Bash(git add:*), Bash(.cig/scripts/command-helpers/hierarchy-resolver:*), Bash(.cig/scripts/command-helpers/context-inheritance:*), Bash(.cig/scripts/command-helpers/format-detector:*), Bash(egrep:*), Bash(echo:*), Bash(find:*)
+allowed-tools: Read, Write, Edit, Bash(git branch:*), Bash(git add:*), Bash(.cig/scripts/command-helpers/hierarchy-resolver:*), Bash(.cig/scripts/command-helpers/context-inheritance:*), Bash(.cig/scripts/command-helpers/format-detector:*), Bash(.cig/scripts/command-helpers/workflow-control:*), Bash(egrep:*), Bash(echo:*), Bash(find:*)
 ---
+
+## Scope & Boundaries
+
+**This step**: Complete the retrospective document (j-retrospective.md) with learnings, metrics analysis, and process improvements for future tasks.
+
+**Not this step**: Implementation, testing, or deployment (those are complete). This is reflection only.
+
+**If blocked or finished**: Call `workflow-control --current-step=j-retrospective --task-path=<path>` to determine next action. See `.cig/docs/workflow/blocker-patterns.md` for detailed blocker handling guidance.
 
 ## Context
 See `.cig/docs/context/tools.md` for context tool documentation.
@@ -160,27 +168,6 @@ With verification, retrospective, and BACKLOG.md update finished (Steps 7-9):
 
 **Primary Path**: Merge to main (task 100% finished with retrospective)
 **Alternative Paths**: Create follow-up tasks, share learnings with team
-
-## Blocker Handling
-
-**Common Blockers in Retrospective**:
-- Task not actually finished → Cannot proceed to retrospective, return to incomplete phase
-- Missing workflow files → Complete all required phases before retrospective
-- Merge conflicts detected → Resolve conflicts before retrospective merge
-- Required learnings not captured → Complete workflow files before retrospective
-- Team review not complete → Schedule review session before finalizing retrospective
-
-**Reversion Guidance**:
-- If task incomplete: Return to the incomplete phase, update that phase's status
-- If workflow files missing: Complete required phases (cannot skip phases)
-- If merge conflicts: Resolve on task branch, then return to retrospective
-- Document the blocker in "Actual Results" section of j-retrospective.md
-- Update status to "Blocked" until blocker is resolved
-
-**When to Revert**:
-- Retrospective reveals task was marked complete prematurely
-- Critical phases were skipped (e.g., no testing performed)
-- Merge to main is blocked by conflicts or review requirements
 
 ## Success Criteria
 - [ ] Retrospective file (h-retrospective.md) opened and updated

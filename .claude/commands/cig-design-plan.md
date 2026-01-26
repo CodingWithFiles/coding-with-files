@@ -1,8 +1,16 @@
 ---
 description: Guide user through design phase
 argument-hint: <task-path>
-allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/hierarchy-resolver:*), Bash(.cig/scripts/command-helpers/context-inheritance:*), Bash(.cig/scripts/command-helpers/format-detector:*), Bash(egrep:*), Bash(echo:*), Bash(find:*)
+allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/hierarchy-resolver:*), Bash(.cig/scripts/command-helpers/context-inheritance:*), Bash(.cig/scripts/command-helpers/format-detector:*), Bash(.cig/scripts/command-helpers/workflow-control:*), Bash(egrep:*), Bash(echo:*), Bash(find:*)
 ---
+
+## Scope & Boundaries
+
+**This step**: Complete the design planning document (c-design-plan.md) with architecture decisions, component design, and interface specifications.
+
+**Not this step**: Implementation (that's d-implementation-plan + e-implementation-exec), testing, or deployment.
+
+**If blocked or finished**: Call `workflow-control --current-step=c-design-plan --task-path=<path>` to determine next action. See `.cig/docs/workflow/blocker-patterns.md` for detailed blocker handling guidance.
 
 ## Context
 See `.cig/docs/context/tools.md` for context tool documentation.
@@ -63,27 +71,6 @@ Follow the 8-step workflow structure:
    - **Primary**: Move to implementation → `/cig-implementation <task-path>`
    - **Alternative**: Return to requirements if design reveals missing requirements
    - **Alternative**: Create spike/prototype task if design uncertainty is high
-
-## Blocker Handling
-
-**Common Blockers in Design**:
-- Multiple design approaches with no clear winner → Create spike task to prototype alternatives
-- Design reveals requirements are incomplete/incorrect → Revert to b-requirements-plan.md to clarify
-- Technical constraints make all approaches infeasible → Revert to a-task-plan.md to reconsider scope
-- Missing expertise to make design decisions → Consult expert or create research subtask
-- Design shows task is too complex for one phase → Revert to planning, decompose into subtasks
-
-**Reversion Guidance**:
-- If reverting to requirements: Update b-requirements-plan.md with design insights, then redesign
-- If reverting to planning: Update a-task-plan.md with new constraints, reconsider approach
-- Document the blocker in "Actual Results" section of c-design-plan.md
-- Update status to "Blocked" until blocker is resolved
-- When blocker resolved, update design with new approach
-
-**When to Revert**:
-- Design exploration reveals fundamental requirement gaps
-- All considered approaches violate stated constraints
-- Design complexity indicates need for task decomposition
 
 ## Success Criteria
 - [ ] Design file opened and updated

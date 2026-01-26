@@ -1,8 +1,16 @@
 ---
 description: Guide user through rollout phase
 argument-hint: <task-path>
-allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/hierarchy-resolver:*), Bash(.cig/scripts/command-helpers/context-inheritance:*), Bash(.cig/scripts/command-helpers/format-detector:*), Bash(egrep:*), Bash(echo:*), Bash(find:*)
+allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/hierarchy-resolver:*), Bash(.cig/scripts/command-helpers/context-inheritance:*), Bash(.cig/scripts/command-helpers/format-detector:*), Bash(.cig/scripts/command-helpers/workflow-control:*), Bash(egrep:*), Bash(echo:*), Bash(find:*)
 ---
+
+## Scope & Boundaries
+
+**This step**: Complete the rollout document (h-rollout.md) with deployment plan, rollback procedures, and rollout results.
+
+**Not this step**: Implementation, testing (those are already done), or long-term maintenance (that's i-maintenance.md).
+
+**If blocked or finished**: Call `workflow-control --current-step=h-rollout --task-path=<path>` to determine next action. See `.cig/docs/workflow/blocker-patterns.md` for detailed blocker handling guidance.
 
 ## Context
 See `.cig/docs/context/tools.md` for context tool documentation.
@@ -68,27 +76,6 @@ Follow the 8-step workflow structure:
    - **Primary**: Move to maintenance → `/cig-maintenance <task-path>`
    - **Alternative**: Execute rollback if issues detected
    - **Alternative**: Extend monitoring period if uncertainty remains
-
-## Blocker Handling
-
-**Common Blockers in Rollout**:
-- Production environment not ready → Create infrastructure preparation subtask
-- Rollback procedure untested → Execute rollback dry run before proceeding
-- Monitoring infrastructure missing → Set up monitoring before rollout
-- Stakeholders not ready for rollout → Schedule alignment meeting, document concerns
-- Critical production issue discovered → Execute rollback, create hotfix task
-
-**Reversion Guidance**:
-- If rollback needed: Document rollback in h-rollout.md, create hotfix task for issues
-- If environment not ready: Update status to "Blocked", document infrastructure gaps
-- If monitoring gaps found: Create monitoring subtask, complete before rollout
-- Document the blocker in "Actual Results" section of h-rollout.md
-- Update status to "Blocked" until blocker is resolved
-
-**When to Revert**:
-- Rollout reveals critical defects that escaped testing
-- Production environment incompatibilities discovered
-- Stakeholder concerns indicate premature rollout
 
 ## Success Criteria
 - [ ] Rollout file opened and updated

@@ -38,6 +38,12 @@
       "permissions": "0500",
       "description": "Parse Template Version field from workflow files"
     },
+    "workflow-control": {
+      "path": ".cig/scripts/command-helpers/workflow-control",
+      "sha256": "c0699d8775f9e7299e58b766e90b872c8861eee523986aeff5d156d633768c8c",
+      "permissions": "0500",
+      "description": "Determine workflow continuation based on current step status"
+    },
     "context-inheritance": {
       "path": ".cig/scripts/command-helpers/context-inheritance",
       "sha256": "61791642dcf7c2fcc59d4ace08ecd263f5aaa1b9abf7eff69c90f560b2dacfd8",

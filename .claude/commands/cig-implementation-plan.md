@@ -1,8 +1,16 @@
 ---
 description: Guide user through implementation phase
 argument-hint: <task-path>
-allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/hierarchy-resolver:*), Bash(.cig/scripts/command-helpers/context-inheritance:*), Bash(.cig/scripts/command-helpers/format-detector:*), Bash(egrep:*), Bash(echo:*), Bash(find:*)
+allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/hierarchy-resolver:*), Bash(.cig/scripts/command-helpers/context-inheritance:*), Bash(.cig/scripts/command-helpers/format-detector:*), Bash(.cig/scripts/command-helpers/workflow-control:*), Bash(egrep:*), Bash(echo:*), Bash(find:*)
 ---
+
+## Scope & Boundaries
+
+**This step**: Complete the implementation planning document (d-implementation-plan.md) with files to modify, implementation steps, and validation criteria.
+
+**Not this step**: Writing code (that's e-implementation-exec), testing, or deployment.
+
+**If blocked or finished**: Call `workflow-control --current-step=d-implementation-plan --task-path=<path>` to determine next action. See `.cig/docs/workflow/blocker-patterns.md` for detailed blocker handling guidance.
 
 ## Context
 See `.cig/docs/context/tools.md` for context tool documentation.
@@ -68,27 +76,6 @@ Follow the 8-step workflow structure:
    - **Primary**: Move to testing → `/cig-testing <task-path>`
    - **Alternative**: Return to design if implementation reveals design gaps
    - **Alternative**: Create subtasks if implementation is too complex
-
-## Blocker Handling
-
-**Common Blockers in Implementation Planning**:
-- Design proves insufficient during planning → Revert to c-design-plan.md to address gaps
-- Implementation reveals missing requirements → Revert to b-requirements-plan.md to clarify
-- Discovered technical debt blocks planned approach → Create cleanup subtask first
-- Complexity exceeds estimation, needs decomposition → Revert to a-task-plan.md, create subtasks
-- Missing tools/libraries not in design → Revert to design to evaluate alternatives
-
-**Reversion Guidance**:
-- If reverting to design: Update c-design-plan.md with implementation insights, then replan
-- If reverting to requirements: Update b-requirements-plan.md, propagate changes through design
-- Document the blocker in "Actual Results" section of d-implementation-plan.md
-- Update status to "Blocked" until blocker is resolved
-- When blocker resolved, update implementation plan with new approach
-
-**When to Revert**:
-- Implementation plan reveals design is not implementable as specified
-- Plan shows implementation requires 3x more work than estimated
-- Critical dependencies are missing or incompatible
 
 ## Success Criteria
 - [ ] Implementation file opened and updated

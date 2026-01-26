@@ -1,0 +1,107 @@
+#!/usr/bin/env perl
+#
+# workflow-control - Determine workflow continuation based on current step status
+#
+# Usage: workflow-control --current-step <step-name> --task-path <task-path>
+#
+# Examples:
+#   workflow-control --current-step c-design-plan --task-path 28
+#   workflow-control --current-step b-requirements-plan --task-path 1.2
+#
+# Exit codes:
+#   0 - Success
+#   1 - Invalid arguments
+#   2 - Task not found
+#   3 - Workflow file not found
+#   4 - Status field not found
+#
+# Output format:
+#   <action>
+#   <human-readable-message>
+
+use strict;
+use warnings;
+use FindBin;
+use lib "$FindBin::Bin/../../lib";
+
+use CIG::Options qw(parse);
+use CIG::TaskPath qw(validate resolve);
+use CIG::MarkdownParser qw(extract_status);
+
+# Check PERL5OPT configuration
+unless ($ENV{PERL5OPT} && $ENV{PERL5OPT} =~ /-C/) {
+    warn "WARNING: PERL5OPT not configured for Unicode handling.\n";
+    warn "Add the following to ~/.claude/settings.json:\n";
+    warn "  \"env\": { \"PERL5OPT\": \"-CDSL\" }\n\n";
+}
+
+# Parse arguments
+my $spec = {
+    description => "Determine workflow continuation based on current step status",
+    options => [
+        { long => 'current-step', type => 'value', desc => 'Current workflow step name (e.g., c-design-plan)' },
+        { long => 'task-path', type => 'value', desc => 'Hierarchical task number (e.g., 28, 1.2, 3.1.4)' },
+    ],
+};
+
+my $opts = parse($spec, @ARGV);
+
+# Validate required arguments
+unless ($opts->{'current-step'} && $opts->{'task-path'}) {
+    print STDERR "Error: Missing required arguments\n";
+    print STDERR "Usage: workflow-control --current-step <step-name> --task-path <task-path>\n";
+    exit 1;
+}
+
+my $current_step = $opts->{'current-step'};
+my $task_path = $opts->{'task-path'};
+
+# Validate task-path format
+unless (validate($task_path)) {
+    print STDERR "Error: Invalid task-path format: $task_path\n";
+    print STDERR "Task path must be hierarchical numbers (e.g., '28', '1.2', '3.1.4')\n";
+    exit 1;
+}
+
+# Resolve task directory
+my $task_info = resolve($task_path);
+
+unless ($task_info) {
+    print STDERR "Error: Task not found: $task_path\n";
+    exit 2;
+}
+
+my $task_dir = $task_info->{full_path};
+
+# Construct workflow file path
+my $workflow_file = "$task_dir/$current_step.md";
+
+# Check if workflow file exists
+unless (-f $workflow_file) {
+    print STDERR "Error: Workflow file not found: $workflow_file\n";
+    exit 3;
+}
+
+# Extract status using structure-aware parser
+my $status = extract_status($workflow_file);
+
+if ($status eq 'Unknown') {
+    print STDERR "Error: Status field not found in workflow file: $workflow_file\n";
+    exit 4;
+}
+
+# Return guidance based on status
+if ($status eq 'Finished') {
+    print "ask-user\n";
+    print "Suggest next workflow step\n";
+    exit 0;
+} elsif ($status eq 'Blocked') {
+    print "ask-user\n";
+    print "Need user feedback on blocker\n";
+    exit 0;
+} else {
+    # Other statuses: Backlog, To-Do, In Progress, Implemented, Testing
+    print "continue\n";
+    print "If workflow step complete: update status to 'Finished' and re-run workflow-control. Otherwise: continue this workflow step.\n";
+    exit 0;
+}

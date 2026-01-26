@@ -1,8 +1,16 @@
 ---
 description: Guide user through maintenance phase
 argument-hint: <task-path>
-allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/hierarchy-resolver:*), Bash(.cig/scripts/command-helpers/context-inheritance:*), Bash(.cig/scripts/command-helpers/format-detector:*), Bash(egrep:*), Bash(echo:*), Bash(find:*)
+allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/hierarchy-resolver:*), Bash(.cig/scripts/command-helpers/context-inheritance:*), Bash(.cig/scripts/command-helpers/format-detector:*), Bash(.cig/scripts/command-helpers/workflow-control:*), Bash(egrep:*), Bash(echo:*), Bash(find:*)
 ---
+
+## Scope & Boundaries
+
+**This step**: Complete the maintenance document (i-maintenance.md) with monitoring plan, support procedures, and ongoing maintenance results.
+
+**Not this step**: Implementation, testing, or initial deployment (those are complete). Final reflection comes in j-retrospective.md.
+
+**If blocked or finished**: Call `workflow-control --current-step=i-maintenance --task-path=<path>` to determine next action. See `.cig/docs/workflow/blocker-patterns.md` for detailed blocker handling guidance.
 
 ## Context
 See `.cig/docs/context/tools.md` for context tool documentation.
@@ -69,27 +77,6 @@ Follow the 8-step workflow structure:
    - **Primary**: Task is complete, ready for retrospective → `/cig-retrospective <task-path>`
    - **Alternative**: Create follow-up tasks for identified improvements
    - **Alternative**: Update monitoring if new issues discovered
-
-## Blocker Handling
-
-**Common Blockers in Maintenance**:
-- Monitoring tools not available → Create infrastructure subtask for monitoring setup
-- Performance issues discovered → Create optimization subtask
-- Security vulnerabilities found → Create security fix hotfix task immediately
-- Scaling issues emerging → Create scaling subtask or infrastructure task
-- Documentation gaps prevent support → Create documentation subtask
-
-**Reversion Guidance**:
-- If critical issues found: Create hotfix task, document in i-maintenance.md
-- If monitoring infrastructure missing: Update status to "Blocked", create setup task
-- Document the blocker in "Actual Results" section of i-maintenance.md
-- Update status to "Blocked" until monitoring infrastructure is ready
-- When blocker resolved, complete maintenance planning
-
-**When to Revert**:
-- Maintenance phase reveals the rollout was premature
-- Critical monitoring gaps indicate system is not production-ready
-- Performance issues require redesign rather than optimization
 
 ## Success Criteria
 - [ ] Maintenance file opened and updated

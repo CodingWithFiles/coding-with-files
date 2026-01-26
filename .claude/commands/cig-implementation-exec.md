@@ -1,8 +1,16 @@
 ---
 description: Guide user through implementation execution phase
 argument-hint: <task-path>
-allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/hierarchy-resolver:*), Bash(.cig/scripts/command-helpers/context-inheritance:*), Bash(.cig/scripts/command-helpers/format-detector:*), Bash(egrep:*), Bash(echo:*), Bash(find:*), Bash(git:*)
+allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/hierarchy-resolver:*), Bash(.cig/scripts/command-helpers/context-inheritance:*), Bash(.cig/scripts/command-helpers/format-detector:*), Bash(.cig/scripts/command-helpers/workflow-control:*), Bash(egrep:*), Bash(echo:*), Bash(find:*), Bash(git:*)
 ---
+
+## Scope & Boundaries
+
+**This step**: Now you write code. Execute the implementation steps from d-implementation-plan.md and document actual results in e-implementation-exec.md.
+
+**Not this step**: Planning what to implement (that's d-implementation-plan), testing (that's f-testing-plan + g-testing-exec), or deployment.
+
+**If blocked or finished**: Call `workflow-control --current-step=e-implementation-exec --task-path=<path>` to determine next action. See `.cig/docs/workflow/blocker-patterns.md` for detailed blocker handling guidance.
 
 ## Context
 See `.cig/docs/context/tools.md` for context tool documentation.
@@ -110,27 +118,6 @@ Analyze the execution outcome and suggest the next step:
 - If execution is incomplete → Continue with remaining steps, update status
 
 Provide clear reasoning for the suggested path based on execution outcome.
-
-## Blocker Handling
-
-**Common Blockers in Implementation Execution**:
-- Code changes cause unexpected test failures → Debug root cause, may need design revision
-- Dependencies have breaking changes → Revert to d-implementation-plan.md to adjust approach
-- Implementation reveals design is flawed → Revert to c-design-plan.md to redesign
-- Complexity is much higher than estimated → Consider decomposing into subtasks
-- External API changes break integration → Update plan and design to accommodate
-
-**Reversion Guidance**:
-- If reverting to planning: Update d-implementation-plan.md with learnings, then re-execute
-- If reverting to design: Update c-design-plan.md with discovered constraints, replan and re-execute
-- Document the blocker in "Blockers Encountered" section of e-implementation-exec.md
-- Update status to "Blocked" until blocker is resolved
-- When blocker resolved, resume execution with updated approach
-
-**When to Revert**:
-- Execution proves the planned approach does not work
-- Unforeseen technical constraints make plan impossible
-- Implementation reveals fundamental design flaws
 
 ## Success Criteria
 - [ ] Task directory resolved successfully

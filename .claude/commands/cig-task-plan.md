@@ -1,8 +1,16 @@
 ---
 description: Guide user through planning phase
 argument-hint: <task-path>
-allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/hierarchy-resolver:*), Bash(.cig/scripts/command-helpers/context-inheritance:*), Bash(.cig/scripts/command-helpers/format-detector:*), Bash(egrep:*), Bash(echo:*), Bash(find:*)
+allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/hierarchy-resolver:*), Bash(.cig/scripts/command-helpers/context-inheritance:*), Bash(.cig/scripts/command-helpers/format-detector:*), Bash(.cig/scripts/command-helpers/workflow-control:*), Bash(egrep:*), Bash(echo:*), Bash(find:*)
 ---
+
+## Scope & Boundaries
+
+**This step**: Complete the task planning document (a-task-plan.md) with goals, success criteria, milestones, risks, and decomposition check.
+
+**Not this step**: Requirements gathering, design, implementation, testing, or deployment.
+
+**If blocked or finished**: Call `workflow-control --current-step=a-task-plan --task-path=<path>` to determine next action. See `.cig/docs/workflow/blocker-patterns.md` for detailed blocker handling guidance.
 
 ## Context
 See `.cig/docs/context/tools.md` for context tool documentation.
@@ -110,26 +118,6 @@ Analyze the planning outcome and suggest the next step:
 - If dependencies block → Document blockers and suggest parallel work
 
 Provide clear reasoning for the suggested path based on planning outcome.
-
-## Blocker Handling
-
-**Common Blockers in Planning**:
-- Unclear scope or missing requirements → Revert to stakeholder discussion/clarification
-- Conflicting stakeholder goals → Revert to goal alignment before continuing
-- Too many unknowns to estimate → Recommend creating discovery/spike task first
-- Dependencies cannot be resolved → Update status to "Blocked", document blockers
-- Decomposition needed but unclear how → Create investigation subtask to explore options
-
-**Reversion Guidance**:
-- If reverting to earlier phase: Update status to "Backlog" or "To-Do", document reason
-- Document the blocker in "Actual Results" or "Blockers" section of a-task-plan.md
-- Update status to "Blocked" until blocker is resolved
-- When blocker resolved, restart planning with new information
-
-**When to Revert**:
-- Planning reveals the task description is fundamentally wrong
-- Planning shows task is not feasible with current constraints
-- Planning requires information that must come from earlier work
 
 ## Success Criteria
 - [ ] Task directory resolved successfully

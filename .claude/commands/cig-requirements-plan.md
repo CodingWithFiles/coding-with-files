@@ -1,8 +1,16 @@
 ---
 description: Guide user through requirements phase
 argument-hint: <task-path>
-allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/hierarchy-resolver:*), Bash(.cig/scripts/command-helpers/context-inheritance:*), Bash(.cig/scripts/command-helpers/format-detector:*), Bash(egrep:*), Bash(echo:*), Bash(find:*)
+allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/hierarchy-resolver:*), Bash(.cig/scripts/command-helpers/context-inheritance:*), Bash(.cig/scripts/command-helpers/format-detector:*), Bash(.cig/scripts/command-helpers/workflow-control:*), Bash(egrep:*), Bash(echo:*), Bash(find:*)
 ---
+
+## Scope & Boundaries
+
+**This step**: Complete the requirements planning document (b-requirements-plan.md) with functional requirements, non-functional requirements, and acceptance criteria.
+
+**Not this step**: Design decisions, implementation planning, code writing, or testing.
+
+**If blocked or finished**: Call `workflow-control --current-step=b-requirements-plan --task-path=<path>` to determine next action. See `.cig/docs/workflow/blocker-patterns.md` for detailed blocker handling guidance.
 
 ## Context
 See `.cig/docs/context/tools.md` for context tool documentation.
@@ -60,26 +68,6 @@ Follow the 8-step workflow structure:
    - **Primary**: Move to design → `/cig-design <task-path>`
    - **Alternative**: Return to planning if requirements reveal scope issues
    - **Alternative**: Create subtasks if complexity signals triggered
-
-## Blocker Handling
-
-**Common Blockers in Requirements**:
-- Stakeholders cannot agree on acceptance criteria → Revert to a-task-plan.md to realign on goals
-- Requirements reveal scope is much larger than planned → Revert to planning, consider task decomposition
-- External dependencies discovered that change feasibility → Update a-task-plan.md with new constraints
-- Conflicting requirements that cannot be reconciled → Revert to stakeholder alignment
-- Missing domain knowledge to specify requirements → Create discovery subtask or research spike
-
-**Reversion Guidance**:
-- If reverting to planning: Update a-task-plan.md with new understanding, then restart requirements
-- Document the blocker in "Actual Results" section of b-requirements-plan.md
-- Update status to "Blocked" until blocker is resolved
-- When blocker resolved, update requirements with new information
-
-**When to Revert**:
-- Requirements gathering reveals the planned approach is not viable
-- Acceptance criteria cannot be defined without design exploration
-- Requirements show task needs to be split into multiple subtasks
 
 ## Success Criteria
 - [ ] Requirements file opened and updated

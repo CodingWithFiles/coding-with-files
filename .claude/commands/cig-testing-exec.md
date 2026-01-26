@@ -1,8 +1,16 @@
 ---
 description: Guide user through testing execution phase
 argument-hint: <task-path>
-allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/hierarchy-resolver:*), Bash(.cig/scripts/command-helpers/context-inheritance:*), Bash(.cig/scripts/command-helpers/format-detector:*), Bash(egrep:*), Bash(echo:*), Bash(find:*), Bash(npm:*), Bash(pytest:*), Bash(cargo:*), Bash(go:*)
+allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/hierarchy-resolver:*), Bash(.cig/scripts/command-helpers/context-inheritance:*), Bash(.cig/scripts/command-helpers/format-detector:*), Bash(.cig/scripts/command-helpers/workflow-control:*), Bash(egrep:*), Bash(echo:*), Bash(find:*), Bash(npm:*), Bash(pytest:*), Bash(cargo:*), Bash(go:*)
 ---
+
+## Scope & Boundaries
+
+**This step**: Now you run tests. Execute test cases from f-testing-plan.md and document results in g-testing-exec.md.
+
+**Not this step**: Planning tests (that's f-testing-plan), fixing bugs (that's e-implementation-exec), or deployment.
+
+**If blocked or finished**: Call `workflow-control --current-step=g-testing-exec --task-path=<path>` to determine next action. See `.cig/docs/workflow/blocker-patterns.md` for detailed blocker handling guidance.
 
 ## Context
 See `.cig/docs/context/tools.md` for context tool documentation.
@@ -112,28 +120,6 @@ Analyze the testing outcome and suggest the next step:
 - If environment issues block testing → Document blocker, update status to "Blocked"
 
 Provide clear reasoning for the suggested path based on testing outcome.
-
-## Blocker Handling
-
-**Common Blockers in Testing Execution**:
-- Test failures reveal implementation bugs → Return to e-implementation-exec.md to fix
-- Test environment setup fails → Document environment issues, may need infrastructure subtask
-- Tests reveal design flaws → Revert to c-design-plan.md to address fundamental issues
-- Missing test data or test doubles → Create test infrastructure subtask
-- Coverage targets cannot be met → Revert to f-testing-plan.md to adjust strategy
-
-**Reversion Guidance**:
-- If reverting to implementation: Document bugs in e-implementation-exec.md, fix and retest
-- If reverting to test planning: Update f-testing-plan.md with new test cases, then re-execute
-- If reverting to design: Update c-design-plan.md with testability improvements
-- Document the blocker in "Test Failures" section of g-testing-exec.md
-- Update status to "Blocked" until blocker is resolved
-- When blocker resolved, resume testing with fixes applied
-
-**When to Revert**:
-- Test failures indicate fundamental implementation or design issues
-- Test environment is not viable (missing infrastructure, incompatible dependencies)
-- Tests cannot achieve required coverage due to design limitations
 
 ## Success Criteria
 - [ ] Task directory resolved successfully

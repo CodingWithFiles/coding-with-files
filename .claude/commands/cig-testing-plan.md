@@ -1,8 +1,16 @@
 ---
 description: Guide user through testing phase
 argument-hint: <task-path>
-allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/hierarchy-resolver:*), Bash(.cig/scripts/command-helpers/context-inheritance:*), Bash(.cig/scripts/command-helpers/format-detector:*), Bash(egrep:*), Bash(echo:*), Bash(find:*)
+allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/hierarchy-resolver:*), Bash(.cig/scripts/command-helpers/context-inheritance:*), Bash(.cig/scripts/command-helpers/format-detector:*), Bash(.cig/scripts/command-helpers/workflow-control:*), Bash(egrep:*), Bash(echo:*), Bash(find:*)
 ---
+
+## Scope & Boundaries
+
+**This step**: Complete the testing planning document (f-testing-plan.md) with test strategy, test cases, and validation criteria.
+
+**Not this step**: Running tests (that's g-testing-exec), deployment, or maintenance.
+
+**If blocked or finished**: Call `workflow-control --current-step=f-testing-plan --task-path=<path>` to determine next action. See `.cig/docs/workflow/blocker-patterns.md` for detailed blocker handling guidance.
 
 ## Context
 See `.cig/docs/context/tools.md` for context tool documentation.
@@ -69,27 +77,6 @@ Follow the 8-step workflow structure:
    - **Primary**: Move to rollout → `/cig-rollout <task-path>`
    - **Alternative**: Return to implementation if tests reveal defects
    - **Alternative**: Extend testing if coverage is insufficient
-
-## Blocker Handling
-
-**Common Blockers in Testing Planning**:
-- Test environment cannot be set up → Create infrastructure subtask or escalate to ops
-- Requirements lack testable acceptance criteria → Revert to b-requirements-plan.md to add criteria
-- Design makes testing extremely difficult → Revert to c-design-plan.md to improve testability
-- Implementation incomplete, tests cannot be planned → Wait for d-implementation-plan.md completion
-- Missing test data or test doubles → Create test infrastructure subtask first
-
-**Reversion Guidance**:
-- If reverting to requirements: Add testable acceptance criteria, then update test plan
-- If reverting to design: Add testability considerations, then replan testing
-- Document the blocker in "Actual Results" section of f-testing-plan.md
-- Update status to "Blocked" until blocker is resolved
-- When blocker resolved, update test plan with new test cases
-
-**When to Revert**:
-- Test planning reveals requirements are not testable as written
-- Design decisions make achieving test coverage impossible
-- Test environment dependencies are unavailable
 
 ## Success Criteria
 - [ ] Testing file opened and updated
