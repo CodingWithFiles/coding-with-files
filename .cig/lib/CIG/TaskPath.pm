@@ -132,11 +132,8 @@ sub resolve {
 
     my ($num, $type, $slug) = ($1, $2, $3);
 
-    # Detect format (v1.0 or v2.0)
-    my $format = "1.0";
-    if (-f "$full_path/a-plan.md" || -f "$full_path/d-implementation.md") {
-        $format = "2.0";
-    }
+    # Detect format (v1.0, v2.0, or v2.1)
+    my $format = detect_format($full_path);
 
     # Calculate depth and parent
     my $depth = get_depth($num);
@@ -182,6 +179,56 @@ sub get_depth {
 
     my @parts = split(/\./, $path);
     return scalar(@parts);
+}
+
+# Detect task format version from headers and files
+# Headers are authoritative (Template Version field), with file-based fallback
+# Warns if header and file-based detection disagree
+#
+# Args: $full_path - full path to task directory
+# Returns: "1.0", "2.0", or "2.1"
+#
+sub detect_format {
+    my ($full_path) = @_;
+
+    # Step 1: Read header version (authoritative)
+    my $header_version = undef;
+    for my $file (glob("$full_path/*.md")) {
+        open(my $fh, '<', $file) or next;
+        while (my $line = <$fh>) {
+            if ($line =~ /^\- \*\*Template Version\*\*:\s*([0-9.]+)/) {
+                $header_version = $1;
+                close($fh);
+                last;
+            }
+            last if $line =~ /^## / && $line !~ /^## Task Reference/;
+        }
+        last if $header_version;
+    }
+
+    # Step 2: File-based detection (fallback/validation)
+    my $file_version;
+    if (-f "$full_path/e-testing-plan.md" || -f "$full_path/f-implementation-exec.md") {
+        $file_version = "2.1";
+    } elsif (-f "$full_path/a-plan.md" || -f "$full_path/d-implementation.md") {
+        $file_version = "2.0";
+    } elsif (-f "$full_path/plan.md") {
+        $file_version = "1.0";
+    } else {
+        $file_version = "1.0";
+    }
+
+    # Step 3: Warn if mismatch
+    if ($header_version && $header_version ne $file_version) {
+        warn "WARNING: Version mismatch in $full_path\n";
+        warn "  Header says: v$header_version\n";
+        warn "  Files indicate: v$file_version\n";
+        warn "  Using header version (v$header_version)\n";
+        warn "  Consider running migration to sync files\n\n";
+    }
+
+    # Step 4: Return header if present, else file-based
+    return $header_version || $file_version;
 }
 
 1;

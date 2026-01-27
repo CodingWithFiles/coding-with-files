@@ -16,7 +16,7 @@
     },
     "status-aggregator": {
       "path": ".cig/scripts/command-helpers/status-aggregator",
-      "sha256": "2c41ef5c06c6e551ed399f332bba525cce643337fe56a92492c2d1be9b563a84",
+      "sha256": "da72694cbc0b20c088c89cafd8746479eb8b608918d6e756f979ed93f83c73cf",
       "permissions": "0500",
       "description": "Entry point for status aggregation (trampolines to version-specific script)"
     },
@@ -46,7 +46,7 @@
     },
     "context-inheritance": {
       "path": ".cig/scripts/command-helpers/context-inheritance",
-      "sha256": "61791642dcf7c2fcc59d4ace08ecd263f5aaa1b9abf7eff69c90f560b2dacfd8",
+      "sha256": "39899b235c0a9b2eb52a8f8262b3e122e85b5fe1f853942610c481f654374ef6",
       "permissions": "0500",
       "description": "Entry point for context inheritance (trampolines to version-specific script)"
     },
@@ -113,7 +113,7 @@
     },
     "CIG::TaskPath": {
       "path": ".cig/lib/CIG/TaskPath.pm",
-      "sha256": "b3d4ba02d50269f51c72f40bd5797525c2d397b1c89a58ea09a85be6941f1f7e",
+      "sha256": "2cf8b69b42b47ec8e615273d423c18baef7d7493a1f864f84eff332fb093aaf6",
       "description": "Task path normalization, validation, and resolution"
     },
     "CIG::WorkflowFiles": {

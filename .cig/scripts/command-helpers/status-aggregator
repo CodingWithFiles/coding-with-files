@@ -21,49 +21,20 @@ unless ($ENV{PERL5OPT} && $ENV{PERL5OPT} =~ /-C/) {
 }
 use lib "$FindBin::Bin/../../lib";
 
-# Detect version by checking Template Version header in workflow files
+use CIG::TaskPath qw(resolve);
+
+# Detect version by resolving task path
 sub detect_version {
     my $task_arg = shift || '';
 
-    # Find implementation-guide directory
-    my $base_dir = 'implementation-guide';
-    unless (-d $base_dir) {
-        my $git_root = `git rev-parse --show-toplevel 2>/dev/null`;
-        chomp $git_root;
-        $base_dir = "$git_root/implementation-guide" if $git_root && -d "$git_root/implementation-guide";
-    }
-
-    # If we have a specific task, check its template version
+    # If specific task provided, detect its format
     if ($task_arg && $task_arg =~ /^\d+(\.\d+)*$/) {
-        # Find task directory
-        my @task_dirs = glob("$base_dir/*-*-*");
-        for my $dir (@task_dirs) {
-            my $dir_name = (split('/', $dir))[-1];
-            if ($dir_name =~ /^${task_arg}(?:\.|-)/) {
-                # Check first workflow file for Template Version header
-                my @workflow_files = glob("$dir/*.md");
-                for my $file (@workflow_files) {
-                    open(my $fh, '<', $file) or next;
-                    while (my $line = <$fh>) {
-                        if ($line =~ /^\- \*\*Template Version\*\*:\s*([0-9.]+)/) {
-                            close($fh);
-                            return "v$1";
-                        }
-                        last if $line =~ /^## / && $line !~ /^## Task Reference/;
-                    }
-                    close($fh);
-                }
-            }
-        }
+        my $result = resolve($task_arg);
+        return "v$result->{format}" if $result;
     }
 
-    # Fallback: check for v2.1 indicators (f-implementation-exec.md presence)
-    if (-d $base_dir) {
-        my @v21_files = glob("$base_dir/*-*-*/f-implementation-exec.md");
-        return 'v2.1' if @v21_files;
-    }
-
-    return 'v2.0';  # Default to v2.0
+    # No task specified: default to v2.0
+    return 'v2.0';
 }
 
 # Parse arguments to separate flags from task path

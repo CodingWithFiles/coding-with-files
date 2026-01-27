@@ -90,50 +90,13 @@ Create trampoline entry point for hierarchy-resolver to match Task 25 architectu
 
 ---
 
-## Task: Fix Format Detector to Correctly Identify v2.1 Tasks
+## ~~Task: Fix Format Detector to Correctly Identify v2.1 Tasks~~ [COMPLETED: Task 30]
 
-**Task-Type**: bugfix
-**Priority**: High
-**Status**: Bug discovered in Task 26 planning phase
+**Completed**: 2026-01-27 (Task 30)
+**Duration**: 2.5 hours (vs. 1-1.5 days estimated = 6x faster)
+**Outcome**: Header-based detection with file fallback, v2.0 bug fix, 100% test pass rate, 50% code reduction
 
-Fix format detection logic to correctly identify v2.1 (10-phase) tasks instead of misreporting them as v1.0.
-
-**Problem**: hierarchy-resolver reports Task 26 as "Format: v1.0" when it should be v2.1:
-- Task 26 created with template-copier (v2.1 workflow)
-- Has 10 workflow files (a-j) including execution phases (e-implementation-exec.md, g-testing-exec.md)
-- Template Version header says "2.0" (which covers v2.1)
-- But hierarchy-resolver reports "Format: v1.0"
-
-**Root Cause**: Format detection logic may not check for v2.1 indicators:
-- Should detect v2.1 by presence of `e-implementation-exec.md` file
-- Currently may only distinguish v1.0 vs v2.0 (not v2.1)
-
-**Solution**: Update format detection in hierarchy-resolver (and potentially format-detector):
-
-**Detection logic should be**:
-1. Check for `e-implementation-exec.md` → v2.1 (10-phase)
-2. Else check for `a-task-plan.md` or Template Version: 2.0 → v2.0 (8-phase)
-3. Else check for `plan.md` → v1.0
-
-**Files to check/update**:
-- `.cig/scripts/command-helpers/hierarchy-resolver` (primary)
-- `.cig/scripts/command-helpers/format-detector` (if used by hierarchy-resolver)
-- Any other scripts that detect format
-
-**Scope**:
-1. Review format detection logic in hierarchy-resolver
-2. Add v2.1 detection (check for e-implementation-exec.md)
-3. Update return value to distinguish v2.0 vs v2.1
-4. Test with v1.0, v2.0, and v2.1 tasks
-5. Update documentation if format detection API changes
-
-**Success Criteria**:
-- [ ] Task 26 (v2.1) correctly reported as "Format: v2.1" (not v1.0)
-- [ ] Existing v2.0 tasks still reported as "Format: v2.0"
-- [ ] Existing v1.0 tasks still reported as "Format: v1.0"
-- [ ] Detection based on file presence (not just Template Version header)
-
-**Rationale**: Incorrect format detection can cause scripts to use wrong workflow file mappings, breaking task operations. Critical for correct v2.1 functionality.
+See: `implementation-guide/30-bugfix-fix-format-detector-for-v2.1-format/`
 
 ---
 

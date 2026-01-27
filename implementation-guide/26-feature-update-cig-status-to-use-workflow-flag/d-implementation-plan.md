@@ -5,7 +5,7 @@
 - **Task URL**: N/A (internal task)
 - **Parent Task**: N/A
 - **Branch**: feature/26-update-cig-status-to-use-workflow-flag
-- **Template Version**: 2.0
+- **Template Version**: 2.1
 
 ## Goal
 Implement intelligent default behavior in status-aggregator script: automatically enable workflow mode for task queries, automatically limit to 5 tasks for overview, with explicit flag controls to override defaults.

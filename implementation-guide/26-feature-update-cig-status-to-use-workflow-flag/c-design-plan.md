@@ -5,7 +5,7 @@
 - **Task URL**: N/A (internal task)
 - **Parent Task**: N/A
 - **Branch**: feature/26-update-cig-status-to-use-workflow-flag
-- **Template Version**: 2.0
+- **Template Version**: 2.1
 
 ## Goal
 Define the architecture for implementing intelligent default behavior in status-aggregator script (automatic workflow mode for task queries, automatic 5-task limit for overview) while providing explicit flag controls (--workflow, --no-workflow, --limit) to override defaults. This avoids complex conditionals in the command file and prevents Claude Code permission issues.

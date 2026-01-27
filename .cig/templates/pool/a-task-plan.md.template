@@ -5,7 +5,7 @@
 - **Task URL**: {{taskUrl}}
 - **Parent Task**: {{parentTask}}
 - **Branch**: {{branchName}}
-- **Template Version**: 2.0
+- **Template Version**: 2.1
 
 ## Goal
 {{description}} - single sentence objective
