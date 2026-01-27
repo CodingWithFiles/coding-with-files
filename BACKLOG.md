@@ -45,69 +45,14 @@ Create automated linter to detect hardcoded template filename references and ver
 
 ---
 
-## Task: Create hierarchy-resolver Trampoline Entry Point
-
-**Task-Type**: bugfix
-**Priority**: High
-**Status**: Bug discovered in Task 26 planning phase
-
-Create trampoline entry point for hierarchy-resolver to match Task 25 architecture pattern.
-
-**Problem**: hierarchy-resolver is missing its trampoline entry point:
-- Other Task 25 scripts have entry points: `status-aggregator`, `template-copier`, `context-inheritance`
-- hierarchy-resolver only exists as `hierarchy-resolver` (no entry point)
-- Command files and documentation reference `hierarchy-resolver` (no .pl extension)
-- This breaks when commands try to call `.cig/scripts/command-helpers/hierarchy-resolver`
-
-**Solution**: Create trampoline infrastructure for hierarchy-resolver matching Task 25 pattern:
-
-**Files to create**:
-1. `.cig/scripts/command-helpers/hierarchy-resolver` (entry point)
-   - Detects task format version (v1.0/v2.0/v2.1)
-   - Routes to appropriate orchestration script
-2. `.cig/scripts/command-helpers/hierarchy-resolver-v2.0` (orchestration)
-   - Handles v2.0 and v2.1 tasks (same logic)
-   - Loads Core::HierarchyResolver module
-3. Optionally: Extract `.cig/lib/CIG/HierarchyResolver/Core.pm` module
-
-**Alternative (simpler)**: If hierarchy-resolver doesn't need version-specific logic:
-- Create entry point that directly calls existing hierarchy-resolver
-- Maintains API consistency with other scripts
-
-**Scope**:
-1. Create hierarchy-resolver entry point (no .pl extension)
-2. Update script-hashes.json with new entry point
-3. Test with existing commands that reference hierarchy-resolver
-4. Verify permissions (0500 for entry point)
-
-**Success Criteria**:
-- [ ] Entry point created: `.cig/scripts/command-helpers/hierarchy-resolver`
-- [ ] Commands can call `hierarchy-resolver <task-path>` successfully
-- [ ] Follows same trampoline pattern as status-aggregator, template-copier, context-inheritance
-- [ ] script-hashes.json updated
-
-**Rationale**: Inconsistent architecture creates confusion and breaks command references. All helper scripts should follow same trampoline pattern established in Task 25.
-
----
-
-## ~~Task: Fix Format Detector to Correctly Identify v2.1 Tasks~~ [COMPLETED: Task 30]
-
-**Completed**: 2026-01-27 (Task 30)
-**Duration**: 2.5 hours (vs. 1-1.5 days estimated = 6x faster)
-**Outcome**: Header-based detection with file fallback, v2.0 bug fix, 100% test pass rate, 50% code reduction
-
-See: `implementation-guide/30-bugfix-fix-format-detector-for-v2.1-format/`
-
----
-
 ## Task: Create v2.0 to v2.1 Workflow Migration Tools
 
 **Task-Type**: feature
-**Priority**: Critical (Highest - Blocking adoption of v2.1 workflow)
+**Priority**: Low
 
 Create automated migration tools to upgrade existing v2.0 tasks (a-plan.md through h-retrospective.md) to v2.1 format (a-task-plan.md through j-retrospective.md with sequential a-j lettering).
 
-**Context**: Task 25 implements v2.1 workflow with 10-phase sequential naming (a-j) and deprecates v1.0. Existing Tasks 1-24 use v2.0 format and will need migration to v2.1 to use new execution commands (cig-implementation-exec, cig-testing-exec).
+**Context**: Task 25 implements v2.1 workflow with 10-phase sequential naming (a-j). Existing Tasks 1-24 use v2.0 format. The trampoline architecture handles mixed v2.0/v2.1 versions seamlessly, and we're already successfully using v2.1 (Tasks 26, 30), so migration is optional for consistency rather than a blocker.
 
 **Problem**:
 - v2.0 uses 8 files: a-plan.md, b-requirements.md, c-design.md, d-implementation.md, e-testing.md, f-rollout.md, g-maintenance.md, h-retrospective.md
@@ -128,18 +73,20 @@ Create automated migration tools to upgrade existing v2.0 tasks (a-plan.md throu
 1. Detect v2.0 tasks (presence of a-plan.md, absence of e-implementation-exec.md)
 2. Rename existing files with -plan suffix where appropriate
 3. Re-letter files (e→f, f→h, g→i, h→j)
-4. Create new execution files (e-implementation-exec.md, g-testing-exec.md) with appropriate content
-5. Update internal cross-references (d-implementation.md → d-implementation-plan.md references)
-6. Validate migration (all 10 files exist, content valid, no broken references)
-7. Provide rollback capability if migration fails
+4. Update internal cross-references (d-implementation.md → d-implementation-plan.md references)
+5. Validate migration (renamed files exist, content valid, no broken references)
+
+**Note on execution files**: Do NOT create e-implementation-exec.md or g-testing-exec.md for completed tasks - that would fabricate history. Only rename/re-letter existing files.
+
+**Note on rollback**: Git is the rollback capability (`git commit` before migration, `git reset --hard` if needed).
 
 **Scope**:
 - Migration script: `.cig/scripts/migrate-v20-to-v21.pl` or similar
 - Dry-run mode to preview changes before applying
 - Batch migration for all v2.0 tasks or selective migration
 - Validation checks before and after migration
-- Clear error messages and rollback on failure
-- Update documentation with migration instructions
+- Clear error messages on failure
+- Update documentation with migration instructions (including git commit/rollback workflow)
 
 **Dependencies**:
 - Task 25 must be complete (v2.1 format defined, trampoline architecture implemented)
@@ -150,12 +97,18 @@ Create automated migration tools to upgrade existing v2.0 tasks (a-plan.md throu
 - [ ] Dry-run mode shows accurate preview
 - [ ] Script handles all edge cases (partial migrations, already-migrated tasks)
 - [ ] Validation checks prevent broken migrations
-- [ ] Rollback works if migration fails mid-way
-- [ ] Documentation explains migration process
+- [ ] Documentation explains migration process (including git commit/reset workflow)
 - [ ] Tasks 1-24 can be migrated without manual intervention
 - [ ] Migrated tasks work correctly with v2.1 workflow commands
 
-**Rationale**: Without migration tools, users cannot easily adopt v2.1 workflow features (execution commands, blocker handling). This blocks the value delivery of Task 25 and creates friction for existing task management.
+**Rationale**: Migration tools would provide consistency across all tasks by converting v2.0 format to v2.1 naming. However, this is **not blocking** because:
+- Trampoline architecture handles mixed v2.0/v2.1 versions seamlessly
+- We're already successfully using v2.1 format (Tasks 26, 30)
+- Completed tasks (1-24) work fine in v2.0 format
+- New tasks use v2.1 templates automatically
+- Manual migration is straightforward for the few tasks that need it
+
+**Priority rationale**: Originally marked Critical, but downgraded to Low after Task 30 demonstrated that mixed versions work without issues. Migration is "nice to have for consistency" rather than a blocker.
 
 **Note**: v1.0→v2.0 migration tools already exist and are preserved by Task 25. This task creates equivalent v2.0→v2.1 migration capability.
 
@@ -363,46 +316,6 @@ Create executable test harness to automate the 95 manual validation test cases c
 
 ---
 
-## Task: Fix Status Aggregator to Only Check Main Status Sections
-
-**Task-Type**: bugfix
-**Priority**: Medium
-**Status**: Proposed (identified in Task 25 retrospective)
-
-Update status-aggregator to only aggregate the main `## Status` section in each workflow file, ignoring embedded Status sections within design/implementation planning sections.
-
-**Problem**: Currently status-aggregator may read multiple `## Status` sections in a single file:
-- c-design.md has 3 Status sections (main + embedded implementation plan + embedded testing plan)
-- d-implementation.md may have embedded sections
-- If not all Status sections updated to "Finished", task shows incorrect completion percentage
-- Confusing which Status sections "count" toward task completion
-
-**Root Cause** (from Task 25 retrospective):
-- status-aggregator showed 25% when task was actually complete
-- Multiple Status sections in c-design.md not all updated to "Finished"
-- Unclear which Status sections matter for completion calculation
-
-**Solution Options**:
-- **Option A** (Recommended): Only aggregate main Status section (last one in file, or first one)
-- **Option B**: Document that all Status sections must be updated
-- **Option C**: Add comment marker to indicate which Status sections count
-
-**Recommended**: Option A - simplest, least error-prone
-
-**Scope**:
-1. Update status-aggregator parsing logic to identify "main" Status section
-2. Ignore embedded/secondary Status sections
-3. Test with Tasks 1-25 to verify correct percentage calculation
-4. Document behavior in status-aggregator script header
-
-**Success Criteria**:
-- [ ] status-aggregator calculates completion correctly even with embedded Status sections
-- [ ] Tasks 1-25 show expected completion percentages
-- [ ] Clear documentation of which Status sections count
-
-**Rationale**: User shouldn't need to update embedded Status sections that are part of planning artifacts. Main Status section should be single source of truth for task completion.
-
----
 
 ## Task: Design Task-Type-Specific Workflow Variants
 
@@ -995,79 +908,6 @@ slug-generator.pl "Description Text Here"
 
 ---
 
-## Task: Clarify That Requirements and Design Are Planning Steps
-
-**Task-Type**: chore
-**Priority**: High
-
-Make it explicit that cig-plan, cig-requirements, and cig-design are ALL planning steps (not execution) in documentation and command files.
-
-**Problem**: LLM confusion about what constitutes "planning" vs "execution":
-- cig-plan, cig-requirements, cig-design are all planning activities
-- LLM incorrectly assumes only cig-plan is planning, treats cig-requirements and cig-design as execution
-- When plan mode is active and user runs `/cig-requirements`, LLM sees conflict: "plan mode says don't edit, but requirements wants me to edit b-requirements.md"
-- This causes frustrating user experience where LLM asks "should I exit plan mode?" when the answer is obviously "no, requirements IS planning"
-
-**Root Cause**: Documentation doesn't make it sufficiently explicit that requirements and design are planning phases.
-
-**Solution**: Improve documentation explicitness
-
-**Note**: Skills CAN trigger plan mode programmatically, so planning phase skills can auto-enter plan mode. This should be implemented during skills migration (separate task).
-
-### Documentation Updates
-
-**1. Update workflow-steps.md**:
-- Add prominent section at top: "Planning Phases vs Execution Phases"
-- Explicitly list: "Planning phases: cig-plan, cig-requirements, cig-design"
-- Explicitly list: "Execution phases: cig-implementation, cig-testing, cig-rollout, cig-maintenance, cig-retrospective"
-- Explain: Planning = deciding WHAT and WHY, Execution = doing HOW
-- Add to each planning phase documentation: "**This is a PLANNING phase** - you are deciding what to build, not building it"
-
-**2. Update command files (cig-requirements.md, cig-design.md)**:
-- Add prominent note at top: "⚠️ PLANNING PHASE: You are defining requirements/design, not implementing them"
-- Add to "Focus on" section: Reminder that this is planning, not execution
-- Add to "Avoid" section: Reminder not to implement, only to plan
-
-**3. Update workflow phase descriptions**:
-Current language may be ambiguous:
-- cig-requirements: "Define what the system must do" ← could be interpreted as execution
-- Better: "PLAN what the system must do (define requirements, not implement them)"
-
-### Scope
-1. Update `.cig/docs/workflow/workflow-steps.md`:
-   - Add "Planning vs Execution Phases" section at top
-   - Update Planning, Requirements, Design sections with explicit "PLANNING PHASE" labels
-2. Update `.claude/commands/cig-requirements.md`:
-   - Add ⚠️ PLANNING PHASE notice
-   - Update Focus/Avoid sections with planning reminders
-3. Update `.claude/commands/cig-design.md`:
-   - Add ⚠️ PLANNING PHASE notice
-   - Update Focus/Avoid sections with planning reminders
-4. Update `.claude/commands/cig-plan.md`:
-   - Already mostly clear, but reinforce with consistent labeling
-
-### Testing
-- Run `/cig-requirements` while in plan mode → LLM should recognize it's planning, not ask to exit plan mode
-- Run `/cig-design` while in plan mode → same behavior
-- Verify documentation clearly states which phases are planning vs execution
-
-### Success Criteria
-- [ ] workflow-steps.md has "Planning vs Execution" section at top
-- [ ] All 3 planning phases (plan, requirements, design) labeled as "PLANNING PHASE"
-- [ ] All 3 planning command files have ⚠️ PLANNING PHASE notices
-- [ ] LLM correctly recognizes requirements and design as planning (no more "should I exit plan mode?" questions)
-
-### Priority Justification
-
-**High Priority** because:
-- **User frustration**: "very frustrating for users" per user feedback
-- **Workflow blocker**: Confusion interrupts workflow, requires user clarification
-- **Core functionality**: Planning is fundamental to CIG, must be unambiguous
-- **Quick fix available**: Documentation changes can be done quickly to address immediate pain
-
-**Rationale**: LLM misunderstanding of what constitutes "planning" creates friction in CIG workflow. Clear documentation provides immediate relief. Plan mode auto-triggering can be implemented later during skills migration.
-
----
 
 ## Task: Add Re-Execution Detection to Implementation and Testing Exec Commands
 

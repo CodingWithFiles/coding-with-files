@@ -166,6 +166,116 @@ Comprehensive testing validated all aspects of the fix:
 
 ---
 
+## BACKLOG Task: hierarchy-resolver Trampoline Entry Point [Already Complete]
+
+**Status**: Complete (Task 27, 2026-01-23) - Task was based on false premise
+**Impact**: Clarification of existing architecture
+
+### Background
+
+A BACKLOG task "Create hierarchy-resolver Trampoline Entry Point" was identified, claiming hierarchy-resolver was missing its entry point. Investigation revealed this was incorrect:
+
+**Actual state**:
+- hierarchy-resolver exists as `.cig/scripts/command-helpers/hierarchy-resolver` (created in Task 8, renamed in Task 27)
+- It IS the entry point - no separate trampoline needed
+- Version-agnostic because hierarchy resolution behaviour is identical across all versions (uses CIG::TaskPath internally)
+- Registered in script-hashes.json, referenced correctly by all commands
+- Tested working with v2.0 and v2.1 tasks
+
+**Why no trampoline needed**: Unlike status-aggregator (which needs version-specific output formatting), hierarchy-resolver just resolves task paths - same logic for all versions.
+
+**Task 27** (Standardise Script Naming) renamed hierarchy-resolver.pl → hierarchy-resolver, completing the "Alternative (simpler)" approach mentioned in the BACKLOG task description.
+
+---
+
+## BACKLOG Task: Clarify That Requirements and Design Are Planning Steps [Already Complete]
+
+**Status**: Complete (Task 29, 2026-01-26) - Problem addressed via "Scope & Boundaries" sections
+**Impact**: Eliminated LLM confusion about planning vs execution phases
+
+### Background
+
+A BACKLOG task "Clarify That Requirements and Design Are Planning Steps" was identified, describing LLM confusion where:
+- LLM would ask "should I exit plan mode?" when user ran `/cig-requirements` or `/cig-design`
+- LLM treated only `/cig-plan` as planning, misidentified requirements and design as execution
+- This created "very frustrating" user experience
+
+### Already Fixed in Task 29
+
+**Task 29** (Fix v2.1 Workflow File Order) updated all workflow command files with **"Scope & Boundaries"** sections:
+
+**Example from cig-requirements-plan.md**:
+```markdown
+## Scope & Boundaries
+
+**This step**: Complete the requirements planning document (b-requirements-plan.md)...
+
+**Not this step**: Design decisions, implementation planning, code writing, or testing.
+```
+
+**Example from cig-design-plan.md**:
+```markdown
+## Scope & Boundaries
+
+**This step**: Complete the design planning document (c-design-plan.md)...
+
+**Not this step**: Implementation (that's d-implementation-plan + f-implementation-exec), testing, or deployment.
+```
+
+These sections clearly delineate what IS and IS NOT in scope for each phase, eliminating confusion about whether requirements/design are planning or execution.
+
+### Verification
+
+**No issues observed since Task 29 changes** (2026-01-26 through 2026-01-27):
+- ✓ No "should I exit plan mode?" questions during requirements or design phases
+- ✓ LLM correctly treats requirements and design as planning activities
+- ✓ Scope boundaries clearly communicate phase responsibilities
+
+The BACKLOG task requested explicit "⚠️ PLANNING PHASE" warnings, but the "Scope & Boundaries" approach proved equally effective and more idiomatic (follows "This step / Not this step" pattern used throughout CIG commands).
+
+**Conclusion**: Problem solved differently than BACKLOG task specified, but user confirms no issues observed since fix.
+
+---
+
+## BACKLOG Task: Fix Status Aggregator to Only Check Main Status Sections [Already Complete]
+
+**Status**: Complete (Task 25, 2026-01-23) - Problem eliminated by file separation architecture
+**Impact**: No multiple Status sections exist in v2.1 format
+
+### Background
+
+A BACKLOG task "Fix Status Aggregator to Only Check Main Status Sections" was identified, claiming:
+- c-design.md has 3 Status sections (main + embedded implementation plan + embedded testing plan)
+- status-aggregator showed 25% when task was actually complete due to not all Status sections being updated
+- Confusing which Status sections "count" toward task completion
+
+### Already Solved by Task 25 Architecture
+
+**Task 25** (Implement v2.1 workflow with planning/execution separation) eliminated this problem entirely through **file separation**:
+
+**Old structure (hypothetical v2.0 concern)**:
+- c-design.md could theoretically contain multiple Status sections if implementation/testing plans were embedded
+
+**New structure (v2.1 format)**:
+- c-design-plan.md (design planning) - 1 Status section
+- d-implementation-plan.md (implementation planning) - 1 Status section
+- e-testing-plan.md (testing planning) - 1 Status section
+
+Each planning file has exactly ONE `## Status` section, so there's no ambiguity about which section "counts" for status aggregation.
+
+### Verification
+
+**Checked current codebase**:
+- ✓ All templates have exactly 1 `## Status` section per file
+- ✓ All actual task files checked have exactly 1 `## Status` section per file
+- ✓ No multiple Status sections found in any workflow file
+
+**Note on Task 30's 25% issue**: That was a **different problem** - custom status values ("In Progress (Updated...)") broke the parser. This was fixed by using canonical status values ("Finished"). Not related to multiple Status sections.
+
+**Conclusion**: File separation architecture inherently prevents the problem this task was trying to solve. No code changes needed.
+
+---
+
 ## Task 4: Migration Tools to Migrate v1.0 to v2.0
 
 **Status**: Complete
