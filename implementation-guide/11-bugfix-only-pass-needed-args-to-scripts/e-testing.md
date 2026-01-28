@@ -102,9 +102,9 @@ Validate that all 8 CIG workflow commands safely handle arbitrary user input (in
 - [x] Multiple/leading spaces handled robustly (✓ TC-7 passed)
 
 ## Status
-**Status**: Finished
-**Next Action**: Task complete - all critical test cases passed; TC-8 (testing all 8 commands) deferred to rollout phase
-**Blockers**: None
+**Status**: Blocked
+**Next Action**: Waiting on Task 32 (inference-based context) - architectural shift away from argument passing
+**Blockers**: Implementation blocked; testing cannot complete until implementation unblocked
 
 ## Actual Results
 ### Tests Completed

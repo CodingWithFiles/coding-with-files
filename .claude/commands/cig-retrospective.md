@@ -17,16 +17,20 @@ See `.cig/docs/context/tools.md` for context tool documentation.
 
 **Task arguments**: $ARGUMENTS
 
+**Current task/workflow (if available)**: !/current-task-wf
+
 **Helper scripts location**: `.cig/scripts/command-helpers/`
 
 ## Your task
 Guide the user through the retrospective phase.
 
 **CRITICAL - Argument Parsing**:
-- Extract the FIRST space-separated word from the task arguments above as the task path
+- If task arguments provided: Extract the FIRST space-separated word as the task path
+- If NO task arguments: Use task_num from "Current task/workflow" context above
 - Any additional words after the first provide user context about their intent
 - Use the extra words to understand what the user wants, but do NOT pass them to script calls
 - Example: "11 update the design" → task path is "11", extra text explains what to do
+- If neither arguments nor inference available: Error "Cannot determine task. Specify task number or ensure context is inferrable."
 
 **CRITICAL - Task Path Validation**:
 - Task paths MUST match hierarchical number format: digits separated by dots

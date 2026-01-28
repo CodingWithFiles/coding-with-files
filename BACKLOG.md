@@ -6,6 +6,400 @@ Future tasks and improvements for the Code Implementation Guide system.
 
 ---
 
+## Task: Standardize Task Context Inference Output Format
+
+**Task-Type**: bugfix
+**Priority**: High
+**Status**: Missing from Task 32 implementation (was in original requirements)
+
+Standardize task context inference output to always use structured, parseable format suitable for LLM consumption and script parsing, regardless of whether signals are conclusive or inconclusive.
+
+**Problem**: Task 32 implemented inference with inconsistent output formats:
+
+**Current Behavior (Conclusive)**:
+```
+task_num: 32
+task_slug: task-tracking-using-inference-scoring
+workflow_step: j-retrospective
+```
+
+**Current Behavior (Inconclusive - NOT PARSEABLE)**:
+```
+Signals disagree on current task.
+
+Top candidates:
+  - Task 14
+  - Task 32
+
+Please specify task number explicitly or clarify context.
+
+  branch:         task 32 (score: 100, top of 1)
+  worktree:       null
+  state:          null
+  recency:        task 32 (score: 49, top of 5)
+  progress:       task 14 (score: 0, top of 5)
+```
+
+**Original Specification (from planning)**:
+```
+task_num: {task_num}
+task_slug: {task_slug}
+workflow_step: {workflow_step}
+```
+
+**What's Missing**:
+1. No way to indicate conclusive vs inconclusive inference
+2. Inconclusive output is human-readable prose, not parseable
+3. No structured format for multiple candidate tasks
+4. LLMs and scripts can't reliably parse current output
+
+**Solution**: Implement structured output format for all scenarios.
+
+**Proposed Output Format**:
+
+**Conclusive (signals agree)**:
+```
+current: conclusive
+task_num: 32
+task_slug: task-tracking-using-inference-scoring
+workflow_step: j-retrospective
+confidence: correlated
+```
+
+**Inconclusive (signals disagree)**:
+```
+current: inconclusive
+task_num: 14,32
+task_slug: retrospective-suggest-updating-workflow-and-commit,task-tracking-using-inference-scoring
+workflow_step: unknown
+confidence: uncorrelated
+candidates: 2
+```
+
+**No signals**:
+```
+current: inconclusive
+task_num: unknown
+task_slug: unknown
+workflow_step: unknown
+confidence: no_signals
+candidates: 0
+```
+
+**Fields**:
+- `current`: conclusive|inconclusive (can inference determine single task?)
+- `task_num`: single number | comma-separated numbers | "unknown"
+- `task_slug`: single slug | comma-separated slugs | "unknown"
+- `workflow_step`: step name | "unknown"
+- `confidence`: correlated|uncorrelated|no_signals (from TaskContextInference.pm)
+- `candidates`: number of candidate tasks (0, 1, or N)
+
+**Scope**:
+
+1. **Update TaskContextInference.pm**:
+   - Modify `infer_task_context()` to always return structured format
+   - Add "current" field (conclusive/inconclusive)
+   - Add "candidates" count field
+   - When uncorrelated: return comma-separated task_num and task_slug lists
+   - When no signals: return "unknown" for fields
+
+2. **Update task-context-inference wrapper**:
+   - Default mode outputs structured format (always parseable)
+   - Keep `--verbose` flag for signal breakdown (debugging)
+   - Exit codes remain: 0=conclusive, 1=uncorrelated, 3=no_signals
+
+3. **Update skills**:
+   - `/current-task-wf` outputs structured format
+   - `/current-task-wf-verbose` adds signal breakdown after structured output
+   - Both parseable by LLMs and scripts
+
+4. **Update commands**:
+   - Commands parse structured output (extract task_num field)
+   - Commands check "current" field and handle inconclusive gracefully
+   - Commands prompt user when current=inconclusive
+
+5. **Update tests**:
+   - Verify structured output for all scenarios (conclusive, uncorrelated, no_signals)
+   - Parse output programmatically (validate format)
+   - Update TC-I2, TC-I3, TC-I4 test expectations
+
+**Benefits**:
+- Deterministic, parseable output in all scenarios
+- LLMs can reliably extract task context
+- Scripts can parse output without regex hacks
+- Consistent format whether signals agree or disagree
+- Backward compatible (commands can check "current" field)
+
+**Success Criteria**:
+- [ ] TaskContextInference.pm always returns structured format
+- [ ] Output includes current: conclusive|inconclusive
+- [ ] Inconclusive output has comma-separated candidates
+- [ ] Skills output parseable format
+- [ ] Commands handle both conclusive and inconclusive responses
+- [ ] Tests validate structured output format
+- [ ] Documentation updated with output format specification
+
+**Rationale**: Task 32 planning specified structured output (`task_num: {task_num}\ntask_slug: {task_slug}\nworkflow_step: {workflow_step}`) but implementation only provides this when signals agree. Inconclusive scenarios output human-readable prose that's not parseable by LLMs or scripts. This breaks automation and requires manual intervention. Standardizing to always output structured format enables reliable automation.
+
+**Original Specification Reference**: Task 32 a-task-plan.md specified "3-line output (task_num, task_slug, workflow_step)" but didn't account for inconclusive scenarios.
+
+**Real-World Impact**: Just encountered this issue - Task 32 is complete (100%) on feature branch, progress signal disagrees with branch signal, output is unparseable prose. Commands can't extract task number programmatically.
+
+**Related**: Task 32 (implementation incomplete for original output format specification)
+
+---
+
+## Task: Add Security Verification to Testing Workflow
+
+**Task-Type**: chore
+**Priority**: Medium
+**Status**: Identified during Task 32 security verification
+
+Add instruction to include security integrity checks as a standard part of the testing workflow (g-testing-exec) for all tasks that modify helper scripts or libraries.
+
+**Problem**: Task 32 modified 8 helper scripts and added 2 libraries, but security hash verification wasn't performed until after retrospective. Security verification should be part of the testing phase to catch hash mismatches early.
+
+**Solution**: Update testing workflow documentation and templates to include security verification step.
+
+**Scope**:
+
+1. **Update workflow documentation** (`.cig/docs/workflow/workflow-steps.md`):
+   - Add "Security Verification" as recommended step in Testing Execution section
+   - Document when security checks are required (tasks modifying scripts/libraries)
+   - Document how to run verification (`/cig-security-check verify`)
+
+2. **Update testing templates** (`.cig/templates/pool/g-testing-exec.md.template`):
+   - Add "Security Verification" checkbox to execution checklist
+   - Add conditional guidance: "If this task modifies helper scripts or libraries, run `/cig-security-check verify` and update hashes"
+
+3. **Update testing plan templates** (`.cig/templates/pool/e-testing-plan.md.template`):
+   - Add "Security Verification" test case (TC-S1)
+   - Test case validates script-hashes.json is up to date after implementation
+
+**Benefits**:
+- Catches hash mismatches early (during testing, not post-retrospective)
+- Makes security verification a standard practice, not an afterthought
+- Documents when and how to perform security checks
+
+**Success Criteria**:
+- [ ] workflow-steps.md includes security verification guidance
+- [ ] g-testing-exec.md.template includes security checklist item
+- [ ] e-testing-plan.md.template includes security test case
+- [ ] Future tasks that modify scripts will include security verification in testing phase
+
+**Rationale**: Security verification is currently ad-hoc. Integrating it into the testing workflow ensures it's performed consistently for all tasks that modify security-sensitive files.
+
+**Related**: Task 32 (discovered during post-retrospective security check)
+
+---
+
+## Task: Create Permanent Security Verification Script
+
+**Task-Type**: chore
+**Priority**: Medium
+**Status**: Identified during Task 32 security verification
+
+Create a permanent, reusable security verification script instead of relying on temporary `/tmp/verify-cig-security.sh` scripts created ad-hoc.
+
+**Problem**: Security verification currently requires creating temporary bash scripts in `/tmp` that:
+- Need to be recreated each time
+- Are not version controlled
+- May have inconsistent logic between invocations
+- Don't accumulate improvements over time
+
+**Solution**: Create permanent security verification script in CIG scripts directory.
+
+**Scope**:
+
+1. **Create `.cig/scripts/verify-security`**:
+   - Permanent bash script for security verification
+   - Reads `.cig/security/script-hashes.json`
+   - Verifies SHA256 hashes for all scripts and libraries
+   - Checks file permissions (executable scripts need u+rx minimum)
+   - Supports both "lib" and "libraries" sections (backward compatible)
+   - Returns exit code 0 (all verified) or 1 (failures/missing)
+
+2. **Add to security hash tracking**:
+   - Add verify-security script itself to script-hashes.json
+   - Self-verifying: script can check its own integrity
+
+3. **Update `/cig-security-check` command**:
+   - Command should invoke `.cig/scripts/verify-security` for deterministic verification
+   - Keep command as thin wrapper (progressive disclosure pattern)
+   - Command adds user-friendly formatting and guidance
+
+4. **Documentation**:
+   - Document script in `.cig/docs/security/verification.md`
+   - Add usage examples to `/cig-security-check` command
+   - Document exit codes and output format
+
+**Output Format** (same as current temporary script):
+```
+=========================================
+CIG Security Verification Report
+=========================================
+
+Date: 2026-01-28 18:20:12
+Version: 2.1
+Last Updated: 2026-01-28
+
+HELPER SCRIPTS:
+---------------
+✅ .cig/scripts/command-helpers/hierarchy-resolver
+   SHA256: <hash> (verified)
+   Permissions: 700 (expected: 0500)
+
+❌ .cig/scripts/command-helpers/format-detector
+   SHA256: <actual> (MISMATCH)
+   Expected: <expected>
+   Action: Update hash or review changes
+
+PERL LIBRARIES:
+---------------
+✅ .cig/lib/TaskState.pm
+   SHA256: <hash> (verified)
+
+=========================================
+SUMMARY
+=========================================
+Total files checked: 29
+✅ Verified: 29
+❌ Failed verification: 0
+❓ Missing files: 0
+
+✅ ALL FILES VERIFIED
+CIG system integrity confirmed
+```
+
+**Benefits**:
+- Deterministic, repeatable security verification
+- Version controlled (improvements accumulate)
+- Single source of truth for verification logic
+- Can be invoked directly or via `/cig-security-check` command
+- Testable (can write tests for the verification logic)
+
+**Success Criteria**:
+- [ ] `.cig/scripts/verify-security` created and executable (0755)
+- [ ] Script added to script-hashes.json (self-verifying)
+- [ ] `/cig-security-check verify` uses permanent script
+- [ ] Script handles both "lib" and "libraries" sections
+- [ ] Exit codes documented (0=success, 1=failures)
+- [ ] Documentation in `.cig/docs/security/verification.md`
+
+**Rationale**: Temporary scripts in `/tmp` are anti-pattern for deterministic operations. Permanent script enables consistent, repeatable security verification and accumulates improvements over time.
+
+**Related**: Task 32 (created temporary verification scripts during security check)
+
+---
+
+## Task: Test Edge Cases for Task Context Inference System
+
+**Task-Type**: chore
+**Priority**: Low
+**Status**: Deferred from Task 32 testing execution
+
+Execute three edge case tests for the task context inference system (Task 32) that were deferred due to requiring special test environments.
+
+**Background**: Task 32 implemented a signal-based inference system that automatically detects the current task and workflow step from environmental signals (git branch, worktree, state file, recency, progress). During testing execution (g-testing-exec.md), 42/45 tests passed (93%) with zero failures. Three edge case tests were deferred because they require test environments that would break the current task context or create artificial conflicting state.
+
+**Deferred Test Cases**:
+
+1. **TC-I3: Uncorrelated Signals (Conflicting State)**
+   - **Scenario**: Multiple signals disagree on which task is current
+   - **Example**: Branch points to Task 32, but state file points to Task 11
+   - **Expected**: User prompt asking to clarify which task is correct, exit code 1
+   - **Why deferred**: Requires artificially creating conflicting state
+   - **Environment**: Need to set up branch/state file/recency signals that disagree
+
+2. **TC-I4: No Signals (Main Branch)**
+   - **Scenario**: No signals detected (e.g., working on main branch with no task context)
+   - **Expected**: Error message "Cannot infer context - no signals detected", exit code 3
+   - **Why deferred**: Requires switching to main branch, which loses current task context
+   - **Environment**: Need main branch with no feature work in progress
+
+3. **TC-S2: Skill Failure Fallback**
+   - **Scenario**: `/current-task-wf` skill invoked when inference cannot determine context
+   - **Expected**: "Unable to infer context" message displayed
+   - **Why deferred**: Requires no-signal environment (same as TC-I4)
+   - **Environment**: Need environment where all inference signals return null
+
+**Test Requirements**:
+
+**For TC-I3 (Uncorrelated Signals)**:
+- Create test fixture with conflicting signals
+- Set git branch to feature/32-slug
+- Set `.cig/current-task` to different task number (e.g., 11)
+- Verify wrapper script outputs user prompt
+- Verify exit code 1 (uncorrelated)
+- Clean up test fixtures after test
+
+**For TC-I4 and TC-S2 (No Signals)**:
+- Switch to main branch (loses feature branch signal)
+- Clear `.cig/current-task` if present
+- Work in directory with no recent modifications
+- Verify wrapper script outputs error
+- Verify exit code 3 (no signals)
+- Verify skill displays fallback message
+- Return to feature branch after test
+
+**Scope**:
+
+1. **Create isolated test environment**:
+   - Git worktree or separate clone for testing without disrupting main work
+   - Test fixtures for artificial signal conflicts
+   - Cleanup script to restore original state
+
+2. **Execute TC-I3**: Test uncorrelated signals scenario
+   - Set up conflicting signals
+   - Run `task-context-inference` wrapper
+   - Verify user prompt and exit code 1
+   - Document results in Task 32 testing file
+
+3. **Execute TC-I4**: Test no signals scenario
+   - Set up environment with no signals
+   - Run `task-context-inference` wrapper
+   - Verify error message and exit code 3
+   - Document results in Task 32 testing file
+
+4. **Execute TC-S2**: Test skill failure fallback
+   - Use same no-signal environment
+   - Invoke `/current-task-wf` skill
+   - Verify fallback message displayed
+   - Document results in Task 32 testing file
+
+5. **Update Task 32 documentation**:
+   - Update g-testing-exec.md with edge case results
+   - Change test status from "SKIP" to "PASS" or "FAIL"
+   - Update coverage metrics
+
+**Out of Scope**:
+- Fixing issues found (this is testing only, not bug fixes)
+- Modifying inference algorithm based on findings
+- Adding new test cases beyond these three
+
+**Success Criteria**:
+- [ ] Isolated test environment created without disrupting main work
+- [ ] TC-I3 executed with documented results (PASS/FAIL)
+- [ ] TC-I4 executed with documented results (PASS/FAIL)
+- [ ] TC-S2 executed with documented results (PASS/FAIL)
+- [ ] Task 32 g-testing-exec.md updated with results
+- [ ] Original environment restored after testing
+- [ ] Any bugs discovered documented (separate BACKLOG items if fixes needed)
+
+**Rationale**: These edge case tests validate inference behavior in atypical scenarios. While the primary use case (developer working on feature branch with active task) is fully validated and production-ready, these edge cases ensure graceful degradation when signals are missing or conflicting. Testing was deferred from Task 32 because creating the test environments would break the current task context, but they should be validated in a controlled test environment to ensure robustness.
+
+**Estimated Effort**: 2-4 hours (environment setup, test execution, documentation)
+
+**Priority**: Low because:
+- Primary use case (correlated signals) is fully validated
+- These are edge cases with low likelihood in normal usage
+- System is production-ready without these tests
+- No known bugs in these scenarios (just untested)
+
+**Related**: Task 32 (feature-task-tracking-using-inference-scoring) - implementation and testing complete except for these three edge cases
+
+---
+
 ## Task: Create Template Reference Linter for Pre-Commit Hook
 
 **Task-Type**: chore

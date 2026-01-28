@@ -1,16 +1,16 @@
 {
   "version": "2.1",
-  "last_updated": "2026-01-18",
+  "last_updated": "2026-01-28",
   "scripts": {
     "hierarchy-resolver": {
       "path": ".cig/scripts/command-helpers/hierarchy-resolver",
-      "sha256": "729aac8bddc89151c48bf4381ae0d3815ef357c614b507d1e0a18701798296a8",
+      "sha256": "146ecbe94e496356c0bb22631ec51d1632d44ce601eaa3681e7a442eb9c12e11",
       "permissions": "0500",
       "description": "Resolve task paths to full directory paths with metadata"
     },
     "format-detector": {
       "path": ".cig/scripts/command-helpers/format-detector",
-      "sha256": "00622ef538513d10ec4239ff000b2c8d4a4c0bed117c2278c3e7b14184c9fd1b",
+      "sha256": "b93a58d3e12481407e17fcf3af88a06a1825f63b947542d2be487d46d244ead7",
       "permissions": "0500",
       "description": "Detect template version and compare against expected version"
     },
@@ -22,19 +22,25 @@
     },
     "status-aggregator-v2.0": {
       "path": ".cig/scripts/command-helpers/status-aggregator-v2.0",
-      "sha256": "47eb97a2d5889a9eed3f3a9480c1495e6a256f9476ccd4ee53ecbf54d328a723",
+      "sha256": "eee3c3a8b16fc5d3bc1441354e52477ecc14cc26feae6e5cbd20f1b9058ad052",
       "permissions": "0500",
       "description": "Status aggregation for v2.0 format (8-phase workflow)"
     },
     "status-aggregator-v2.1": {
       "path": ".cig/scripts/command-helpers/status-aggregator-v2.1",
-      "sha256": "85a701f4d8fc3a53fa36f99a2e5c41d1431a9be2cccb591051de26041cb20a9a",
+      "sha256": "d323b345cc72e7ddd689a57528af08307da55645e72011dee67810437cbfc734",
       "permissions": "0500",
       "description": "Status aggregation for v2.1 format (10-phase workflow)"
     },
+    "task-context-inference": {
+      "path": ".cig/scripts/command-helpers/task-context-inference",
+      "sha256": "b7479ac4d5291af4c9f5c7f954e1f5a2e901e3dc260fbc6a7f0d5e9d8b0536cf",
+      "permissions": "0755",
+      "description": "Infer current task and workflow step from git/file context signals"
+    },
     "template-version-parser": {
       "path": ".cig/scripts/command-helpers/template-version-parser",
-      "sha256": "5a7e79bc117a82e1a29b3634675c79528f395bc282a34184328820b8371cd765",
+      "sha256": "574b687adb0dff539cb5010c1d779e169d9d40098f3b922aa02e74bc6fc7bc07",
       "permissions": "0500",
       "description": "Parse Template Version field from workflow files"
     },
@@ -52,7 +58,7 @@
     },
     "context-inheritance-v2.0": {
       "path": ".cig/scripts/command-helpers/context-inheritance-v2.0",
-      "sha256": "98bcd99dd011497e792984a17f742898a65f3bc24983c886f095ac14651080d6",
+      "sha256": "97ede11e0c076149d1582baf75c4c3058df960424723f9887abe560155a6cf0a",
       "permissions": "0500",
       "description": "Context inheritance for v2.0 format (8-phase workflow)"
     },
@@ -64,13 +70,13 @@
     },
     "template-copier": {
       "path": ".cig/scripts/command-helpers/template-copier",
-      "sha256": "908c4308a9870c5bedbad22da4bf35d9137dcdc57bb6c2025b38379cb0b2dfa1",
+      "sha256": "120b6ea4f2d67d45b8083a2c6d00a533cd4ac82bb56f81cd0fcdc72c9946a799",
       "permissions": "0500",
       "description": "Entry point for template copying (trampolines to version-specific script)"
     },
     "template-copier-v2.0": {
       "path": ".cig/scripts/command-helpers/template-copier-v2.0",
-      "sha256": "a7f7aab66e3ca713d393230fcf1941712d9563689ee8dee0b6aded261fb22adf",
+      "sha256": "1f2da5e88bb094b0a8f8f1d1f3faff6a326d75c09f09607bd6f1cf7f65e48724",
       "permissions": "0500",
       "description": "Template copying for v2.0 format (8-phase workflow)"
     },
@@ -118,7 +124,7 @@
     },
     "CIG::WorkflowFiles": {
       "path": ".cig/lib/CIG/WorkflowFiles.pm",
-      "sha256": "22ff05207155108af8f22ffba31ed1643a47262e373c6108fa16f4950c462a0e",
+      "sha256": "af237db301347f2ca245a3da50e088a8e16251d5b4bf541403f65ae4ed9f225a",
       "description": "Workflow file operations, version detection, status mapping"
     },
     "CIG::Options": {
@@ -143,13 +149,23 @@
     },
     "CIG::WorkflowFiles::V20": {
       "path": ".cig/lib/CIG/WorkflowFiles/V20.pm",
-      "sha256": "ed464de8be5f67915694b30fbbfbf35de39faf331c25cc8c2f6c986c51026a86",
+      "sha256": "482fd1713e6748a7e23cd5cf9eb4deb729dc6572a33f3add9c3a1ee8aced78b0",
       "description": "Workflow file mappings for v2.0 format (8-phase workflow)"
     },
     "CIG::WorkflowFiles::V21": {
       "path": ".cig/lib/CIG/WorkflowFiles/V21.pm",
-      "sha256": "4938c74f414270985728ec385e13f3a4b41bc7bec3389415472bbd419d072645",
+      "sha256": "f6c342924f74ad6ae3bb16d0185856e8ec83ea7ee2330b56f56bd0af08fd409e",
       "description": "Workflow file mappings for v2.1 format (10-phase workflow)"
+    },
+    "TaskState": {
+      "path": ".cig/lib/TaskState.pm",
+      "sha256": "e14c7d81821fe99d9afc8b4e0ea92f1a3b07539b686f43411bece64b4e355c92",
+      "description": "Task state measurements (retrospective: state_done, prospective: state_achievable)"
+    },
+    "TaskContextInference": {
+      "path": ".cig/lib/TaskContextInference.pm",
+      "sha256": "82c2a6e37bbefec9c47afd82238a6abb39b63ab334b21c38abc895d01c9a7744",
+      "description": "Signal-based inference for current task and workflow step context"
     }
   }
 }
