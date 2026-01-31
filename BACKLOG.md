@@ -6,6 +6,105 @@ Future tasks and improvements for the Code Implementation Guide system.
 
 ---
 
+## Task: Audit Command References and Create Design-Alignment Conventions
+
+**Task-Type**: bugfix
+**Priority**: High
+**Status**: Discovered during Task 33 creation
+
+Audit all command/skill references for anachronistic names and establish conventions to prevent future naming inconsistencies.
+
+**Problem**: Found outdated command references in command definitions:
+- `.claude/commands/cig-new-task.md:98` - References `/cig-plan` (should be `/cig-task-plan`)
+- `.claude/commands/cig-subtask.md:74` - References `/cig-plan` (should be `/cig-task-plan`)
+
+The old `/cig-plan` command was renamed to `/cig-task-plan` but references weren't updated throughout the codebase.
+
+**Root Cause**: No systematic process for ensuring naming consistency when commands/skills are created, renamed, or updated.
+
+**Scope**:
+
+### Part A: Audit All Command/Skill References
+
+1. **Search all documentation** for command references:
+   - `.claude/commands/*.md` - Command definition files
+   - `docs/**/*.md` - All documentation
+   - `README.md`, `CLAUDE.md`, `COMMANDS.md` - Top-level docs
+   - Implementation guide files - Task documentation
+   - Template files in `.cig/templates/pool/` - Template content
+
+2. **Create audit report** listing:
+   - All command references found
+   - Current vs expected names
+   - Files that need updating
+   - Priority (critical path vs nice-to-have)
+
+3. **Fix all anachronistic references**:
+   - Update command names to current naming convention
+   - Verify all cross-references are valid
+   - Test that updated references work
+
+### Part B: Create Design-Alignment Conventions Document
+
+Create `docs/conventions/design-alignment.md` to prevent future inconsistencies:
+
+**Topics to cover**:
+
+1. **Command/Skill Naming Audit Process**:
+   - When to audit: Before committing command changes
+   - What to check: All references in docs, templates, and code
+   - Tools to use: grep, search patterns
+
+2. **Naming Consistency Guidelines**:
+   - Command naming patterns (e.g., `/cig-{workflow-step}-{action}`)
+   - When to use prefixes (cig-, task-, workflow-)
+   - Avoiding ambiguous abbreviations
+
+3. **Reference Update Checklist**:
+   - Files to always check when renaming commands
+   - Search patterns to use
+   - Testing procedure
+
+4. **Deprecation Process**:
+   - How to deprecate old command names gracefully
+   - Migration period guidelines
+   - Warning messages for deprecated commands
+
+5. **Documentation Standards**:
+   - Where to document command names (single source of truth)
+   - How to cross-reference between docs
+   - When to use symbolic links vs duplication
+
+**Example Convention**:
+```markdown
+## Command Naming Audit Checklist
+
+Before committing changes that create/rename/remove commands:
+
+- [ ] Search all `.md` files for old command name
+- [ ] Update all references in `.claude/commands/`
+- [ ] Update all references in `docs/`
+- [ ] Update template files in `.cig/templates/pool/`
+- [ ] Update README.md, CLAUDE.md, COMMANDS.md
+- [ ] Search implementation guides for references
+- [ ] Test updated commands work correctly
+- [ ] Add deprecation warnings if needed
+```
+
+**Deliverables**:
+1. Audit report showing all command references and needed fixes
+2. All anachronistic references updated to current names
+3. `docs/conventions/design-alignment.md` document
+4. Updated commit workflow to include reference audit
+
+**Benefits**:
+- Eliminates confusion from outdated command names
+- Prevents future anachronistic references
+- Establishes systematic approach to naming consistency
+- Makes command renames safer and more reliable
+
+---
+
 ## Task: Standardize Task Context Inference Output Format
 
 **Task-Type**: bugfix

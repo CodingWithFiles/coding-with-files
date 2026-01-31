@@ -77,7 +77,8 @@ sub validate {
 }
 
 # Build glob pattern for finding task directory
-# e.g., "1.1" -> "implementation-guide/1-*-*/1.1-*-*"
+# Uses flat directory structure - all tasks at same level
+# e.g., "1.1" -> "implementation-guide/1.1-*-*"
 #
 # Args: $path - normalized task path
 #       $base_dir - base directory (optional, defaults to find_base_dir)
@@ -87,21 +88,8 @@ sub build_glob {
     my ($path, $base_dir) = @_;
     $base_dir //= find_base_dir() // 'implementation-guide';
 
-    my @parts = split(/\./, $path);
-    my $pattern = $base_dir;
-
-    for my $i (0 .. $#parts) {
-        my $component;
-        if ($i == 0) {
-            $component = "$parts[0]-*-*";
-        } else {
-            my $dot_path = join(".", @parts[0..$i]);
-            $component = "$dot_path-*-*";
-        }
-        $pattern .= "/$component";
-    }
-
-    return $pattern;
+    # Flat structure: all tasks at same level in base_dir
+    return "$base_dir/$path-*-*";
 }
 
 # Resolve task by number to actual directory and metadata (FR1.1)
@@ -355,6 +343,9 @@ sub parse_branch {
 sub find_parent {
     my ($num, $base_dir) = @_;
 
+    # Only find parent if task itself exists
+    return undef unless task_exists($num, $base_dir);
+
     my $parent_num = get_parent($num);
     return undef unless defined $parent_num;
 
@@ -464,10 +455,15 @@ sub find_descendants {
     my ($num, $base_dir) = @_;
 
     my @children = find_children($num, $base_dir);
-    return (
-        @children,
-        map { find_descendants($_->{num}, $base_dir) } @children
-    );
+    my @result;
+
+    # Depth-first pre-order: process each child then its descendants
+    for my $child (@children) {
+        push @result, $child;
+        push @result, find_descendants($child->{num}, $base_dir);
+    }
+
+    return @result;
 }
 
 # ============================================================================
