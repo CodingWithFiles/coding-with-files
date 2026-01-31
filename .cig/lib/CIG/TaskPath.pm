@@ -13,10 +13,12 @@ use File::Basename;
 use Cwd 'abs_path';
 
 our @EXPORT_OK = qw(
-    normalize validate build_glob resolve get_parent get_depth find_base_dir
+    normalize validate build_glob find_base_dir get_parent get_depth
+    resolve_num resolve_branch resolve_path resolve
     format_dirname parse_dirname format_branch parse_branch
+    task_exists branch_exists
     find_parent find_children find_siblings find_ancestors find_descendants
-    find_first_free validate_num_free validate_branch_free
+    find_first_free
 );
 
 # Find the implementation-guide base directory
@@ -102,19 +104,20 @@ sub build_glob {
     return $pattern;
 }
 
-# Resolve task path to actual directory and metadata
+# Resolve task by number to actual directory and metadata (FR1.1)
+# Core resolution function - all other resolve_* functions delegate to this
 #
-# Args: $path - task path (e.g., "1.1")
-#       $base_dir - base directory (optional)
+# Args: $num - task number (e.g., "1.1", "33")
+#       $base_dir - base directory (optional, defaults to find_base_dir())
 # Returns: hashref with keys: full_path, num, type, slug, format, parent_path, depth
 #          or undef if not found
 #
-sub resolve {
-    my ($path, $base_dir) = @_;
+sub resolve_num {
+    my ($num, $base_dir) = @_;
 
     # Normalize and validate
-    $path = normalize($path);
-    unless (validate($path)) {
+    $num = normalize($num);
+    unless (validate($num)) {
         return undef;
     }
 
@@ -122,7 +125,7 @@ sub resolve {
     return undef unless $base_dir;
 
     # Build and execute glob
-    my $pattern = build_glob($path, $base_dir);
+    my $pattern = build_glob($num, $base_dir);
     my @matches = glob($pattern);
 
     return undef unless @matches;
@@ -135,24 +138,65 @@ sub resolve {
         return undef;
     }
 
-    my ($num, $type, $slug) = ($1, $2, $3);
+    my ($task_num, $type, $slug) = ($1, $2, $3);
 
     # Detect format (v1.0, v2.0, or v2.1)
     my $format = detect_format($full_path);
 
     # Calculate depth and parent
-    my $depth = get_depth($num);
-    my $parent_path = get_parent($num);
+    my $depth = get_depth($task_num);
+    my $parent_path = get_parent($task_num);
 
     return {
         full_path   => $full_path,
-        num         => $num,
+        num         => $task_num,
         type        => $type,
         slug        => $slug,
         format      => $format,
         parent_path => $parent_path,
         depth       => $depth,
     };
+}
+
+# Resolve task from git branch name (FR1.2)
+# Delegates to resolve_num via parse_branch
+#
+# Args: $branch - git branch name (e.g., "feature/33-slug")
+#       $base_dir - base directory (optional)
+# Returns: Same hashref structure as resolve_num or undef
+#
+sub resolve_branch {
+    my ($branch, $base_dir) = @_;
+
+    my ($num, $type, $slug) = parse_branch($branch);
+    return undef unless $num;
+
+    return resolve_num($num, $base_dir);
+}
+
+# Resolve task from filesystem path/dirname (FR1.3)
+# Delegates to resolve_num via parse_dirname
+#
+# Args: $path - filesystem dirname or full path (e.g., "33-feature-slug")
+#       $base_dir - base directory (optional)
+# Returns: Same hashref structure as resolve_num or undef
+#
+sub resolve_path {
+    my ($path, $base_dir) = @_;
+
+    my $dirname = basename($path);
+    my ($num, $type, $slug) = parse_dirname($dirname);
+    return undef unless $num;
+
+    return resolve_num($num, $base_dir);
+}
+
+# Backward compatibility alias (FR1.4)
+# Existing code using resolve() continues to work unchanged
+#
+sub resolve {
+    my ($num, $base_dir) = @_;
+    return resolve_num($num, $base_dir);
 }
 
 # Get parent task path
@@ -430,30 +474,34 @@ sub find_descendants {
 # Allocation Functions (FR2, FR3.5)
 # ============================================================================
 
-# Check if task number is available (not already used)
+# Check if task exists (FR2.1)
+# Existence predicate - use negatively for availability check
 #
-# Args: $num - task number, $base_dir - optional base directory
-# Returns: 1 if available, 0 if taken
+# Args: $num - task number, $base_dir - optional base directory (defaults to find_base_dir())
+# Returns: 1 if task directory exists, 0 if not found
+# Usage: if (not task_exists($num)) { # available for creation }
 #
-sub validate_num_free {
+sub task_exists {
     my ($num, $base_dir) = @_;
 
-    my $task = resolve($num, $base_dir);
-    return $task ? 0 : 1;
+    my $task = resolve_num($num, $base_dir);
+    return $task ? 1 : 0;
 }
 
-# Check if git branch name is available
+# Check if git branch exists (FR2.2)
+# Existence predicate - use negatively for availability check
 #
 # Args: $branch - branch name
-# Returns: 1 if available, 0 if taken
+# Returns: 1 if branch exists in current worktree, 0 if not found
+# Usage: if (not branch_exists($branch)) { # available for creation }
 #
-sub validate_branch_free {
+sub branch_exists {
     my ($branch) = @_;
 
     my $output = `git branch --list '$branch' 2>/dev/null`;
     chomp $output;
 
-    return $output eq '' ? 1 : 0;
+    return $output eq '' ? 0 : 1;
 }
 
 # Find first available task number at relative depth
