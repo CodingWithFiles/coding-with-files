@@ -85,11 +85,15 @@ Three resolution functions that accept different input types but return identica
 - **Behaviour**:
   - If $num provided, use as anchor; otherwise use current task from stack
   - $depth is relative: 0 = sibling, 1 = child, -1 = parent's sibling (uncle), -2 = grandparent's sibling
-  - For top-level tasks: caller computes `find_first_free(-1 * $current->{depth})`
+  - For next top-level task: caller computes `find_first_free(1 - $current->{depth}, $num)`
+    - From depth 1 (top-level): 1-1=0 (next sibling, also top-level)
+    - From depth 2: 1-2=-1 (uncle = parent's sibling = top-level)
+    - From depth 3: 1-3=-2 (grand-uncle = top-level)
   - Returns undef if: no anchor available, negative depth exceeds hierarchy, invalid parameters
 - **Acceptance**:
-  - Current task 3.1.2: `find_first_free(0)` → "3.1.3", `find_first_free(1)` → "3.1.2.1", `find_first_free(-1)` → "3.2"
+  - Current task 3.1.2 (depth 3): `find_first_free(0)` → "3.1.3", `find_first_free(1)` → "3.1.2.1", `find_first_free(-1)` → "3.2"
   - Explicit anchor: `find_first_free(1, "3")` → "3.1"
+  - Next top-level from 33 (depth 1): `find_first_free(0, "33")` → "34"
 
 ### Tree Traversal Functions (FR4)
 
