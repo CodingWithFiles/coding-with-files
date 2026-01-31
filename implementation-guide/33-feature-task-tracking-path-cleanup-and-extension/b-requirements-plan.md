@@ -35,27 +35,21 @@ Three resolution functions that accept different input types but return identica
 - **Output**: Same as resolve_num
 - **Acceptance**: Existing code using resolve() continues to work unchanged
 
-### Lifecycle-Aware Validation Functions (FR2)
+### Existence Predicate Functions (FR2)
 
-**FR2.1 - validate_exists($num, $base_dir)**
-- **Input**: Task number, optional base_dir
+Predicate functions use `*_exists` suffix. Check availability using negative: `if not task_exists($num)`.
+
+**FR2.1 - task_exists($num, $base_dir)**
+- **Input**: Task number, optional base_dir (defaults to git root/implementation-guide)
 - **Output**: Boolean (1 if task directory exists, 0 if not)
 - **Acceptance**: Returns true only when task directory exists at expected location
+- **Usage**: Check availability with `if not task_exists($num)` (number available for creation)
 
-**FR2.2 - validate_free($num, $base_dir)**
-- **Input**: Task number, optional base_dir
-- **Output**: Boolean (1 if task number available, 0 if taken)
-- **Acceptance**: Returns true only when task number can be used for creation
-
-**FR2.3 - validate_branch_exists($branch)**
+**FR2.2 - branch_exists($branch)**
 - **Input**: Git branch name
 - **Output**: Boolean (1 if branch exists in current worktree, 0 if not)
-- **Acceptance**: Uses git rev-parse to check branch existence
-
-**FR2.4 - validate_branch_free($branch)**
-- **Input**: Git branch name
-- **Output**: Boolean (1 if branch name available, 0 if taken)
-- **Acceptance**: Returns true only when branch name can be used for creation
+- **Acceptance**: Uses git commands to check branch existence
+- **Usage**: Check availability with `if not branch_exists($branch)` (name available for creation)
 
 ### Format Converter Functions (FR3)
 
@@ -226,11 +220,12 @@ These functions provide standard tree navigation using Perl's functional program
 - [ ] Works correctly in separate worktree (returns worktree path)
 - [ ] Falls back gracefully when not in git repo (uses relative path or returns undef)
 
-### Lifecycle Validation (AC3)
-- [ ] validate_exists("32") returns 1 when task directory exists, 0 when not
-- [ ] validate_free("32") returns 1 when task number available, 0 when taken
-- [ ] validate_branch_exists("feature/32-slug") checks current worktree's branches
-- [ ] validate_branch_free("feature/32-slug") returns inverse of validate_branch_exists
+### Existence Predicates (AC3)
+- [ ] task_exists("32") returns 1 when task directory exists, 0 when not
+- [ ] task_exists("32") without base_dir uses git root/implementation-guide
+- [ ] not task_exists("999") returns 1 when number available for creation
+- [ ] branch_exists("feature/32-slug") checks current worktree's branches
+- [ ] not branch_exists("feature/999-new") returns 1 when name available for creation
 
 ### Format Converters (AC4)
 - [ ] format_dirname(32, "feature", "slug") returns "32-feature-slug"
