@@ -13,15 +13,29 @@ Implement task-tracking-path-cleanup-and-extension following the approved design
 ## Workflow
 Patterns first → Test → Minimal impl → Refactor green → Commit message explains "why"
 
+## Implementation Status Note
+
+**IMPORTANT**: Implementation was executed before design/requirements were finalized. This plan documents the CORRECT approach based on approved requirements and design. The existing implementation in CIG::TaskPath.pm must be reviewed and potentially refactored to ensure:
+
+1. **Orthogonal resolution**: resolve_branch and resolve_path delegate to resolve_num (not duplicated logic)
+2. **Predicate naming**: Functions renamed from validate_* to task_exists/branch_exists with *_exists suffix
+3. **Availability pattern**: Remove *_free functions, use negative predicates instead
+4. **Optional base_dir**: All functions use $base_dir //= find_base_dir() pattern consistently
+5. **No premature optimization**: Remove any caching logic (YAGNI principle)
+
+During implementation execution, verify each function against this plan, not against what was already coded.
+
 ## Files to Modify
 
 ### Primary Changes
-- `.cig/lib/TaskPath.pm` - Add new functions, refactor existing functions
+- `.cig/lib/CIG/TaskPath.pm` - Add new functions following orthogonal API design
   - Add format functions (format_dirname, parse_dirname, format_branch, parse_branch)
-  - Add tree traversal primitives (find_parent, find_children)
-  - Add tree traversal composed (find_siblings, find_ancestors, find_descendants)
-  - Add allocation functions (find_first_free, validate_num_free, validate_branch_free)
-  - Refactor existing resolve_* functions to use new format functions
+  - Add orthogonal resolution (resolve_num, resolve_branch, resolve_path) with delegation pattern
+  - Add existence predicates (task_exists, branch_exists) using *_exists suffix
+  - Add tree traversal primitives (find_parent, find_children) returning hashrefs
+  - Add tree traversal composed (find_siblings, find_ancestors, find_descendants) using functional composition
+  - Add allocation function (find_first_free) for relative depth navigation
+  - Ensure all functions use optional base_dir with smart defaults ($base_dir //= find_base_dir())
 
 ### Supporting Changes
 - `.cig/tests/TaskPath.t` - Comprehensive test suite for all new functions
@@ -141,18 +155,45 @@ Build from primitives using functional composition (map, grep):
   - Functional style: map over children, flatten results
   - Test: multi-level tree returns all hashrefs, leaf nodes return empty, verify depth-first order
 
-### Step 4: Allocation Functions (FR2, FR3.5)
-Implement task number allocation and validation:
+### Step 4: Orthogonal Resolution Functions (FR1)
+Implement resolution with delegation pattern:
 
-- [ ] **validate_num_free($num, $base_dir)**
-  - Check if task directory exists
-  - Use resolve_num, check if returns undef
-  - Boolean return (1 = available, 0 = taken)
+- [ ] **resolve_num($num, $base_dir)** - Already exists, verify it follows design
+  - Core resolution function
+  - All other resolve_* delegate to this
 
-- [ ] **validate_branch_free($branch)**
-  - Shell out to `git branch --list $branch`
+- [ ] **resolve_branch($branch, $base_dir)**
+  - Parse using parse_branch → extract ($num, $type, $slug)
+  - Delegate to resolve_num($num, $base_dir)
+  - Test: "feature/32-slug" returns same hashref as resolve_num("32")
+
+- [ ] **resolve_path($path, $base_dir)**
+  - Parse using parse_dirname(basename($path)) → extract ($num, $type, $slug)
+  - Delegate to resolve_num($num, $base_dir)
+  - Test: "32-feature-slug" returns same hashref as resolve_num("32")
+
+- [ ] **resolve() as backward compatibility alias**
+  - Simply delegates to resolve_num
+  - Ensure existing code continues to work
+
+### Step 5: Existence Predicates (FR2)
+Implement predicate functions with *_exists suffix:
+
+- [ ] **task_exists($num, $base_dir)**
+  - Use resolve_num, return 1 if defined, 0 if undef
+  - Boolean return: 1 = exists, 0 = not found
+  - Optional base_dir with smart default
+  - Test: task_exists("33") returns 1, task_exists("999") returns 0
+  - Test: Use negatively: `if not task_exists("999")` for availability check
+
+- [ ] **branch_exists($branch)**
+  - Shell out to `git branch --list $branch` or use git rev-parse
   - Check if output is empty
-  - Boolean return
+  - Boolean return: 1 = exists, 0 = not found
+  - Test: Use negatively for availability check
+
+### Step 6: Allocation Function (FR3.5)
+Implement task number allocation:
 
 - [ ] **find_first_free($depth, $num)**
   - Resolve anchor: use $num if provided, else read .git/cig-current-task
@@ -165,22 +206,25 @@ Implement task number allocation and validation:
   - Return undef if depth calculation fails (too negative)
   - Test: all relative depths, top-level calculation
 
-### Step 5: Refactor Existing Functions
-Use new format functions in resolve_* implementations:
+### Step 7: Update Exports and Documentation
+Ensure all new functions are properly exported:
 
-- [ ] **resolve_num refactor**
-  - Use parse_dirname instead of inline regex
-  - DRY: eliminate duplicated parsing logic
+- [ ] **Update @EXPORT_OK in TaskPath.pm**
+  - Add all new function names
+  - Group by category (resolution, predicates, format, traversal, allocation)
 
-- [ ] **resolve_branch refactor**
-  - Use parse_branch instead of inline regex
-  - Consistent error handling
+- [ ] **Add POD documentation**
+  - Document each function with examples
+  - Show delegation pattern for orthogonal resolution
+  - Show negative usage pattern for existence predicates
+  - Show functional composition examples for tree traversal
 
 - [ ] **Backwards compatibility verification**
   - Run existing tests to ensure no regressions
-  - Verify return values unchanged
+  - Verify existing code using resolve() continues to work
+  - Test with existing CIG commands
 
-### Step 6: Testing & Validation
+### Step 8: Testing & Validation
 - [ ] Write unit tests for each function (see e-testing.md)
 - [ ] Test composition: verify find_siblings actually calls find_children
 - [ ] Test edge cases: empty trees, single node, deep nesting
@@ -189,19 +233,22 @@ Use new format functions in resolve_* implementations:
 
 ## Implementation Order Rationale
 
-Functions are implemented in dependency order to enable incremental testing:
+Functions are implemented in dependency order following design principles:
 
-1. **Format functions first**: No dependencies, pure string manipulation, easy to test
-2. **Primitives second**: Foundation for composed functions (find_parent, find_children)
-3. **Composed functions third**: Build on primitives, verify composition works
-4. **Allocation functions fourth**: Depend on tree traversal and resolution functions
-5. **Refactoring last**: Ensure new functions work before using them in existing code
+1. **Format functions first** (FR3): No dependencies, pure string manipulation, easy to test
+2. **Tree traversal primitives** (FR4.1-4.2): Foundation returning hashrefs via delegation to resolve_num
+3. **Tree traversal composed** (FR4.3-4.5): Build using functional composition (map, grep, recursion)
+4. **Orthogonal resolution** (FR1): Implement delegation pattern (resolve_branch/resolve_path → resolve_num)
+5. **Existence predicates** (FR2): Simple wrappers around resolve functions
+6. **Allocation function** (FR3.5): Uses predicates and traversal functions
+7. **Exports and documentation**: Make functions discoverable
+8. **Testing and validation**: Verify all requirements met
 
-This order allows:
-- Test each function in isolation before composition
-- Verify primitives before building on them
-- Incremental commits as each function group completes
-- Early detection of design issues
+This order follows design priorities:
+- **Testability**: Test primitives in isolation before composition
+- **Simplicity**: Build complex from simple
+- **Consistency**: Establish patterns early (hashrefs, optional base_dir, delegation)
+- **Incremental verification**: Each step verifiable before next
 
 ## Test Coverage
 **See e-testing.md for complete test plan**
@@ -210,9 +257,11 @@ This order allows:
 **See e-testing.md for validation criteria and test results**
 
 ## Status
-**Status**: Backlog
-**Next Action**: Move to testing planning → `/cig-testing-plan <task>`
-**Blockers**: None identified
+**Status**: Finished
+**Next Action**: Move to testing planning → `/cig-testing-plan 33`
+**Blockers**: None
+
+**Note**: Implementation was executed out of order (before design approval). Plan documents correct approach based on approved requirements and design. Existing code in CIG::TaskPath.pm requires review/refactoring to match this plan.
 
 **See `.cig/docs/workflow/workflow-steps.md#status-values` for valid status values**
 
