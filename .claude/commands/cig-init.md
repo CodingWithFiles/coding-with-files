@@ -29,7 +29,12 @@ Initialise CIG system for this project by:
    - Include section extraction commands
    - Add standard section names reference
 
-5. **Configure Claude Code settings** (user action required):
+5. **Configure .gitignore**:
+   - Ensure `.gitignore` exists at git root
+   - Add `.cig/task-stack` entry if not present (user-specific workspace state)
+   - Use idempotent check: `grep -q '^\\.cig/task-stack$' .gitignore || echo '.cig/task-stack' >> .gitignore`
+
+6. **Configure Claude Code settings** (user action required):
    - Inform user to add PERL5OPT to `~/.claude/settings.json`:
    ```json
    {

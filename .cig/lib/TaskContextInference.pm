@@ -213,7 +213,7 @@ sub _get_worktree_signal {
 }
 
 sub _get_state_file_signal {
-    my $state_file = '.cig/current-task';
+    my $state_file = '.cig/task-stack';
 
     return { name => 'state', weight => WEIGHT_STATE, null => 1 }
         unless -f $state_file;
@@ -223,23 +223,39 @@ sub _get_state_file_signal {
         return { name => 'state', weight => WEIGHT_STATE, null => 1 };
     };
 
-    my $content = <$fh>;
+    my @lines = <$fh>;
     close $fh;
 
-    chomp $content if defined $content;
+    return { name => 'state', weight => WEIGHT_STATE, null => 1 }
+        unless @lines;
 
-    if ($content && $content =~ /^(\d+)$/) {
-        my $task = $1;
+    # Take last 5 entries (most recent)
+    my @recent = @lines[($#lines > 4 ? $#lines - 4 : 0) .. $#lines];
+    chomp @recent;
+
+    # Parse dirnames to extract task numbers
+    my @candidates;
+    my $top_task;
+
+    for my $dirname (reverse @recent) {
+        # Extract task number from dirname (e.g., "34-feature-add-task-stack-script" → 34)
+        if ($dirname =~ /^(\d+(?:\.\d+)*)-/) {
+            my $task = $1;
+            push @candidates, { task => $task, score => WEIGHT_STATE };
+            $top_task = $task unless defined $top_task;  # First (most recent) is top
+        }
+    }
+
+    if (@candidates) {
         return {
             name => 'state',
             weight => WEIGHT_STATE,
-            candidates => [{ task => $task, score => WEIGHT_STATE }],
-            top => $task,
+            candidates => \@candidates,
+            top => $top_task,
             null => 0,
         };
     }
 
-    warn "Malformed $state_file content: $content\n" if $content;
     return { name => 'state', weight => WEIGHT_STATE, null => 1 };
 }
 

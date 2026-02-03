@@ -10,7 +10,7 @@
 #   multiple environmental signals:
 #   - Git branch name (feature/32-slug pattern)
 #   - Worktree context (directory isolation)
-#   - State file (.cig/current-task)
+#   - State file (.cig/task-stack)
 #   - File recency (recently modified tasks)
 #   - Task progress (work potential using cliff function)
 #

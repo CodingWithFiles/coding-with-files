@@ -70,3 +70,15 @@ The Code Implementation Guide (CIG) system v2.0 is **implemented and operational
 - **Configuration**: Hierarchical config system with `cig-project.json`
 - **Version Tracking**: Git-based versioning (`v0.1.1-5-gcea1c19` format)
 - **Task Management**: Support for GitHub/GitLab/JIRA with internal fallback
+- **Task Stack**: `.cig/task-stack` file stores current task context (managed via `/cig-current-task`)
+
+## File Protection (Advisory)
+
+The following files should not be directly edited with Edit or Write tools. Use the designated commands instead:
+
+### `.cig/task-stack`
+- **Purpose**: Tracks current task context as a LIFO stack
+- **Format**: Newline-delimited task dirnames (e.g., `34-feature-add-task-stack-script`)
+- **Use instead**: `/cig-current-task` skill for all operations (push, pop, list, clear)
+- **Rationale**: Stack operations require atomic file locking (flock) to prevent corruption
+- **Advisory**: If you need to manipulate the stack, use the skill - direct edits may corrupt the file format

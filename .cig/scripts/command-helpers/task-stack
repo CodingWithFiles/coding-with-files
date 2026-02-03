@@ -1,0 +1,173 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+use Fcntl qw(:flock :seek O_RDWR O_CREAT O_APPEND);
+use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use CIG::TaskPath qw(resolve_num format_dirname parse_dirname);
+
+my $STACK_FILE = '.cig/task-stack';
+
+sub get_script_rel_path {
+    use Cwd 'abs_path';
+    my $git_root = `git rev-parse --show-toplevel 2>/dev/null`;
+    chomp $git_root;
+    my $script_path = abs_path($0);
+    if ($git_root && $script_path =~ m{^\Q$git_root\E/(.+)$}) {
+        return $1;
+    }
+    return 'task-stack';
+}
+
+sub push_task {
+    my ($task_num) = @_;
+    my $rel_path = get_script_rel_path();
+
+    my $task_info = resolve_num($task_num);
+    unless ($task_info) {
+        print STDERR "$rel_path: error: task $task_num not found\n";
+        exit 1;
+    }
+
+    my $dirname = format_dirname(
+        $task_info->{num},
+        $task_info->{type},
+        $task_info->{slug}
+    );
+
+    open my $fh, '>>', $STACK_FILE or die "$rel_path: cannot open stack: $!\n";
+    flock($fh, LOCK_EX) or die "$rel_path: cannot lock: $!\n";
+    print $fh "$dirname\n";
+    close $fh;
+
+    print "$rel_path: pushed $dirname\n";
+}
+
+sub pop_task {
+    my $rel_path = get_script_rel_path();
+
+    unless (-e $STACK_FILE) {
+        print STDERR "$rel_path: error: stack is empty\n";
+        exit 1;
+    }
+
+    open my $fh, '+<', $STACK_FILE or die "$rel_path: cannot open stack: $!\n";
+    flock($fh, LOCK_EX) or die "$rel_path: cannot lock: $!\n";
+
+    my @lines = <$fh>;
+    unless (@lines) {
+        close $fh;
+        print STDERR "$rel_path: error: stack is empty\n";
+        exit 1;
+    }
+
+    chomp @lines;
+    my $popped = pop @lines;
+
+    seek($fh, 0, SEEK_SET);
+    truncate($fh, 0);
+    print $fh "$_\n" for @lines;
+    close $fh;
+
+    print "$rel_path: popped $popped\n";
+}
+
+sub peek_stack {
+    my $rel_path = get_script_rel_path();
+
+    unless (-e $STACK_FILE) {
+        print STDERR "$rel_path: error: stack is empty\n";
+        exit 1;
+    }
+
+    open my $fh, '<', $STACK_FILE or die "$rel_path: cannot open stack: $!\n";
+    my @lines = <$fh>;
+    close $fh;
+
+    unless (@lines) {
+        print STDERR "$rel_path: error: stack is empty\n";
+        exit 1;
+    }
+
+    chomp @lines;
+    print "$lines[-1]\n";
+}
+
+sub list_stack {
+    my $rel_path = get_script_rel_path();
+
+    unless (-e $STACK_FILE) {
+        print "$rel_path: list task stack (use --help for options)\n";
+        print "$rel_path: 0 tasks in stack (empty)\n";
+        return;
+    }
+
+    open my $fh, '<', $STACK_FILE or die "$rel_path: cannot open stack: $!\n";
+    my @lines = <$fh>;
+    close $fh;
+
+    chomp @lines;
+    my $total = scalar @lines;
+    my @recent = @lines[($total > 5 ? $total - 5 : 0) .. $total - 1];
+    my $showing = scalar @recent;
+
+    print "$rel_path: list task stack (use --help for options)\n";
+    print "$rel_path: showing $showing of $total total tasks, most recent last\n";
+
+    for my $dirname (@recent) {
+        print "$dirname\n";
+    }
+}
+
+sub clear_stack {
+    my $rel_path = get_script_rel_path();
+
+    if (-e $STACK_FILE) {
+        unlink $STACK_FILE or die "$rel_path: cannot remove stack: $!\n";
+        print "$rel_path: cleared stack\n";
+    } else {
+        print "$rel_path: stack already empty\n";
+    }
+}
+
+sub get_size {
+    unless (-e $STACK_FILE) {
+        return 0;
+    }
+
+    open my $fh, '<', $STACK_FILE or return 0;
+    my @lines = <$fh>;
+    close $fh;
+
+    return scalar @lines;
+}
+
+# Main dispatch
+my $op = shift @ARGV;
+unless ($op) {
+    print STDERR "Usage: task-stack {push|pop|peek|list|clear|size} [args]\n";
+    exit 2;
+}
+
+if ($op eq 'push') {
+    my $task = shift @ARGV;
+    unless ($task) {
+        print STDERR "Usage: task-stack push <task-num>\n";
+        exit 2;
+    }
+    push_task($task);
+} elsif ($op eq 'list') {
+    list_stack();
+} elsif ($op eq 'pop') {
+    pop_task();
+} elsif ($op eq 'peek') {
+    peek_stack();
+} elsif ($op eq 'clear') {
+    clear_stack();
+} elsif ($op eq 'size') {
+    print get_size() . "\n";
+} else {
+    print STDERR "Unknown operation: $op\n";
+    print STDERR "Usage: task-stack {push|pop|peek|list|clear|size} [args]\n";
+    exit 2;
+}

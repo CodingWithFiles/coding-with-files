@@ -34,9 +34,15 @@
     },
     "task-context-inference": {
       "path": ".cig/scripts/command-helpers/task-context-inference",
-      "sha256": "b7479ac4d5291af4c9f5c7f954e1f5a2e901e3dc260fbc6a7f0d5e9d8b0536cf",
+      "sha256": "5050aafa0424eca09fbacc13ba095012e7094714d9865d24f650c3c4e774529c",
       "permissions": "0755",
       "description": "Infer current task and workflow step from git/file context signals"
+    },
+    "task-stack": {
+      "path": ".cig/scripts/command-helpers/task-stack",
+      "sha256": "8d812373dc9cdf1616d0d1b3da304360327e56d5f980afe740907ed229bd944e",
+      "permissions": "0755",
+      "description": "Manage task stack for context tracking (push/pop/peek/list/clear/size operations)"
     },
     "template-version-parser": {
       "path": ".cig/scripts/command-helpers/template-version-parser",
@@ -164,7 +170,7 @@
     },
     "TaskContextInference": {
       "path": ".cig/lib/TaskContextInference.pm",
-      "sha256": "82c2a6e37bbefec9c47afd82238a6abb39b63ab334b21c38abc895d01c9a7744",
+      "sha256": "6debb865ae6f7c42d31e21626ee8c9cabe33ae9aa3f8abf943b95567522d34bc",
       "description": "Signal-based inference for current task and workflow step context"
     }
   }
