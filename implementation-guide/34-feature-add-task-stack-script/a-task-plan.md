@@ -8,12 +8,12 @@
 - **Template Version**: 2.1
 
 ## Goal
-Implement task stack management system with `.cig/current-task` file handler, user-facing command, security hooks, and integration with Task 32 inference to enable context-aware task switching.
+Implement task stack management system with `.cig/current-task` file handler, user-facing skill, security hooks, and integration with Task 32 inference to enable context-aware task switching.
 
 ## Success Criteria
 - [ ] `task-stack` script implements push/pop/peek/list/clear/size operations with file locking
 - [ ] Output format suitable for agents, humans, and scripts (self-documenting with relative path)
-- [ ] `/cig-current` command provides user-friendly interface to task stack
+- [ ] `/cig-current-task` skill provides user-friendly interface to task stack
 - [ ] PreToolUse hook prevents direct Edit/Write to `.cig/current-task` file
 - [ ] Task 32 inference reads top 5 tasks from stack for context-aware detection
 - [ ] All operations work with dirname format (e.g., `34-feature-add-task-stack-script`)
@@ -30,7 +30,7 @@ Implement task stack management system with `.cig/current-task` file handler, us
 
 ## Major Milestones
 1. **Core Stack Script**: Implement `task-stack` with all 6 operations (push/pop/peek/list/clear/size)
-2. **User Command**: Create `/cig-current` command for user-facing management
+2. **User Skill**: Create `/cig-current-task` skill for user-facing management
 3. **Security Integration**: Add PreToolUse hook to block direct file editing
 4. **Inference Integration**: Update Task 32 to read stack as high-confidence signal
 5. **Testing & Documentation**: Verify all operations, document usage patterns
