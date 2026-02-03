@@ -17,7 +17,7 @@ Define functional and non-functional specifications for task stack management sy
   - **Input**: Task number (e.g., "34")
   - **Process**: Resolve task number to full dirname via CIG::TaskPath::resolve_num() and format_dirname()
   - **Output**: Confirmation message with task info
-  - **Storage**: Append dirname to `.cig/current-task` file with newline
+  - **Storage**: Append dirname to `.cig/task-stack` file with newline
   - **Criteria**: Task must exist in implementation-guide/, dirname must be valid format
 
 - **FR2**: Pop operation removes and returns top task from stack
@@ -38,7 +38,7 @@ Define functional and non-functional specifications for task stack management sy
   - **Criteria**: Shows up to 5 most recent, indicates total count, scriptable with `tail -n 1`
 
 - **FR5**: Clear operation empties the stack
-  - **Process**: Delete `.cig/current-task` file
+  - **Process**: Delete `.cig/task-stack` file
   - **Output**: Confirmation message
   - **Criteria**: Operation succeeds even if file doesn't exist (idempotent)
 
@@ -56,13 +56,13 @@ Define functional and non-functional specifications for task stack management sy
 
 ### Security Controls
 - **FR8**: PreToolUse hook prevents direct file editing
-  - **Trigger**: Edit or Write tool with file_path matching `.cig/current-task`
+  - **Trigger**: Edit or Write tool with file_path matching `.cig/task-stack`
   - **Action**: Block operation, explain error, suggest using `/cig-current-task` instead
   - **Criteria**: Hook is advisory (documents intent), script validates format on read
 
 ### Integration
 - **FR9**: Task 32 inference reads stack as signal
-  - **Input**: Last 5 entries from `.cig/current-task`
+  - **Input**: Last 5 entries from `.cig/task-stack`
   - **Process**: Parse dirnames to extract task numbers
   - **Output**: Primary candidate (top of stack) + context (all 5)
   - **Signal Weight**: High confidence (score 100) when stack exists
@@ -74,6 +74,13 @@ Define functional and non-functional specifications for task stack management sy
   - **Action**: Delete old command/skill files
   - **Rationale**: Prevent confusion between old and new interface
   - **Criteria**: No references to `/cig-current` remain in codebase
+
+### Initialization
+- **FR11**: Update `/cig-init` to add `.cig/task-stack` to `.gitignore`
+  - **Check**: Does `.gitignore` contain `.cig/task-stack`?
+  - **Action**: Add `.cig/task-stack` entry to `.gitignore` if not present
+  - **Rationale**: Task stack is user-specific workspace state, not shared via git
+  - **Criteria**: `.gitignore` includes `.cig/task-stack` after initialization
 
 ### User Stories
 - **As a developer** I want to push the current task onto a stack **so that** I can context-switch to another task and return later
@@ -104,7 +111,7 @@ Define functional and non-functional specifications for task stack management sy
 - **Documentation**: Inline comments explain file format, locking strategy, output format
 
 ### Security (NFR4)
-- **File permissions**: `.cig/current-task` created with user-only access (0600)
+- **File permissions**: `.cig/task-stack` created with user-only access (0600)
 - **Input validation**: Task numbers validated via CIG::TaskPath::resolve_num()
 - **Path traversal prevention**: No user-provided paths, only validated task numbers
 - **Atomic operations**: flock(LOCK_EX) prevents corruption from concurrent access
@@ -124,7 +131,7 @@ Define functional and non-functional specifications for task stack management sy
 ### Technical Constraints
 - **Perl 5.x only**: No external CPAN modules, core modules only (Fcntl, FindBin)
 - **Git repository required**: Relative path display uses `git rev-parse --show-toplevel`
-- **File-based storage**: Single file `.cig/current-task`, one dirname per line
+- **File-based storage**: Single file `.cig/task-stack`, one dirname per line
 - **Dirname format**: Must store full dirname format (not just task numbers) for context preservation
 
 ### Integration Constraints
@@ -157,9 +164,9 @@ Define functional and non-functional specifications for task stack management sy
 
 ### Integration Acceptance
 - [ ] AC12: `/cig-current-task` skill successfully wraps task-stack operations
-- [ ] AC13: PreToolUse hook blocks Edit to `.cig/current-task` with helpful message
+- [ ] AC13: PreToolUse hook blocks Edit to `.cig/task-stack` with helpful message
 - [ ] AC14: Task 32 inference reads stack and uses top entry as primary candidate
-- [ ] AC15: Task 32 inference still works when `.cig/current-task` doesn't exist
+- [ ] AC15: Task 32 inference still works when `.cig/task-stack` doesn't exist
 
 ### Security Acceptance
 - [ ] AC16: File created with 0600 permissions (user-only access)
@@ -169,6 +176,10 @@ Define functional and non-functional specifications for task stack management sy
 ### Cleanup Acceptance
 - [ ] AC19: Old `/cig-current` command/skill files removed if they exist
 - [ ] AC20: Grep for `/cig-current` returns no matches (except `/cig-current-task`)
+
+### Initialization Acceptance
+- [ ] AC21: `/cig-init` adds `.cig/task-stack` to `.gitignore`
+- [ ] AC22: After running `/cig-init`, `.gitignore` contains `.cig/task-stack` entry
 
 ## Status
 **Status**: Finished

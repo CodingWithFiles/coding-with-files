@@ -8,16 +8,16 @@
 - **Template Version**: 2.1
 
 ## Goal
-Implement task stack management system with `.cig/current-task` file handler, user-facing skill, security hooks, and integration with Task 32 inference to enable context-aware task switching.
+Implement task stack management system with `.cig/task-stack` file handler, user-facing skill, security hooks, and integration with Task 32 inference to enable context-aware task switching.
 
 ## Success Criteria
 - [ ] `task-stack` script implements push/pop/peek/list/clear/size operations with file locking
 - [ ] Output format suitable for agents, humans, and scripts (self-documenting with relative path)
 - [ ] `/cig-current-task` skill provides user-friendly interface to task stack
-- [ ] PreToolUse hook prevents direct Edit/Write to `.cig/current-task` file
+- [ ] PreToolUse hook prevents direct Edit/Write to `.cig/task-stack` file
 - [ ] Task 32 inference reads top 5 tasks from stack for context-aware detection
 - [ ] All operations work with dirname format (e.g., `34-feature-add-task-stack-script`)
-- [ ] `.cig/current-task` added to `.gitignore` (user-specific workspace state)
+- [ ] `.cig/task-stack` added to `.gitignore` (user-specific workspace state)
 
 ## Original Estimate
 **Effort**: 1-2 days (6-12 hours)
@@ -66,7 +66,7 @@ Implement task stack management system with `.cig/current-task` file handler, us
 - **Scriptable Output**: Output format must be parseable by both agents and shell scripts (`tail -n 1`)
 - **No External Dependencies**: Pure Perl with core modules only (Fcntl, FindBin)
 - **Dirname Format Only**: Stack stores full dirname format, not just task numbers (preserves context)
-- **User-Specific State**: `.cig/current-task` is workspace-specific (gitignored), not shared between developers
+- **User-Specific State**: `.cig/task-stack` is workspace-specific (gitignored), not shared between developers
 
 ## Decomposition Check
 Review these signals to determine if this task should be broken into subtasks:
