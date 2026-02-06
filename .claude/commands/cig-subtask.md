@@ -71,7 +71,7 @@ Inform user:
 - Subtask directory created: `<full-path>`
 - Parent task: `<parent-num>` (`<parent-type>`: `<parent-slug>`)
 - Parent context loaded via structural map
-- Next action: `/cig-plan <num>` to begin planning phase
+- Next action: `/cig-task-plan <num>` to begin planning phase
 - Note: Progressive disclosure pattern applied - parent context available but not forced
 
 **Progressive Disclosure**: Commands reference `/cig-new-task` documentation rather than duplicating instructions

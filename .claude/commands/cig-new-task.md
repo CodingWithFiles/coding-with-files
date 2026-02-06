@@ -95,7 +95,7 @@ Suggest: `git checkout -b <branch-name>`
 Inform user:
 - Directory created: `<full-path>`
 - Files created: List of workflow files (a-plan.md, b-requirements.md, etc.)
-- Next action: `/cig-plan <num>` to begin planning phase
+- Next action: `/cig-task-plan <num>` to begin planning phase
 - Git branch: Suggested checkout command
 
 **Success**: Ready-to-use v2.0 implementation guide with hierarchical support and symlink-based templates

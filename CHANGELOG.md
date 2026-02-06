@@ -2,6 +2,51 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 35: Fix Incorrect Command References
+
+**Status**: Complete (2026-02-06)
+**Duration**: 45 minutes (vs. 15 minutes estimated = **200% over**)
+**Impact**: Bugfix - Corrected anachronistic `/cig-plan` references to `/cig-task-plan` in command files
+
+### Problem Addressed
+
+Found 2 outdated command references in command definition files that resulted from the `/cig-plan` → `/cig-task-plan` rename. Historical references in implementation guides were intentionally preserved as documentation artifacts.
+
+### Changes Made
+
+**Command File Updates**:
+- `.claude/commands/cig-new-task.md:98` - Updated next-action reference to `/cig-task-plan`
+- `.claude/commands/cig-subtask.md:74` - Updated next-action reference to `/cig-task-plan`
+
+### Implementation Quality
+
+**Test Coverage**: 100% (7/7 test cases passed)
+- 5 functional tests: File updates, scope verification, historical preservation
+- 2 non-functional tests: Readability, consistency
+
+**Defect Rate**: 0 bugs found during implementation or testing
+
+**Validation Results**:
+- Zero `/cig-plan` references remaining in `.claude/commands/` directory
+- 35 historical references preserved in `implementation-guide/` (excluding Task 35's own docs)
+- Clean git diff: 2 files changed, 2 insertions, 2 deletions
+
+### Key Learnings
+
+**Time Estimation**: Initial 15-minute estimate was 3x under actual (45 minutes). Thorough documentation for each workflow phase added value but increased time. Future hotfix estimates should be 30-60 minutes when following full CIG workflow.
+
+**Baseline Verification**: Historical reference baseline (35) was inaccurate - actual was 52 total (35 excluding Task 35's docs). Pre-execution baseline verification would have prevented mid-stream test criteria adjustment.
+
+**Documentation ROI**: Even simple 2-line changes benefit from comprehensive documentation. The additional 30 minutes created clear audit trail and reusable learning artifacts.
+
+### Related Work
+
+Partial completion of BACKLOG item "Audit Command References and Create Design-Alignment Conventions":
+- **Completed (Task 35)**: Fixed 2 command reference errors
+- **Remaining**: Create `docs/conventions/design-alignment.md` to prevent future inconsistencies
+
+---
+
 ## Task 34: Task Stack Management System
 
 **Status**: Complete (2026-02-03)

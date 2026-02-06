@@ -4,47 +4,145 @@ Future tasks and improvements for the Code Implementation Guide system.
 
 ---
 
----
+## Task: Add Material Changes Review to Phase Commit Checklists
 
-## Task: Audit Command References and Create Design-Alignment Conventions
+**Task-Type**: chore
+**Priority**: Medium
+**Status**: Identified from Task 35 retrospective
 
-**Task-Type**: bugfix
-**Priority**: High
-**Status**: Discovered during Task 33 creation
+Add explicit commit checklist step to workflow documentation and templates to prevent oversight of committing actual deliverables.
 
-Audit all command/skill references for anachronistic names and establish conventions to prevent future naming inconsistencies.
+**Problem**: Task 35 experienced repeated oversight where actual command file changes (the core deliverables) were not committed at multiple checkpoints:
+- Implementation-exec phase (checkpoint commit)
+- Rollout phase
+- Retrospective phase
 
-**Problem**: Found outdated command references in command definitions:
-- `.claude/commands/cig-new-task.md:98` - References `/cig-plan` (should be `/cig-task-plan`)
-- `.claude/commands/cig-subtask.md:74` - References `/cig-plan` (should be `/cig-task-plan`)
+Root cause: Exclusive focus on implementation-guide/ documentation files caused deliverables in other directories (.claude/, .cig/, etc.) to be overlooked.
 
-The old `/cig-plan` command was renamed to `/cig-task-plan` but references weren't updated throughout the codebase.
-
-**Root Cause**: No systematic process for ensuring naming consistency when commands/skills are created, renamed, or updated.
+**Solution**: Add explicit commit review step to each workflow phase documentation.
 
 **Scope**:
+1. **Update workflow-steps.md**: Add commit checklist guidance to each phase (implementation-exec, testing-exec, rollout, retrospective)
+2. **Update phase templates**: Add "Commit Checklist" section to execution templates:
+   - f-implementation-exec.md.template
+   - g-testing-exec.md.template
+   - h-rollout.md.template
+   - j-retrospective.md.template
+3. **Checklist content**:
+   ```markdown
+   ## Pre-Commit Checklist
+   - [ ] Run `git status` to see all modified files
+   - [ ] Review all modified files - are they material to this task?
+   - [ ] Stage all material changes: implementation-guide/, .claude/, .cig/, source files, etc.
+   - [ ] Verify staged changes match task scope (git diff --staged)
+   - [ ] Don't assume only implementation-guide/ files need committing
+   ```
 
-### Part A: Audit All Command/Skill References
+**Success Criteria**:
+- [ ] Workflow documentation includes commit review guidance
+- [ ] All execution templates have commit checklist section
+- [ ] Checklist explicitly mentions reviewing files outside implementation-guide/
+- [ ] Future tasks less likely to miss committing core deliverables
 
-1. **Search all documentation** for command references:
-   - `.claude/commands/*.md` - Command definition files
-   - `docs/**/*.md` - All documentation
-   - `README.md`, `CLAUDE.md`, `COMMANDS.md` - Top-level docs
-   - Implementation guide files - Task documentation
-   - Template files in `.cig/templates/pool/` - Template content
+**Rationale**: Prevents repeated oversight pattern where documentation gets committed but actual code/config changes are forgotten. Explicit checklist reduces cognitive load and provides systematic review process.
 
-2. **Create audit report** listing:
-   - All command references found
-   - Current vs expected names
-   - Files that need updating
-   - Priority (critical path vs nice-to-have)
+**Discovered**: Task 35 retrospective - command files not committed at any checkpoint despite being the core deliverable
 
-3. **Fix all anachronistic references**:
-   - Update command names to current naming convention
-   - Verify all cross-references are valid
-   - Test that updated references work
+---
 
-### Part B: Create Design-Alignment Conventions Document
+## Task: Add Baseline Verification Step to Implementation Planning Templates
+
+**Task-Type**: chore
+**Priority**: Low
+**Status**: Identified from Task 35 retrospective
+
+Add explicit baseline verification step to implementation planning phase for tasks involving counts, metrics, or quantitative validation.
+
+**Problem**: Task 35 estimated 35 historical references but actual count was 52. Baseline was established incorrectly, causing mid-stream test criteria adjustment during testing phase.
+
+**Solution**: Update d-implementation-plan.md template to include baseline verification section.
+
+**Scope**:
+1. **Update template**: `.cig/templates/pool/d-implementation-plan.md.template`
+2. **Add section** after "Implementation Steps":
+   ```markdown
+   ## Baseline Verification (if applicable)
+
+   For tasks involving counts, metrics, or quantitative validation:
+   - [ ] Establish accurate baseline BEFORE implementation
+   - [ ] Document baseline measurement method
+   - [ ] Record baseline values with verification date
+   - [ ] Note any assumptions or exclusions
+
+   Example: Historical reference count
+   - Baseline: grep -r "pattern" dir/ | wc -l
+   - Value: 52 references (2026-02-06)
+   - Exclusions: Task's own documentation
+   ```
+
+**Success Criteria**:
+- [ ] Template includes baseline verification section
+- [ ] Section is conditional ("if applicable")
+- [ ] Provides clear example for count-based tasks
+- [ ] Future tasks establish accurate baselines before implementation
+
+**Rationale**: Pre-execution baseline verification prevents mid-stream test criteria adjustments and ensures test cases are accurate from the start.
+
+**Discovered**: Task 35 retrospective - baseline of 35 references was inaccurate, actual was 52
+
+---
+
+## Task: Add Status Field Review to Pre-Retrospective Checklist
+
+**Task-Type**: chore
+**Priority**: Low
+**Status**: Identified from Task 35 retrospective
+
+Add status field verification to workflow documentation as a pre-retrospective checkpoint.
+
+**Problem**: Task 35 had f-implementation-exec.md showing "Implemented" (50%) instead of "Finished" (100%), blocking task from showing 100% completion. This was only caught when running /cig-status before retrospective.
+
+**Solution**: Add explicit status verification step to retrospective workflow documentation.
+
+**Scope**:
+1. **Update workflow-steps.md**: Add to retrospective section (before Step 8: Execute Retrospective):
+   ```markdown
+   ### 7. Verify Task Status
+
+   Before documenting retrospective learnings, verify task is actually finished:
+
+   7.1. **Run /cig-status <task-path>** to check completion percentage
+   7.2. **If <100%**: Review workflow file status fields
+       - Look for "Implemented" (should be "Finished")
+       - Look for "Testing" (should be "Finished")
+       - Look for "Blocked" (resolve or document)
+   7.3. **Update status fields** before proceeding with retrospective
+   7.4. **If still <100%**: Task not finished - identify and finish missing work
+   ```
+
+2. **Update cig-retrospective.md command**: Add step 7 between current steps 6 and 7
+
+**Success Criteria**:
+- [ ] Workflow documentation includes status verification step
+- [ ] Step positioned before retrospective execution (catches issues early)
+- [ ] Clear guidance on what to do if status <100%
+- [ ] Future tasks catch status field issues before retrospective
+
+**Rationale**: Systematic status verification prevents completing retrospective on incomplete tasks and ensures accurate progress tracking.
+
+**Discovered**: Task 35 retrospective - f-implementation-exec.md status was "Implemented" not "Finished"
+
+---
+
+## Task: Create Design-Alignment Conventions Document
+
+**Task-Type**: chore
+**Priority**: Medium
+**Status**: Partial completion (Task 35 fixed command references, conventions doc remains)
+
+**Context**: Task 35 fixed the 2 incorrect command references (`.claude/commands/cig-new-task.md` and `.claude/commands/cig-subtask.md`). The remaining work is to create conventions documentation to prevent future inconsistencies.
+
+**Scope**:
 
 Create `docs/conventions/design-alignment.md` to prevent future inconsistencies:
 
@@ -1076,9 +1174,14 @@ Remove decomposition check steps from all workflow command files except cig-plan
 ## Task: Rollout Task 11 - Secure Argument Parsing
 
 **Task-Type**: chore
-**Priority**: High
+**Priority**: Blocked (was High)
+**Status**: BLOCKED - Cannot rollout until skills migration completes
 
-Deploy the updated CIG command files with secure argument parsing pattern. All 8 workflow commands (cig-plan, cig-requirements, cig-design, cig-implementation, cig-testing, cig-rollout, cig-maintenance, cig-retrospective) have been updated with LLM-level format validation to prevent command injection. Changes are currently on local branch `bugfix/11-only-pass-needed-args-to-scripts`. Rollout involves creating PR, merging to main, and monitoring for any issues in production usage.
+**Blocker**: Task 11 is blocked at 25% completion. The secure argument parsing work discovered an unfixable `$ARGUMENTS` bug in Claude Code's command system (special characters cause security vulnerabilities). Commands are deprecated by Anthropic. Task 11 cannot be completed or rolled out until "Migrate CIG to Hybrid Plugin Model" task completes, which will convert commands to skills and bypass the `$ARGUMENTS` bug entirely.
+
+**Original Intent**: Deploy updated CIG command files with secure argument parsing pattern. All 8 workflow commands (cig-plan, cig-requirements, cig-design, cig-implementation, cig-testing, cig-rollout, cig-maintenance, cig-retrospective) have been updated with LLM-level format validation to prevent command injection. Changes are on branch `bugfix/11-only-pass-needed-args-to-scripts`.
+
+**Unblock Strategy**: Complete "Migrate CIG to Hybrid Plugin Model" task first (see BACKLOG entry above), then resume Task 11 with skills architecture.
 
 ---
 
