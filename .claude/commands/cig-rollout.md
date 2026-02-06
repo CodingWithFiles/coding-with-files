@@ -24,6 +24,18 @@ See `.cig/docs/context/tools.md` for context tool documentation.
 ## Your task
 Guide the user through the rollout phase.
 
+**Implementation**: First ensure we're in git repository root:
+
+!{bash}
+GIT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
+if [ -z "$GIT_ROOT" ]; then
+    echo "Error: Not in a git repository. CIG commands must be run from within a git repository."
+    exit 1
+fi
+
+cd "$GIT_ROOT"
+echo "Working directory: $GIT_ROOT"
+
 **CRITICAL - Argument Parsing**:
 - If task arguments provided: Extract the FIRST space-separated word as the task path
 - If NO task arguments: Use task_num from "Current task/workflow" context above

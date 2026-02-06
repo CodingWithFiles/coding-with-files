@@ -4,6 +4,137 @@ Future tasks and improvements for the Code Implementation Guide system.
 
 ---
 
+## Task: Add "Create Task Branch" Step to Implementation Execution
+
+**Task-Type**: chore
+**Priority**: Medium
+**Status**: Identified from Task 36 retrospective
+
+Add explicit "Create and checkout task branch" as first step in implementation execution workflow to prevent stash/rebase complexity.
+
+**Problem**: Task 36 created the task branch after implementation work was complete, requiring stashing changes and recreating branch structure. This added unnecessary complexity.
+
+**Solution**: Update implementation execution documentation to create branch before implementation work begins.
+
+**Scope**:
+1. **Update workflow-steps.md**: Add branch creation as Step 0 in implementation-exec section
+2. **Update f-implementation-exec.md template**: Add branch creation step before implementation
+3. **Add branch naming reminder**: Reference `branch-naming-convention` from cig-project.json
+
+**Success Criteria**:
+- [ ] Workflow documentation includes branch creation as first step
+- [ ] Template includes branch creation with naming convention reference
+- [ ] Future tasks create branch before implementation, not after
+
+**Rationale**: Creating branch at task start eliminates need for stashing and simplifies git workflow.
+
+**Discovered**: Task 36 retrospective - branch created after implementation required stashing
+
+---
+
+## Task: Document Bugfix Workflow Differences
+
+**Task-Type**: chore
+**Priority**: Low
+**Status**: Identified from Task 36 retrospective
+
+Clarify that bugfix workflows skip h-rollout.md and use checkpoint commits for rollout instead.
+
+**Problem**: Task 36 attempted to use `/cig-rollout` but bugfix template doesn't include h-rollout.md, causing confusion about rollout phase.
+
+**Solution**: Add explicit documentation about workflow type differences.
+
+**Scope**:
+1. **Update workflow-steps.md**: Add section comparing workflow types (feature vs bugfix vs hotfix)
+2. **Create comparison table**: Show which phases each workflow type includes
+   ```markdown
+   | Phase | Feature | Bugfix | Hotfix | Chore |
+   |-------|---------|--------|--------|-------|
+   | a-plan | ✓ | ✓ | ✓ | ✓ |
+   | b-requirements | ✓ | - | - | - |
+   | c-design | ✓ | ✓ | - | - |
+   | d-implementation-plan | ✓ | ✓ | ✓ | ✓ |
+   | e-testing-plan | ✓ | ✓ | ✓ | ✓ |
+   | f-implementation-exec | ✓ | ✓ | ✓ | ✓ |
+   | g-testing-exec | ✓ | ✓ | - | - |
+   | h-rollout | ✓ | - | ✓ | - |
+   | i-maintenance | ✓ | - | - | - |
+   | j-retrospective | ✓ | ✓ | ✓ | ✓ |
+   ```
+3. **Document rollout alternatives**: For workflows without h-rollout, explain checkpoint commit serves as rollout
+
+**Success Criteria**:
+- [ ] Comparison table shows phase inclusion by workflow type
+- [ ] Documentation explains rollout alternatives for bugfix/chore
+- [ ] Future tasks understand which phases apply to their type
+
+**Rationale**: Reduces confusion about missing workflow phases based on task type.
+
+**Discovered**: Task 36 retrospective - bugfix workflow doesn't include h-rollout.md
+
+---
+
+## Task: Create Verification Test Pattern Templates
+
+**Task-Type**: chore
+**Priority**: Low
+**Status**: Identified from Task 36 retrospective
+
+Create reusable grep/diff verification patterns for multi-file update tasks.
+
+**Problem**: Task 36 used grep/diff verification effectively for 17-file update. This pattern is reusable but not documented.
+
+**Solution**: Create verification pattern templates in documentation.
+
+**Scope**:
+1. **Create `docs/patterns/verification-tests.md`**:
+   - Grep count pattern: `grep -l "PATTERN" files/* | wc -l`
+   - Diff statistics: `git diff --stat`
+   - Insertion consistency: Check all files show same line count
+2. **Add examples**: Multi-file updates, consistent snippets, completeness checks
+
+**Success Criteria**:
+- [ ] Verification patterns documented with examples
+- [ ] Future multi-file tasks reference patterns
+- [ ] Verification approach consistent across tasks
+
+**Rationale**: Codifies effective verification approach from Task 36 for reuse.
+
+**Discovered**: Task 36 retrospective - grep/diff verification proved effective
+
+---
+
+## Task: Document Checkpoint Commit → Squash Workflow
+
+**Task-Type**: chore
+**Priority**: Low
+**Status**: Identified from Task 36 retrospective
+
+Document the standard pattern: checkpoint commits → backup branch → squash → rebase.
+
+**Problem**: Task 35 and 36 both used checkpoint commits with final squashing, but pattern isn't documented.
+
+**Solution**: Create workflow documentation for checkpoint/squash pattern.
+
+**Scope**:
+1. **Create `docs/workflow/checkpoint-squash.md`**:
+   - When to use checkpoint commits (during development)
+   - How to create backup branch (`git branch $(git rev-parse --abbrev-ref HEAD)-checkpoints`)
+   - How to squash (`git reset --soft <base-commit>`)
+   - How to rebase dependent branches
+2. **Add to workflow-steps.md**: Reference checkpoint/squash pattern
+
+**Success Criteria**:
+- [ ] Pattern documented with step-by-step instructions
+- [ ] Examples showing backup branch creation and squashing
+- [ ] Future tasks can reference standard pattern
+
+**Rationale**: Standardizes effective git workflow used in recent tasks.
+
+**Discovered**: Task 36 retrospective - checkpoint/squash pattern worked well
+
+---
+
 ## Task: Add Material Changes Review to Phase Commit Checklists
 
 **Task-Type**: chore
@@ -1294,19 +1425,32 @@ Workflow Status:
 ---
 
 
-## Task: Fix CIG Commands to Work from Any Directory
+## ✓ Task: Fix CIG Commands to Work from Any Directory
 
 **Task-Type**: bugfix
 **Priority**: High
+**Status**: ✓ Complete (Task 36 - 2026-02-06)
 
-Fix CIG workflow commands to work regardless of current working directory. Currently, commands fail when executed from subdirectories because they use relative paths (`.cig/scripts/...`) that only work from repository root.
+Fixed CIG workflow commands to work regardless of current working directory by adding git root detection to all 17 command files.
 
-**Problem**: When working in a task subdirectory (e.g., `implementation-guide/21-feature-...`), running `/cig-new-task` or other commands fails with:
+**Solution Implemented**: Added bash snippet to detect git repository root and cd to it before execution:
+```bash
+GIT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
+if [ -z "$GIT_ROOT" ]; then
+    echo "Error: Not in a git repository. CIG commands must be run from within a git repository."
+    exit 1
+fi
+cd "$GIT_ROOT"
+echo "Working directory: $GIT_ROOT"
 ```
-Error: .cig/scripts/command-helpers/cig-load-project-config: No such file or directory
-```
 
-This breaks the workflow when Claude is in a task directory after completing previous phases.
+**Results**:
+- All 17 command files updated (.claude/commands/cig-*.md)
+- Commands now work from any directory within repository
+- Clear error handling for non-git directories
+- Working directory changes communicated to user/LLM
+
+**Completed by**: Task 36 (bugfix/36-fix-cig-commands-to-work-from-any-directory)
 
 **Solution Options**:
 

@@ -10,6 +10,18 @@ allowed-tools: Read, Bash(.cig/scripts/command-helpers/hierarchy-resolver:*), Ba
 ## Your task
 Analyze completion status for: **$ARGUMENTS** (or all tasks if no path specified)
 
+**Implementation**: First ensure we're in git repository root:
+
+!{bash}
+GIT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
+if [ -z "$GIT_ROOT" ]; then
+    echo "Error: Not in a git repository. CIG commands must be run from within a git repository."
+    exit 1
+fi
+
+cd "$GIT_ROOT"
+echo "Working directory: $GIT_ROOT"
+
 **Helper scripts location**: `.cig/scripts/command-helpers/`
 
 **Arguments**:
