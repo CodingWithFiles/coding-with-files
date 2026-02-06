@@ -46,18 +46,55 @@ sub infer_task_context {
         my $correlation = correlate_signals(\@signals);
 
         if ($correlation->{confidence} eq 'no_signals') {
-            return {
+            my $context = {
                 confidence => 'no_signals',
-                output => "Error: Cannot infer current task (no signals detected)\n",
+                current => 'inconclusive',
+                candidates => 0,
+                task_nums => ['unknown'],
+                task_slugs => ['unknown'],
+                workflow_steps => ['unknown'],
+                reasons => ['none'],
+                signals => \@signals,
             };
+            my $output = format_output($context, $verbose);
+            $context->{output} = $output;
+            return $context;
         }
 
         if ($correlation->{confidence} eq 'uncorrelated') {
-            my $output = _format_uncorrelated($correlation, $verbose);
-            return {
+            # Build plural fields for inconclusive case
+            my @candidates = @{$correlation->{candidates}};
+            my @task_nums = @candidates;
+            my @task_slugs;
+            my @workflow_steps;
+            my @reasons;
+
+            # Get slug and workflow step for each candidate
+            for my $task (@candidates) {
+                push @task_slugs, _get_task_slug($task) || 'unknown';
+                push @workflow_steps, _infer_workflow_step($task) || 'unknown';
+            }
+
+            # Determine which signals contributed candidates
+            my @non_null = grep { !$_->{null} } @signals;
+            for my $signal (@non_null) {
+                push @reasons, $signal->{name};
+            }
+
+            my $context = {
                 confidence => 'uncorrelated',
-                output => $output,
+                current => 'inconclusive',
+                candidates => scalar(@candidates),
+                task_nums => \@task_nums,
+                task_slugs => \@task_slugs,
+                workflow_steps => \@workflow_steps,
+                reasons => \@reasons,
+                signals => \@signals,
+                correlation => $correlation,
             };
+            my $output = format_output($context, $verbose);
+            $context->{output} = $output;
+            return $context;
         }
 
         # Correlated - determine task details
@@ -70,6 +107,8 @@ sub infer_task_context {
             task_slug => $task_slug,
             workflow_step => $workflow_step,
             confidence => 'correlated',
+            current => 'conclusive',
+            candidates => 1,
             signals => \@signals,
             correlation => $correlation,
         };
@@ -145,12 +184,36 @@ sub correlate_signals {
 sub format_output {
     my ($context, $verbose) = @_;
 
-    my $output = sprintf(
-        "task_num: %s\ntask_slug: %s\nworkflow_step: %s\n",
-        $context->{task_num},
-        $context->{task_slug},
-        $context->{workflow_step}
+    # Common fields for all scenarios
+    my $output = sprintf("current: %s\nconfidence: %s\n",
+        $context->{current},
+        $context->{confidence}
     );
+
+    if ($context->{current} eq 'conclusive') {
+        # Singular fields for conclusive case
+        $output .= sprintf(
+            "task_num: %s\ntask_slug: %s\nworkflow_step: %s\n",
+            $context->{task_num},
+            $context->{task_slug},
+            $context->{workflow_step}
+        );
+    } else {
+        # Plural fields for inconclusive case
+        my $task_nums = join(',', @{$context->{task_nums} || ['unknown']});
+        my $task_slugs = join(',', @{$context->{task_slugs} || ['unknown']});
+        my $workflow_steps = join(',', @{$context->{workflow_steps} || ['unknown']});
+        my $reasons = join(',', @{$context->{reasons} || ['none']});
+
+        $output .= sprintf(
+            "task_nums: %s\ntask_slugs: %s\nworkflow_steps: %s\ncandidates: %d\nreasons: %s\n",
+            $task_nums,
+            $task_slugs,
+            $workflow_steps,
+            $context->{candidates} || 0,
+            $reasons
+        );
+    }
 
     if ($verbose) {
         $output .= "\n" . _format_verbose_breakdown($context);
@@ -608,6 +671,10 @@ sub _get_task_dir {
 
 sub _format_uncorrelated {
     my ($correlation, $verbose) = @_;
+
+    # Deprecated: Now handled by unified format_output()
+    # This function kept for backward compatibility during migration
+    # but should not be called in current code path
 
     my @candidates = @{$correlation->{candidates}};
     my $output = "Signals disagree on current task.\n\n";

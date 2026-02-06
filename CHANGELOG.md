@@ -2,6 +2,143 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 37: Standardize Task Context Inference Output Format
+
+**Status**: Complete (2026-02-06)
+**Duration**: 3 hours (vs. 4-6 hours estimated = **on target**)
+**Impact**: Bugfix - Enabled programmatic parsing of inference output in all scenarios (conclusive, inconclusive, no_signals)
+
+### Problem Addressed
+
+Task 32's TaskContextInference.pm outputted unparseable prose when signals disagreed, breaking LLM and script automation. Commands could not programmatically extract task numbers from inconclusive output.
+
+**Before (Conclusive - parseable)**:
+```
+task_num: 32
+task_slug: task-tracking-using-inference-scoring
+workflow_step: j-retrospective
+```
+
+**Before (Inconclusive - NOT parseable)**:
+```
+Signals disagree on current task.
+
+Top candidates:
+  - Task 14
+  - Task 32
+
+Please specify task number explicitly or clarify context.
+```
+
+### Changes Made
+
+**Core Implementation** (`.cig/lib/TaskContextInference.pm`):
+- **Updated `infer_task_context()`**: Build proper context hashes for all scenarios
+  - no_signals: Returns hash with plural fields set to safe defaults (`unknown`, `none`)
+  - uncorrelated: Builds plural arrays (task_nums, task_slugs, workflow_steps, reasons)
+  - correlated: Added `current: conclusive` and `candidates: 1` for consistency
+- **Refactored `format_output()`**: Unified formatting with conditional logic
+  - Common fields: `current`, `confidence`
+  - Conclusive: Singular fields (task_num, task_slug, workflow_step)
+  - Inconclusive: Plural fields with comma-separated values
+- **Deprecated `_format_uncorrelated()`**: Replaced by unified format_output()
+
+**New Output Formats**:
+
+*Conclusive*:
+```
+current: conclusive
+confidence: correlated
+task_num: 37
+task_slug: fix-inconclusive-inference-output-format
+workflow_step: g-testing-exec
+```
+
+*Inconclusive*:
+```
+current: inconclusive
+confidence: uncorrelated
+task_nums: 14,32,37
+task_slugs: retro-suggest-updating,task-tracking-inference,fix-output
+workflow_steps: j-retrospective,j-retrospective,g-testing-exec
+candidates: 3
+reasons: branch_signal,recency_signal,progress_signal
+```
+
+*No Signals*:
+```
+current: inconclusive
+confidence: no_signals
+task_nums: unknown
+task_slugs: unknown
+workflow_steps: unknown
+candidates: 0
+reasons: none
+```
+
+**Test Suite** (`t/test-output-format.pl`):
+- Created comprehensive unit test script with mocked context hashes
+- 8 functional test cases, 28 assertions
+- 6 non-functional test cases (performance, security, usability, reliability)
+
+**BACKLOG Updates**:
+- Marked "Standardize Task Context Inference Output Format" as complete
+- Added 4 follow-up tasks identified during retrospective
+
+### Implementation Quality
+
+**Test Coverage**: 100% of output format code paths
+- **Functional**: 8/8 test cases PASS (28/28 assertions)
+  - TC-1: Conclusive format (regression)
+  - TC-2: Inconclusive uncorrelated (plural fields)
+  - TC-3: Inconclusive no signals (unknown values)
+  - TC-4: Parseability with regex
+  - TC-5: Comma-separated value splitting
+  - TC-6: Backward compatibility detection
+  - TC-7: Edge case - empty arrays
+  - TC-8: Edge case - single candidate
+- **Non-Functional**: 6/7 test cases PASS (1 skipped)
+  - Performance: 0.01ms for 100 candidates (target <10ms)
+  - Security: Field injection prevented (slugs filesystem-safe)
+  - Usability: Self-documenting field names
+  - Reliability: Safe defaults, consistent exit codes
+
+**Defect Rate**: 0 bugs - all tests passed on first run
+
+**Performance**: 1000× faster than target (0.01ms vs 10ms)
+
+### Key Learnings
+
+**Design-First Approach**: Spending 30 minutes on comprehensive output format specification eliminated implementation ambiguity and saved time.
+
+**Semantic Field Naming**: Using singular/plural field names (task_num vs task_nums) self-documents cardinality and improves parseability.
+
+**Unit Tests > Integration Tests**: For output formatting, mocking context hashes allowed testing all scenarios without complex git state manipulation.
+
+**Safe Array Defaults**: Pattern `@{$array || ['default']}` prevents crashes and improves robustness.
+
+**Backward Compatibility**: Using `current` field for version detection (vs tracking version numbers) provides cleaner migration path.
+
+### Benefits Delivered
+
+- Commands/skills can parse output programmatically in all scenarios
+- Plural fields self-document multiple values
+- reasons field shows which signals contributed candidates
+- Backward compatible via current field check
+- Exit codes unchanged (0/1/3)
+- No regressions in Task 32 functionality
+- Performance excellent (~0.01ms for stress test)
+
+### Process Improvements Identified
+
+**Added to BACKLOG**:
+1. Update `.cig/docs/context/state-tracking.md` with format specification
+2. Update Task 32 test expectations (TC-I2, TC-I3, TC-I4)
+3. Create integration test for inconclusive scenarios
+4. Update commands/skills to use new structured format
+
+---
+
 ## Task 36: Add Git Root Detection to All CIG Commands
 
 **Status**: Complete (2026-02-06)

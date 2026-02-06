@@ -4,6 +4,81 @@ Future tasks and improvements for the Code Implementation Guide system.
 
 ---
 
+## Task: Update state-tracking.md with New Inference Output Format
+
+**Task-Type**: chore
+**Priority**: Medium
+**Status**: Follow-up from Task 37
+
+Update `.cig/docs/context/state-tracking.md` to document the new structured output format for task context inference (conclusive, inconclusive, no_signals scenarios).
+
+**Scope**:
+- Document conclusive format (singular fields: task_num, task_slug, workflow_step)
+- Document inconclusive format (plural fields: task_nums, task_slugs, workflow_steps, reasons)
+- Document no_signals format (unknown values)
+- Add examples showing how commands can parse output
+- Document backward compatibility (check for `current` field)
+
+**Identified in**: Task 37 retrospective (j-retrospective.md)
+
+---
+
+## Task: Update Task 32 Tests for New Inference Output Format
+
+**Task-Type**: chore
+**Priority**: Medium
+**Status**: Follow-up from Task 37
+
+Update Task 32 test expectations (TC-I2, TC-I3, TC-I4) to expect structured output format instead of prose.
+
+**Scope**:
+- TC-I2: Update expectations for two conflicting signals (branch vs recency)
+- TC-I3: Update expectations for all three signals disagreeing
+- TC-I4: Update expectations for no signals available
+- Verify tests check for structured format with plural fields
+- Validate parseability (regex, CSV splitting)
+
+**Identified in**: Task 37 retrospective (j-retrospective.md)
+
+---
+
+## Task: Create Integration Test for Inconclusive Inference Scenarios
+
+**Task-Type**: chore
+**Priority**: Low
+**Status**: Follow-up from Task 37
+
+Create integration test harness that manipulates git state to produce real signal conflicts, enabling testing of inconclusive inference scenarios.
+
+**Scope**:
+- Create test script that sets up controlled signal conflicts
+- Test branch signal vs recency signal conflict
+- Test all three signals disagreeing
+- Test no signals scenario (empty repository)
+- Validate real TaskContextInference output matches expectations
+
+**Identified in**: Task 37 retrospective (j-retrospective.md)
+
+---
+
+## Task: Update Commands/Skills to Use New Inference Output Format
+
+**Task-Type**: chore
+**Priority**: Low
+**Status**: Follow-up from Task 37
+
+Update commands and skills that parse task context inference output to use the new structured format with plural fields.
+
+**Scope**:
+- Audit commands that call task-context-inference
+- Update parsing logic to handle plural fields (task_nums, task_slugs)
+- Handle inconclusive scenarios gracefully (prompt user when current=inconclusive)
+- Use `current` field for version detection (backward compatibility)
+
+**Identified in**: Task 37 retrospective (j-retrospective.md)
+
+---
+
 ## Task: Add "Create Task Branch" Step to Implementation Execution
 
 **Task-Type**: chore
@@ -334,11 +409,11 @@ Before committing changes that create/rename/remove commands:
 
 ---
 
-## Task: Standardize Task Context Inference Output Format
+## ~~Task: Standardize Task Context Inference Output Format~~ ✓ COMPLETED
 
 **Task-Type**: bugfix
 **Priority**: High
-**Status**: Missing from Task 32 implementation (was in original requirements)
+**Status**: ✓ Completed in Task 37 (2026-02-06)
 
 Standardize task context inference output to always use structured, parseable format suitable for LLM consumption and script parsing, regardless of whether signals are conclusive or inconclusive.
 
