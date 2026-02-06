@@ -70,6 +70,18 @@ function improvedApproach() {
 ## Validation Criteria
 **See e-testing.md for validation criteria and test results**
 
+## Scope Completion
+**IMPORTANT**: Complete all planned implementation before marking task Finished.
+
+Deferring work creates technical debt and scope creep. Task 37 deferred documentation updates,
+marked the task complete anyway, and created Task 38 to fix the deferred work.
+
+**If you must defer work**:
+1. Get user approval with clear rationale
+2. Update success criteria to reflect descoped work
+3. Create follow-up task immediately
+4. Document deferral in Actual Results section
+
 ## Status
 **Status**: Backlog
 **Next Action**: Move to testing planning → `/cig-testing-plan <task>`

@@ -33,6 +33,17 @@ Execute the implementation following the plan in d-implementation-plan.md.
 
 [Document any blockers and resolutions]
 
+## Deferral Check
+Before marking status=Finished, verify:
+- [ ] All steps from d-implementation-plan.md executed
+- [ ] All success criteria from a-task-plan.md met
+- [ ] All requirements from b-requirements.md addressed (if applicable)
+- [ ] All design guidance in c-design.md followed (if applicable)
+- [ ] No planned work deferred without user approval
+- [ ] If work deferred: Follow-up task created and linked
+
+**If deferral required**: Get user approval, document rationale, create follow-up task.
+
 ## Status
 **Status**: Backlog
 **Next Action**: Move to testing execution → `/cig-testing-exec <task>`

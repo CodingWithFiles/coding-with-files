@@ -2,6 +2,109 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 38: Complete Deferred Documentation and Prevent Future Deferrals
+
+**Status**: Complete (2026-02-06)
+**Duration**: <1 hour (vs. 2-3 hours estimated = **67% under**)
+**Impact**: Bugfix - Completed Task 37's deferred documentation and implemented preventive measures to avoid future scope deferrals
+
+### Problem Addressed
+
+Task 37 deferred documentation updates and marked the task complete anyway, creating technical debt. This bugfix completes the deferred work and updates templates to prevent future tasks from repeating this mistake.
+
+**Issues Fixed**:
+1. Task 37's new inference output format undocumented
+2. state-tracking.md too verbose (655 lines) for quick reference
+3. Templates lacked guidance against deferring implementation work
+
+### Changes Made
+
+**Documentation Refactor** (`.cig/docs/context/state-tracking.md`):
+- Refactored from 655 → 177 lines (73% reduction, exceeded 70% target)
+- Added Task 37's new structured output formats in Quick Reference section
+  - Conclusive format (singular fields: task_num, task_slug, workflow_step)
+  - Inconclusive uncorrelated (plural fields: task_nums, task_slugs, workflow_steps, reasons)
+  - Inconclusive no_signals (unknown values)
+- Reorganized into compact, scannable structure with 9 sections
+- Moved output formats to top for immediate accessibility
+- Converted verbose paragraphs to table-based reference
+
+**Template Updates**:
+- **d-implementation-plan.md.template**: Added "Scope Completion" section
+  - Warns against deferring implementation work
+  - Uses Task 37 as cautionary example
+  - Provides 4-step guidance for legitimate deferrals
+  - Appears after "Implementation Steps" section
+
+- **f-implementation-exec.md.template**: Added "Deferral Check" section
+  - Comprehensive 6-item checklist before marking task Finished
+  - Verifies all steps, criteria, requirements, and design guidance followed
+  - Ensures no work deferred without user approval
+  - Appears before "Status" section
+
+**BACKLOG Updates**:
+- Removed completed item "Update state-tracking.md with New Inference Output Format"
+- Added to CHANGELOG.md (this entry)
+
+### Implementation Quality
+
+**Test Coverage**: 100% (10/10 test cases passed)
+- 7 functional tests: Line count, output formats, structure, templates, variable substitution, compatibility
+- 3 non-functional tests: Readability, clarity, backwards compatibility
+- All 4 task types tested with template-copier (feature, bugfix, hotfix, chore)
+
+**Defect Rate**: 0 bugs found during implementation or testing
+
+**Documentation Quality**: Exceeded target by 23 lines (177 vs 200 target)
+
+**Time Efficiency**: Completed in <1 hour vs 2-3 hour estimate (67% under)
+
+### Key Achievements
+
+1. **Zero Scope Variance**: All original requirements delivered with no additions or deferrals
+2. **Zero Defects**: All tests passed on first execution with no rework
+3. **Exceeded Quality Targets**: 73% line reduction vs 70% target
+4. **Preventive Measures**: Template updates provide concrete guidance (Task 37 example) to prevent future scope deferrals
+5. **Complete Coverage**: All 4 task types validated with template-copier
+
+### Benefits Delivered
+
+- Task 37's structured output format now properly documented
+- state-tracking.md 73% more compact and scannable
+- Output format examples immediately accessible in Quick Reference section
+- Future tasks will be reminded to complete all planned work before marking Finished
+- Deferral checklist provides clear verification steps
+- Task 37 cautionary example makes guidance concrete and actionable
+
+### Lessons Learned
+
+**What Went Well**:
+- Clear requirement definition from Task 37 retrospective eliminated ambiguity
+- Helper script (template-copier) streamlined template updates across all task types
+- Comprehensive testing caught potential compatibility issues early
+- Table-based documentation more scannable than paragraph format
+
+**Process Improvements**:
+- Documentation-only tasks with clear requirements execute faster than code changes (~1 hour vs typical 2-3 hours)
+- Retrospective-driven bugfixes work well (Task 37 correctly identified both deferred work and root cause)
+- Preventive template updates pay off (prevents repeated mistakes across all future tasks)
+
+**Technical Insights**:
+- Quick Reference sections at top dramatically improve usability for reference documentation
+- Concrete examples (Task 37 cautionary tale) more effective than abstract warnings
+- Template-copier ensures atomic, consistent updates across all task types
+
+### Related Work
+
+**Completed BACKLOG Item**:
+- "Update state-tracking.md with New Inference Output Format" (identified in Task 37 retrospective)
+
+**Scope Bonus**:
+- Original BACKLOG item only requested documenting new format
+- Task 38 also refactored for compactness (73% reduction) and updated templates to prevent future deferrals
+
+---
+
 ## Task 37: Standardize Task Context Inference Output Format
 
 **Status**: Complete (2026-02-06)

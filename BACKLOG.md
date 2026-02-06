@@ -4,25 +4,6 @@ Future tasks and improvements for the Code Implementation Guide system.
 
 ---
 
-## Task: Update state-tracking.md with New Inference Output Format
-
-**Task-Type**: chore
-**Priority**: Medium
-**Status**: Follow-up from Task 37
-
-Update `.cig/docs/context/state-tracking.md` to document the new structured output format for task context inference (conclusive, inconclusive, no_signals scenarios).
-
-**Scope**:
-- Document conclusive format (singular fields: task_num, task_slug, workflow_step)
-- Document inconclusive format (plural fields: task_nums, task_slugs, workflow_steps, reasons)
-- Document no_signals format (unknown values)
-- Add examples showing how commands can parse output
-- Document backward compatibility (check for `current` field)
-
-**Identified in**: Task 37 retrospective (j-retrospective.md)
-
----
-
 ## Task: Update Task 32 Tests for New Inference Output Format
 
 **Task-Type**: chore
