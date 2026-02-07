@@ -1,7 +1,7 @@
 ---
 description: Configure CIG system paths and settings
 argument-hint: [init|list|reset]
-allowed-tools: Write, Read, LS, Bash(git:*), Bash(.cig/scripts/command-helpers/cig-load-autoload-config), Bash(ls:*), Bash(echo:*)
+allowed-tools: Write, Read, LS, Bash(git:*), Bash(git rev-parse:*), Bash(.cig/scripts/command-helpers/cig-load-autoload-config), Bash(ls:*), Bash(echo:*)
 ---
 
 ## Context
@@ -15,14 +15,7 @@ Configure CIG system: **$ARGUMENTS**
 **Implementation**: First ensure we're in git repository root:
 
 !{bash}
-GIT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
-if [ -z "$GIT_ROOT" ]; then
-    echo "Error: Not in a git repository. CIG commands must be run from within a git repository."
-    exit 1
-fi
-
-cd "$GIT_ROOT"
-echo "Working directory: $GIT_ROOT"
+.cig/scripts/command-helpers/context-manager location
 
 **Helper scripts location**: `.cig/scripts/command-helpers/`
 

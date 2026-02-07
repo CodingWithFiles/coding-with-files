@@ -1,7 +1,7 @@
 ---
 description: Extract specific section from implementation guide (v2.0 - task-based)
 argument-hint: <task-path> <section-name>
-allowed-tools: Read, Bash(.cig/scripts/command-helpers/hierarchy-resolver:*), Bash(.cig/scripts/command-helpers/format-detector:*), Bash(awk:*), Bash(egrep:*), Bash(echo:*)
+allowed-tools: Read, Bash(git rev-parse:*), Bash(.cig/scripts/command-helpers/hierarchy-resolver:*), Bash(.cig/scripts/command-helpers/format-detector:*), Bash(awk:*), Bash(egrep:*), Bash(echo:*)
 ---
 
 ## Context
@@ -13,14 +13,7 @@ Extract section from task: **$ARGUMENTS**
 **Implementation**: First ensure we're in git repository root:
 
 !{bash}
-GIT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
-if [ -z "$GIT_ROOT" ]; then
-    echo "Error: Not in a git repository. CIG commands must be run from within a git repository."
-    exit 1
-fi
-
-cd "$GIT_ROOT"
-echo "Working directory: $GIT_ROOT"
+.cig/scripts/command-helpers/context-manager location
 
 **Helper scripts location**: `.cig/scripts/command-helpers/`
 

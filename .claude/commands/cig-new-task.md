@@ -1,7 +1,7 @@
 ---
 description: Create categorised implementation guide (v2.0 - hierarchical)
 argument-hint: <num> <type> "description"
-allowed-tools: Write, Read, Bash(ln:*), Bash(cp:*), Bash(git:*), Bash(.cig/scripts/command-helpers/hierarchy-resolver:*), Bash(.cig/scripts/command-helpers/template-copier:*), Bash(.cig/scripts/command-helpers/cig-load-project-config), Bash(egrep:*), Bash(echo:*), Bash(find:*)
+allowed-tools: Write, Read, Bash(git rev-parse:*), Bash(ln:*), Bash(cp:*), Bash(git:*), Bash(.cig/scripts/command-helpers/hierarchy-resolver:*), Bash(.cig/scripts/command-helpers/template-copier:*), Bash(.cig/scripts/command-helpers/cig-load-project-config), Bash(egrep:*), Bash(echo:*), Bash(find:*)
 ---
 
 ## Context
@@ -13,14 +13,7 @@ Create new hierarchical implementation guide for: **$ARGUMENTS**
 **Implementation**: First ensure we're in git repository root:
 
 !{bash}
-GIT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
-if [ -z "$GIT_ROOT" ]; then
-    echo "Error: Not in a git repository. CIG commands must be run from within a git repository."
-    exit 1
-fi
-
-cd "$GIT_ROOT"
-echo "Working directory: $GIT_ROOT"
+.cig/scripts/command-helpers/context-manager location
 
 **Helper scripts location**: `.cig/scripts/command-helpers/`
 
@@ -79,6 +72,8 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 ```
+
+**Note**: The template-copier script creates the destination directory automatically, so there's no need to create it with mkdir beforehand. Simply call template-copier with the desired destination path and it will handle directory creation and file copying in a single operation.
 
 This automatically:
 - Discovers templates via symlinks in `.cig/templates/<type>/`

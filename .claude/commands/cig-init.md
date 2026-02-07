@@ -1,6 +1,6 @@
 ---
 description: Initialise CIG system with project configuration
-allowed-tools: Write, Read, LS, Bash(git:*), Bash(pwd:*), Bash(ls:*), Bash(echo:*)
+allowed-tools: Write, Read, LS, Bash(git:*), Bash(git rev-parse:*), Bash(pwd:*), Bash(ls:*), Bash(echo:*)
 ---
 
 ## Context
@@ -14,14 +14,7 @@ Initialise CIG system for this project by:
 **Implementation**: First ensure we're in git repository root:
 
 !{bash}
-GIT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
-if [ -z "$GIT_ROOT" ]; then
-    echo "Error: Not in a git repository. CIG commands must be run from within a git repository."
-    exit 1
-fi
-
-cd "$GIT_ROOT"
-echo "Working directory: $GIT_ROOT"
+.cig/scripts/command-helpers/context-manager location
 
 1. **Create directory structure**: 
    - `implementation-guide/` at git root

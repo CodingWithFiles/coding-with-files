@@ -1,7 +1,7 @@
 ---
 description: Guide user through implementation execution phase
 argument-hint: <task-path>
-allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/hierarchy-resolver:*), Bash(.cig/scripts/command-helpers/context-inheritance:*), Bash(.cig/scripts/command-helpers/format-detector:*), Bash(.cig/scripts/command-helpers/workflow-control:*), Bash(egrep:*), Bash(echo:*), Bash(find:*), Bash(git:*)
+allowed-tools: Read, Write, Edit, Bash(git rev-parse:*), Bash(.cig/scripts/command-helpers/hierarchy-resolver:*), Bash(.cig/scripts/command-helpers/context-inheritance:*), Bash(.cig/scripts/command-helpers/format-detector:*), Bash(.cig/scripts/command-helpers/workflow-control:*), Bash(egrep:*), Bash(echo:*), Bash(find:*), Bash(git:*)
 ---
 
 ## Scope & Boundaries
@@ -27,14 +27,7 @@ Guide the user through the implementation execution phase.
 **Implementation**: First ensure we're in git repository root:
 
 !{bash}
-GIT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
-if [ -z "$GIT_ROOT" ]; then
-    echo "Error: Not in a git repository. CIG commands must be run from within a git repository."
-    exit 1
-fi
-
-cd "$GIT_ROOT"
-echo "Working directory: $GIT_ROOT"
+.cig/scripts/command-helpers/context-manager location
 
 **CRITICAL - Argument Parsing**:
 - If task arguments provided: Extract the FIRST space-separated word as the task path

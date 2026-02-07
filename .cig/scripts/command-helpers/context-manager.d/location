@@ -1,0 +1,17 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+use Cwd qw(getcwd abs_path);
+
+# Get git root
+my $git_root = `git rev-parse --show-toplevel 2>&1`;
+chomp $git_root;
+
+# Get current working directory
+my $cwd = getcwd();
+
+# Output
+print "Git repo root: \"$git_root\"\n";
+print "Current directory: \"$cwd\"\n";
+
+exit 0;
