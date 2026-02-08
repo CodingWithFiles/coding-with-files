@@ -8,9 +8,12 @@
 use strict;
 use warnings;
 use FindBin;
+use lib "$FindBin::Bin/../../../lib";
+use CIG::Common qw(check_perl5opt);
+
+check_perl5opt();
 
 # Note: ALWAYS use v2.1 - no version detection
 # This ensures new tasks are created with latest workflow file format
-# We're in task-workflow.d/, so parent dir is command-helpers/
 my $parent_dir = "$FindBin::Bin/..";
 exec("$parent_dir/template-copier-v2.1", @ARGV) or die "Failed to exec template-copier-v2.1: $!\n";
