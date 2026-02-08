@@ -51,6 +51,18 @@ The following status values are defined in the project configuration:
 
 **Purpose**: Establish clear objectives, success criteria, and high-level approach before diving into details.
 
+**Simplicity Principles**:
+
+Keeping the system simple is a core goal. Sometimes this means "don't add new features/code for the sake of adding" and can also sometimes mean "we don't need that (anymore), remove it".
+
+- **"The best part is no part"**: The simplest, most reliable solution often involves removing unnecessary code or not adding it in the first place
+- **"Reduce, reuse, recycle"**: Minimise new code, leverage existing solutions, extract common patterns only when proven necessary
+
+When planning, explicitly consider:
+- What can be removed or simplified?
+- What existing code/files/artifacts does this make obsolete?
+- What's the minimal solution that satisfies requirements?
+
 **Focus on**:
 - Single-sentence objective that captures the "why"
 - 3-5 measurable success criteria that define "done"
