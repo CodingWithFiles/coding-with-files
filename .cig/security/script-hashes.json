@@ -2,24 +2,6 @@
   "version": "2.1",
   "last_updated": "2026-01-28",
   "scripts": {
-    "hierarchy-resolver": {
-      "path": ".cig/scripts/command-helpers/hierarchy-resolver",
-      "sha256": "146ecbe94e496356c0bb22631ec51d1632d44ce601eaa3681e7a442eb9c12e11",
-      "permissions": "0500",
-      "description": "Resolve task paths to full directory paths with metadata"
-    },
-    "format-detector": {
-      "path": ".cig/scripts/command-helpers/format-detector",
-      "sha256": "b93a58d3e12481407e17fcf3af88a06a1825f63b947542d2be487d46d244ead7",
-      "permissions": "0500",
-      "description": "Detect template version and compare against expected version"
-    },
-    "status-aggregator": {
-      "path": ".cig/scripts/command-helpers/status-aggregator",
-      "sha256": "da72694cbc0b20c088c89cafd8746479eb8b608918d6e756f979ed93f83c73cf",
-      "permissions": "0500",
-      "description": "Entry point for status aggregation (trampolines to version-specific script)"
-    },
     "status-aggregator-v2.0": {
       "path": ".cig/scripts/command-helpers/status-aggregator-v2.0",
       "sha256": "eee3c3a8b16fc5d3bc1441354e52477ecc14cc26feae6e5cbd20f1b9058ad052",
@@ -44,24 +26,6 @@
       "permissions": "0755",
       "description": "Manage task stack for context tracking (push/pop/peek/list/clear/size operations)"
     },
-    "template-version-parser": {
-      "path": ".cig/scripts/command-helpers/template-version-parser",
-      "sha256": "574b687adb0dff539cb5010c1d779e169d9d40098f3b922aa02e74bc6fc7bc07",
-      "permissions": "0500",
-      "description": "Parse Template Version field from workflow files"
-    },
-    "workflow-control": {
-      "path": ".cig/scripts/command-helpers/workflow-control",
-      "sha256": "c0699d8775f9e7299e58b766e90b872c8861eee523986aeff5d156d633768c8c",
-      "permissions": "0500",
-      "description": "Determine workflow continuation based on current step status"
-    },
-    "context-inheritance": {
-      "path": ".cig/scripts/command-helpers/context-inheritance",
-      "sha256": "39899b235c0a9b2eb52a8f8262b3e122e85b5fe1f853942610c481f654374ef6",
-      "permissions": "0500",
-      "description": "Entry point for context inheritance (trampolines to version-specific script)"
-    },
     "context-inheritance-v2.0": {
       "path": ".cig/scripts/command-helpers/context-inheritance-v2.0",
       "sha256": "97ede11e0c076149d1582baf75c4c3058df960424723f9887abe560155a6cf0a",
@@ -73,12 +37,6 @@
       "sha256": "ef976c51245cc871b2316aed187cc0a74f5ab4e5a5312a7d9a09fb8091998cd8",
       "permissions": "0500",
       "description": "Context inheritance for v2.1 format (10-phase workflow)"
-    },
-    "template-copier": {
-      "path": ".cig/scripts/command-helpers/template-copier",
-      "sha256": "120b6ea4f2d67d45b8083a2c6d00a533cd4ac82bb56f81cd0fcdc72c9946a799",
-      "permissions": "0500",
-      "description": "Entry point for template copying (trampolines to version-specific script)"
     },
     "template-copier-v2.0": {
       "path": ".cig/scripts/command-helpers/template-copier-v2.0",
