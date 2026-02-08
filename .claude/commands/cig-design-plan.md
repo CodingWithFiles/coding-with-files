@@ -1,7 +1,7 @@
 ---
 description: Guide user through design phase
 argument-hint: <task-path>
-allowed-tools: Read, Write, Edit, Bash(git rev-parse:*), Bash(.cig/scripts/command-helpers/hierarchy-resolver:*), Bash(.cig/scripts/command-helpers/context-inheritance:*), Bash(.cig/scripts/command-helpers/format-detector:*), Bash(.cig/scripts/command-helpers/workflow-control:*), Bash(egrep:*), Bash(echo:*), Bash(find:*)
+allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/*:*), Bash(git rev-parse:*), Bash(egrep:*), Bash(echo:*), Bash(find:*)
 ---
 
 ## Scope & Boundaries
@@ -10,7 +10,7 @@ allowed-tools: Read, Write, Edit, Bash(git rev-parse:*), Bash(.cig/scripts/comma
 
 **Not this step**: Implementation (that's d-implementation-plan + f-implementation-exec), testing, or deployment.
 
-**If blocked or finished**: Call `workflow-control --current-step=c-design-plan --task-path=<path>` to determine next action. See `.cig/docs/workflow/blocker-patterns.md` for detailed blocker handling guidance.
+**If blocked or finished**: Call `workflow-manager control --current-step=c-design-plan --task-path=<path>` to determine next action. See `.cig/docs/workflow/blocker-patterns.md` for detailed blocker handling guidance.
 
 ## Context
 See `.cig/docs/context/tools.md` for context tool documentation.
@@ -49,12 +49,12 @@ Follow the 8-step workflow structure:
 1. **Resolve Task Directory**:
    - Extract first word from task arguments
    - Validate it matches hierarchical number format (digits and dots only)
-   - If valid: call `.cig/scripts/command-helpers/hierarchy-resolver <task-path>` using the Bash tool
+   - If valid: call `.cig/scripts/command-helpers/context-manager hierarchy <task-path>` using the Bash tool
    - If invalid: inform user the task path format is invalid, do not invoke script
 
 2. **Load Parent Context**:
    - Use the validated task path from step 1
-   - Call `.cig/scripts/command-helpers/context-inheritance <task-path>` using the Bash tool
+   - Call `.cig/scripts/command-helpers/context-manager inheritance <task-path>` using the Bash tool
 3. **Present Context Summary**: Show structural map with status markers
 4. **LLM Decision**: Read specific parent sections if needed
 5. **Reference Workflow Documentation**: Read `.cig/docs/workflow/workflow-steps.md#design`

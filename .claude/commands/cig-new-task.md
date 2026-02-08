@@ -1,7 +1,7 @@
 ---
 description: Create categorised implementation guide (v2.0 - hierarchical)
 argument-hint: <num> <type> "description"
-allowed-tools: Write, Read, Bash(git rev-parse:*), Bash(ln:*), Bash(cp:*), Bash(git:*), Bash(.cig/scripts/command-helpers/hierarchy-resolver:*), Bash(.cig/scripts/command-helpers/template-copier:*), Bash(.cig/scripts/command-helpers/cig-load-project-config), Bash(egrep:*), Bash(echo:*), Bash(find:*)
+allowed-tools: Write, Read, Bash(git rev-parse:*), Bash(ln:*), Bash(cp:*), Bash(git:*), Bash(.cig/scripts/command-helpers/cig-load-project-config), Bash(egrep:*), Bash(echo:*), Bash(find:*)
 ---
 
 ## Context
@@ -48,19 +48,19 @@ Apply slug generation algorithm:
 - If top-level (e.g., "1"): `implementation-guide/1-{type}-{slug}/`
 - If subtask (e.g., "1.1"): Find parent directory, create subdirectory
   - Parent "1" → `implementation-guide/1-{parent-type}-{parent-slug}/1.1-{type}-{slug}/`
-  - Use hierarchy-resolver to find parent if it exists
+  - Use context-manager hierarchy to find parent if it exists
 
 ### 4. Create Directory
 - Create directory: `<num>-<type>-<slug>/`
 - Verify directory doesn't already exist
 
 ### 5. Copy and Populate Template Files
-**Key change**: Use template-copier helper script
+**Key change**: Use task-workflow create helper script
 
-Call template-copier to copy templates and substitute variables:
+Call task-workflow create to copy templates and substitute variables:
 
 ```bash
-.cig/scripts/command-helpers/template-copier \
+.cig/scripts/command-helpers/task-workflow create \
   --task-type="$TYPE" \
   --destination="$TASK_DIR" \
   --task-num="$NUM" \
@@ -73,7 +73,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-**Note**: The template-copier script creates the destination directory automatically, so there's no need to create it with mkdir beforehand. Simply call template-copier with the desired destination path and it will handle directory creation and file copying in a single operation.
+**Note**: The task-workflow create script creates the destination directory automatically, so there's no need to create it with mkdir beforehand. Simply call task-workflow create with the desired destination path and it will handle directory creation and file copying in a single operation.
 
 This automatically:
 - Discovers templates via symlinks in `.cig/templates/<type>/`

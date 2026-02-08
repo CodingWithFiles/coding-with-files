@@ -1,0 +1,144 @@
+#!/usr/bin/env perl
+#
+# version - Combined format-detector + template-version-parser
+# Detects workflow file format version and parses template version header
+#
+# Usage: version <task-directory> <workflow-file> [--format=json]
+#
+# Examples:
+#   version implementation-guide/1-feature-auth a-plan.md
+#   version implementation-guide/1-feature-auth d-implementation.md --format=json
+#
+# Exit codes:
+#   0 - Success
+#   1 - Invalid arguments
+#   2 - File not found
+#   3 - Version mismatch detected
+
+use strict;
+use warnings;
+use FindBin;
+use lib "$FindBin::Bin/../../../lib";
+
+use CIG::WorkflowFiles qw(get_template_version);
+
+# Check PERL5OPT configuration
+unless ($ENV{PERL5OPT} && $ENV{PERL5OPT} =~ /-C/) {
+    warn "WARNING: PERL5OPT not configured for Unicode handling.\n";
+    warn "Add the following to ~/.claude/settings.json:\n";
+    warn "  \"env\": { \"PERL5OPT\": \"-CDSL\" }\n\n";
+}
+
+# Embedded versions
+my $CIG_SOFTWARE_VERSION = "2.0";
+my $EXPECTED_TEMPLATE_VERSION = "2.0";
+
+# Parse arguments
+if (@ARGV < 2) {
+    print STDERR "Error: Missing required arguments\n";
+    print STDERR "Usage: version <task-directory> <workflow-file> [--format=json]\n";
+    exit 1;
+}
+
+my $task_dir = $ARGV[0];
+my $workflow_file = $ARGV[1];
+my $format = "markdown";
+
+if (@ARGV > 2 && $ARGV[2] eq "--format=json") {
+    $format = "json";
+}
+
+# Build full path
+my $full_path = "$task_dir/$workflow_file";
+
+# Verify file exists
+unless (-f $full_path) {
+    print STDERR "Error: File not found: $full_path\n";
+    exit 2;
+}
+
+# Get template version using get_template_version from CIG::WorkflowFiles
+my $template_version = get_template_version($full_path);
+
+# Check for required fields
+my @missing_fields;
+my $version_mismatch = 0;
+my @discrepancies;
+
+if ($template_version ne $CIG_SOFTWARE_VERSION) {
+    $version_mismatch = 1;
+    push @discrepancies, "Template version ($template_version) does not match CIG software expectation ($CIG_SOFTWARE_VERSION)";
+}
+
+# Check for required fields in v2.0 files
+if ($template_version eq "2.0") {
+    open(my $fh, '<', $full_path) or die "Cannot open $full_path: $!";
+    my $content = do { local $/; <$fh> };
+    close($fh);
+
+    push @missing_fields, "Template Version" unless $content =~ /^\- \*\*Template Version\*\*:/m;
+    push @missing_fields, "Task Reference section" unless $content =~ /^## Task Reference/m;
+    push @missing_fields, "Status marker" unless $content =~ /^## Status/m || $content =~ /^\*\*Status\*\*:/m;
+}
+
+# Determine exit code
+my $exit_code = 0;
+if ($version_mismatch || @missing_fields) {
+    $exit_code = 3;
+}
+
+# Output result
+if ($format eq "json") {
+    my $missing_json = "[" . join(",", map { qq("$_") } @missing_fields) . "]";
+    my $discrepancies_json = "[" . join(",", map { qq("$_") } @discrepancies) . "]";
+    my $version_match = $version_mismatch ? "false" : "true";
+    my $upgrade_recommended = ($template_version ne $EXPECTED_TEMPLATE_VERSION) ? "true" : "false";
+
+    print qq({
+  "file": "$full_path",
+  "template_version": "$template_version",
+  "cig_software_version": "$CIG_SOFTWARE_VERSION",
+  "expected_version": "$EXPECTED_TEMPLATE_VERSION",
+  "version_match": $version_match,
+  "missing_fields": $missing_json,
+  "discrepancies": $discrepancies_json,
+  "upgrade_recommended": $upgrade_recommended
+}
+);
+} else {
+    print "File: $workflow_file\n";
+    print "Template Version: $template_version\n";
+    print "CIG Software Version: $CIG_SOFTWARE_VERSION\n";
+    print "\n";
+
+    if ($version_mismatch) {
+        print "Warning: Version Discrepancies:\n";
+        for my $d (@discrepancies) {
+            print "  - $d\n";
+        }
+        print "\n";
+    }
+
+    if (@missing_fields) {
+        print "Warning: Missing Required Fields:\n";
+        for my $f (@missing_fields) {
+            print "  - $f\n";
+        }
+        print "\n";
+    }
+
+    if ($template_version ne $EXPECTED_TEMPLATE_VERSION) {
+        print "Upgrade Recommended:\n";
+        print "  This workflow file uses template version $template_version.\n";
+        print "  Consider upgrading to version $EXPECTED_TEMPLATE_VERSION for latest features.\n";
+        print "\n";
+        print "  Would you like to:\n";
+        print "  1. Continue with current version (backward compatible)\n";
+        print "  2. Upgrade to version $EXPECTED_TEMPLATE_VERSION\n";
+        print "  3. Learn more about version differences\n";
+    } else {
+        print "Template version is up to date\n";
+    }
+}
+
+exit $exit_code;

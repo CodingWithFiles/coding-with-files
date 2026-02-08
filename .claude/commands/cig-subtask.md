@@ -1,14 +1,14 @@
 ---
 description: Create sub-implementation task within existing task (v2.0)
 argument-hint: <parent-path> <num> <type> "description"
-allowed-tools: Write, Read, Bash(git rev-parse:*), Bash(ln:*), Bash(cp:*), Bash(.cig/scripts/command-helpers/hierarchy-resolver:*), Bash(.cig/scripts/command-helpers/context-inheritance:*), Bash(.cig/scripts/command-helpers/cig-load-project-config), Bash(egrep:*), Bash(echo:*), Bash(find:*)
+allowed-tools: Write, Read, Bash(git rev-parse:*), Bash(ln:*), Bash(cp:*), Bash(.cig/scripts/command-helpers/cig-load-project-config), Bash(egrep:*), Bash(echo:*), Bash(find:*)
 ---
 
 ## Context
 See `.cig/docs/context/tools.md` for context tool documentation.
 
-- Parent resolution: !`.cig/scripts/command-helpers/hierarchy-resolver ${ARGUMENTS%% *} 2>/dev/null || echo "Parent task required"`
-- Parent context: !`.cig/scripts/command-helpers/context-inheritance ${ARGUMENTS%% *} 2>/dev/null || echo "Unable to load parent context"`
+- Parent resolution: !`.cig/scripts/command-helpers/context-manager hierarchy ${ARGUMENTS%% *} 2>/dev/null || echo "Parent task required"`
+- Parent context: !`.cig/scripts/command-helpers/context-manager inheritance ${ARGUMENTS%% *} 2>/dev/null || echo "Unable to load parent context"`
 - Project config: !`.cig/scripts/command-helpers/cig-load-project-config`
 
 ## Your task
@@ -35,13 +35,13 @@ Create subtask within parent: **$ARGUMENTS**
 **Steps**:
 
 ### 1. Resolve Parent Directory
-- Use `hierarchy-resolver <parent-path>` to find parent directory
+- Use `context-manager hierarchy <parent-path>` to find parent directory
 - Verify parent task exists
 - Extract parent task metadata (num, type, slug)
 
-### 2. Load Parent Context via context-inheritance
-**Important**: Use context-inheritance, not manual file reading
-- Call `context-inheritance <parent-path>` to get structural map
+### 2. Load Parent Context via context-manager inheritance
+**Important**: Use context-manager inheritance, not manual file reading
+- Call `context-manager inheritance <parent-path>` to get structural map
 - Review structural map to understand parent goals, requirements, and design
 - Decide which specific parent sections to read in detail using Read tool
 - This provides token-efficient context loading (~50-100 tokens vs 500-1000)

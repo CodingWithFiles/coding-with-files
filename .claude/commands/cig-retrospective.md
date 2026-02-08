@@ -1,7 +1,7 @@
 ---
 description: Guide user through retrospective phase
 argument-hint: <task-path>
-allowed-tools: Read, Write, Edit, Bash(git rev-parse:*), Bash(git branch:*), Bash(git add:*), Bash(.cig/scripts/command-helpers/hierarchy-resolver:*), Bash(.cig/scripts/command-helpers/context-inheritance:*), Bash(.cig/scripts/command-helpers/format-detector:*), Bash(.cig/scripts/command-helpers/workflow-control:*), Bash(egrep:*), Bash(echo:*), Bash(find:*)
+allowed-tools: Read, Write, Edit, Bash(git rev-parse:*), Bash(git branch:*), Bash(.cig/scripts/command-helpers/*:*), Bash(git add:*), Bash(egrep:*), Bash(echo:*), Bash(find:*)
 ---
 
 ## Scope & Boundaries
@@ -10,7 +10,7 @@ allowed-tools: Read, Write, Edit, Bash(git rev-parse:*), Bash(git branch:*), Bas
 
 **Not this step**: Implementation, testing, or deployment (those are complete). This is reflection only.
 
-**If blocked or finished**: Call `workflow-control --current-step=j-retrospective --task-path=<path>` to determine next action. See `.cig/docs/workflow/blocker-patterns.md` for detailed blocker handling guidance.
+**If blocked or finished**: Call `workflow-manager control --current-step=j-retrospective --task-path=<path>` to determine next action. See `.cig/docs/workflow/blocker-patterns.md` for detailed blocker handling guidance.
 
 ## Context
 See `.cig/docs/context/tools.md` for context tool documentation.
@@ -49,7 +49,7 @@ Follow the 10-step workflow structure:
 1. **Resolve Task Directory**:
    - Extract first word from task arguments
    - Validate it matches hierarchical number format (digits and dots only)
-   - If valid: call `.cig/scripts/command-helpers/hierarchy-resolver <task-path>` using the Bash tool
+   - If valid: call `.cig/scripts/command-helpers/context-manager hierarchy <task-path>` using the Bash tool
    - If invalid: inform user the task path format is invalid, do not invoke script
 
 2. **Verify Git Branch**:
@@ -77,7 +77,7 @@ Before proceeding with retrospective, verify you're on the correct task branch:
 
 3. **Load Parent Context**:
    - Use the validated task path from step 1
-   - Call `.cig/scripts/command-helpers/context-inheritance <task-path>` using the Bash tool
+   - Call `.cig/scripts/command-helpers/context-manager inheritance <task-path>` using the Bash tool
 4. **Present Context Summary**: Show structural map with status markers
 5. **LLM Decision**: Read specific parent sections and all task workflow files
 6. **Reference Workflow Documentation**: Read `.cig/docs/workflow/workflow-steps.md#retrospective`

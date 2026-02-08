@@ -1,7 +1,7 @@
 ---
 description: Verify file integrity and sources for CIG system
 argument-hint: [verify|report]
-allowed-tools: Read, Bash(git rev-parse:*), Bash(.cig/scripts/command-helpers/cig-load-project-config), Bash(git:*), Bash(curl:*), Bash(sha256sum:*), Bash(find:*), Bash(echo:*)
+allowed-tools: Read, Bash(git rev-parse:*), Bash(.cig/scripts/command-helpers/cig-load-project-config), Bash(.cig/scripts/command-helpers/*:*), Bash(git:*), Bash(curl:*), Bash(sha256sum:*), Bash(find:*), Bash(echo:*)
 ---
 
 ## Context

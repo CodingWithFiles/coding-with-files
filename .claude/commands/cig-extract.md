@@ -1,7 +1,7 @@
 ---
 description: Extract specific section from implementation guide (v2.0 - task-based)
 argument-hint: <task-path> <section-name>
-allowed-tools: Read, Bash(git rev-parse:*), Bash(.cig/scripts/command-helpers/hierarchy-resolver:*), Bash(.cig/scripts/command-helpers/format-detector:*), Bash(awk:*), Bash(egrep:*), Bash(echo:*)
+allowed-tools: Read, Bash(.cig/scripts/command-helpers/*:*), Bash(git rev-parse:*), Bash(awk:*), Bash(egrep:*), Bash(echo:*)
 ---
 
 ## Context
@@ -33,10 +33,10 @@ Extract section from task: **$ARGUMENTS**
 
 ### 1. Determine Input Type
 - If argument contains "/" or ends with ".md": Treat as full file path (backward compatible)
-- Otherwise: Treat as task-path and resolve using hierarchy-resolver
+- Otherwise: Treat as task-path and resolve using context-manager hierarchy
 
 ### 2. Resolve Task and File (for task-based paths)
-- Use `hierarchy-resolver <task-path>` to find task directory
+- Use `context-manager hierarchy <task-path>` to find task directory
 - Map section name to workflow file (case-insensitive):
   - "goal" or "plan" → plan.md (v1.0) / a-plan.md (v2.0)
   - "requirements" → requirements.md (v1.0) / b-requirements.md (v2.0)
@@ -46,7 +46,7 @@ Extract section from task: **$ARGUMENTS**
   - "rollout" → rollout.md (v1.0) / f-rollout.md (v2.0)
   - "maintenance" → maintenance.md (v1.0) / g-maintenance.md (v2.0)
   - "retrospective" → h-retrospective.md (v2.0 only)
-- Use `format-detector <task-dir> <workflow-file>` to determine which file to read
+- Use `context-manager version <task-dir> <workflow-file>` to determine which file to read
 
 ### 3. Extract Section Content
 Use awk to extract section content from file:

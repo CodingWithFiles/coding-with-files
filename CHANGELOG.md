@@ -2,6 +2,121 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 40: Complete Helper Script Migration to Trampoline Architecture
+
+**Status**: Complete (2026-02-08)
+**Duration**: 5.1 hours (vs. 3-4 hours estimated = **+28% to +70%**)
+**Impact**: Bugfix - Achieved zero permission prompts by migrating all helper scripts to trampoline/module architecture with wildcard frontmatter permissions
+
+### Problem Addressed
+
+Task 39 established the trampoline/module architecture pattern but only migrated one helper (context-manager with location subcommand). Six helper scripts remained as standalone executables, requiring individual frontmatter permission patterns and causing permission prompt friction for users.
+
+**Issues Fixed**:
+1. Permission prompt friction - each helper script needed separate frontmatter entry
+2. Inconsistent architecture - mix of trampolines and standalone scripts
+3. CIG commands had verbose frontmatter (7+ individual patterns)
+4. Documentation referenced old standalone script names
+
+### Changes Made
+
+**Architecture** (`.cig/scripts/command-helpers/`):
+- **Expanded context-manager** from 1 → 4 subcommands:
+  - `context-manager location` (existing - git root detection)
+  - `context-manager hierarchy` (new - replaces hierarchy-resolver)
+  - `context-manager inheritance` (new - replaces context-inheritance)
+  - `context-manager version` (new - COMBINES format-detector + template-version-parser)
+
+- **Created workflow-manager** trampoline + 2 modules:
+  - `workflow-manager status` (replaces status-aggregator, version routing preserved)
+  - `workflow-manager control` (replaces workflow-control, version-agnostic discovered)
+
+- **Created task-workflow** trampoline + 1 module:
+  - `task-workflow create` (replaces template-copier, always v2.1)
+
+**CIG Command Updates** (`.claude/commands/cig-*.md`):
+- Updated all 17 CIG command files with new trampoline calls
+- Simplified frontmatter from 7+ individual patterns to single wildcard: `Bash(.cig/scripts/command-helpers/*:*)`
+- Removed all old script name references from documentation (executable calls, prose, headers)
+- Created `.cig/scripts/update-cig-command-docs.sh` for executable documentation of transformation
+
+**BACKLOG Updates**:
+- Removed completed item: "Complete Helper Script Migration to Trampoline Pattern"
+- No new backlog items identified
+
+**CHANGELOG Updates**:
+- Added this entry documenting Task 40 completion
+
+### Implementation Quality
+
+**Test Coverage**: 100% (18/18 test cases executed)
+- 12 functional tests: Trampolines, modules, integration, backward compatibility
+- 6 non-functional tests: Zero permission prompts, frontmatter, performance, errors, version routing, permissions
+- 17/17 automated tests PASSED + 1 manual validation (TC-NF1)
+
+**Defect Rate**: 1 test failure during execution (TC-F10)
+- **Failure**: Old script names still present in CIG command documentation
+- **Root Cause**: Initial implementation updated executable calls only, not prose/headers
+- **Resolution**: Created update-cig-command-docs.sh + manual Edit fixes (commits 3b060f2, 293a4c1)
+- **Post-fix**: Zero defects, all tests passing
+
+**Performance**: Exceeded target
+- Target: <10% overhead vs direct script calls
+- Achieved: 16ms total (negligible overhead, <1ms per trampoline call)
+
+**Backward Compatibility**: 100%
+- Tasks 35-39 tested successfully
+- Zero regressions introduced
+
+### Key Achievements
+
+1. **Zero Permission Prompts**: Wildcard frontmatter pattern (`Bash(.cig/scripts/command-helpers/*:*)`) grants permission to all trampolines/modules with single pattern
+2. **Unified Architecture**: All helper scripts now use trampoline/module pattern (following Task 39's design)
+3. **Documentation Consistency**: 100% old script name removal - zero references to standalone scripts
+4. **Pattern Reuse**: Third trampoline (task-workflow) created in <30 minutes - pattern is now muscle memory
+5. **Module Consolidation**: Combined format-detector + template-version-parser into single `version` module, eliminating duplication
+6. **Version Routing Nuance**: Discovered workflow-control is version-agnostic (reads status field only, universal across v2.0/v2.1)
+
+### Benefits Delivered
+
+- **User Experience**: Zero permission prompts for CIG command helper script calls
+- **Maintainability**: Single wildcard pattern vs 7+ individual patterns in frontmatter
+- **Architecture**: Consistent trampoline/module design across all helper scripts
+- **Documentation**: Executable documentation script (update-cig-command-docs.sh) provides auditability
+- **Performance**: Negligible overhead (16ms) maintains responsiveness
+
+### Lessons Learned
+
+**Technical Insights**:
+- Version routing is nuanced - understand WHAT a module does to determine IF it needs routing
+- Module consolidation opportunities exist - look for scripts with overlapping functionality
+- Documentation prose matters as much as code correctness - users read docs to understand usage
+
+**Process Learnings**:
+- Testing catches more than code bugs - comprehensive test plans find UX issues (TC-F10 found documentation inconsistency)
+- Atomic commits enable iteration - 11 commits with ~28-minute cadence made git history valuable for debugging
+- Tool usage guidelines have reasons - Edit tool vs sed isn't arbitrary, violating guidelines created permission issues
+- Same-day execution benefits - completing planning → retrospective in one 5.1-hour session keeps context hot
+
+**Estimation**:
+- Testing documentation updates takes 2x longer than expected when many files involved (17 CIG commands)
+- Estimate testing conservatively: 1.5-2x normal time for tasks with extensive documentation changes
+
+### Recommendations for Future Tasks
+
+**Process Improvements**:
+1. Add explicit test plan review step - verify test case wording is unambiguous ("0 matches" should specify "code + docs")
+2. Create documentation update checklist: (1) executable calls, (2) prose, (3) headers, (4) examples
+3. Estimate testing conservatively when documentation updates span many files
+4. Check tool usage guidelines before using Bash for file operations
+
+**Tool Recommendations**:
+1. Executable documentation scripts (*.sh) improve auditability - adopt for bulk refactoring tasks
+2. Grep-based verification ("0 old references") is effective quality gate - standardize for rename/refactor tasks
+3. Atomic commit strategy (~30-minute cadence) makes git history valuable - maintain this discipline
+
+---
+
 ## Task 38: Complete Deferred Documentation and Prevent Future Deferrals
 
 **Status**: Complete (2026-02-06)

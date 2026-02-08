@@ -4,41 +4,6 @@ Future tasks and improvements for the Code Implementation Guide system.
 
 ---
 
-## Task: Complete Helper Script Migration to Trampoline Pattern
-
-**Task-Type**: chore
-**Priority**: Medium
-**Status**: Follow-up from Task 39
-**Estimated Effort**: 3-4 hours
-
-Migrate all remaining helper scripts to trampoline/module architecture following the pattern established in Task 39 (context-manager).
-
-**Scope**:
-- Create `context-manager` subcommands:
-  - `context-manager hierarchy` (replaces hierarchy-resolver)
-  - `context-manager inheritance` (replaces context-inheritance)
-  - `context-manager format` (replaces format-detector)
-- Create `workflow-manager` trampoline + subcommands:
-  - `workflow-manager status` (replaces status-aggregator)
-  - `workflow-manager control` (replaces workflow-control)
-- Create `template-manager` trampoline + subcommands:
-  - `template-manager version` (replaces template-version-parser)
-  - `template-manager copy` (replaces template-copier)
-- Update all CIG commands to use new trampoline calls
-- Update frontmatter: 3 patterns instead of 7+ (`context-manager:*`, `workflow-manager:*`, `template-manager:*`)
-- Remove old standalone scripts after migration complete
-- Update cig-security-check to verify trampolines
-
-**Benefits**:
-- Unified architecture (all helpers use trampoline pattern)
-- Simpler permissions (3 patterns vs 7+)
-- Easier to maintain and extend
-- Follows golang/git/docker conventions
-
-**Identified in**: Task 39 retrospective (j-retrospective.md)
-
----
-
 ## Task: Update Task 32 Tests for New Inference Output Format
 
 **Task-Type**: chore

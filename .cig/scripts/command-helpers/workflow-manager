@@ -1,0 +1,15 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+use File::Basename;
+
+my $subcommand = shift @ARGV or die "Usage: workflow-manager {status|control}\n";
+my $script_dir = dirname(__FILE__);
+
+my %commands = (
+    status => "$script_dir/workflow-manager.d/status",
+    control => "$script_dir/workflow-manager.d/control",
+);
+
+die "Unknown subcommand: $subcommand\n" unless exists $commands{$subcommand};
+exec $commands{$subcommand}, @ARGV or die "Failed to exec: $!\n";

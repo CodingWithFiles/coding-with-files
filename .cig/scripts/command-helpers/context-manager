@@ -3,11 +3,14 @@ use strict;
 use warnings;
 use File::Basename;
 
-my $subcommand = shift @ARGV or die "Usage: context-manager {location}\n";
+my $subcommand = shift @ARGV or die "Usage: context-manager {location|hierarchy|inheritance|version}\n";
 my $script_dir = dirname(__FILE__);
 
 my %commands = (
     location => "$script_dir/context-manager.d/location",
+    hierarchy => "$script_dir/context-manager.d/hierarchy",
+    inheritance => "$script_dir/context-manager.d/inheritance",
+    version => "$script_dir/context-manager.d/version",
 );
 
 die "Unknown subcommand: $subcommand\n" unless exists $commands{$subcommand};
