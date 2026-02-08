@@ -45,7 +45,7 @@ Before marking status=Finished, verify:
 **If deferral required**: Get user approval, document rationale, create follow-up task.
 
 ## Status
-**Status**: Backlog
+**Status**: Finished
 **Next Action**: Move to testing execution → `/cig-testing-exec <task>`
 **Blockers**: None identified
 

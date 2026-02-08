@@ -2204,3 +2204,41 @@ This is a **reference architecture improvement** that prevents brittleness:
 - Benefit: Permanent reduction in maintenance burden + consistency
 
 **Discovered**: During Task 26 retrospective when analyzing file naming confusion pattern and discussing how to prevent reference brittleness across the CIG system.
+
+---
+
+## Task: Audit CIG Commands for Hardcoded Data
+
+**Task-Type**: chore
+**Priority**: Low
+**Status**: Follow-up from Task 43
+
+Audit all CIG command files to identify and eliminate hardcoded data that should be read from configuration files instead.
+
+**Scope**:
+- Check all `.claude/commands/cig-*.md` files for hardcoded lists, paths, or configuration values
+- Identify data that duplicates information in `script-hashes.json`, `cig-project.json`, or other config files
+- Refactor to read from canonical sources instead of duplicating data
+- Example: cig-security-check.md had hardcoded list of v2.0 scripts
+
+**Identified in**: Task 43 retrospective (j-retrospective.md)
+
+---
+
+## Task: Document Workflow Phase Sequences by Task Type
+
+**Task-Type**: chore
+**Priority**: Low
+**Status**: Follow-up from Task 43
+
+Create quick reference documentation for workflow phase sequences (which files are used) for each task type.
+
+**Scope**:
+- Document feature workflow: a, b, c, d, e, f, g, h, i, j (all 10 phases)
+- Document bugfix workflow: a, c, d, e, f, g, j (7 phases)
+- Document hotfix workflow: a, d, f, g, h (5 phases)
+- Document chore workflow: a, d, f, j (4 phases)
+- Add to `.cig/docs/workflow/` directory
+- Include in command help or error messages when phase skipped
+
+**Identified in**: Task 43 retrospective (j-retrospective.md)
