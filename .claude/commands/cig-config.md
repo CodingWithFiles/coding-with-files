@@ -10,7 +10,7 @@ allowed-tools: Write, Read, LS, Bash(git:*), Bash(git rev-parse:*), Bash(.cig/sc
 - Current autoload: !`.cig/scripts/command-helpers/cig-load-autoload-config`
 
 ## Your task
-Configure CIG system: **$ARGUMENTS**
+Configure CIG system: **{arguments}**
 
 **Implementation**: First ensure we're in git repository root:
 

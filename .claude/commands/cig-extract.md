@@ -1,6 +1,6 @@
 ---
 description: Extract specific section from implementation guide (v2.0 - task-based)
-argument-hint: <task-path> <section-name>
+argument-hint: {task-path} {section-name}
 allowed-tools: Read, Bash(.cig/scripts/command-helpers/*:*), Bash(git rev-parse:*), Bash(awk:*), Bash(egrep:*), Bash(echo:*)
 ---
 
@@ -8,7 +8,7 @@ allowed-tools: Read, Bash(.cig/scripts/command-helpers/*:*), Bash(git rev-parse:
 - Task resolution for path-based extraction
 
 ## Your task
-Extract section from task: **$ARGUMENTS**
+Extract section from task: **{arguments}**
 
 **Implementation**: First ensure we're in git repository root:
 

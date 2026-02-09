@@ -1,6 +1,6 @@
 ---
 description: Guide user through testing execution phase
-argument-hint: <task-path>
+argument-hint: {task-path}
 allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/*:*), Bash(git rev-parse:*), Bash(git add:*), Bash(git commit:*), Bash(egrep:*), Bash(echo:*), Bash(find:*), Bash(npm:*), Bash(pytest:*), Bash(cargo:*), Bash(go:*)
 ---
 
@@ -15,7 +15,7 @@ allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/*:*), Bash(g
 ## Context
 See `.cig/docs/context/tools.md` for context tool documentation.
 
-**Task arguments**: $ARGUMENTS
+**Task arguments**: {arguments}
 
 **Current task/workflow (if available)**: !/current-task-wf
 

@@ -38,34 +38,44 @@ Fix permission prompt issues in retrospective workflow where Step 10 instruction
 
 ---
 
-## Task: Fix Command Bash Snippets and Argument Placeholders
+## Task: Fix template-copier to Deterministically Substitute {{nextAction}}
 
 **Task-Type**: bugfix
 **Priority**: High
-**Status**: Identified from Task 45 planning
+**Status**: Follow-up from Task 47
 
-Fix invalid bash snippets and inconsistent placeholder usage across all CIG command files that cause LLM to create unnecessary bash wrappers and trigger permission prompts.
+Fix template-copier-v2.1 script to deterministically substitute `{{nextAction}}` template variable based on workflow type and current file position in workflow sequence.
 
 **Problems**:
-1. Bash code blocks contain prose/notes (e.g., `**Note**: ...` inside bash snippet) making them invalid bash
-2. Using `$TYPE`, `$TASK_DIR` style variables encourages LLM to create bash wrappers to set variables
-3. Inconsistent placeholder syntax across commands
+1. `{{nextAction}}` template variable not being substituted during task creation
+2. Workflow files contain incorrect next action guidance (e.g., g-testing-exec.md says "Next Action: /cig-rollout" for bugfix workflow which has no h-rollout.md)
+3. Agents confused about correct next step in workflow
+4. Violates core CIG principle: deterministic routing should be code-driven, not LLM decision
 
 **Solution**:
-1. **Remove prose from bash snippets**: Move all notes/explanations outside of bash code blocks
-2. **Use consistent placeholder syntax**: Change `$VAR` to `{placeholder}` style (e.g., `$TYPE` → `{type}`, `$TASK_DIR` → `{task_dir}`)
-3. **Audit all commands**: Check `.claude/commands/cig-*.md` for these issues
+1. Add workflow sequence mapping to template-copier-v2.1:
+   - bugfix: a→c→d→e→f→g→j
+   - feature: a→b→c→d→e→f→g→h→i→j
+   - hotfix: a→d→f→h→j
+   - chore: a→d→e→j
+   - discovery: a→b→c→d→e→j
+2. Implement `compute_next_action()` function to calculate next command based on:
+   - Current workflow file being created (extract phase letter from filename)
+   - Task type parameter (--task-type)
+   - Position in sequence (find current phase index, get next phase)
+3. Map phase letters to commands (a → /cig-requirements-plan, etc.)
+4. Substitute {{nextAction}} with calculated command + task number
 
 **Scope**:
-- Audit all 17+ CIG command files in `.claude/commands/cig-*.md`
-- Fix bash snippets to be valid bash (no prose inside code blocks)
-- Replace `$VARIABLE` style with `{placeholder}` style consistently
-- Move explanatory notes outside of code blocks
-- Test that changes don't trigger unnecessary permission prompts
+- Modify `.cig/scripts/command-helpers/template-copier-v2.1` script
+- Add workflow sequence data structure
+- Implement compute_next_action() function (already exists at lines 242-290, needs debugging)
+- Test by creating new bugfix task and verifying g-testing-exec.md has correct next action
+- Verify all task types generate correct next actions
 
-**Rationale**: Current bash snippets encourage LLM to create complex bash wrappers and heredocs instead of directly calling helper scripts, causing permission friction and overcomplicated execution.
+**Rationale**: Currently agents must manually determine next workflow step, leading to errors and inconsistency. Deterministic routing belongs in code per CIG core principles.
 
-**Identified in**: Task 45 planning
+**Identified in**: Task 47 retrospective (discovered during rollout phase)
 
 ---
 

@@ -1,6 +1,6 @@
 ---
 description: Guide user through maintenance phase
-argument-hint: <task-path>
+argument-hint: {task-path}
 allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/*:*), Bash(git rev-parse:*), Bash(egrep:*), Bash(echo:*), Bash(find:*)
 ---
 
@@ -15,7 +15,7 @@ allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/*:*), Bash(g
 ## Context
 See `.cig/docs/context/tools.md` for context tool documentation.
 
-**Task arguments**: $ARGUMENTS
+**Task arguments**: {arguments}
 
 **Current task/workflow (if available)**: !/current-task-wf
 

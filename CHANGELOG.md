@@ -2,6 +2,78 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 47: Fix Variable Use in Commands to Avoid Bash Issues
+
+**Status**: Complete (2026-02-09)
+**Duration**: ~6 hours (vs. 2-3 hours estimated = 2x overrun)
+**Impact**: Bugfix - All 17 CIG command files now use `{placeholder}` syntax exclusively, eliminating LLM-generated bash wrappers that trigger permission prompts
+
+### Problem Addressed
+
+Commands using `$VARIABLE` and `<placeholder>` syntax were causing LLMs to generate unnecessary bash wrapper scripts around helper script calls, triggering permission prompts that interrupted workflow execution.
+
+**Issues Fixed**:
+1. `$VARIABLE` syntax (22 occurrences across 16 files) triggered bash variable interpretation
+2. `<placeholder>` syntax (98 occurrences across 15 files) in argument-hint fields caused parsing ambiguity
+3. LLM creating bash wrappers like `bash -c ".cig/scripts/command-helpers/script $ARG"` instead of direct calls
+4. Permission prompts interrupting command execution
+
+### Changes Made
+
+**All 17 CIG Command Files** (`.claude/commands/cig-*.md`):
+- Frontmatter argument-hint fields: `<task-path>` → `{task-path}`, `<num>` → `{num}`, etc.
+- Command body placeholders: `$ARGUMENTS` → `{arguments}`, `$TYPE` → `{type}`, `$TASK_DIR` → `{task-dir}`, etc.
+- Total replacements: 120 changes (22 `$VARIABLE` + 98 `<placeholder>` → 61 `{placeholder}`)
+
+**Files Modified**:
+- `cig-new-task.md`, `cig-task-plan.md`, `cig-implementation-exec.md`, `cig-testing-exec.md`, `cig-retrospective.md`
+- `cig-design-plan.md`, `cig-implementation-plan.md`, `cig-testing-plan.md`, `cig-requirements-plan.md`
+- `cig-rollout.md`, `cig-maintenance.md`, `cig-status.md`, `cig-subtask.md`
+- `cig-extract.md`, `cig-config.md`, `cig-security-check.md`, `cig-init.md`
+
+### Implementation Quality
+
+**Test Coverage**: 7/7 must-pass tests passed (100%)
+- TC-1: Grep verification of `$VARIABLE` elimination (0 matches, 6 legitimate bash patterns preserved)
+- TC-2: Grep verification of `<placeholder>` elimination (0 matches)
+- TC-3: File count verification (17 files modified)
+- TC-4: `{placeholder}` adoption verification (61 matches)
+- TC-5: Functional test - task creation without permission prompts (PASS)
+- TC-8: Git diff review - only placeholder syntax changed, no logic modifications (PASS)
+- TC-9: Cleanup successful (PASS)
+
+**Defect Rate**: 0 bugs in implementation, 1 critical bug discovered in template system during rollout
+
+### Key Achievements
+
+1. **Systematic approach**: Pre-implementation grep audit cataloged all 120 instances before replacement
+2. **Clean implementation**: Two checkpoint commits preserve archaeological record (c457783, 23da701)
+3. **100% test pass rate**: All verification, functional, and regression tests passed
+4. **Bug discovery**: Found critical `{{nextAction}}` template substitution bug during rollout phase
+
+### Benefits Delivered
+
+- **No permission prompts**: Commands execute without interrupting agent workflow
+- **Clearer syntax**: `{placeholder}` makes substitution points obvious to LLMs
+- **No behavioral changes**: Pure syntax refactoring, zero logic modifications
+- **Template bug identified**: Discovered `{{nextAction}}` not being deterministically substituted (requires Task 48 fix)
+
+### Lessons Learned
+
+**Technical Insights**:
+- `$VARIABLE` triggers bash interpretation, `{placeholder}` does not
+- Legitimate bash patterns exist: `$?` (exit codes), `$(...)` (command sub), `${...}` (param expansion)
+- Grep-based automated testing is fast and reliable for pattern-replacement validation
+
+**Process Learnings**:
+- Estimate full workflow time (planning + design + implementation + testing), not just implementation
+- Rollout phase catches systemic issues even in "simple" bugfix tasks
+- Deterministic routing (nextAction) belongs in code, not LLM decisions
+- Follow CIG process consistently - don't defer bugs or skip task creation
+
+**Follow-Up Required**:
+- Task 48: Fix template-copier-v2.1 to deterministically substitute `{{nextAction}}` based on workflow type and file sequence (High priority)
+
 ## Task 46: Add Checkpoint Commit Instructions to All Workflow Steps
 
 **Status**: Complete (2026-02-09)

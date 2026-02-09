@@ -1,6 +1,6 @@
 ---
 description: Create categorised implementation guide (v2.0 - hierarchical)
-argument-hint: <num> <type> "description"
+argument-hint: {num} {type} "description"
 allowed-tools: Write, Read, Bash(git rev-parse:*), Bash(ln:*), Bash(cp:*), Bash(git:*), Bash(.cig/scripts/command-helpers/cig-load-project-config), Bash(egrep:*), Bash(echo:*), Bash(find:*)
 ---
 
@@ -8,7 +8,7 @@ allowed-tools: Write, Read, Bash(git rev-parse:*), Bash(ln:*), Bash(cp:*), Bash(
 - Project config: !`.cig/scripts/command-helpers/cig-load-project-config`
 
 ## Your task
-Create new hierarchical implementation guide for: **$ARGUMENTS**
+Create new hierarchical implementation guide for: **{arguments}**
 
 **Implementation**: First ensure we're in git repository root:
 
@@ -61,10 +61,10 @@ Call task-workflow create to copy templates and substitute variables:
 
 ```bash
 .cig/scripts/command-helpers/task-workflow create \
-  --task-type="$TYPE" \
-  --destination="$TASK_DIR" \
-  --task-num="$NUM" \
-  --description="$DESCRIPTION"
+  --task-type="{type}" \
+  --destination="{task-dir}" \
+  --task-num="{num}" \
+  --description="{description}"
 
 # Check exit code
 if [ $? -ne 0 ]; then
@@ -98,7 +98,7 @@ Generate branch name using `branch-naming-convention` from config:
 
 After template copier succeeds, automatically create and checkout the branch:
 ```bash
-git checkout -b "$BRANCH_NAME"
+git checkout -b "{branch-name}"
 ```
 
 If branch already exists, report error and suggest using a different task number or deleting the existing branch.

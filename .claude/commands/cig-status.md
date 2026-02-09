@@ -1,14 +1,14 @@
 ---
 description: Show progress across implementation guide hierarchy (v2.0)
-argument-hint: [task-path]
+argument-hint: [{task-path}]
 allowed-tools: Read, Bash(.cig/scripts/command-helpers/*:*), Bash(git rev-parse:*), Bash(egrep:*), Bash(echo:*), Bash(find:*)
 ---
 
 ## Context
-- Task hierarchy with progress: !`.cig/scripts/command-helpers/workflow-manager status $ARGUMENTS 2>/dev/null || echo "Unable to load status"`
+- Task hierarchy with progress: !`.cig/scripts/command-helpers/workflow-manager status {arguments} 2>/dev/null || echo "Unable to load status"`
 
 ## Your task
-Analyze completion status for: **$ARGUMENTS** (or all tasks if no path specified)
+Analyze completion status for: **{arguments}** (or all tasks if no path specified)
 
 **Implementation**: First ensure we're in git repository root:
 

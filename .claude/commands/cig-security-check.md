@@ -11,7 +11,7 @@ allowed-tools: Read, Bash(git rev-parse:*), Bash(.cig/scripts/command-helpers/ci
 - Helper scripts (v2.0): !`find .cig/scripts/command-helpers -name "*.sh" -o -name "*.pl" -type f 2>/dev/null || echo "No v2.0 helper scripts found"`
 
 ## Your task
-Verify security and integrity of CIG system files: **$ARGUMENTS**
+Verify security and integrity of CIG system files: **{arguments}**
 
 **Implementation**: First ensure we're in git repository root:
 

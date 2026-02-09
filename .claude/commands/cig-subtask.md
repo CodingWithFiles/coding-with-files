@@ -1,6 +1,6 @@
 ---
 description: Create sub-implementation task within existing task (v2.0)
-argument-hint: <parent-path> <num> <type> "description"
+argument-hint: {parent-path} {num} {type} "description"
 allowed-tools: Write, Read, Bash(git rev-parse:*), Bash(ln:*), Bash(cp:*), Bash(.cig/scripts/command-helpers/cig-load-project-config), Bash(egrep:*), Bash(echo:*), Bash(find:*)
 ---
 
@@ -12,7 +12,7 @@ See `.cig/docs/context/tools.md` for context tool documentation.
 - Project config: !`.cig/scripts/command-helpers/cig-load-project-config`
 
 ## Your task
-Create subtask within parent: **$ARGUMENTS**
+Create subtask within parent: **{arguments}**
 
 **Implementation**: First ensure we're in git repository root:
 
