@@ -114,26 +114,52 @@ Before documenting retrospective learnings, verify task is actually finished:
 
    **Status Field**: Use valid status values only. See `.cig/docs/workflow/workflow-steps.md#status-values`.
 
-9. **Update BACKLOG.md**:
+9. **Update CHANGELOG.md and BACKLOG.md**:
 
-Synchronise BACKLOG.md with task completion and retrospective findings:
+Document completed work and synchronize backlog with task completion:
 
-9.1. **Check for completed BACKLOG items**:
-   - Review BACKLOG.md for items this task addressed
-   - Mark items complete or remove them from BACKLOG.md
-   - Example: Task 20 completed "Fix d-implementation.md Template to Reference e-testing.md"
+9.1. **Update CHANGELOG.md with task completion**:
+   - Read CHANGELOG.md (first ~100 lines using Read tool with limit parameter) to understand format pattern
+   - Create new entry at top using Edit tool for current task including:
+     - Task number and title
+     - Completion date, duration vs estimate
+     - What problems were addressed
+     - Key changes made
+     - BACKLOG items completed (if any)
+   - Follow existing entry style - keep it concise
+   - Example: See Task 40 entry for reference format
 
-9.2. **Check retrospective for new items**:
-   - Review h-retrospective.md Recommendations/Future Work sections
-   - Add new tasks identified during retrospective to BACKLOG.md
-   - Example: Task 20 identified "Rename Constraints section headers in templates"
+9.2. **Remove completed BACKLOG items**:
+   - Use Grep tool to find all task headers in BACKLOG.md (pattern: `^## Task:`)
+   - This returns line numbers efficiently - agent can see all tasks at a glance
+   - If details needed to confirm completion, use Read with offset/limit around specific line numbers
+   - Use Edit tool to remove completed items (they're now documented in CHANGELOG)
+   - Note in CHANGELOG entry which BACKLOG items were addressed
+   - Example: Task 40 removed "Complete Helper Script Migration to Trampoline Pattern"
 
-9.3. **Stage changes if BACKLOG.md modified**:
+9.3. **Add new BACKLOG items**:
+   - Read j-retrospective.md Recommendations/Future Work sections
+   - Add new items to BACKLOG.md using Edit tool with standard format:
+     - `## Task: {descriptive-name}`
+     - `**Task-Type**: bugfix|chore|feature|hotfix|discovery`
+     - `**Priority**: High|Medium|Low`
+     - `**Status**: Follow-up from Task X`
+     - Description, Problems, Solution, Scope, Rationale
+     - `**Identified in**: Task X retrospective (j-retrospective.md)`
+   - Example: Task 44 added "Clarify Maintenance Phase Applicability"
+
+9.4. **Stage changes**:
    ```bash
-   git add BACKLOG.md
+   git add CHANGELOG.md BACKLOG.md
    ```
 
-**Rationale**: BACKLOG.md synchronisation ensures completed work is tracked and new discoveries captured atomically with task completion.
+**Rationale**: CHANGELOG documents what was accomplished, BACKLOG tracks future work. Synchronizing atomically ensures project history is complete and work items properly tracked.
+
+**Token-Efficient Approach**:
+- Use Read with offset/limit to sample existing format (don't read entire files)
+- Use Grep to find task headers with line numbers (efficient task discovery)
+- Use Edit for targeted changes (preserves formatting, more reliable than Write)
+- Let agent match existing patterns rather than rigid templates
 
 10. **Create Checkpoints Branch and Squash Commits**:
 

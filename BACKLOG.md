@@ -4,6 +4,71 @@ Future tasks and improvements for the Code Implementation Guide system.
 
 ---
 
+## Task: Fix Retrospective Step 10 Permission Prompts
+
+**Task-Type**: bugfix
+**Priority**: High
+**Status**: Follow-up from Task 45
+
+Fix permission prompt issues in retrospective workflow where Step 10 instructions use compound git commands with command substitution that trigger prompts despite individual commands being in frontmatter.
+
+**Problems**:
+1. Step 10.1 instructs: `git branch "$(git rev-parse --abbrev-ref HEAD)-checkpoints"` - triggers prompt despite `Bash(git branch:*)` and `Bash(git rev-parse:*)` both in frontmatter
+2. Step 10.2 instructs: `git log --oneline --graph -20` - missing `Bash(git log:*)` in frontmatter
+3. Step 10.4 instructs: `git log "$(git rev-parse --abbrev-ref HEAD)-checkpoints" --oneline` - compound command with missing permission
+4. Command substitution `$(...)` in git commands may not match frontmatter wildcard patterns
+5. Inconsistency between what instructions tell agents to do vs what permissions allow
+
+**Solution**:
+1. Add missing `Bash(git log:*)` to allowed-tools in `.claude/commands/cig-retrospective.md` frontmatter
+2. Investigate whether compound commands with `$(...)` need explicit permission patterns or should be split into separate commands
+3. Either: Fix frontmatter patterns to handle compound commands, OR refactor Step 10 to use separate sequential commands
+4. Verify `git rebase` permissions if needed for Step 10.2 interactive rebase
+5. Test all Step 10 commands execute without permission prompts
+
+**Scope**:
+- Update `.claude/commands/cig-retrospective.md` frontmatter
+- Investigate permission pattern matching for compound commands with command substitution
+- Potentially refactor Step 10 instructions to avoid `$(...)` if frontmatter can't handle it
+- Document findings about permission system behavior with compound commands
+
+**Rationale**: Instructions that use compound commands not properly covered by frontmatter cause permission prompts, breaking workflow automation and requiring user intervention during retrospective execution.
+
+**Identified in**: Task 45 retrospective (j-retrospective.md)
+
+---
+
+## Task: Fix Command Bash Snippets and Argument Placeholders
+
+**Task-Type**: bugfix
+**Priority**: High
+**Status**: Identified from Task 45 planning
+
+Fix invalid bash snippets and inconsistent placeholder usage across all CIG command files that cause LLM to create unnecessary bash wrappers and trigger permission prompts.
+
+**Problems**:
+1. Bash code blocks contain prose/notes (e.g., `**Note**: ...` inside bash snippet) making them invalid bash
+2. Using `$TYPE`, `$TASK_DIR` style variables encourages LLM to create bash wrappers to set variables
+3. Inconsistent placeholder syntax across commands
+
+**Solution**:
+1. **Remove prose from bash snippets**: Move all notes/explanations outside of bash code blocks
+2. **Use consistent placeholder syntax**: Change `$VAR` to `{placeholder}` style (e.g., `$TYPE` → `{type}`, `$TASK_DIR` → `{task_dir}`)
+3. **Audit all commands**: Check `.claude/commands/cig-*.md` for these issues
+
+**Scope**:
+- Audit all 17+ CIG command files in `.claude/commands/cig-*.md`
+- Fix bash snippets to be valid bash (no prose inside code blocks)
+- Replace `$VARIABLE` style with `{placeholder}` style consistently
+- Move explanatory notes outside of code blocks
+- Test that changes don't trigger unnecessary permission prompts
+
+**Rationale**: Current bash snippets encourage LLM to create complex bash wrappers and heredocs instead of directly calling helper scripts, causing permission friction and overcomplicated execution.
+
+**Identified in**: Task 45 planning
+
+---
+
 ## Task: Clarify Maintenance Phase Applicability
 
 **Task-Type**: chore

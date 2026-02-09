@@ -2,6 +2,77 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 45: Clarify BACKLOG/CHANGELOG Management in Retrospective Instructions
+
+**Status**: Complete (2026-02-09)
+**Duration**: ~1 hour (vs. 1-2 hours estimated = matched low estimate)
+**Impact**: Bugfix - Retrospective instructions now explicitly guide agents to update both CHANGELOG.md and BACKLOG.md with clear tool usage patterns
+
+### Problem Addressed
+
+Task 44 retrospective revealed that agents were skipping CHANGELOG.md updates during retrospective phase. Step 9 in `.claude/commands/cig-retrospective.md` only mentioned BACKLOG.md, used ambiguous language ("mark items complete"), and provided no tool usage guidance.
+
+**Issues Fixed**:
+1. CHANGELOG.md updates never mentioned in retrospective instructions
+2. "Mark items complete" was ambiguous (mark how? where?)
+3. No tool guidance (agents didn't know to use Grep for efficient BACKLOG search)
+4. Only staged BACKLOG.md, not CHANGELOG.md
+
+### Changes Made
+
+**Retrospective Instructions** (`.claude/commands/cig-retrospective.md` Step 9):
+- Renamed Step 9 from "Update BACKLOG.md" to "Update CHANGELOG.md and BACKLOG.md"
+- Added Step 9.1: Update CHANGELOG.md with task completion (Read with limit, Edit tool, what to include, Task 40 example)
+- Added Step 9.2: Remove completed BACKLOG items (Grep tool with `^## Task:` pattern, line numbers, Edit for removal, Task 40 example)
+- Added Step 9.3: Add new BACKLOG items (Read retrospective recommendations, Edit tool, format spec, Task 44 example)
+- Added Step 9.4: Stage both files (`git add CHANGELOG.md BACKLOG.md`)
+- Added rationale paragraph explaining synchronization
+- Added token-efficient approach section (Grep for headers, Read with limit for patterns, Edit for changes)
+
+**BACKLOG Updates**:
+- No items completed by this task
+- No new backlog items identified
+
+### Implementation Quality
+
+**Test Coverage**: 100% of manual validation tests (9/9 executed, 1 integration test validated through actual use)
+- 5 functional tests: Step 9 structure, CHANGELOG instructions, BACKLOG cleanup, BACKLOG additions, git staging
+- 4 non-functional tests: Clarity, token efficiency, maintainability, regression
+- TC-6 (integration test) validated through Task 45 retrospective execution (meta-validation)
+
+**Defect Rate**: 0 bugs found during testing
+
+**Documentation Quality**: All 4 substeps present with clear tool guidance and concrete examples
+
+### Key Achievements
+
+1. **Explicit CHANGELOG guidance**: Agents now know WHEN and HOW to update CHANGELOG.md
+2. **Grep tool for efficiency**: Pattern `^## Task:` returns line numbers for quick BACKLOG navigation
+3. **Token-efficient patterns**: Read with limit, Grep for search, Edit for changes
+4. **Clear examples**: Tasks 40 and 44 referenced for verifiable patterns
+5. **CIG workflow adherence**: User caught initial plan deviation, redirected to proper workflow phases
+6. **Meta-validation success**: This retrospective successfully followed new Step 9 instructions
+
+### Benefits Delivered
+
+- **Completeness**: CHANGELOG now captures completed work, BACKLOG tracks future work
+- **Token Efficiency**: Tool guidance promotes efficient patterns (Grep > Read entire file)
+- **Clarity**: No ambiguous language - explicit tool names and parameters
+- **Maintainability**: Examples reference specific tasks for easy verification
+
+### Lessons Learned
+
+**Technical Insights**:
+- Grep with pattern returns line numbers - excellent for "table of contents" views
+- Progressive disclosure (read patterns, then match) more flexible than rigid templates
+- Explicit tool guidance (which tool, which parameters) improves agent behavior
+
+**Process Learnings**:
+- CIG workflow is the point - even "simple" documentation fixes benefit from proper phases
+- Plans should reference workflow phases explicitly to prevent shortcuts
+- User feedback catches workflow violations early, preventing waste
+- Meta-validation works - this retrospective validated its own instructions
+
 ## Task 40: Complete Helper Script Migration to Trampoline Architecture
 
 **Status**: Complete (2026-02-08)
