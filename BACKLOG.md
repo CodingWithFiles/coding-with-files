@@ -4,6 +4,44 @@ Future tasks and improvements for the Code Implementation Guide system.
 
 ---
 
+## Task: Clarify Maintenance Phase Applicability
+
+**Task-Type**: chore
+**Priority**: Medium
+**Status**: Follow-up from Task 44
+
+Add guidance to workflow-steps.md explaining when maintenance phase (i-maintenance.md) is optional vs required. Update progress calculation to handle optional phases.
+
+**Scope**:
+- Add section to workflow-steps.md defining when maintenance is optional (file-based changes, documentation) vs required (deployed services, long-running systems)
+- Consider updating workflow-manager status calculation to handle "Skipped" status differently than "Backlog"
+- Update template to make maintenance phase applicability clear
+
+**Rationale**: Current progress calculation shows 25% for completed tasks when maintenance is marked "Backlog". Need to distinguish "not started" from "not applicable".
+
+**Identified in**: Task 44 retrospective (j-retrospective.md)
+
+---
+
+## Task: Create CIG Terminology Glossary
+
+**Task-Type**: chore
+**Priority**: Low
+**Status**: Follow-up from Task 44
+
+Create glossary of CIG terms to ensure consistent usage across documentation and commands.
+
+**Scope**:
+- Create `.cig/docs/glossary.md` with standardized terminology
+- Include terms like "checkpoints branch" vs "checkpoint branch", "workflow steps" vs "workflow phases"
+- Consider adding automated validation in `/cig-security-check` to catch inconsistencies
+
+**Rationale**: Terminology inconsistencies discovered during Task 44 ("checkpoints branch" needed for searchability). Glossary would prevent future confusion.
+
+**Identified in**: Task 44 retrospective (j-retrospective.md)
+
+---
+
 ## Task: Update Task 32 Tests for New Inference Output Format
 
 **Task-Type**: chore

@@ -1,4 +1,5 @@
 # {{description}} - Retrospective
+**Task**: {{taskNum}} ({{taskType}})
 
 ## Task Reference
 - **Task ID**: {{taskId}}
@@ -96,7 +97,7 @@
 
 ## Status
 **Status**: Backlog
-**Next Action**: Begin retrospective
+**Next Action**: {{nextAction}}
 **Blockers**: None identified
 **Completion Date**: YYYY-MM-DD
 **Sign-off**: Name/team who completed retrospective

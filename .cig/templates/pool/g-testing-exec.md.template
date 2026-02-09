@@ -1,4 +1,5 @@
 # {{description}} - Testing Execution
+**Task**: {{taskNum}} ({{taskType}})
 
 ## Task Reference
 - **Task ID**: {{taskId}}
@@ -8,10 +9,10 @@
 - **Template Version**: 2.1
 
 ## Goal
-Execute the tests defined in e-testing-plan.md and record results.
+Execute the tests defined in e-testing-plan.md and verify implementation from d-implementation-plan.md.
 
 ## Execution Checklist
-- [ ] Read e-testing-plan.md test strategy
+- [ ] Read e-testing-plan.md and d-implementation-plan.md thoroughly
 - [ ] Verify test environment ready
 - [ ] Execute test cases sequentially
 - [ ] Record pass/fail for each test
@@ -40,7 +41,7 @@ Execute the tests defined in e-testing-plan.md and record results.
 
 ## Status
 **Status**: Backlog
-**Next Action**: Execute tests following plan in e-testing-plan.md → `/cig-rollout <task>` when complete
+**Next Action**: {{nextAction}}
 **Blockers**: None identified
 
 **See `.cig/docs/workflow/workflow-steps.md#status-values` for valid status values**

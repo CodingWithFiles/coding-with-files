@@ -98,6 +98,17 @@ When planning, explicitly consider:
 - Constraints: Technical limitations, resource bounds
 - Decomposition Check: Review 5 signals
 
+**Checkpoint Commit**:
+After completing the planning phase, create a checkpoint commit:
+```bash
+git add implementation-guide/<task-dir>/a-task-plan.md
+git commit -m "Task N: Complete planning phase
+
+<Brief explanation of why - what problem does this solve>
+
+Co-developed-by: Claude Sonnet 4.5 <noreply@anthropic.com>"
+```
+
 **Transition Triggers**:
 - **Primary → Requirements**: Planning complete, objectives clear
 - **Alternative → Decomposition**: 2+ decomposition signals triggered, create subtasks
@@ -146,6 +157,17 @@ When planning, explicitly consider:
 - Constraints: Technical, integration, resource
 - Acceptance Criteria: Testable checkpoints (AC1-ACn)
 
+**Checkpoint Commit**:
+After completing the requirements phase, create a checkpoint commit:
+```bash
+git add implementation-guide/<task-dir>/b-requirements-plan.md
+git commit -m "Task N: Complete requirements phase
+
+<Brief explanation focusing on why these requirements matter>
+
+Co-developed-by: Claude Sonnet 4.5 <noreply@anthropic.com>"
+```
+
 **Transition Triggers**:
 - **Primary → Design**: Requirements clear and approved
 - **Alternative → Planning**: Requirements reveal scope issues, return to planning
@@ -193,6 +215,17 @@ When planning, explicitly consider:
 - Constraints: Technical factors influencing design
 - Validation: Design review, approval, integration verification
 
+**Checkpoint Commit**:
+After completing the design phase, create a checkpoint commit:
+```bash
+git add implementation-guide/<task-dir>/c-design-plan.md
+git commit -m "Task N: Complete design phase
+
+<Brief explanation of why this design approach was chosen>
+
+Co-developed-by: Claude Sonnet 4.5 <noreply@anthropic.com>"
+```
+
 **Transition Triggers**:
 - **Primary → Implementation**: Design approved and validated
 - **Alternative → Requirements**: Design reveals missing requirements
@@ -238,6 +271,17 @@ When planning, explicitly consider:
 - Test Coverage: Unit, integration, regression tests
 - Validation Criteria: How to verify success
 
+**Checkpoint Commit**:
+After completing the implementation planning phase, create a checkpoint commit:
+```bash
+git add implementation-guide/<task-dir>/d-implementation-plan.md
+git commit -m "Task N: Complete implementation planning phase
+
+<Brief explanation of implementation strategy and why>
+
+Co-developed-by: Claude Sonnet 4.5 <noreply@anthropic.com>"
+```
+
 **Transition Triggers**:
 - **Primary → Implementation Execution** (v2.1): Plan complete, ready to execute `/cig-implementation-exec`
 - **Primary → Testing** (v2.0): Implementation complete, all tests passing
@@ -280,6 +324,17 @@ When planning, explicitly consider:
 - Deviations: Differences from plan with rationale
 - Blockers Encountered: Issues that prevented progress
 - Status: Updated based on execution progress
+
+**Checkpoint Commit**:
+After completing the implementation execution phase, create a checkpoint commit:
+```bash
+git add implementation-guide/<task-dir>/f-implementation-exec.md <modified-files>
+git commit -m "Task N: Complete implementation execution phase
+
+<Brief explanation of what was implemented and why>
+
+Co-developed-by: Claude Sonnet 4.5 <noreply@anthropic.com>"
+```
 
 **Transition Triggers**:
 - **Primary → Testing Planning**: Execution complete, all implementation steps done
@@ -326,6 +381,17 @@ When planning, explicitly consider:
 - Test Environment: Setup requirements, automation
 - Validation Criteria: Success metrics
 
+**Checkpoint Commit**:
+After completing the testing planning phase, create a checkpoint commit:
+```bash
+git add implementation-guide/<task-dir>/e-testing-plan.md
+git commit -m "Task N: Complete testing planning phase
+
+<Brief explanation of test strategy and why>
+
+Co-developed-by: Claude Sonnet 4.5 <noreply@anthropic.com>"
+```
+
 **Transition Triggers**:
 - **Primary → Testing Execution** (v2.1): Test plan complete, ready to execute `/cig-testing-exec`
 - **Primary → Rollout** (v2.0): All tests passing, coverage targets met
@@ -368,6 +434,17 @@ When planning, explicitly consider:
 - Test Failures: Detailed documentation with reproduction steps
 - Coverage Report: Metrics showing achieved coverage
 - Status: Updated based on test execution progress
+
+**Checkpoint Commit**:
+After completing the testing execution phase, create a checkpoint commit:
+```bash
+git add implementation-guide/<task-dir>/g-testing-exec.md
+git commit -m "Task N: Complete testing execution phase
+
+<Brief explanation of test results and validation>
+
+Co-developed-by: Claude Sonnet 4.5 <noreply@anthropic.com>"
+```
 
 **Transition Triggers**:
 - **Primary → Rollout**: All tests pass, coverage targets met
@@ -413,6 +490,17 @@ When planning, explicitly consider:
 - Monitoring: Key metrics, alerting rules
 - Rollback Plan: Triggers and procedures
 - Success Criteria: Deployment complete, metrics within range
+
+**Checkpoint Commit**:
+After completing the rollout phase, create a checkpoint commit:
+```bash
+git add implementation-guide/<task-dir>/h-rollout.md
+git commit -m "Task N: Complete rollout phase
+
+<Brief explanation of deployment strategy and outcome>
+
+Co-developed-by: Claude Sonnet 4.5 <noreply@anthropic.com>"
+```
 
 **Transition Triggers**:
 - **Primary → Maintenance**: Deployment successful, monitoring stable

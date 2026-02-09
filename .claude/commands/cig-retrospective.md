@@ -135,41 +135,58 @@ Synchronise BACKLOG.md with task completion and retrospective findings:
 
 **Rationale**: BACKLOG.md synchronisation ensures completed work is tracked and new discoveries captured atomically with task completion.
 
-10. **Prepare Final Commit and Suggest Next Steps**:
+10. **Create Checkpoints Branch and Squash Commits**:
 
-With verification, retrospective, and BACKLOG.md update finished (Steps 7-9):
+After retrospective document is complete, preserve detailed commit history and create a clean commit for review:
 
-**Commit Message Guidelines**:
-- Keep title concise (~50 chars): "Task N: Brief description"
-- Body should explain WHY, not just WHAT
-  - What changed is visible in the diff
-  - Why it changed provides context for future readers
-- Include technical details that aren't obvious from code
-- Avoid redundant suffixes like "Finished with retrospective" (wastes signal-to-noise ratio)
-- End with Co-Authored-By line
-
-10.1. **Stage all files**:
+10.1. **Create checkpoints branch** to preserve detailed archaeology:
    ```bash
-   git add implementation-guide/<task-dir>/*.md <other-changed-files>
+   git branch "$(git rev-parse --abbrev-ref HEAD)-checkpoints"
+   ```
+   This creates a backup branch (e.g., `feature/44-refactor-template-generation-system-checkpoints`) preserving all checkpoint commits for future reference.
+
+10.2. **Squash all task commits** into a single commit:
+   ```bash
+   # Find the base commit (commit before this task branch was created)
+   git log --oneline --graph -20  # Identify base commit
+
+   # Interactive rebase to squash commits
+   git rebase -i <base-commit-hash>
    ```
 
-10.2. **Amend checkpoint commit** (if exists):
+   In the interactive rebase editor:
+   - Keep the first commit as `pick`
+   - Change all subsequent commits to `squash` (or `s`)
+   - Save and exit
+
+10.3. **Write brief "why"-focused commit message**:
+   When prompted for the squashed commit message:
+   - **Title**: Brief (< 50 chars), focus on problem solved
+   - **Body**: Explain WHY the change was needed, not WHAT changed (diff shows that)
+   - **Include**: Co-Authored-By trailer
+   - **Example**:
+     ```
+     Task 44: Refactor template generation system
+
+     Template generation wasn't leveraging Task 32's inference system,
+     task types weren't visible at a glance, and cross-references were
+     broken. This refactor enables inference-based workflows and adds
+     git automation for checkpoint commits.
+
+     Co-developed-by: Claude Sonnet 4.5 <noreply@anthropic.com>
+     ```
+
+10.4. **Verify checkpoints branch preserved history**:
    ```bash
-   git commit --amend
+   git log "$(git rev-parse --abbrev-ref HEAD)-checkpoints" --oneline
    ```
-   Update commit message:
-   - Remove "(planning complete)" suffix from title
-   - Update status line from "Planning complete, ready for..." to "Finished with retrospective"
-   - Keep all technical details about changes made
+   Confirm all detailed checkpoint commits are preserved.
 
-10.3. **Or create new commit** (if no checkpoint):
-   ```bash
-   git commit -m "Task <num>: [description] - Finished with retrospective
+11. **Suggest Next Steps**:
 
-   Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
-   ```
+With verification, retrospective, BACKLOG.md update, and commit squashing finished:
 
-10.4. **Suggest merge to main**:
+11.1. **Suggest merge to main**:
    ```bash
    git checkout main
    git merge --ff-only <task-branch>

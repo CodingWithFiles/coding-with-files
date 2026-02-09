@@ -1,4 +1,5 @@
 # {{description}} - Implementation Execution
+**Task**: {{taskNum}} ({{taskType}})
 
 ## Task Reference
 - **Task ID**: {{taskId}}
@@ -8,10 +9,10 @@
 - **Template Version**: 2.1
 
 ## Goal
-Execute the implementation following the plan in d-implementation-plan.md.
+Execute the implementation following the plan in d-implementation-plan.md and e-testing-plan.md.
 
 ## Execution Checklist
-- [ ] Read d-implementation-plan.md thoroughly
+- [ ] Read d-implementation-plan.md and e-testing-plan.md thoroughly
 - [ ] Verify all prerequisites met
 - [ ] Execute implementation steps sequentially
 - [ ] Update "Actual Results" for each step
@@ -37,8 +38,8 @@ Execute the implementation following the plan in d-implementation-plan.md.
 Before marking status=Finished, verify:
 - [ ] All steps from d-implementation-plan.md executed
 - [ ] All success criteria from a-task-plan.md met
-- [ ] All requirements from b-requirements.md addressed (if applicable)
-- [ ] All design guidance in c-design.md followed (if applicable)
+- [ ] All requirements from b-requirements-plan.md addressed (if applicable)
+- [ ] All design guidance in c-design-plan.md followed (if applicable)
 - [ ] No planned work deferred without user approval
 - [ ] If work deferred: Follow-up task created and linked
 
@@ -46,7 +47,7 @@ Before marking status=Finished, verify:
 
 ## Status
 **Status**: Backlog
-**Next Action**: Move to testing execution → `/cig-testing-exec <task>`
+**Next Action**: {{nextAction}}
 **Blockers**: None identified
 
 **See `.cig/docs/workflow/workflow-steps.md#status-values` for valid status values**

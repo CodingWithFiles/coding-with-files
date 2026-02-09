@@ -91,18 +91,23 @@ This automatically:
   - `{{branchName}}` → from `branch-naming-convention` pattern
 - Sets file permissions to 0600
 
-### 6. Suggest Git Branch
+### 6. Create Git Branch
 Generate branch name using `branch-naming-convention` from config:
 - Default pattern: `<type>/<num>-<slug>`
 - Example: `feature/1-add-user-authentication`
 
-Suggest: `git checkout -b <branch-name>`
+After template copier succeeds, automatically create and checkout the branch:
+```bash
+git checkout -b "$BRANCH_NAME"
+```
+
+If branch already exists, report error and suggest using a different task number or deleting the existing branch.
 
 ### 7. Provide Next Steps
 Inform user:
 - Directory created: `<full-path>`
 - Files created: List of workflow files (a-plan.md, b-requirements.md, etc.)
+- Branch created and checked out: `<branch-name>`
 - Next action: `/cig-task-plan <num>` to begin planning phase
-- Git branch: Suggested checkout command
 
 **Success**: Ready-to-use v2.0 implementation guide with hierarchical support and symlink-based templates

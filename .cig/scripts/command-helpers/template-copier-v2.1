@@ -216,6 +216,79 @@ sub discover_templates {
     return @templates;
 }
 
+# Get phase sequence from symlinks for a task type
+sub get_phase_sequence {
+    my ($templates_dir, $task_type) = @_;
+
+    my $type_dir = "$templates_dir/$task_type";
+    return () unless -d $type_dir;
+
+    opendir(my $dh, $type_dir) or return ();
+
+    my @phases;
+    while (my $file = readdir($dh)) {
+        # Extract phase letter from filename (e.g., "a-task-plan.md.template" -> "a")
+        if ($file =~ /^([a-j])-.*\.template$/) {
+            push @phases, $1;
+        }
+    }
+
+    closedir($dh);
+
+    # Sort alphabetically to get sequence
+    return sort @phases;
+}
+
+# Phase-to-command mapping
+my %PHASE_COMMANDS = (
+    'a' => '/cig-requirements-plan',
+    'b' => '/cig-design-plan',
+    'c' => '/cig-implementation-plan',
+    'd' => '/cig-testing-plan',
+    'e' => '/cig-implementation-exec',
+    'f' => '/cig-testing-exec',
+    'g' => '/cig-rollout',
+    'h' => '/cig-maintenance',
+    'i' => '/cig-retrospective',
+    'j' => undef,  # Task complete
+);
+
+# Compute next action based on current phase and task type
+sub compute_next_action {
+    my ($templates_dir, $task_type, $template_file) = @_;
+
+    # Extract phase letter from template filename
+    my ($phase) = $template_file =~ /^([a-j])-/;
+    return "Begin next phase" unless $phase;
+
+    # Get sequence for this task type
+    my @sequence = get_phase_sequence($templates_dir, $task_type);
+    return "Unknown task type" unless @sequence;
+
+    # Find current phase index
+    my $current_idx;
+    for my $i (0..$#sequence) {
+        if ($sequence[$i] eq $phase) {
+            $current_idx = $i;
+            last;
+        }
+    }
+
+    return "Unknown phase" unless defined $current_idx;
+
+    # If last phase, return retrospective
+    if ($current_idx >= $#sequence) {
+        return "Task complete → /cig-retrospective";
+    }
+
+    # Get next phase and map to command
+    my $next_phase = $sequence[$current_idx + 1];
+    my $command = $PHASE_COMMANDS{$next_phase};
+
+    return $command if $command;
+    return "Unknown next phase";
+}
+
 # Compute template variables
 sub compute_variables {
     my ($params) = @_;
@@ -252,6 +325,10 @@ sub compute_variables {
     $branch =~ s/\{\{description-slug\}\}/$slug/g;
     $vars{branchName} = $branch;
 
+    # Add new template variables
+    $vars{taskNum} = $params->{task_num};
+    $vars{taskType} = $params->{task_type};
+
     return %vars;
 }
 
@@ -269,7 +346,7 @@ sub substitute_variables {
 
 # Copy templates to destination with variable substitution
 sub copy_templates {
-    my ($templates, $dest, $vars) = @_;
+    my ($templates, $dest, $vars, $templates_dir, $task_type) = @_;
 
     my @created;
     my @overwritten;
@@ -301,8 +378,12 @@ sub copy_templates {
         my $content = do { local $/; <$fh> };
         close($fh);
 
+        # Compute nextAction for this specific template
+        my %template_vars = %$vars;  # Copy vars
+        $template_vars{nextAction} = compute_next_action($templates_dir, $task_type, $template->{name});
+
         # Substitute variables
-        $content = substitute_variables($content, $vars);
+        $content = substitute_variables($content, \%template_vars);
 
         # Check if file exists (for idempotency tracking)
         my $exists = -f $dest_file;
@@ -396,7 +477,7 @@ my $templates_dir = find_templates_directory();
 my $config = validate_task_type($params{task_type});
 my @templates = discover_templates($templates_dir, $params{task_type});
 my %variables = compute_variables(\%params);
-my ($created, $overwritten) = copy_templates(\@templates, $params{destination}, \%variables);
+my ($created, $overwritten) = copy_templates(\@templates, $params{destination}, \%variables, $templates_dir, $params{task_type});
 output_results(\%params, $created, $overwritten);
 
 exit 0;
