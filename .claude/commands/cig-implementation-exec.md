@@ -1,7 +1,7 @@
 ---
 description: Guide user through implementation execution phase
 argument-hint: <task-path>
-allowed-tools: Read, Write, Edit, Bash(git rev-parse:*), Bash(egrep:*), Bash(echo:*), Bash(find:*), Bash(.cig/scripts/command-helpers/*:*), Bash(git:*)
+allowed-tools: Read, Write, Edit, Bash(git rev-parse:*), Bash(git add:*), Bash(git commit:*), Bash(egrep:*), Bash(echo:*), Bash(find:*), Bash(.cig/scripts/command-helpers/*:*)
 ---
 
 ## Scope & Boundaries
@@ -112,7 +112,24 @@ Work through the implementation plan systematically:
 - Document actual results in f-implementation-exec.md
 - Note any deviations from the plan with rationale
 
-8. **Suggest Next Steps with Reasoning**:
+8. **Create Checkpoint Commit**:
+
+After completing the implementation execution phase, create a checkpoint commit to preserve progress:
+
+```bash
+git add implementation-guide/<task-dir>/f-implementation-exec.md
+git commit -m "Task N: Complete implementation execution phase
+
+<Brief explanation of why - what problem does this solve>
+
+Co-developed-by: Claude Sonnet 4.5 <noreply@anthropic.com>"
+```
+
+**Rationale**: Checkpoint commits preserve incremental progress and enable retrospective squashing workflow (Step 10 in cig-retrospective).
+
+See `.cig/docs/workflow/workflow-steps.md#implementation-execution` for detailed checkpoint commit guidance.
+
+9. **Suggest Next Steps with Reasoning**:
 
 Analyze the execution outcome and suggest the next step:
 

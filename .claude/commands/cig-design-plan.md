@@ -1,7 +1,7 @@
 ---
 description: Guide user through design phase
 argument-hint: <task-path>
-allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/*:*), Bash(git rev-parse:*), Bash(egrep:*), Bash(echo:*), Bash(find:*)
+allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/*:*), Bash(git rev-parse:*), Bash(git add:*), Bash(git commit:*), Bash(egrep:*), Bash(echo:*), Bash(find:*)
 ---
 
 ## Scope & Boundaries
@@ -76,7 +76,24 @@ Follow the 8-step workflow structure:
    **Status Field**: Use valid status values only. See `.cig/docs/workflow/workflow-steps.md#status-values`.
 
 7. **Check Decomposition Signals**: Review 5 universal signals
-8. **Suggest Next Steps**:
+8. **Create Checkpoint Commit**:
+
+After completing the design phase, create a checkpoint commit to preserve progress:
+
+```bash
+git add implementation-guide/<task-dir>/c-design-plan.md
+git commit -m "Task N: Complete design phase
+
+<Brief explanation of why - what problem does this solve>
+
+Co-developed-by: Claude Sonnet 4.5 <noreply@anthropic.com>"
+```
+
+**Rationale**: Checkpoint commits preserve incremental progress and enable retrospective squashing workflow (Step 10 in cig-retrospective).
+
+See `.cig/docs/workflow/workflow-steps.md#design` for detailed checkpoint commit guidance.
+
+9. **Suggest Next Steps**:
    - **Primary**: Move to implementation → `/cig-implementation <task-path>`
    - **Alternative**: Return to requirements if design reveals missing requirements
    - **Alternative**: Create spike/prototype task if design uncertainty is high

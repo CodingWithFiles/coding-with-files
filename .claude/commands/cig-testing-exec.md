@@ -1,7 +1,7 @@
 ---
 description: Guide user through testing execution phase
 argument-hint: <task-path>
-allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/*:*), Bash(git rev-parse:*), Bash(egrep:*), Bash(echo:*), Bash(find:*), Bash(npm:*), Bash(pytest:*), Bash(cargo:*), Bash(go:*)
+allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/*:*), Bash(git rev-parse:*), Bash(git add:*), Bash(git commit:*), Bash(egrep:*), Bash(echo:*), Bash(find:*), Bash(npm:*), Bash(pytest:*), Bash(cargo:*), Bash(go:*)
 ---
 
 ## Scope & Boundaries
@@ -113,7 +113,24 @@ Work through the test plan systematically:
 - Document failure details with reproduction steps
 - Measure and record test coverage
 
-8. **Suggest Next Steps with Reasoning**:
+8. **Create Checkpoint Commit**:
+
+After completing the testing execution phase, create a checkpoint commit to preserve progress:
+
+```bash
+git add implementation-guide/<task-dir>/g-testing-exec.md
+git commit -m "Task N: Complete testing execution phase
+
+<Brief explanation of why - what problem does this solve>
+
+Co-developed-by: Claude Sonnet 4.5 <noreply@anthropic.com>"
+```
+
+**Rationale**: Checkpoint commits preserve incremental progress and enable retrospective squashing workflow (Step 10 in cig-retrospective).
+
+See `.cig/docs/workflow/workflow-steps.md#testing-execution` for detailed checkpoint commit guidance.
+
+9. **Suggest Next Steps with Reasoning**:
 
 Analyze the testing outcome and suggest the next step:
 

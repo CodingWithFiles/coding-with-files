@@ -2,6 +2,86 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 46: Add Checkpoint Commit Instructions to All Workflow Steps
+
+**Status**: Complete (2026-02-09)
+**Duration**: ~30 minutes (vs. not estimated = hotfix task)
+**Impact**: Hotfix - All 7 workflow command files now guide agents to create checkpoint commits after phase completion, enabling retrospective squashing workflow
+
+### Problem Addressed
+
+During Task 45 retrospective, discovered that zero checkpoint commits were made throughout workflow phases. User asked "did you add those BACKLOG changes to the -checkpoints branch as well?" and git log revealed the checkpoints branch was empty except for Task 44 commits. Root cause: Workflow documentation at `.cig/docs/workflow/workflow-steps.md` has checkpoint commit guidance, but actual CIG command files (cig-task-plan, cig-design-plan, etc.) don't include checkpoint commit instructions in their step-by-step workflows.
+
+**Issues Fixed**:
+1. No checkpoint commits made during workflow phases (agents didn't know to create them)
+2. Checkpoints branch created but empty (no commits to squash later)
+3. Workflow commands referenced checkpoint guidance in docs but didn't include actionable Step 8
+4. Missing git permissions in frontmatter for checkpoint commits
+
+### Changes Made
+
+**Workflow Command Files** (`.claude/commands/`):
+Added Step 8 "Create Checkpoint Commit" to all 7 workflow commands:
+- `cig-task-plan.md` - Added Step 8 after planning workflow, references a-task-plan.md
+- `cig-design-plan.md` - Added Step 8 after design workflow, references c-design-plan.md
+- `cig-implementation-plan.md` - Added Step 8 after impl planning, references d-implementation-plan.md
+- `cig-testing-plan.md` - Added Step 8 after test planning, references e-testing-plan.md
+- `cig-implementation-exec.md` - Added Step 8 after execution, references f-implementation-exec.md
+- `cig-testing-exec.md` - Added Step 8 after test execution, references g-testing-exec.md
+- `cig-rollout.md` - Added Step 8 after rollout, references h-rollout.md
+
+**Step 8 Structure** (consistent across all files):
+- Bash code block with checkpoint commit command
+- Standard commit message format: "Task N: Complete <phase> phase\n\n<why>\n\nCo-developed-by: Claude Sonnet 4.5 <noreply@anthropic.com>"
+- Rationale paragraph explaining checkpoint commits preserve progress
+- Progressive disclosure: References `.cig/docs/workflow/workflow-steps.md#<phase>` for detailed guidance
+
+**Frontmatter Permissions** (all 7 files):
+- Added `Bash(git add:*)` permission (specific, not overly broad)
+- Added `Bash(git commit:*)` permission (specific, not overly broad)
+- Avoided `Bash(git:*)` which user flagged as too broad
+
+**Step Renumbering**:
+- Renumbered "Suggest Next Steps" from Step 8 → Step 9 in all files
+
+### Implementation Quality
+
+**Test Coverage**: 100% of planned tests (10/10 executed)
+- 7 functional tests (TC-1 through TC-7): Each command file validated for Step 8 presence, format, permissions
+- 3 non-functional tests (TC-8 through TC-10): Consistency, documentation references, permission specificity
+
+**Defect Rate**: 0 bugs found during validation (manual testing before rollout)
+
+**Documentation Quality**: All 7 files updated with identical Step 8 structure, promoting consistency
+
+### Key Achievements
+
+1. **Consistent pattern across 7 files**: Identical Step 8 structure reduces cognitive load
+2. **Token-efficient design**: Progressive disclosure pattern maintained (reference docs, don't duplicate)
+3. **Specific permissions**: Used `Bash(git add:*)` and `Bash(git commit:*)` instead of overly broad `Bash(git:*)`
+4. **Meta-validation successful**: Task 46 itself demonstrated checkpoint workflow by creating 6 retroactive checkpoint commits
+5. **Retroactive commit recreation**: Used git reflog to recreate 6 missing checkpoint commits after discovering they weren't made during execution
+
+### Benefits Delivered
+
+- **Progress preservation**: Checkpoint commits now created after each phase completion
+- **Retrospective squashing enabled**: Checkpoints branch will have incremental commits to squash into one
+- **Agent guidance improved**: Explicit Step 8 instructions remove ambiguity about when/how to checkpoint
+- **Consistency**: Same checkpoint commit format across all workflow phases
+
+### Lessons Learned
+
+**Technical Insights**:
+- Checkpoint commit format standardised: "Task N: Complete <phase> phase" + brief why + Co-developed-by trailer
+- Progressive disclosure effective: Reference `.cig/docs/workflow/workflow-steps.md#<phase>` keeps commands concise
+- Frontmatter permission specificity matters: `Bash(git add:*)` better than `Bash(git:*)`
+
+**Process Learnings**:
+- Apply workflow improvements to current task: Task 46 demonstrated checkpoint workflow during its own execution
+- Git reflog enables retroactive analysis: Confirmed zero checkpoint commits created (option a), not squashed (option b)
+- Retroactive commit recreation viable: Successfully recreated 6 checkpoint commits after discovering they were missing
+- Hotfix workflow appropriate: Skipping requirements/design phases suitable for pure documentation changes
+
 ## Task 45: Clarify BACKLOG/CHANGELOG Management in Retrospective Instructions
 
 **Status**: Complete (2026-02-09)

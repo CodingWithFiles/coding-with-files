@@ -1,7 +1,7 @@
 ---
 description: Guide user through planning phase
 argument-hint: <task-path>
-allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/*:*), Bash(git rev-parse:*), Bash(egrep:*), Bash(echo:*), Bash(find:*)
+allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/*:*), Bash(git rev-parse:*), Bash(git add:*), Bash(git commit:*), Bash(egrep:*), Bash(echo:*), Bash(find:*)
 ---
 
 ## Scope & Boundaries
@@ -112,7 +112,24 @@ Review these 5 signals to determine if this task should be broken into subtasks:
 
 If 2+ signals are triggered, strongly recommend creating subtasks.
 
-8. **Suggest Next Steps with Reasoning**:
+8. **Create Checkpoint Commit**:
+
+After completing the planning phase, create a checkpoint commit to preserve progress:
+
+```bash
+git add implementation-guide/<task-dir>/a-task-plan.md
+git commit -m "Task N: Complete planning phase
+
+<Brief explanation of why - what problem does this solve>
+
+Co-developed-by: Claude Sonnet 4.5 <noreply@anthropic.com>"
+```
+
+**Rationale**: Checkpoint commits preserve incremental progress and enable retrospective squashing workflow (Step 10 in cig-retrospective).
+
+See `.cig/docs/workflow/workflow-steps.md#planning` for detailed checkpoint commit guidance.
+
+9. **Suggest Next Steps with Reasoning**:
 
 Analyze the planning outcome and suggest the next step:
 
