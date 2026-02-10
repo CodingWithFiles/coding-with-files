@@ -130,25 +130,6 @@ Create glossary of CIG terms to ensure consistent usage across documentation and
 
 ---
 
-## Task: Update Task 32 Tests for New Inference Output Format
-
-**Task-Type**: chore
-**Priority**: Medium
-**Status**: Follow-up from Task 37
-
-Update Task 32 test expectations (TC-I2, TC-I3, TC-I4) to expect structured output format instead of prose.
-
-**Scope**:
-- TC-I2: Update expectations for two conflicting signals (branch vs recency)
-- TC-I3: Update expectations for all three signals disagreeing
-- TC-I4: Update expectations for no signals available
-- Verify tests check for structured format with plural fields
-- Validate parseability (regex, CSV splitting)
-
-**Identified in**: Task 37 retrospective (j-retrospective.md)
-
----
-
 ## Task: Create Integration Test for Inconclusive Inference Scenarios
 
 **Task-Type**: chore
@@ -183,34 +164,6 @@ Update commands and skills that parse task context inference output to use the n
 - Use `current` field for version detection (backward compatibility)
 
 **Identified in**: Task 37 retrospective (j-retrospective.md)
-
----
-
-## Task: Add "Create Task Branch" Step to Implementation Execution
-
-**Task-Type**: chore
-**Priority**: Medium
-**Status**: Identified from Task 36 retrospective
-
-Add explicit "Create and checkout task branch" as first step in implementation execution workflow to prevent stash/rebase complexity.
-
-**Problem**: Task 36 created the task branch after implementation work was complete, requiring stashing changes and recreating branch structure. This added unnecessary complexity.
-
-**Solution**: Update implementation execution documentation to create branch before implementation work begins.
-
-**Scope**:
-1. **Update workflow-steps.md**: Add branch creation as Step 0 in implementation-exec section
-2. **Update f-implementation-exec.md template**: Add branch creation step before implementation
-3. **Add branch naming reminder**: Reference `branch-naming-convention` from cig-project.json
-
-**Success Criteria**:
-- [ ] Workflow documentation includes branch creation as first step
-- [ ] Template includes branch creation with naming convention reference
-- [ ] Future tasks create branch before implementation, not after
-
-**Rationale**: Creating branch at task start eliminates need for stashing and simplifies git workflow.
-
-**Discovered**: Task 36 retrospective - branch created after implementation required stashing
 
 ---
 
@@ -1547,65 +1500,6 @@ Scripts to update: hierarchy-resolver, context-inheritance, status-aggregator, f
 Improve error message in `status-aggregator` to clarify that it expects a task number (e.g., "17", "1.2.3"), not a full file path. Current error "Invalid task path format: 17-feature-new-helper-script-to-setup-templates-for-new-task" is confusing because users might provide the directory name or full path. Updated error should say something like "Error: Invalid task number format. Expected decimal notation (e.g., '17', '1.2', '1.2.3'), not a file path or directory name." This improves usability by helping users understand the correct input format immediately.
 
 ---
-
-## Task: Fix d-implementation.md Template to Reference e-testing.md
-
-**Task-Type**: chore
-**Priority**: Low
-
-Remove duplicate "Test Coverage" and "Validation Criteria" sections from d-implementation.md template and replace with static reference to e-testing.md. Currently the d-implementation.md template (`.cig/templates/pool/d-implementation.md.template`) contains:
-1. **Line 67-70**: "Test Coverage" section with placeholder test cases
-2. **Line 72-76**: "Validation Criteria" section with test-related checkboxes
-
-**Problem**: This creates confusion about where tests belong and duplicates content between d-implementation.md and e-testing.md. The testing phase (e-testing.md) should be the single source of truth for test strategy, test cases, and validation criteria.
-
-**Solution**:
-1. Verify all 5 task types (feature, bugfix, hotfix, chore, discovery) use e-testing.md.template (VERIFIED: all include it)
-2. Replace "Test Coverage" section with: "**See e-testing.md for complete test plan**"
-3. Replace "Validation Criteria" with: "**See e-testing.md for validation criteria and test results**"
-4. Keep "Implementation Steps" as-is (includes Step 3: Testing and Step 5: Validation which reference executing the tests defined in e-testing.md)
-5. Update any existing tasks using the old template pattern (consider migration script or manual update)
-
-**Rationale**: Maintains single source of truth for testing, eliminates confusion about workflow phase responsibilities, and follows DRY principle.
-
----
-
-## Task: Update cig-status to Use --workflow Flag
-
-**Task-Type**: feature
-**Priority**: Medium
-
-Update `.claude/commands/cig-status.md` to use `status-aggregator --workflow <task-path>` for detailed workflow phase visibility when showing a specific task.
-
-**Problem**: Currently, cig-status shows overall progress percentage but doesn't break down which workflow phases (a-plan, b-requirements, c-design, etc.) are completed vs pending. The status-aggregator script already supports a `--workflow` flag that provides this detailed view, but cig-status doesn't use it.
-
-**Solution**: Update cig-status command to:
-1. Use `status-aggregator <task-path>` for hierarchical tree view (current behavior)
-2. Use `status-aggregator --workflow <task-path>` for detailed workflow phase breakdown when showing a single task
-3. Display both views for single-task queries to provide comprehensive status
-
-**Example output**:
-```
-Task Progress:
-+ 21 (feature): retrospective-structure-and-flow-improvments - 25%
-
-Workflow Status:
-  ✓ a-plan.md: Finished
-  ○ b-requirements.md: Backlog
-  ○ c-design.md: Backlog
-  ○ d-implementation.md: Backlog
-  ...
-```
-
-**Scope**:
-- Update `.claude/commands/cig-status.md` to call status-aggregator with --workflow flag
-- Add workflow status display to output format
-- Update documentation and examples
-
-**Rationale**: Provides better visibility into which specific workflow phases are complete, making it easier to understand task progress and identify next steps.
-
----
-
 
 ## ✓ Task: Fix CIG Commands to Work from Any Directory
 

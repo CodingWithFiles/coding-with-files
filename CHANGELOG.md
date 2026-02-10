@@ -2,6 +2,47 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 52: Clean Up Obsolete BACKLOG Items
+
+**Status**: Complete (2026-02-10)
+**Duration**: ~1.75 hours elapsed (vs. <1 hour estimated = +75-133% variance)
+**Impact**: Chore - Removed 3 verified obsolete BACKLOG items that were already completed in previous tasks, improving BACKLOG accuracy and maintainability.
+
+### Problem Addressed
+
+BACKLOG.md accumulated 3 obsolete items that had already been completed in previous tasks but were never removed, causing confusion about what work remained and making the backlog less trustworthy as a project roadmap.
+
+**Issues Fixed**:
+1. "Update cig-status to Use --workflow Flag" - already implemented in Task 32 (cig-status auto-enables --workflow)
+2. "Update Task 32 Tests for New Inference Output Format" - already completed in Task 32 (tests verify task_num/task_slug format)
+3. "Add 'Create Task Branch' Step to Implementation Execution" - already implemented in cig-new-task (automatic branch creation in Step 6)
+
+### Changes Made
+
+**`BACKLOG.md`**:
+- Removed "Update cig-status to Use --workflow Flag" (lines 1571-1607)
+  - Evidence: `.claude/commands/cig-status.md` line 36 shows auto --workflow
+- Removed "Update Task 32 Tests for New Inference Output Format" (lines 131-150)
+  - Evidence: Task 32 `g-testing-exec.md` line 48 shows new format tests
+- Removed "Add 'Create Task Branch' Step to Implementation Execution" (lines 187-215)
+  - Evidence: `.claude/commands/cig-new-task.md` Step 6 shows branch creation
+- Result: BACKLOG reduced from 42 to 39 tasks
+
+### Implementation Quality
+
+**Test Coverage**: 7/7 tests passed (100%)
+- Verification tests: 5/5 passed (3 grep verifications, structure validation, markdown rendering)
+- Non-functional tests: 2/2 passed (completeness, formatting consistency)
+
+**Defect Rate**: 0 defects - all verification tests passed, no orphaned separators, BACKLOG structure intact
+
+### Key Achievements
+
+1. **Evidence-based cleanup**: Each item verified with concrete code/test references before removal
+2. **Zero structural damage**: No orphaned separators, all 39 remaining tasks properly formatted
+3. **Comprehensive verification**: Multi-level validation (grep content, awk structure, task header counts)
+4. **Process documentation**: Clear rationale for each removal preserved in implementation plan
+
 ## Task 51: Remove Dead Code from TaskContextInference.pm
 
 **Status**: Complete (2026-02-10)
