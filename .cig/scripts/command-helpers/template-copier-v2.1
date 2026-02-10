@@ -239,20 +239,6 @@ sub get_phase_sequence {
     return sort @phases;
 }
 
-# Phase-to-command mapping
-my %PHASE_COMMANDS = (
-    'a' => '/cig-requirements-plan',
-    'b' => '/cig-design-plan',
-    'c' => '/cig-implementation-plan',
-    'd' => '/cig-testing-plan',
-    'e' => '/cig-implementation-exec',
-    'f' => '/cig-testing-exec',
-    'g' => '/cig-rollout',
-    'h' => '/cig-maintenance',
-    'i' => '/cig-retrospective',
-    'j' => undef,  # Task complete
-);
-
 # Compute next action based on current phase and task type
 sub compute_next_action {
     my ($templates_dir, $task_type, $template_file) = @_;
@@ -276,17 +262,32 @@ sub compute_next_action {
 
     return "Unknown phase" unless defined $current_idx;
 
-    # If last phase, return retrospective
+    # If last phase, return completion message
     if ($current_idx >= $#sequence) {
-        return "Task complete → /cig-retrospective";
+        return "Task complete";
     }
 
-    # Get next phase and map to command
+    # Get next phase letter
     my $next_phase = $sequence[$current_idx + 1];
-    my $command = $PHASE_COMMANDS{$next_phase};
 
-    return $command if $command;
-    return "Unknown next phase";
+    # Discover template filename for next phase
+    my @templates = discover_templates($templates_dir, $task_type);
+    my $next_file;
+    for my $t (@templates) {
+        if ($t->{name} =~ /^$next_phase-/) {
+            $next_file = $t->{name};
+            last;
+        }
+    }
+    return "Next phase template not found" unless $next_file;
+
+    # Transform filename to command
+    my $command_name = $next_file;
+    $command_name =~ s/^[a-j]-//;              # Remove phase prefix
+    $command_name =~ s/\.md\.template$//;      # Remove extension
+    my $command = "/cig-" . $command_name;     # Prepend /cig-
+
+    return $command;
 }
 
 # Compute template variables
@@ -344,6 +345,16 @@ sub substitute_variables {
     return $content;
 }
 
+# Transform template name to CIG command
+sub name_to_action {
+    my $template = shift;
+    return unless defined $template;
+    my $name = $template->{name};
+    $name =~ s/^[a-z]-//;
+    $name =~ s/\.md\.template$//;
+    return "/cig-" . $name;
+}
+
 # Copy templates to destination with variable substitution
 sub copy_templates {
     my ($templates, $dest, $vars, $templates_dir, $task_type) = @_;
@@ -360,7 +371,8 @@ sub copy_templates {
         };
     }
 
-    for my $template (@$templates) {
+    while (@$templates) {
+        my $template = shift @$templates;
         my $pool_file = $template->{pool_file};
         my $filename = $template->{name};
 
@@ -378,9 +390,9 @@ sub copy_templates {
         my $content = do { local $/; <$fh> };
         close($fh);
 
-        # Compute nextAction for this specific template
+        # Compute nextAction by peeking at next template in queue
         my %template_vars = %$vars;  # Copy vars
-        $template_vars{nextAction} = compute_next_action($templates_dir, $task_type, $template->{name});
+        $template_vars{nextAction} = name_to_action($templates->[0]) // "Task complete";
 
         # Substitute variables
         $content = substitute_variables($content, \%template_vars);

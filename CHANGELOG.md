@@ -2,6 +2,79 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 48: Fix nextAction Template Substitution in Template-Copier
+
+**Status**: Complete (2026-02-10)
+**Duration**: ~4 hours (vs. 2-3 hours estimated = 33% overrun)
+**Impact**: Bugfix - Template-copier now derives command names from template filenames, establishing directory structure as single source of truth. All 5 task types generate correct nextAction sequences.
+
+### Problem Addressed
+
+Task 47 discovered during rollout that `{{nextAction}}` template variable was not being deterministically substituted by template-copier-v2.1. Hardcoded `%PHASE_COMMANDS` mapping was incorrect (all commands shifted by 1 position), causing bugfix workflow g-testing-exec.md to show "Next Action: /cig-rollout" when correct action is "/cig-retrospective" (bugfix workflow has no h-rollout.md).
+
+**Issues Fixed**:
+1. Hardcoded `%PHASE_COMMANDS` mapping out of sync with actual command names
+2. `{{nextAction}}` not being substituted, agents manually determining next steps
+3. Violates CIG core principle: deterministic routing should be code-driven, not LLM decision
+4. Future maintenance burden: any filename changes require updating hardcoded mapping
+
+### Changes Made
+
+**`.cig/scripts/command-helpers/template-copier-v2.1`**:
+- **Removed**: 47 lines (entire `compute_next_action()` function + `%PHASE_COMMANDS` hash)
+- **Added**: 8 lines (`name_to_action()` helper function)
+- **Refactored**: `copy_templates()` to compute nextAction in loop by peeking at next template
+- **Pattern**: `while (@templates) { shift @templates }` - idiomatic Perl
+- **Transformation**: Strip phase prefix (`s/^[a-z]-//`), strip extension (`s/\.md\.template$//`), prepend `/cig-`
+- **Future-proof**: Used `[a-z]` instead of `[a-j]` for forward compatibility
+
+### Implementation Quality
+
+**Test Coverage**: 9/9 tests passed (100%)
+- TC-1: Bugfix g-testing-exec.md → "/cig-retrospective" (CRITICAL - original bug fixed) ✅
+- TC-2: Feature task (10 files) - all nextActions correct ✅
+- TC-3: Hotfix task (7 files) - all nextActions correct ✅
+- TC-4: Chore task (6 files) - all nextActions correct ✅
+- TC-5: Discovery task (8 files) - all nextActions correct ✅
+- TC-6: Template variables regression - no regression ✅
+- TC-7: File permissions (0600) regression - no regression ✅
+- TC-8: Last phase shows "Task complete" ✅
+- TC-9: Test directories cleaned up ✅
+
+**Defect Rate**: 0 bugs found during testing or validation
+
+### Key Achievements
+
+1. **Single source of truth**: Template symlink filenames now define command names (zero hardcoded mapping)
+2. **Code simplification**: Net -39 lines, significantly simpler logic
+3. **Idiomatic Perl**: User-guided refactoring to `while/shift` pattern, `//` operator, functional approach
+4. **100% test coverage**: All 5 task types validated end-to-end
+5. **Zero regressions**: Template variables and permissions unchanged
+
+### Benefits Delivered
+
+- **Deterministic routing**: nextAction automatically derived from directory structure
+- **Zero maintenance**: Filename changes automatically reflected in commands
+- **More maintainable**: 39 lines shorter, more idiomatic Perl
+- **Comprehensive validation**: 9 tests confirm all task types work correctly
+
+### Lessons Learned
+
+**Technical Insights**:
+- Idiomatic Perl: `while (@array) { shift @array }` cleaner than indexed loops
+- Defined-or operator `//` cleaner than if/else for fallbacks
+- In-loop computation (peek at next template) simpler than separate discovery function
+- Future-proofing regex: `[a-z]` vs `[a-j]` accounts for possible expansion
+
+**Process Learnings**:
+- Estimate 2x multiplier for "simple" bugfixes to account for full CIG workflow overhead
+- User code review during implementation valuable (caught non-idiomatic patterns)
+- Comprehensive testing (9 vs 7 planned) provided high confidence
+- Following CIG process consistently pays off
+
+**BACKLOG Items Completed**:
+- Task 48 item from Task 47 retrospective (fix template-copier nextAction substitution)
+
 ## Task 47: Fix Variable Use in Commands to Avoid Bash Issues
 
 **Status**: Complete (2026-02-09)
