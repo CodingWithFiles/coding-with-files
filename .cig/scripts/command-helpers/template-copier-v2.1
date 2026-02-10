@@ -2,7 +2,7 @@
 #
 # template-copier-v2.1 - Copy and populate template files for CIG tasks (v2.1 format)
 #
-# Usage: template-copier-v2.1 --task-type=TYPE --destination=PATH --task-num=NUM --description=DESC [--format=json]
+# Usage: template-copier-v2.1 --task-type=TYPE --task-num=NUM --description=DESC [--destination=PATH] [--format=json]
 #
 # v2.1 changes:
 #   - Uses 10-phase workflow (a-j) with explicit execution phases
@@ -10,7 +10,7 @@
 #
 # Parameters:
 #   --task-type=TYPE     Task type (feature, bugfix, hotfix, chore, discovery)
-#   --destination=PATH   Full path to task directory
+#   --destination=PATH   Full path to task directory (optional, auto-constructed if omitted)
 #   --task-num=NUM       Task number (e.g., "17", "1.2.3")
 #   --description=DESC   Task description/slug
 #   --format=FORMAT      Output format: markdown (default) or json
@@ -63,7 +63,7 @@ sub parse_parameters {
         }
     }
 
-    # Validate required parameters
+    # Validate required parameters (destination now optional)
     my %param_names = (
         task_type => 'task-type',
         destination => 'destination',
@@ -71,13 +71,18 @@ sub parse_parameters {
         description => 'description'
     );
 
-    for my $required (qw(task_type destination task_num description)) {
+    for my $required (qw(task_type task_num description)) {
         unless (exists $params{$required}) {
             my $param_name = $param_names{$required};
             print STDERR "Error: Missing required parameter --$param_name\n";
             print STDERR "Use --help for usage information\n";
             exit 1;
         }
+    }
+
+    # Construct destination if not provided
+    unless (exists $params{destination}) {
+        $params{destination} = construct_destination(\%params);
     }
 
     # Validate format parameter
@@ -140,6 +145,43 @@ sub find_templates_directory {
     }
 
     return abs_path($templates_dir);
+}
+
+# Generate slug from description (matches bash: tr/sed/cut pipeline)
+sub generate_slug {
+    my ($description) = @_;
+
+    # Lowercase
+    $description = lc($description);
+
+    # Remove special characters (keep alphanumeric, spaces, hyphens)
+    $description =~ s/[^a-z0-9 -]//g;
+
+    # Replace spaces with hyphens
+    $description =~ s/ +/-/g;
+
+    # Collapse consecutive hyphens
+    $description =~ s/-+/-/g;
+
+    # Truncate to 50 characters
+    return substr($description, 0, 50);
+}
+
+# Construct destination path from config pattern if not provided
+sub construct_destination {
+    my ($params) = @_;
+
+    my $config = load_config();
+    unless ($config) {
+        print STDERR "Error: Failed to load config\n";
+        exit 2;
+    }
+
+    my $base_path = $config->{directory_structure}{base_path} || 'implementation-guide';
+    my $slug = generate_slug($params->{description});
+    my $task_dir = "$params->{task_num}-$params->{task_type}-$slug";
+
+    return "$base_path/$task_dir";
 }
 
 # Validate task type against config

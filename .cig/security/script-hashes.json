@@ -52,7 +52,7 @@
     },
     "template-copier-v2.1": {
       "path": ".cig/scripts/command-helpers/template-copier-v2.1",
-      "sha256": "d65567baa0cf81e11b57aabb09fa7b6b70a08b53055ff3397db08d8dfa391e54",
+      "sha256": "c0c9d8ef1359dbb29f3c9eeaff5a24ae1db901fe75e4e6a207e90c8c8f31531c",
       "permissions": "0500",
       "description": "Template copying for v2.1 format (10-phase workflow)"
     },
