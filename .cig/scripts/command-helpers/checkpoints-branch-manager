@@ -1,0 +1,60 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+
+# Compute script path once at module level
+my $SCRIPT_PATH = get_script_rel_path();
+
+sub get_script_rel_path {
+    use Cwd 'abs_path';
+    my $git_root = `git rev-parse --show-toplevel 2>/dev/null`;
+    chomp $git_root;
+    my $script_path = abs_path($0);
+    return $1 if $git_root && $script_path =~ m{^\Q$git_root\E/(.+)$};
+    return 'checkpoints-branch-manager';
+}
+
+sub get_current_branch {
+    my $branch = `git rev-parse --abbrev-ref HEAD 2>&1`;
+    chomp $branch;
+    die "$SCRIPT_PATH: error: not on a branch\n" if $? != 0 || $branch eq 'HEAD';
+    return $branch;
+}
+
+sub create_checkpoints_branch {
+    my $branch = get_current_branch();
+    my $checkpoints_branch = "$branch-checkpoints";
+
+    system("git", "branch", $checkpoints_branch);
+    die "$SCRIPT_PATH: error: failed to create branch $checkpoints_branch\n" if $? != 0;
+
+    print "$SCRIPT_PATH: created branch $checkpoints_branch\n";
+}
+
+sub show_history {
+    my $count = shift // 20;
+    die "$SCRIPT_PATH: error: count must be a number\n" unless $count =~ /^\d+$/;
+
+    system("git", "log", "--oneline", "--graph", "-$count");
+    die "$SCRIPT_PATH: error: failed to show history\n" if $? != 0;
+}
+
+sub verify_checkpoints_branch {
+    my $branch = get_current_branch();
+    my $checkpoints_branch = "$branch-checkpoints";
+
+    system("git", "log", $checkpoints_branch, "--oneline");
+    die "$SCRIPT_PATH: error: checkpoints branch not found\n" if $? != 0;
+}
+
+# Main
+my $subcommand = shift @ARGV;
+die "Usage: checkpoints-branch-manager <create|show-history|verify>\n" unless defined $subcommand;
+
+if    ($subcommand eq 'create')       { create_checkpoints_branch() }
+elsif ($subcommand eq 'show-history') { show_history(@ARGV) }
+elsif ($subcommand eq 'verify')       { verify_checkpoints_branch() }
+else {
+    die "Unknown subcommand: $subcommand\n" .
+        "Usage: checkpoints-branch-manager <create|show-history|verify>\n";
+}

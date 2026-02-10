@@ -2,6 +2,60 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 49: Fix Checkpoints Branch Permissions Issue with Script
+
+**Status**: Complete (2026-02-10)
+**Duration**: ~1 hour (vs. 4 hours estimated = -75% variance - 3x faster)
+**Impact**: Bugfix - Created `checkpoints-branch-manager` script to eliminate Step 10 permission prompts. Deterministic git operations now in code, not LLM decisions.
+**BACKLOG Item Completed**: "Fix Retrospective Step 10 Permission Prompts" from Task 45
+
+### Problem Addressed
+
+Task 45 retrospective identified that Step 10 of cig-retrospective workflow uses compound git commands with command substitution that trigger permission prompts despite individual commands being in frontmatter allowlist:
+- `git branch "$(git rev-parse --abbrev-ref HEAD)-checkpoints"` (10.1)
+- `git log --oneline --graph -20` (10.2 - missing from frontmatter)
+- `git log "$(git rev-parse --abbrev-ref HEAD)-checkpoints" --oneline` (10.4)
+
+**Issues Fixed**:
+1. Compound commands with `$(...)` don't match frontmatter wildcard patterns
+2. Missing `git log` permission in frontmatter
+3. Step 10 workflow requires user approval interrupting retrospective automation
+4. Violates CIG principle: deterministic operations belong in code
+
+### Changes Made
+
+**`.cig/scripts/command-helpers/checkpoints-branch-manager` (NEW)**:
+- **60 lines** Perl script with 3 subcommands (create, show-history [count], verify)
+- **Permissions**: 500 (r-x------)
+- **Error handling**: Detached HEAD detection, branch exists, missing branch, invalid input
+- **Idiomatic Perl**: Uses `die`, `//` operator, `shift`, postfix conditionals, `get_current_branch()` helper (DRY)
+- **Security**: SHA256 hash recorded in `.cig/security/script-hashes.json`
+
+**`.claude/commands/cig-retrospective.md`**:
+- **Step 10.1**: Replaced `git branch "$(git ...)"` with `checkpoints-branch-manager create`
+- **Step 10.2**: Replaced `git log ...` with `checkpoints-branch-manager show-history`
+- **Step 10.4**: Replaced `git log "$(git ...)"` with `checkpoints-branch-manager verify`
+
+### Implementation Quality
+
+**Test Coverage**: 14/14 tests passed (100%)
+- TC-1 to TC-9: Functional tests (all subcommands, error handling) ✅
+- TC-10 (CRITICAL): No permission prompts from Step 10 ✅
+- TC-11: File permissions (500) ✅
+- TC-12: Security hash validation ✅
+- TC-13: Error message clarity ✅
+- TC-14: Backward compatibility (original git commands still work) ✅
+
+**Defect Rate**: 1 minor issue found and fixed (permissions 700 after refactoring, corrected to 500)
+
+### Key Achievements
+
+1. **Permission prompts eliminated**: Script in `.cig/scripts/command-helpers/*:*` allowlist
+2. **Code quality**: Refactored from 100 to 60 lines (-40%) with user-guided idiomatic Perl improvements
+3. **Comprehensive testing**: All edge cases covered (detached HEAD, branch exists, missing branch, invalid input)
+4. **Backward compatible**: Original git commands still functional, users can choose approach
+5. **Fast delivery**: 3x faster than estimated due to clear requirements and simple design
+
 ## Task 48: Fix nextAction Template Substitution in Template-Copier
 
 **Status**: Complete (2026-02-10)

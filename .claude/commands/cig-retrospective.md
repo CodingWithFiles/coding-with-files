@@ -167,14 +167,14 @@ After retrospective document is complete, preserve detailed commit history and c
 
 10.1. **Create checkpoints branch** to preserve detailed archaeology:
    ```bash
-   git branch "$(git rev-parse --abbrev-ref HEAD)-checkpoints"
+   checkpoints-branch-manager create
    ```
    This creates a backup branch (e.g., `feature/44-refactor-template-generation-system-checkpoints`) preserving all checkpoint commits for future reference.
 
 10.2. **Squash all task commits** into a single commit:
    ```bash
    # Find the base commit (commit before this task branch was created)
-   git log --oneline --graph -20  # Identify base commit
+   checkpoints-branch-manager show-history  # Shows recent commits (default: 20)
 
    # Interactive rebase to squash commits
    git rebase -i <base-commit-hash>
@@ -204,7 +204,7 @@ After retrospective document is complete, preserve detailed commit history and c
 
 10.4. **Verify checkpoints branch preserved history**:
    ```bash
-   git log "$(git rev-parse --abbrev-ref HEAD)-checkpoints" --oneline
+   checkpoints-branch-manager verify
    ```
    Confirm all detailed checkpoint commits are preserved.
 

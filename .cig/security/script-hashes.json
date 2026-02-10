@@ -26,6 +26,12 @@
       "permissions": "0755",
       "description": "Manage task stack for context tracking (push/pop/peek/list/clear/size operations)"
     },
+    "checkpoints-branch-manager": {
+      "path": ".cig/scripts/command-helpers/checkpoints-branch-manager",
+      "sha256": "58b0f16779fe7fcd02eb05403606ec4a85a795436cff4b2f19253619710a516d",
+      "permissions": "0500",
+      "description": "Manage checkpoints branch creation, history viewing, and verification (eliminates Step 10 permission prompts)"
+    },
     "context-inheritance-v2.0": {
       "path": ".cig/scripts/command-helpers/context-inheritance-v2.0",
       "sha256": "97ede11e0c076149d1582baf75c4c3058df960424723f9887abe560155a6cf0a",
