@@ -42,6 +42,21 @@ The following status values are defined in the project configuration:
 - **Implemented** (50%): Code complete, not yet tested
 - **Testing** (75%): Testing in progress, validation ongoing
 - **Finished** (100%): Fully complete, all criteria met
+- **Skipped** (N/A): Phase not applicable to this specific task (may also apply to entire task type) (v2.1 only)
+
+**Using "Skipped" Status** (v2.1 only):
+
+Mark any workflow step as "Skipped" when it's not applicable. This is typically a **per-task decision** (this specific task doesn't need this phase) but may also be a **task-type pattern** (e.g., most bugfixes skip rollout).
+
+Examples:
+- **Maintenance** for a specific bugfix (this fix doesn't need ongoing monitoring)
+- **Rollout** for internal tools (this tool has no external deployment)
+- **Requirements** for a specific hotfix (requirements already clear for this fix)
+- **Design** for a trivial change (this change needs no architecture)
+
+"Skipped" phases are excluded from progress calculation. Example: 9 completed + 1 skipped = 9/9 = 100% (not 9/10 = 90%).
+
+**Distinction**: "Skipped" (not applicable to this task) ≠ "Backlog" (not started yet) ≠ "Finished" (completed).
 
 **IMPORTANT**: Do not use arbitrary status values. Always select from this list. If you encounter an unknown status value, the system will warn you and default to 0% completion.
 

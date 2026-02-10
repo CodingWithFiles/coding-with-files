@@ -2,6 +2,60 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 50: Add "Skipped" Workflow Step Status (v2.1 Format Only)
+
+**Status**: Complete (2026-02-10)
+**Duration**: <1 day (vs. 1-2 days estimated = -50% to -100% variance)
+**Impact**: Feature - v2.1 format can now mark any workflow step as "Skipped" (N/A), excluded from progress calculation. Enables correct 100% completion when phases aren't applicable (e.g., maintenance for bugfixes).
+
+### Problem Addressed
+
+No way to mark workflow steps as "not applicable" without affecting progress calculation. Example: bugfix task with maintenance phase marked "Backlog" (0%) shows 90% complete (9/10 phases finished) instead of 100% (9/9 applicable phases finished). Users forced to mark N/A phases as "Finished" dishonestly or accept inaccurate progress metrics.
+
+**Issues Fixed**:
+1. No status value for "not applicable" workflow phases
+2. Progress calculation includes phases that shouldn't apply to specific tasks
+3. Display shows misleading percentages for N/A phases (e.g., "Maintenance: Backlog (0%)")
+4. Workflow documentation didn't clarify when phases can be skipped
+
+### Changes Made
+
+**`implementation-guide/cig-project.json`**:
+- Added `"Skipped": null` to workflow.status-values (line 77)
+- Null value maps to Perl `undef` for clean filtering
+
+**`.cig/lib/TaskState.pm`**:
+- Added `grep defined` filter to `state_done()` (line 97)
+- Excludes undef values from progress calculation (9/9=100% not 9/10=90%)
+
+**`.cig/scripts/command-helpers/status-aggregator-v2.1`**:
+- Display logic: Shows "Skipped (N/A)" instead of percentage (line 423)
+- Bug fix: Added `defined($pct)` check in warning logic (line 123)
+- Bug fix: Added `defined($wf->{percent})` checks in indicator ternary (lines 420-421)
+
+**`.cig/docs/workflow/workflow-steps.md`**:
+- Added "Skipped" status documentation (lines 44-67)
+- Usage guidance: Emphasizes per-task decisions, provides examples
+- Clarifies v2.1 requirement and distinction from Backlog/Finished
+
+### Implementation Quality
+
+**Test Coverage**: 15/19 tests executed (79% execution rate)
+- 10/12 functional tests passed (TC-F5, TC-F6 deferred - core logic verified via TC-F3)
+- 5/7 NFR tests passed (TC-NFR1, TC-NFR2 deferred - existing patterns validated)
+
+**Defect Rate**: 2 bugs found during testing, 0 post-testing defects
+- Line 123: undef comparison warning (fixed immediately)
+- Lines 420-421: indicator ternary undef warnings (fixed immediately)
+
+### Key Achievements
+
+1. **Null-value sentinel pattern**: Using JSON `null` (Perl `undef`) cleaner than magic numbers
+2. **Idiomatic Perl**: `grep defined` filter and ternary conditionals improve readability
+3. **Backward compatible**: v2.0 format unchanged, v2.1 tasks without "Skipped" work identically
+4. **Testing caught bugs**: Execution testing phase discovered 2 undef handling bugs before production
+5. **Clear documentation**: workflow-steps.md provides usage guidance and examples
+
 ## Task 49: Fix Checkpoints Branch Permissions Issue with Script
 
 **Status**: Complete (2026-02-10)

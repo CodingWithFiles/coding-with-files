@@ -120,7 +120,7 @@ sub calculate_progress {
             my $status = TaskState::status_extract($file->{path});
             my $pct = TaskState::status_percent($status);
 
-            if ($pct == 0 && $status ne "Unknown" && $status !~ /^(Backlog|To-Do)$/i) {
+            if (defined($pct) && $pct == 0 && $status ne "Unknown" && $status !~ /^(Backlog|To-Do)$/i) {
                 my $filename = "$dir/" . $file->{name};
                 print STDERR "Warning: Unknown status \"$status\" in $filename\n";
             }
@@ -417,11 +417,12 @@ if ($format eq "json") {
             my $max_name_len = max(map { length($_->{name}) } @{$t->{workflow_files}});
 
             for my $wf (@{$t->{workflow_files}}) {
-                my $indicator = $wf->{percent} >= 100 ? "*" :
-                               $wf->{percent} > 0 ? "+" : "-";
+                my $indicator = defined($wf->{percent}) && $wf->{percent} >= 100 ? "*" :
+                               defined($wf->{percent}) && $wf->{percent} > 0 ? "+" : "-";
                 my $padding = " " x ($max_name_len + 2 - length($wf->{name}));
-                printf "  %s %s%s%s\t%d%%\n",
-                    $indicator, $wf->{name}, $padding, $wf->{status}, $wf->{percent};
+                my $suffix = $wf->{status} eq "Skipped" ? "(N/A)" : sprintf("(%d%%)", $wf->{percent});
+                printf "  %s %s%s%s\t%s\n",
+                    $indicator, $wf->{name}, $padding, $wf->{status}, $suffix;
             }
         }
     }

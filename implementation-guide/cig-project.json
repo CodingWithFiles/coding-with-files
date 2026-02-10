@@ -73,7 +73,8 @@
       "In Progress": 25,
       "Implemented": 50,
       "Testing": 75,
-      "Finished": 100
+      "Finished": 100,
+      "Skipped": null
     }
   },
   "integration": {

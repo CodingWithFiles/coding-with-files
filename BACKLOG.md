@@ -24,6 +24,116 @@ Add guidance to workflow-steps.md explaining when maintenance phase (i-maintenan
 
 ---
 
+## Task: Add Undef Handling Checklist to Implementation Planning Template
+
+**Task-Type**: chore
+**Priority**: Medium
+**Status**: Follow-up from Task 50
+
+Add explicit checklist to d-implementation-plan.md template for tracing undef/null value propagation through data flow.
+
+**Problem**: Task 50 implementation missed two undef handling bugs (lines 123, 420-421 in status-aggregator-v2.1) discovered during testing. Root cause: didn't trace full data flow during implementation planning to identify comparison/arithmetic operations needing `defined()` guards.
+
+**Solution**: Add "Data Flow Tracing" section to d-implementation-plan.md template with checklist:
+- [ ] Identify all points where special values (null, 0, undef, empty string) enter system
+- [ ] Trace propagation through call chain (function → function)
+- [ ] Identify all comparison operations (==, !=, <, >, <=, >=)
+- [ ] Identify all arithmetic operations (+, -, *, /, %)
+- [ ] Add `defined()` guards at guard points
+- [ ] Document guard point locations in implementation plan
+
+**Scope**: Update d-implementation-plan.md template only
+
+**Rationale**: Proactive undef handling planning prevents bugs, reduces testing rework, improves code quality
+
+**Identified in**: Task 50 retrospective (j-retrospective.md - "What Could Be Improved")
+
+---
+
+## Task: Create Perl Idioms Documentation
+
+**Task-Type**: chore
+**Priority**: Low
+**Status**: Follow-up from Task 50
+
+Create `.cig/docs/conventions/perl-idioms.md` documenting common idiomatic Perl patterns for CIG scripts.
+
+**Problem**: Task 50 implementation initially used non-idiomatic patterns (`grep { defined($_) }` instead of `grep defined`, if/else blocks instead of ternary conditionals). User review during planning phase caught and corrected these, but patterns should be documented for consistency across all CIG scripts.
+
+**Solution**: Create perl-idioms.md with sections:
+- **Filtering**: `grep defined` vs `grep { defined($_) }`, `map` patterns
+- **Conditionals**: Ternary operators vs if/else blocks, postfix conditionals
+- **String operations**: `s///` substitution, `=~` vs `!~`
+- **File operations**: Three-arg open, lexical filehandles
+- **Error handling**: `die` with context, `or die` idiom
+- **References**: When to use, dereferencing patterns
+
+**Scope**: Documentation only, no code changes
+
+**Rationale**: Consistent idiomatic code improves readability, maintainability, reduces cognitive load
+
+**Identified in**: Task 50 retrospective (j-retrospective.md - "Recommendations")
+
+---
+
+## Task: Add Undef Handling Tests to CIG Test Suite
+
+**Task-Type**: chore
+**Priority**: Medium
+**Status**: Follow-up from Task 50
+
+Create systematic tests for undef value propagation in status aggregator and helper scripts.
+
+**Problem**: Task 50 testing plan (e-testing-plan.md) didn't include explicit undef value handling test cases. Bugs discovered reactively during execution testing (TC-F4, TC-F9) rather than proactively via planned test cases.
+
+**Solution**: Add test cases to verify undef handling:
+- **TC-Undef-1**: status_percent returns undef for null config value
+- **TC-Undef-2**: state_done filters undef from percentage array
+- **TC-Undef-3**: status-aggregator warning logic handles undef correctly
+- **TC-Undef-4**: status-aggregator indicator logic handles undef correctly
+- **TC-Undef-5**: All comparison operations have defined() guards
+- **TC-Undef-6**: All arithmetic operations handle undef gracefully
+
+**Scope**: Create test suite for CIG system (relates to BACKLOG item "Create Automated Test Harness for CIG System")
+
+**Rationale**: Proactive testing prevents bugs, documents expected behavior, enables refactoring confidence
+
+**Identified in**: Task 50 retrospective (j-retrospective.md - "Recommendations")
+
+---
+
+## Task: Add "Skipped-If" Conditional Logic to Workflow System
+
+**Task-Type**: feature
+**Priority**: Low
+**Status**: Follow-up from Task 50
+
+Allow task types to conditionally skip workflow phases based on type (e.g., bugfixes always skip i-maintenance.md).
+
+**Problem**: Task 50 added "Skipped" status for marking phases N/A, but developers must manually set status for each task. For task types with predictable phase applicability (bugfixes never need maintenance, hotfixes skip rollout), conditional logic would eliminate manual work.
+
+**Solution**: Add `"phase-applicability"` section to cig-project.json:
+```json
+"phase-applicability": {
+  "feature": ["a","b","c","d","e","f","g","h","i","j"],
+  "bugfix": ["a","b","c","d","e","f","g","j"],  // skip h-rollout, i-maintenance
+  "hotfix": ["a","d","f","g","j"],  // skip b,c,e,h,i
+  "chore": ["a","d","f","g","j"]  // skip b,c,e,h,i
+}
+```
+Template-copier automatically marks non-applicable phases as "Skipped" during task creation.
+
+**Scope**:
+- Update cig-project.json schema
+- Modify template-copier to set "Status: Skipped" for non-applicable phases
+- Update workflow-steps.md with phase applicability by task type
+
+**Rationale**: Eliminates manual work, reduces errors, codifies workflow conventions
+
+**Identified in**: Task 50 retrospective (j-retrospective.md - "Recommendations")
+
+---
+
 ## Task: Create CIG Terminology Glossary
 
 **Task-Type**: chore

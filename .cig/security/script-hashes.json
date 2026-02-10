@@ -10,7 +10,7 @@
     },
     "status-aggregator-v2.1": {
       "path": ".cig/scripts/command-helpers/status-aggregator-v2.1",
-      "sha256": "d323b345cc72e7ddd689a57528af08307da55645e72011dee67810437cbfc734",
+      "sha256": "72b1600ee9d675a1876ee56b126c6b9682b23e7f50eaaec0217c8de69c7a2e58",
       "permissions": "0500",
       "description": "Status aggregation for v2.1 format (10-phase workflow)"
     },
@@ -129,7 +129,7 @@
     },
     "TaskState": {
       "path": ".cig/lib/TaskState.pm",
-      "sha256": "e14c7d81821fe99d9afc8b4e0ea92f1a3b07539b686f43411bece64b4e355c92",
+      "sha256": "497928573d767379ae3514493f230d2b04a711b77adf1fda649a7b5b727128bc",
       "description": "Task state measurements (retrospective: state_done, prospective: state_achievable)"
     },
     "TaskContextInference": {

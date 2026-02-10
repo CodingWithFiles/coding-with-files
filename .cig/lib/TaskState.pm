@@ -94,7 +94,7 @@ sub state_done {
     my @statuses = _get_all_statuses($task_dir);
     return 0 unless @statuses;
 
-    my @percentages = map { status_percent($_) } @statuses;
+    my @percentages = grep defined, map { status_percent($_) } @statuses;
     return 0 unless @percentages;
 
     # MIN bottleneck formula
