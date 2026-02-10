@@ -4,51 +4,55 @@ Future tasks and improvements for the Code Implementation Guide system.
 
 ---
 
-
-## Task: Clarify Maintenance Phase Applicability
-
-**Task-Type**: chore
-**Priority**: Medium
-**Status**: Follow-up from Task 44
-
-Add guidance to workflow-steps.md explaining when maintenance phase (i-maintenance.md) is optional vs required. Update progress calculation to handle optional phases.
-
-**Scope**:
-- Add section to workflow-steps.md defining when maintenance is optional (file-based changes, documentation) vs required (deployed services, long-running systems)
-- Consider updating workflow-manager status calculation to handle "Skipped" status differently than "Backlog"
-- Update template to make maintenance phase applicability clear
-
-**Rationale**: Current progress calculation shows 25% for completed tasks when maintenance is marked "Backlog". Need to distinguish "not started" from "not applicable".
-
-**Identified in**: Task 44 retrospective (j-retrospective.md)
-
----
-
-## Task: Add Undef Handling Checklist to Implementation Planning Template
+## Task: Document Dead Code Audit Methodology
 
 **Task-Type**: chore
 **Priority**: Medium
-**Status**: Follow-up from Task 50
+**Status**: Follow-up from Task 51
 
-Add explicit checklist to d-implementation-plan.md template for tracing undef/null value propagation through data flow.
+Create `.cig/docs/maintenance/dead-code-audit-checklist.md` documenting comprehensive audit methodology to prevent missing active usage patterns.
 
-**Problem**: Task 50 implementation missed two undef handling bugs (lines 123, 420-421 in status-aggregator-v2.1) discovered during testing. Root cause: didn't trace full data flow during implementation planning to identify comparison/arithmetic operations needing `defined()` guards.
+**Problem**: Task 51 audit incorrectly flagged `workflow_file_mappings()` and `format_error()` as dead code, missing same-file usage and script-to-library usage patterns. Errors caught during pre-removal verification, but audit methodology needs improvement.
 
-**Solution**: Add "Data Flow Tracing" section to d-implementation-plan.md template with checklist:
-- [ ] Identify all points where special values (null, 0, undef, empty string) enter system
-- [ ] Trace propagation through call chain (function → function)
-- [ ] Identify all comparison operations (==, !=, <, >, <=, >=)
-- [ ] Identify all arithmetic operations (+, -, *, /, %)
-- [ ] Add `defined()` guards at guard points
-- [ ] Document guard point locations in implementation plan
+**Solution**: Create standardized dead code audit checklist:
+- **Cross-file usage**: `grep -r "function_name" .cig/lib/ .cig/scripts/`
+- **Same-file usage**: Check within each affected file for internal calls
+- **Script-to-library usage**: `grep -r "function_name" .cig/scripts/command-helpers/`
+- **POD documentation**: Check for public API declarations (`=head2 function_name`)
+- **Structured report format**: Function, file, lines, usage findings, verdict
 
-**Scope**: Update d-implementation-plan.md template only
+**Scope**: Create single documentation file with checklist and examples
 
-**Rationale**: Proactive undef handling planning prevents bugs, reduces testing rework, improves code quality
+**Rationale**: Standardized methodology reduces audit errors, prevents breaking changes, improves cleanup confidence
 
-**Identified in**: Task 50 retrospective (j-retrospective.md - "What Could Be Improved")
+**Identified in**: Task 51 retrospective (j-retrospective.md - "Recommendations")
 
 ---
+
+## Task: Comprehensive Dead Code Audit for CIG Library Modules
+
+**Task-Type**: chore
+**Priority**: Low
+**Status**: Follow-up from Task 51
+
+Run comprehensive dead code audit across all `.cig/lib/*.pm` files using improved methodology from dead code audit documentation.
+
+**Problem**: Task 51 only addressed functions already identified as dead. Remaining library modules may have additional cleanup opportunities not yet discovered.
+
+**Solution**: Systematic audit of all library modules:
+- Apply documented audit methodology to each .pm file
+- Generate structured audit reports for each module
+- Create follow-up task(s) for confirmed dead code removal
+- Consider using Perl::Critic or static analysis tools
+
+**Scope**: Audit only, do not remove code. Create follow-up tasks for actual removal.
+
+**Dependencies**: Requires "Document Dead Code Audit Methodology" task completed first
+
+**Rationale**: Proactive cleanup improves maintainability, reduces confusion, keeps codebase lean
+
+**Identified in**: Task 51 retrospective (j-retrospective.md - "Future Work")
+
 
 ## Task: Create Perl Idioms Documentation
 
@@ -74,33 +78,6 @@ Create `.cig/docs/conventions/perl-idioms.md` documenting common idiomatic Perl 
 
 **Identified in**: Task 50 retrospective (j-retrospective.md - "Recommendations")
 
----
-
-## Task: Add Undef Handling Tests to CIG Test Suite
-
-**Task-Type**: chore
-**Priority**: Medium
-**Status**: Follow-up from Task 50
-
-Create systematic tests for undef value propagation in status aggregator and helper scripts.
-
-**Problem**: Task 50 testing plan (e-testing-plan.md) didn't include explicit undef value handling test cases. Bugs discovered reactively during execution testing (TC-F4, TC-F9) rather than proactively via planned test cases.
-
-**Solution**: Add test cases to verify undef handling:
-- **TC-Undef-1**: status_percent returns undef for null config value
-- **TC-Undef-2**: state_done filters undef from percentage array
-- **TC-Undef-3**: status-aggregator warning logic handles undef correctly
-- **TC-Undef-4**: status-aggregator indicator logic handles undef correctly
-- **TC-Undef-5**: All comparison operations have defined() guards
-- **TC-Undef-6**: All arithmetic operations handle undef gracefully
-
-**Scope**: Create test suite for CIG system (relates to BACKLOG item "Create Automated Test Harness for CIG System")
-
-**Rationale**: Proactive testing prevents bugs, documents expected behavior, enables refactoring confidence
-
-**Identified in**: Task 50 retrospective (j-retrospective.md - "Recommendations")
-
----
 
 ## Task: Add "Skipped-If" Conditional Logic to Workflow System
 

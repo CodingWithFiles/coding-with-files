@@ -428,52 +428,6 @@ sub _get_progress_signal {
     };
 }
 
-sub _get_status_signal {
-    my $task_dir = 'implementation-guide';
-    return { name => 'status', weight => WEIGHT_STATUS_MAX, null => 1 }
-        unless -d $task_dir;
-
-    my %task_status_scores;
-
-    opendir my $dh, $task_dir or return { name => 'status', weight => WEIGHT_STATUS_MAX, null => 1 };
-    my @entries = readdir $dh;
-    closedir $dh;
-
-    for my $entry (@entries) {
-        next if $entry =~ /^\./;
-        my $path = "$task_dir/$entry";
-        next unless -d $path;
-
-        if ($entry =~ /^(\d+)-/) {
-            my $task = $1;
-            my $status_score = _get_task_status_score($path);
-            $task_status_scores{$task} = $status_score if $status_score > 0;
-        }
-    }
-
-    return { name => 'status', weight => WEIGHT_STATUS_MAX, null => 1 }
-        unless %task_status_scores;
-
-    my @candidates;
-    for my $task (keys %task_status_scores) {
-        push @candidates, { task => $task, score => $task_status_scores{$task} };
-    }
-
-    @candidates = sort { $b->{score} <=> $a->{score} } @candidates;
-    @candidates = splice(@candidates, 0, 5);
-
-    return { name => 'status', weight => WEIGHT_STATUS_MAX, null => 1 }
-        unless @candidates;
-
-    return {
-        name => 'status',
-        weight => WEIGHT_STATUS_MAX,
-        candidates => \@candidates,
-        top => $candidates[0]->{task},
-        null => 0,
-    };
-}
-
 #==============================================================================
 # SCORING ALGORITHMS
 #==============================================================================
@@ -496,24 +450,6 @@ sub _score_progress {
     # tasks closer to completion score higher (momentum to finish)
     my $score = int(($percentage / 100) * WEIGHT_PROGRESS_MAX);
     return $score;
-}
-
-sub _score_status {
-    my ($status) = @_;
-    return 0 unless defined $status;
-
-    # Linear mapping of status to score
-    my %status_scores = (
-        'Finished'    => 100,
-        'Testing'     => 75,
-        'Implemented' => 50,
-        'In Progress' => 80,
-        'Blocked'     => 15,
-        'Backlog'     => 0,
-        'To-Do'       => 0,
-    );
-
-    return $status_scores{$status} || 0;
 }
 
 #==============================================================================
@@ -548,36 +484,6 @@ sub _calculate_task_progress {
 
     # Use TaskState library for work potential calculation (cliff function)
     return TaskState::state_achievable($task_dir);
-}
-
-sub _get_task_status_score {
-    my ($task_dir) = @_;
-    return 0 unless -d $task_dir;
-
-    my $max_score = 0;
-
-    opendir my $dh, $task_dir or return 0;
-    my @files = readdir $dh;
-    closedir $dh;
-
-    for my $file (@files) {
-        next unless $file =~ /^[a-j]-.*\.md$/;
-        my $path = "$task_dir/$file";
-        next unless -f $path;
-
-        open my $fh, '<', $path or next;
-        while (<$fh>) {
-            if (/^\*\*Status\*\*:\s*(.+)$/i) {
-                my $status = $1;
-                my $score = _score_status($status);
-                $max_score = $score if $score > $max_score;
-                last;
-            }
-        }
-        close $fh;
-    }
-
-    return $max_score;
 }
 
 sub _get_task_slug {
@@ -667,30 +573,6 @@ sub _get_task_dir {
     }
 
     return;
-}
-
-sub _format_uncorrelated {
-    my ($correlation, $verbose) = @_;
-
-    # Deprecated: Now handled by unified format_output()
-    # This function kept for backward compatibility during migration
-    # but should not be called in current code path
-
-    my @candidates = @{$correlation->{candidates}};
-    my $output = "Signals disagree on current task.\n\n";
-    $output .= "Top candidates:\n";
-
-    for my $task (@candidates) {
-        $output .= "  - Task $task\n";
-    }
-
-    $output .= "\nPlease specify task number explicitly or clarify context.\n";
-
-    if ($verbose) {
-        $output .= "\n" . _format_signal_details($correlation->{signals});
-    }
-
-    return $output;
 }
 
 sub _format_verbose_breakdown {

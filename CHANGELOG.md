@@ -2,6 +2,55 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 51: Remove Dead Code from TaskContextInference.pm
+
+**Status**: Complete (2026-02-10)
+**Duration**: ~1.3 hours (vs. 1-2 hours estimated = -13% under midpoint)
+**Impact**: Bugfix - Removed 114 lines of confirmed dead code from TaskContextInference.pm, improving maintainability and reducing codebase confusion.
+
+### Problem Addressed
+
+Dead code audit identified 4 unused functions in TaskContextInference.pm that were no longer called after Task 32 removed status signal functionality. Original audit also incorrectly flagged 2 functions in other modules, but pre-removal verification caught these errors.
+
+**Issues Fixed**:
+1. Dead functions consuming 114 lines in TaskContextInference.pm
+2. Audit methodology gaps (same-file usage, script-to-library usage not checked)
+3. Potential confusion for future developers reading deprecated code
+
+### Changes Made
+
+**`.cig/lib/TaskContextInference.pm`**:
+- Removed `_get_status_signal()` (45 lines) - status signal removed per Task 32
+- Removed `_score_status()` (17 lines) - helper only called by dead function
+- Removed `_get_task_status_score()` (29 lines) - helper only called by dead function
+- Removed `_format_uncorrelated()` (23 lines) - marked DEPRECATED, replaced by format_output()
+- Total: 114 lines removed
+
+**`.cig/security/script-hashes.json`**:
+- Updated SHA256 hash for TaskContextInference.pm
+- Old: `6debb865...522d34bc`
+- New: `93b4426e...513502de`
+
+### Implementation Quality
+
+**Test Coverage**: 8/8 applicable tests passed (100%)
+- Verification tests: 3/3 passed (grep verification, hash verification, line count)
+- Regression tests: 3/3 passed (status aggregator, module imports, context inference)
+- Non-functional tests: 2/2 passed (hash integrity, code cleanliness)
+
+**Scope Adjustment**: Audit error discovered during Step 1 verification
+- `workflow_file_mappings()` NOT removed (actively used by context-inheritance-v2.0)
+- `format_error()` NOT removed (internal usage in Common.pm with POD docs)
+- Scope reduced from 3 files (~160 lines) to 1 file (114 lines)
+- Verification process prevented breaking changes
+
+### Key Achievements
+
+1. **Pre-removal verification caught errors**: Step 1 grep discovered 2 audit mistakes before any code was modified
+2. **Surgical removal**: Edit tool enabled precise function deletion without affecting code structure
+3. **Zero regressions**: All core CIG workflows (status aggregator, context inference) still work correctly
+4. **Process learning**: Identified audit methodology gaps for future dead code cleanup
+
 ## Task 50: Add "Skipped" Workflow Step Status (v2.1 Format Only)
 
 **Status**: Complete (2026-02-10)

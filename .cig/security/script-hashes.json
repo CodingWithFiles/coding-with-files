@@ -134,7 +134,7 @@
     },
     "TaskContextInference": {
       "path": ".cig/lib/TaskContextInference.pm",
-      "sha256": "6debb865ae6f7c42d31e21626ee8c9cabe33ae9aa3f8abf943b95567522d34bc",
+      "sha256": "93b4426e6a6b6e8f2d1515ec1e120de2bb197036ebdae3220fc62f31513502de",
       "description": "Signal-based inference for current task and workflow step context"
     }
   }
