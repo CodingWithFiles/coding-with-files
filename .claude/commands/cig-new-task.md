@@ -1,7 +1,7 @@
 ---
 description: Create categorised implementation guide (v2.0 - hierarchical)
 argument-hint: {num} {type} "description"
-allowed-tools: Write, Read, Bash(git rev-parse:*), Bash(ln:*), Bash(cp:*), Bash(git:*), Bash(.cig/scripts/command-helpers/cig-load-project-config), Bash(egrep:*), Bash(echo:*), Bash(find:*)
+allowed-tools: Write, Read, Bash(git rev-parse:*), Bash(git checkout:*), Bash(.cig/scripts/command-helpers/*:*)
 ---
 
 ## Context
@@ -10,14 +10,8 @@ allowed-tools: Write, Read, Bash(git rev-parse:*), Bash(ln:*), Bash(cp:*), Bash(
 ## Your task
 Create new hierarchical implementation guide for: **{arguments}**
 
-**Implementation**: First ensure we're in git repository root:
-
 !{bash}
 .cig/scripts/command-helpers/context-manager location
-
-**Helper scripts location**: `.cig/scripts/command-helpers/`
-
-⚠️  **BREAKING CHANGE from v1.0**: New signature `<num> <type> "description"`
 
 **Parse arguments**: `<num> <type> "description"`
 - num: Task number in decimal notation (1, 1.1, 1.1.1, etc.)
@@ -27,7 +21,6 @@ Create new hierarchical implementation guide for: **{arguments}**
 **Examples**:
 - `/cig-new-task 1 feature "Add user authentication"`
 - `/cig-new-task 1.1 chore "Setup database schema"`
-- `/cig-new-task 2.3.1 bugfix "Fix login validation"`
 
 **Steps**:
 
@@ -36,78 +29,24 @@ Create new hierarchical implementation guide for: **{arguments}**
 - Verify `type` is in supported-task-types from `cig-project.json`
 - Verify `description` is provided
 
-### 2. Generate Slug
-Apply slug generation algorithm:
-- Convert description to lowercase
-- Replace spaces with hyphens
-- Remove special characters (keep only alphanumeric and hyphens)
-- Truncate to 50 characters maximum
-- Example: "Add User Authentication" → "add-user-authentication"
+### 2. Generate Slug and Directory Path
+- Slug: lowercase, spaces→hyphens, remove special chars, truncate 50 chars
+- Top-level: `implementation-guide/<num>-<type>-<slug>/`
+- Subtask: Use `context-manager hierarchy` to find parent, create subdirectory
 
-### 3. Determine Directory Path
-- If top-level (e.g., "1"): `implementation-guide/1-{type}-{slug}/`
-- If subtask (e.g., "1.1"): Find parent directory, create subdirectory
-  - Parent "1" → `implementation-guide/1-{parent-type}-{parent-slug}/1.1-{type}-{slug}/`
-  - Use context-manager hierarchy to find parent if it exists
-
-### 4. Create Directory
-- Create directory: `<num>-<type>-<slug>/`
-- Verify directory doesn't already exist
-
-### 5. Copy and Populate Template Files
-**Key change**: Use task-workflow create helper script
-
-Call task-workflow create to copy templates and substitute variables:
-
+### 3. Copy Template Files
 ```bash
 .cig/scripts/command-helpers/task-workflow create \
-  --task-type="{type}" \
-  --destination="{task-dir}" \
-  --task-num="{num}" \
-  --description="{description}"
-
-# Check exit code
-if [ $? -ne 0 ]; then
-    echo "Error: Template copying failed"
-    exit 1
-fi
+  --task-type="{type}" --destination="{task-dir}" \
+  --task-num="{num}" --description="{description}"
 ```
+Creates directory automatically, copies templates, substitutes variables, sets permissions.
 
-**Note**: The task-workflow create script creates the destination directory automatically, so there's no need to create it with mkdir beforehand. Simply call task-workflow create with the desired destination path and it will handle directory creation and file copying in a single operation.
-
-This automatically:
-- Discovers templates via symlinks in `.cig/templates/<type>/`
-- Copies correct template subset per task type:
-  - **feature**: 8 files (a-h)
-  - **bugfix**: 5 files (a, c, d, e, h)
-  - **hotfix**: 5 files (a, d, e, f, h)
-  - **chore**: 4 files (a, d, e, h)
-  - **discovery**: 6 files (a, b, c, d, e, h)
-- Substitutes template variables:
-  - `{{description}}` → task description
-  - `{{taskId}}` → "internal-{num}"
-  - `{{taskUrl}}` → "N/A (internal task)"
-  - `{{parentTask}}` → parent task number or "N/A"
-  - `{{branchName}}` → from `branch-naming-convention` pattern
-- Sets file permissions to 0600
-
-### 6. Create Git Branch
-Generate branch name using `branch-naming-convention` from config:
-- Default pattern: `<type>/<num>-<slug>`
-- Example: `feature/1-add-user-authentication`
-
-After template copier succeeds, automatically create and checkout the branch:
+### 4. Create Git Branch
 ```bash
-git checkout -b "{branch-name}"
+git checkout -b "<type>/<num>-<slug>"
 ```
 
-If branch already exists, report error and suggest using a different task number or deleting the existing branch.
-
-### 7. Provide Next Steps
-Inform user:
-- Directory created: `<full-path>`
-- Files created: List of workflow files (a-plan.md, b-requirements.md, etc.)
-- Branch created and checked out: `<branch-name>`
-- Next action: `/cig-task-plan <num>` to begin planning phase
-
-**Success**: Ready-to-use v2.0 implementation guide with hierarchical support and symlink-based templates
+### 5. Provide Next Steps
+- Directory created, files listed, branch checked out
+- Next action: `/cig-task-plan <num>`

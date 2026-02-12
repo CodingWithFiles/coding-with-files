@@ -12,12 +12,8 @@ allowed-tools: Write, Read, LS, Bash(git:*), Bash(git rev-parse:*), Bash(.cig/sc
 ## Your task
 Configure CIG system: **{arguments}**
 
-**Implementation**: First ensure we're in git repository root:
-
 !{bash}
 .cig/scripts/command-helpers/context-manager location
-
-**Helper scripts location**: `.cig/scripts/command-helpers/`
 
 **Parse arguments**: `[init|list|reset]`
 - init: Initialise global CIG configuration at `~/.cig/`
@@ -29,49 +25,18 @@ Configure CIG system: **{arguments}**
 - Project config: `<git-root>/.cig/autoload.yaml`
 
 **Steps for 'init'**:
-1. **Create global directory**: `~/.cig/` with subdirectories
-2. **Generate global autoload.yaml**:
-   ```yaml
-   # Global CIG Configuration
-   utils:
-     config-loader: utils/config-loader.md
-     template-engine: utils/template-engine.md
-     hierarchy-manager: utils/hierarchy-manager.md
-     task-validator: utils/task-validator.md
-   
-   templates:
-     feature: templates/feature/
-     bugfix: templates/bugfix/
-     hotfix: templates/hotfix/
-     chore: templates/chore/
-   ```
-3. **Create global utility templates** (simplified versions of project utilities)
-4. **Create global template directories** with basic templates
+1. Create `~/.cig/` with subdirectories (utils, templates)
+2. Generate `~/.cig/autoload.yaml` with utils and template mappings
+3. Create global utility templates and template directories
 
 **Steps for 'list'**:
-1. **Show configuration hierarchy**:
-   - Global config location and status
-   - Project config location and status  
-   - Effective configuration (merged result)
-2. **Display autoload mappings** currently in use
-3. **Show template locations** and availability
+1. Show configuration hierarchy (global → project → effective merged result)
+2. Display autoload mappings and template locations
 
 **Steps for 'reset'**:
-1. **Backup existing configs** (rename with .backup suffix)
-2. **Regenerate default configurations**
-3. **Restore directory structure** to defaults
-4. **Confirm reset completed** and show new configuration
+1. Backup existing configs (.backup suffix), regenerate defaults
+2. Confirm reset completed and show new configuration
 
-**Configuration Priority**:
-1. Project `.cig/autoload.yaml` (highest priority)
-2. Global `~/.cig/autoload.yaml` (fallback)
-3. Built-in defaults (emergency fallback)
+**Configuration Priority**: Project `.cig/autoload.yaml` > Global `~/.cig/autoload.yaml` > Built-in defaults
 
-**Error Handling**:
-- **Error**: Cannot create global configuration directory
-- **Cause**: Permission issues or disk space problems
-- **Solution**: Check file permissions and available disk space
-- **Example**: `mkdir -p ~/.cig/utils ~/.cig/templates/{feature,bugfix,hotfix,chore}`
-- **Uncertainty**: If user's intent unclear, show current config status and ask for clarification
-
-**Success**: CIG system configured and ready for use across all projects
+**Error Handling**: If config directory creation fails, check permissions and disk space. If user intent unclear, show current config status and ask for clarification.

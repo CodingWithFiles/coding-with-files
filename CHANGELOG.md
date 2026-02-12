@@ -2,6 +2,35 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 56: Refactor CIG Commands for Progressive Disclosure
+
+**Status**: Complete (2026-02-12)
+**Duration**: ~1 day (vs. 2-3 days estimated = -50% to -67% variance)
+**Impact**: Chore — Reduced 17 CIG commands from 1,914 total lines to 782 (59.1% reduction) by extracting shared patterns into 3 reference docs.
+
+### Problem Addressed
+
+CIG's 17 commands embedded full workflow instructions inline (80-237 lines each), causing duplication and context pollution risk. This blocked skill conversion (Task 57) because auto-loading 17 bloated commands would consume ~26k+ tokens.
+
+### Key Changes
+
+1. **Created 3 shared docs** in `.cig/docs/commands/`:
+   - `workflow-preamble.md` (51 lines) — argument parsing, task validation, Steps 1-4
+   - `checkpoint-commit.md` (23 lines) — commit template with trailer
+   - `retrospective-extras.md` (95 lines) — CHANGELOG/BACKLOG update, checkpoints branch, squash
+2. **Refactored 16 commands** to thin dispatchers referencing shared docs (cig-init.md skipped, already 53 lines)
+3. **Consistent structure** across all 10 workflow commands: frontmatter, scope, context, workflow (shared doc refs), success criteria
+
+### Test Results
+
+- 12 test cases: 10 PASS, 2 marginal FAIL (aspirational metrics targets)
+- 0 functional or regression failures
+
+### BACKLOG Items Affected
+
+- **Completed**: "Refactor CIG Commands for Progressive Disclosure"
+- **Unblocked**: "Convert CIG Commands to Skills" — commands are now thin enough for skill conversion
+
 ## Task 55: Test Context Injection Syntax in SKILL.md Format
 
 **Status**: Complete (2026-02-12)

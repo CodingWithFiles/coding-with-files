@@ -4,38 +4,7 @@ Future tasks and improvements for the Code Implementation Guide system.
 
 ---
 
-## Task: Refactor CIG Commands for Progressive Disclosure
-
-**Task-Type**: chore
-**Priority**: High
-**Status**: Follow-up from Task 54 retrospective
-**Depends on**: "Test Context Injection Syntax in SKILL.md Format" (must pass)
-
-CIG's 17 commands embed full workflow instructions inline (scope boundaries, argument parsing, 8-9 step workflows, success criteria). This bloat means skill conversion would auto-load ~26k+ tokens into context before conversation starts (#14851). Commands should be refactored to be thin dispatchers that reference `.cig/docs/` for the bulk of their instructions.
-
-**Problems**:
-1. Each command is 80-150+ lines of inline instructions
-2. Converting as-is to skills would cause massive context pollution
-3. Duplicate content across commands (argument parsing, task resolution, status field guidance)
-4. Progressive disclosure pattern not applied — commands dump everything upfront
-
-**Solution**:
-- Extract shared patterns (argument parsing, task resolution, status guidance) into `.cig/docs/` reference files
-- Reduce each command to a thin dispatcher: context references + step list + success criteria
-- Target: each command/skill file under 30-40 lines
-- Shared instruction blocks referenced via `!{bash}` or file includes
-
-**Acceptance Criteria**:
-- [ ] All 17 commands refactored to thin dispatcher pattern
-- [ ] Shared instructions extracted to `.cig/docs/` reference files
-- [ ] Each command file under 40 lines
-- [ ] All commands still function correctly after refactoring
-- [ ] Token consumption measured before/after
-
-**Estimate**: 2-3 days
-**Identified in**: Task 54 retrospective (j-retrospective.md)
-
----
+<!-- Completed: "Refactor CIG Commands for Progressive Disclosure" — Task 56 (2026-02-12) -->
 
 ## Task: Convert CIG Commands to Skills
 

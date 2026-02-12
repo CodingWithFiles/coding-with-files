@@ -1,98 +1,44 @@
 ---
 description: Guide user through maintenance phase
 argument-hint: {task-path}
-allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/*:*), Bash(git rev-parse:*), Bash(egrep:*), Bash(echo:*), Bash(find:*)
+allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/*:*), Bash(git rev-parse:*)
 ---
 
 ## Scope & Boundaries
 
-**This step**: Complete the maintenance document (i-maintenance.md) with monitoring plan, support procedures, and ongoing maintenance results.
-
-**Not this step**: Implementation, testing, or initial deployment (those are complete). Final reflection comes in j-retrospective.md.
-
-**If blocked or finished**: Call `workflow-manager control --current-step=i-maintenance --task-path=<path>` to determine next action. See `.cig/docs/workflow/blocker-patterns.md` for detailed blocker handling guidance.
+**This step**: Complete i-maintenance.md with monitoring plan, support procedures, and ongoing maintenance results.
+**Not this step**: Implementation, testing, or initial deployment (complete). Final reflection in j-retrospective.md.
+**If blocked or finished**: Call `workflow-manager control --current-step=i-maintenance --task-path=<path>` to determine next action.
 
 ## Context
-See `.cig/docs/context/tools.md` for context tool documentation.
 
 **Task arguments**: {arguments}
-
-**Current task/workflow (if available)**: !/current-task-wf
-
-**Helper scripts location**: `.cig/scripts/command-helpers/`
-
-## Your task
-Guide the user through the maintenance phase.
-
-**Implementation**: First ensure we're in git repository root:
+**Current task/workflow**: !/current-task-wf
 
 !{bash}
 .cig/scripts/command-helpers/context-manager location
 
-**CRITICAL - Argument Parsing**:
-- If task arguments provided: Extract the FIRST space-separated word as the task path
-- If NO task arguments: Use task_num from "Current task/workflow" context above
-- Any additional words after the first provide user context about their intent
-- Use the extra words to understand what the user wants, but do NOT pass them to script calls
-- Example: "11 update the design" → task path is "11", extra text explains what to do
-- If neither arguments nor inference available: Error "Cannot determine task. Specify task number or ensure context is inferrable."
+## Workflow
 
-**CRITICAL - Task Path Validation**:
-- Task paths MUST match hierarchical number format: digits separated by dots
-- Valid formats: "11", "1.2", "12.2.3", "1.1.1.1"
-- Invalid formats: "some text", "`date`", "11; rm -rf", "text.text"
-- If first word does NOT match valid format, inform user and do not invoke scripts
-- This prevents command injection and ensures only valid task identifiers reach scripts
+**Steps 1-4 (Preamble)**: Read `.cig/docs/commands/workflow-preamble.md` and follow Steps 1-4 (argument parsing, task resolution, parent context, LLM decision).
 
-Follow the 8-step workflow structure:
+**Step 5**: Read `.cig/docs/workflow/workflow-steps.md#maintenance` for detailed maintenance phase guidance.
 
-1. **Resolve Task Directory**:
-   - Extract first word from task arguments
-   - Validate it matches hierarchical number format (digits and dots only)
-   - If valid: call `.cig/scripts/command-helpers/context-manager hierarchy <task-path>` using the Bash tool
-   - If invalid: inform user the task path format is invalid, do not invoke script
+**Step 6 (Execute)**:
+- Open i-maintenance.md (v2.1) or g-maintenance.md (v2.0) or maintenance.md (v1.0)
+- **Focus on**: Monitoring requirements, maintenance tasks, incident response, performance optimisation
+- **Avoid**: Initial implementation details, design decisions, testing procedures
+- Key content: monitoring, alerting, maintenance schedule, common issues, runbooks
 
-2. **Load Parent Context**:
-   - Use the validated task path from step 1
-   - Call `.cig/scripts/command-helpers/context-manager inheritance <task-path>` using the Bash tool
-3. **Present Context Summary**: Show structural map with status markers
-4. **LLM Decision**: Read specific parent sections if needed
-5. **Reference Workflow Documentation**: Read `.cig/docs/workflow/workflow-steps.md#maintenance`
-6. **Execute Maintenance Workflow**:
-   - Open g-maintenance.md (v2.0) or maintenance.md (v1.0)
-   - **Focus on**: Monitoring requirements, maintenance tasks, incident response, performance optimisation
-   - **Avoid**: Initial implementation details, design decisions, testing procedures
+**Step 7**: Check decomposition signals if maintenance tasks are complex.
 
-   Key content:
-   - Monitoring Requirements: System health, application metrics, alerting rules
-   - Maintenance Tasks: Regular schedule (daily, weekly, monthly, quarterly)
-   - Incident Response: Common issues, troubleshooting guide, escalation procedures
-   - Performance Optimisation: Optimisation areas, scaling strategy
-   - Documentation: Runbooks, knowledge base
-
-   Key questions:
-   - What monitoring is needed (uptime, performance, errors, business KPIs)?
-   - What are the alerting rules and escalation procedures?
-   - What regular maintenance tasks are required?
-   - What are common issues and their resolutions?
-   - What performance optimisation opportunities exist?
-   - What scaling strategy is appropriate?
-   - What runbooks and documentation are needed?
-
-   **Status Field**: Use valid status values only. See `.cig/docs/workflow/workflow-steps.md#status-values`.
-
-7. **Check Decomposition Signals**: Review 5 universal signals (if maintenance tasks are complex)
-8. **Suggest Next Steps**:
-   - **Primary**: Task is complete, ready for retrospective → `/cig-retrospective <task-path>`
-   - **Alternative**: Create follow-up tasks for identified improvements
-   - **Alternative**: Update monitoring if new issues discovered
+**Step 8 (Next Steps)**:
+- **Primary**: Task complete, ready for retrospective → `/cig-retrospective <task-path>`
+- **Alt**: Create follow-up tasks for identified improvements
 
 ## Success Criteria
 - [ ] Maintenance file opened and updated
 - [ ] Monitoring and alerting configured
 - [ ] Maintenance schedule defined
 - [ ] Common issues documented with resolutions
-- [ ] Incident response procedures established
-- [ ] Performance optimisation strategy defined
-- [ ] Runbooks and documentation created
 - [ ] Next steps suggested
