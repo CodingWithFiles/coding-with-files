@@ -4,6 +4,93 @@ Future tasks and improvements for the Code Implementation Guide system.
 
 ---
 
+## Task: Test Context Injection Syntax in SKILL.md Format
+
+**Task-Type**: discovery
+**Priority**: High
+**Status**: Follow-up from Task 54 retrospective
+
+Test whether CIG's context injection syntax (`!{bash}` blocks and `` ! ` `` backtick syntax) works in SKILL.md format. CIG commands rely on these extensively for dynamic context loading (e.g., `!{bash} .cig/scripts/command-helpers/context-manager location`). If they don't work in SKILL.md, the skill conversion path needs an alternative approach.
+
+**Scope**:
+- Create a test skill in `.claude/skills/` that uses `!{bash}` to run a simple command
+- Create a test skill that uses `` ! ` `` backtick syntax for inline context
+- Verify both syntaxes work when the skill is invoked via `/`
+- Document any differences in behaviour between commands and skills
+
+**Acceptance Criteria**:
+- [ ] `!{bash}` syntax tested in SKILL.md (works / doesn't work / partially works)
+- [ ] `` ! ` `` backtick syntax tested in SKILL.md (works / doesn't work / partially works)
+- [ ] Results documented with evidence (screenshots or transcript excerpts)
+- [ ] If syntax doesn't work, alternative approaches identified
+
+**Estimate**: < 1 hour
+**Identified in**: Task 54 retrospective (j-retrospective.md)
+
+---
+
+## Task: Refactor CIG Commands for Progressive Disclosure
+
+**Task-Type**: chore
+**Priority**: High
+**Status**: Follow-up from Task 54 retrospective
+**Depends on**: "Test Context Injection Syntax in SKILL.md Format" (must pass)
+
+CIG's 17 commands embed full workflow instructions inline (scope boundaries, argument parsing, 8-9 step workflows, success criteria). This bloat means skill conversion would auto-load ~26k+ tokens into context before conversation starts (#14851). Commands should be refactored to be thin dispatchers that reference `.cig/docs/` for the bulk of their instructions.
+
+**Problems**:
+1. Each command is 80-150+ lines of inline instructions
+2. Converting as-is to skills would cause massive context pollution
+3. Duplicate content across commands (argument parsing, task resolution, status field guidance)
+4. Progressive disclosure pattern not applied — commands dump everything upfront
+
+**Solution**:
+- Extract shared patterns (argument parsing, task resolution, status guidance) into `.cig/docs/` reference files
+- Reduce each command to a thin dispatcher: context references + step list + success criteria
+- Target: each command/skill file under 30-40 lines
+- Shared instruction blocks referenced via `!{bash}` or file includes
+
+**Acceptance Criteria**:
+- [ ] All 17 commands refactored to thin dispatcher pattern
+- [ ] Shared instructions extracted to `.cig/docs/` reference files
+- [ ] Each command file under 40 lines
+- [ ] All commands still function correctly after refactoring
+- [ ] Token consumption measured before/after
+
+**Estimate**: 2-3 days
+**Identified in**: Task 54 retrospective (j-retrospective.md)
+
+---
+
+## Task: Convert CIG Commands to Skills
+
+**Task-Type**: feature
+**Priority**: High
+**Status**: Follow-up from Task 54 retrospective
+**Depends on**: "Refactor CIG Commands for Progressive Disclosure" (must complete)
+
+Convert CIG's refactored commands from `.claude/commands/cig-*.md` to `.claude/skills/cig-*/SKILL.md` format. This uses skills-only mode (not plugin mode), avoiding Bug #17688 (hooks broken in plugins).
+
+**Scope**:
+- Convert each refactored command to SKILL.md format in `.claude/skills/`
+- Add appropriate frontmatter fields (`name`, `description`, `user-invocable`, `allowed-tools`, `disable-model-invocation` where appropriate)
+- Test each skill individually
+- Run in parallel with commands during validation period
+- Deprecate command files once skills proven stable
+
+**Acceptance Criteria**:
+- [ ] All CIG commands converted to skills in `.claude/skills/`
+- [ ] Each skill has correct frontmatter (name, description, user-invocable, allowed-tools)
+- [ ] `disable-model-invocation: true` set on skills that should not auto-load
+- [ ] All skills functional and tested
+- [ ] Token consumption within acceptable limits (measured)
+- [ ] Parallel operation confirmed (skills and commands coexist without conflict)
+
+**Estimate**: 2-3 days
+**Identified in**: Task 54 retrospective (j-retrospective.md)
+
+---
+
 ## Task: Document Dead Code Audit Methodology
 
 **Task-Type**: chore
@@ -974,9 +1061,24 @@ Create automated migration tools to upgrade existing v2.0 tasks (a-plan.md throu
 ## Task: Migrate CIG to Hybrid Plugin Model (Commands → Skills + Plugin)
 
 **Task-Type**: feature
-**Priority**: High
+**Priority**: Medium *(downgraded from High — see Task 54 update below)*
 
-Migrate CIG from commands-based architecture to hybrid plugin model (plugin with skills), as recommended by Task 16's decision matrix scoring but not implemented due to post-hoc rationalization.
+Migrate CIG from commands-based architecture to hybrid plugin model (plugin with skills), as recommended by Task 16's decision matrix scoring but not implemented due to risk-adjusted thinking.
+
+**CRITICAL UPDATE — Task 54 Findings (2026-02-12)**:
+
+Task 54 (Discovery: Assess current 2026 W6 skills and plugin standards) found critical blockers that invalidate migration prerequisites:
+
+1. **Bug #17688**: Frontmatter hooks in SKILL.md don't trigger within plugins. This is the single most important finding — it invalidates the primary value proposition of plugin migration (hooks automation). Community traced root cause to different loader functions for plugin vs local components. Affects both inline and marketplace plugins.
+2. **Bug #22087**: SubagentStop hook failure (34 upvotes, 16 comments). Agents complete work but fail on termination. Blocks multi-agent orchestration, which CIG uses extensively.
+3. **No deprecation signal**: Task 54 found no evidence that commands are deprecated. Commands are merged into skills in v2.1.3 and continue to work. The assumption below that "commands are deprecated" is **not supported by evidence**.
+4. **Task 54 recommendation**: Keep Commands, 85% confidence. Decision matrix (4 options × 8 weighted criteria) reaffirmed Task 16's adjusted recommendation.
+
+**Prerequisite added**: Bug #17688 must be resolved before migration can proceed.
+**Review trigger**: Q3 2026 or when Bug #17688 is fixed, whichever comes first.
+**See**: `implementation-guide/54-discovery-assess-current-2026-w6-skills-and-plugin-stds/f-implementation-exec.md` for full research.
+
+---
 
 **Context - Task 16 Decision Matrix**:
 
@@ -986,15 +1088,15 @@ Task 16 (Discovery: Investigate skills configuration and integration) evaluated 
 - Plugin (skills-only): 39/75
 - Skills-Only: 37/75
 
-**The Issue**: Despite Hybrid Plugin scoring highest, Task 16's recommendation was "Keep Commands" based on "risk-adjusted thinking" (reversibility, migration risk, uncertain hooks value). During retrospective discussion, it was acknowledged that this was **post-hoc rationalization** - the lower-scoring option was selected due to implementation focus bias, not objective analysis. The retrospective even documents: "Highest score (Hybrid Plugin 55/75) ≠ Recommended option (Keep Commands 47/75)".
+**The Issue**: Despite Hybrid Plugin scoring highest, Task 16's recommendation was "Keep Commands" based on "risk-adjusted thinking" (reversibility, migration risk, uncertain hooks value). During retrospective discussion, it was acknowledged that this may have been **post-hoc rationalization** - the lower-scoring option was selected due to implementation focus bias. However, Task 54's independent research reaffirmed the "Keep Commands" recommendation with additional evidence (Bug #17688, no deprecation signal, community consensus).
 
-**Why This Decision Needs Revisiting**:
+**Why This Decision Needs Revisiting** *(original rationale, partially invalidated by Task 54)*:
 
-The landscape has changed significantly since Task 16 (2026-01-14):
-1. **Commands are deprecated**: Anthropic is focusing on skills, commands looking increasingly legacy
-2. **Task 11 blocked by unfixable bug**: Claude Code's `$ARGUMENTS` expansion bug (unbalanced sigils with special characters) prevents secure argument passing to commands. Reported to Anthropic but sitting unanswered because commands are deprecated.
-3. **Hybrid Plugin avoids the bug**: Skills don't use `!{path} $ARGUMENTS` pattern, bypassing the security issue entirely
-4. **"Safety" of Keep Commands was illusory**: The rationale for choosing Keep Commands (safety, reversibility) no longer holds when the platform is deprecating commands
+~~The landscape has changed significantly since Task 16 (2026-01-14):~~
+1. ~~**Commands are deprecated**: Anthropic is focusing on skills, commands looking increasingly legacy~~ **Task 54 found no deprecation signal. Commands merged into skills in v2.1.3 and continue to work.**
+2. **Task 11 blocked by unfixable bug**: Claude Code's `$ARGUMENTS` expansion bug (unbalanced sigils with special characters) prevents secure argument passing to commands. Reported to Anthropic but sitting unanswered. *(Still valid — but skills migration blocked by Bug #17688)*
+3. ~~**Hybrid Plugin avoids the bug**: Skills don't use `!{path} $ARGUMENTS` pattern, bypassing the security issue entirely~~ **True, but plugin hooks are broken (#17688), so the primary benefit is unavailable.**
+4. ~~**"Safety" of Keep Commands was illusory**: The rationale for choosing Keep Commands (safety, reversibility) no longer holds when the platform is deprecating commands~~ **Task 54 confirmed Keep Commands remains safe — no deprecation signal found.**
 
 **The Decision Matrix Was Right**: Hybrid Plugin scored highest for good reasons:
 - Hooks provide automation value (SessionStart, PreToolUse, PostToolUse)
