@@ -4,31 +4,6 @@ Future tasks and improvements for the Code Implementation Guide system.
 
 ---
 
-## Task: Test Context Injection Syntax in SKILL.md Format
-
-**Task-Type**: discovery
-**Priority**: High
-**Status**: Follow-up from Task 54 retrospective
-
-Test whether CIG's context injection syntax (`!{bash}` blocks and `` ! ` `` backtick syntax) works in SKILL.md format. CIG commands rely on these extensively for dynamic context loading (e.g., `!{bash} .cig/scripts/command-helpers/context-manager location`). If they don't work in SKILL.md, the skill conversion path needs an alternative approach.
-
-**Scope**:
-- Create a test skill in `.claude/skills/` that uses `!{bash}` to run a simple command
-- Create a test skill that uses `` ! ` `` backtick syntax for inline context
-- Verify both syntaxes work when the skill is invoked via `/`
-- Document any differences in behaviour between commands and skills
-
-**Acceptance Criteria**:
-- [ ] `!{bash}` syntax tested in SKILL.md (works / doesn't work / partially works)
-- [ ] `` ! ` `` backtick syntax tested in SKILL.md (works / doesn't work / partially works)
-- [ ] Results documented with evidence (screenshots or transcript excerpts)
-- [ ] If syntax doesn't work, alternative approaches identified
-
-**Estimate**: < 1 hour
-**Identified in**: Task 54 retrospective (j-retrospective.md)
-
----
-
 ## Task: Refactor CIG Commands for Progressive Disclosure
 
 **Task-Type**: chore

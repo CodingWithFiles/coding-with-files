@@ -2,6 +2,34 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 55: Test Context Injection Syntax in SKILL.md Format
+
+**Status**: Complete (2026-02-12)
+**Duration**: ~30 minutes (vs. <1 hour estimated = -50% variance)
+**Impact**: Discovery — Empirically confirmed that `!{bash}` and `!` path shorthand context injection syntaxes are commands-only features that do not work in SKILL.md files.
+
+### Problem Addressed
+
+Task 54 flagged context injection syntax as "unverified in SKILL.md format" — a key unknown blocking the command-to-skill migration decision. Rather than relying on documentation (which doesn't mention this limitation), this task tested it empirically.
+
+### Key Findings
+
+1. **`!{bash}` block syntax**: FAIL — raw literal text in skill prompt, not expanded
+2. **`!` path shorthand**: FAIL — raw literal text in skill prompt, not expanded
+3. **Root cause**: Context injection is a feature of the `.claude/commands/` loader, not the `.claude/skills/` loader
+4. **Silent failure**: No error or warning — injection syntax passes through as literal text
+5. **Alternative approaches**: 4 identified; recommended: `allowed-tools` with Bash + thin skill + doc reference (runtime tool calls instead of prompt-time expansion)
+
+### Test Results
+
+- 6 test cases: 4 FAIL (injection syntax), 2 PASS (cleanup, isolation)
+- 100% coverage of identified injection patterns
+
+### BACKLOG Items Affected
+
+- **Completed**: "Test Context Injection Syntax in SKILL.md Format"
+- **Informed**: "Refactor CIG Commands for Progressive Disclosure" and "Convert CIG Commands to Skills" — now know that skill conversion requires runtime tool calls, not injection syntax
+
 ## Task 54: Assess Current 2026 W6 Skills and Plugin Standards
 
 **Status**: Complete (2026-02-12)
