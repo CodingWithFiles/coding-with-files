@@ -84,8 +84,9 @@ ${ARGUMENTS%% *}  # Extract first word before space
 ```
 
 ## Status
-**Status**: Finished
-**Next Action**: Task complete - retrospective documented in h-retrospective.md
+**Status**: Cancelled
+**Cancellation Reason**: Superseded by Task 57 — commands converted to skills, bypassing the $ARGUMENTS parsing bug entirely
+**Next Action**: None
 **Blockers**: None
 
 ## Actual Results

@@ -98,7 +98,7 @@ sub calculate_progress {
             my $status = TaskState::status_extract($file->{path});
             my $pct = TaskState::status_percent($status);
 
-            if ($pct == 0 && $status ne "Unknown" && $status !~ /^(Backlog|To-Do)$/i) {
+            if ($pct == 0 && $status ne "Unknown" && $status !~ /^(Backlog|To-Do|Cancelled)$/i) {
                 my $filename = "$dir/" . $file->{name};
                 print STDERR "Warning: Unknown status \"$status\" in $filename\n";
             }

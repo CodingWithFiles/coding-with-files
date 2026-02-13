@@ -138,9 +138,10 @@
 - **Rollout phase**: Deploy updated command files, monitor for any issues in production usage
 
 ## Status
-**Status**: Blocked
-**Next Action**: Waiting on Task 32 (inference-based context) - architectural shift away from argument passing
-**Blockers**: Cannot complete retrospective until task unblocked and implementation finalized
+**Status**: Cancelled
+**Cancellation Reason**: Superseded by Task 57 — commands converted to skills, bypassing the $ARGUMENTS parsing bug entirely
+**Next Action**: None
+**Blockers**: None
 
 ## Archived Materials
 - **Planning**: `implementation-guide/11-bugfix-only-pass-needed-args-to-scripts/a-plan.md`

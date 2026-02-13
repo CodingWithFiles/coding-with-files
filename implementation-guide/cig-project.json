@@ -74,6 +74,7 @@
       "Implemented": 50,
       "Testing": 75,
       "Finished": 100,
+      "Cancelled": 0,
       "Skipped": null
     }
   },

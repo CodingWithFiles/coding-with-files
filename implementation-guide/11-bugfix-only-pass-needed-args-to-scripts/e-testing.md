@@ -102,9 +102,10 @@ Validate that all 8 CIG workflow commands safely handle arbitrary user input (in
 - [x] Multiple/leading spaces handled robustly (✓ TC-7 passed)
 
 ## Status
-**Status**: Blocked
-**Next Action**: Waiting on Task 32 (inference-based context) - architectural shift away from argument passing
-**Blockers**: Implementation blocked; testing cannot complete until implementation unblocked
+**Status**: Cancelled
+**Cancellation Reason**: Superseded by Task 57 — commands converted to skills, bypassing the $ARGUMENTS parsing bug entirely
+**Next Action**: None
+**Blockers**: None
 
 ## Actual Results
 ### Tests Completed

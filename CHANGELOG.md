@@ -2,6 +2,35 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 58: Add Cancelled Status to Workflow System
+
+**Status**: Complete (2026-02-13)
+**Duration**: ~30 minutes (vs. <1 hour estimated = on target)
+**Impact**: Bugfix — Added "Cancelled" as a terminal status value (0%) for tasks that are abandoned or superseded.
+
+### Problem Addressed
+
+Task 11 (secure argument parsing) was superseded by Task 57 (commands→skills) but had no appropriate status value. "Blocked" was inaccurate (it wasn't waiting on anything) and "Finished" was wrong (it never achieved its goals). A "Cancelled" terminal status was needed.
+
+### Key Changes
+
+1. **Added `"Cancelled": 0`** to `cig-project.json` status-values
+2. **Updated `TaskState.pm`**: Renamed `_is_blocked_or_finished` → `_is_terminal`, added Cancelled to terminal check and default map
+3. **Updated both aggregators** (v2.0 and v2.1): Warning regex exempts Cancelled from "unknown 0% status" warnings
+4. **Updated `workflow-steps.md`**: Documented Cancelled in Valid Status Values section
+5. **Cancelled Task 11**: All 5 workflow files set to Cancelled with reason "Superseded by Task 57"
+
+### Test Results
+
+- 12 test cases: 10 functional + 2 regression, all PASS
+- 0 failures, 0 deviations from plan
+
+### BACKLOG Items Affected
+
+- **Removed**: "Rollout Task 11 - Secure Argument Parsing" (superseded)
+
+---
+
 ## Task 57: Convert CIG Commands to Skills
 
 **Status**: Complete (2026-02-13)

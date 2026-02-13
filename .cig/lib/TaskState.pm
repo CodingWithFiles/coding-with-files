@@ -26,6 +26,7 @@ my %DEFAULT_STATUS_MAP = (
     'Blocked'     => 15,
     'To-Do'       => 0,
     'Backlog'     => 0,
+    'Cancelled'   => 0,
 );
 
 # Cache for status map loaded from config
@@ -135,7 +136,7 @@ sub state_achievable {
     my @statuses = _get_all_statuses($task_dir);
     return 0 unless @statuses;
 
-    my $blocked_count = grep { _is_blocked_or_finished($_) } @statuses;
+    my $blocked_count = grep { _is_terminal($_) } @statuses;
     my $active_count = grep { _is_active_work($_) } @statuses;
     my $total_count = scalar(@statuses);
 
@@ -306,10 +307,10 @@ sub _get_all_statuses {
     return @statuses;
 }
 
-# Check if status indicates blocked or finished (no work possible)
-sub _is_blocked_or_finished {
+# Check if status indicates no work is possible (terminal state)
+sub _is_terminal {
     my ($status) = @_;
-    return ($status eq 'Blocked' || $status eq 'Finished');
+    return ($status eq 'Blocked' || $status eq 'Finished' || $status eq 'Cancelled');
 }
 
 # Check if status indicates active work (In Progress, Testing, Implemented)

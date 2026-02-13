@@ -1491,19 +1491,7 @@ Remove decomposition check steps from all workflow command files except cig-plan
 
 ---
 
-## Task: Rollout Task 11 - Secure Argument Parsing
-
-**Task-Type**: chore
-**Priority**: Blocked (was High)
-**Status**: BLOCKED - Cannot rollout until skills migration completes
-
-**Blocker**: Task 11 is blocked at 25% completion. The secure argument parsing work discovered an unfixable `$ARGUMENTS` bug in Claude Code's command system (special characters cause security vulnerabilities). Commands are deprecated by Anthropic. Task 11 cannot be completed or rolled out until "Migrate CIG to Hybrid Plugin Model" task completes, which will convert commands to skills and bypass the `$ARGUMENTS` bug entirely.
-
-**Original Intent**: Deploy updated CIG command files with secure argument parsing pattern. All 8 workflow commands (cig-plan, cig-requirements, cig-design, cig-implementation, cig-testing, cig-rollout, cig-maintenance, cig-retrospective) have been updated with LLM-level format validation to prevent command injection. Changes are on branch `bugfix/11-only-pass-needed-args-to-scripts`.
-
-**Unblock Strategy**: Complete "Migrate CIG to Hybrid Plugin Model" task first (see BACKLOG entry above), then resume Task 11 with skills architecture.
-
----
+<!-- Removed: "Rollout Task 11 - Secure Argument Parsing" — Task 11 cancelled (superseded by Task 57, commands→skills bypasses $ARGUMENTS bug entirely). Removed in Task 58 retrospective. -->
 
 ## Task: Security Review and Hardening of CIG Bash Invocations
 
@@ -1543,6 +1531,22 @@ Consolidate exit codes across all CIG helper scripts to use errno-compatible val
 - 22 = EINVAL (Invalid argument) - for validation errors
 
 Scripts to update: hierarchy-resolver, context-inheritance, status-aggregator, format-detector, template-version-parser, and any future helper scripts. Update documentation in script headers and `.cig/docs/` to reflect standard.
+
+---
+
+## Task: Surface Task-Level Status Label in Status Summary Line
+
+**Task-Type**: feature
+**Priority**: Low
+**Status**: Follow-up from Task 58
+
+The status-aggregator summary line shows only the percentage (e.g., `- 11 (bugfix): ... - 0%`), with no status label. A Cancelled task at 0% looks identical to a Backlog task at 0%. The `--workflow` flag shows per-file status labels, but the top-level summary line does not surface the dominant or consensus status.
+
+**Proposed change**: When all workflow files share the same status (e.g., all "Cancelled"), append it to the summary line: `- 11 (bugfix): ... - 0% [Cancelled]`. When mixed, either show the lowest-progress status or omit.
+
+**Scope**: Both `status-aggregator-v2.0` and `status-aggregator-v2.1`. Affects markdown and JSON output modes.
+
+**Identified in**: Task 58 retrospective (j-retrospective.md)
 
 ---
 

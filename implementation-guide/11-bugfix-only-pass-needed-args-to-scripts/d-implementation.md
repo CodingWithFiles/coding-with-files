@@ -167,9 +167,10 @@ Follow the 8-step workflow structure:
 - [ ] No bash parsing errors occur
 
 ## Status
-**Status**: Blocked
-**Next Action**: Waiting on Task 32 (inference-based context) - architectural shift away from argument passing
-**Blockers**: Claude Code Skills cannot easily pass arguments; product direction shifted to OOB state inference
+**Status**: Cancelled
+**Cancellation Reason**: Superseded by Task 57 — commands converted to skills, bypassing the $ARGUMENTS parsing bug entirely
+**Next Action**: None
+**Blockers**: None
 
 ## Actual Results
 ### Discovery & Design Process
