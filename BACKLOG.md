@@ -5,33 +5,41 @@ Future tasks and improvements for the Code Implementation Guide system.
 ---
 
 <!-- Completed: "Refactor CIG Commands for Progressive Disclosure" — Task 56 (2026-02-12) -->
+<!-- Completed: "Convert CIG Commands to Skills" — Task 57 (2026-02-13) -->
 
-## Task: Convert CIG Commands to Skills
+## Task: Update Branding and Documentation for Skills Architecture
 
-**Task-Type**: feature
+**Task-Type**: chore
 **Priority**: High
-**Status**: Follow-up from Task 54 retrospective
-**Depends on**: "Refactor CIG Commands for Progressive Disclosure" (must complete)
+**Status**: Follow-up from Task 57
+**Depends on**: Skills architecture stability confirmed across several tasks
 
-Convert CIG's refactored commands from `.claude/commands/cig-*.md` to `.claude/skills/cig-*/SKILL.md` format. This uses skills-only mode (not plugin mode), avoiding Bug #17688 (hooks broken in plugins).
+CLAUDE.md still references "commands" terminology and lists `/cig-*` as commands. Update all documentation to reflect the skills architecture: CLAUDE.md, README.md, any docs referencing `.claude/commands/`.
 
 **Scope**:
-- Convert each refactored command to SKILL.md format in `.claude/skills/`
-- Add appropriate frontmatter fields (`name`, `description`, `user-invocable`, `allowed-tools`, `disable-model-invocation` where appropriate)
-- Test each skill individually
-- Run in parallel with commands during validation period
-- Deprecate command files once skills proven stable
+- Update CLAUDE.md command references to skills
+- Update any user-facing documentation
+- Verify no stale references to `.claude/commands/` path
+- Advance main once documentation is current
 
-**Acceptance Criteria**:
-- [ ] All CIG commands converted to skills in `.claude/skills/`
-- [ ] Each skill has correct frontmatter (name, description, user-invocable, allowed-tools)
-- [ ] `disable-model-invocation: true` set on skills that should not auto-load
-- [ ] All skills functional and tested
-- [ ] Token consumption within acceptable limits (measured)
-- [ ] Parallel operation confirmed (skills and commands coexist without conflict)
+**Identified in**: Task 57 retrospective (j-retrospective.md)
 
-**Estimate**: 2-3 days
-**Identified in**: Task 54 retrospective (j-retrospective.md)
+---
+
+## Task: Lightweight Rollout/Maintenance Templates for Internal Tasks
+
+**Task-Type**: chore
+**Priority**: Low
+**Status**: Follow-up from Task 57
+
+The rollout and maintenance templates are designed for production services (phased rollout, SLA monitoring, incident response). Internal tooling tasks waste time filling in inapplicable sections. Create lightweight variants.
+
+**Scope**:
+- Create "internal" variants of h-rollout.md and i-maintenance.md templates
+- Reduce to relevant sections (deployment strategy, known issues, architecture reference)
+- Template selection during `/cig-new-task` based on project type or explicit flag
+
+**Identified in**: Task 57 retrospective (j-retrospective.md — i-maintenance.md lessons learned)
 
 ---
 

@@ -1,7 +1,12 @@
 ---
+name: cig-retrospective
 description: Guide user through retrospective phase
-argument-hint: {task-path}
-allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/*:*), Bash(git rev-parse:*), Bash(git branch:*), Bash(git add:*), Bash(git commit:*), Bash(git reset:*), Bash(git log:*)
+user-invocable: true
+allowed-tools:
+  - Read
+  - Write
+  - Edit
+  - Bash
 ---
 
 ## Scope & Boundaries
@@ -13,20 +18,19 @@ allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/*:*), Bash(g
 ## Context
 
 **Task arguments**: {arguments}
-**Current task/workflow**: !/current-task-wf
+**Current task/workflow**: Run `.cig/scripts/command-helpers/task-context-inference` using the Bash tool.
 
-!{bash}
-.cig/scripts/command-helpers/context-manager location
+**First**: Run `.cig/scripts/command-helpers/context-manager location` using the Bash tool to confirm git root.
 
 ## Workflow
 
-**Pre-Step**: Verify git branch. Read `.cig/docs/commands/retrospective-extras.md#verify-git-branch` — must be on task branch before proceeding.
+**Pre-Step**: Verify git branch. Read `.cig/docs/skills/retrospective-extras.md#verify-git-branch` — must be on task branch before proceeding.
 
-**Steps 1-4 (Preamble)**: Read `.cig/docs/commands/workflow-preamble.md` and follow Steps 1-4. Also read all task workflow files for retrospective context.
+**Steps 1-4 (Preamble)**: Read `.cig/docs/skills/workflow-preamble.md` and follow Steps 1-4. Also read all task workflow files for retrospective context.
 
 **Step 5**: Read `.cig/docs/workflow/workflow-steps.md#retrospective` for detailed retrospective guidance.
 
-**Step 6**: Verify task status. Read `.cig/docs/commands/retrospective-extras.md#verify-task-status`. All phases must be "Finished" (100%) before retrospective.
+**Step 6**: Verify task status. Read `.cig/docs/skills/retrospective-extras.md#verify-task-status`. All phases must be "Finished" (100%) before retrospective.
 
 **Step 7 (Execute)**:
 - Open j-retrospective.md
@@ -34,9 +38,9 @@ allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/*:*), Bash(g
 - Extract planning data from a-task-plan.md, gather actual results, calculate variances
 - Update Actual Results and Lessons Learned sections in ALL workflow files
 
-**Step 8**: Update CHANGELOG.md and BACKLOG.md. Read `.cig/docs/commands/retrospective-extras.md#changelogmd-and-backlogmd-update` for the full workflow.
+**Step 8**: Update CHANGELOG.md and BACKLOG.md. Read `.cig/docs/skills/retrospective-extras.md#changelogmd-and-backlogmd-update` for the full workflow.
 
-**Step 9**: Create checkpoints branch and squash. Read `.cig/docs/commands/retrospective-extras.md#checkpoints-branch-and-squash` for the full workflow.
+**Step 9**: Create checkpoints branch and squash. Read `.cig/docs/skills/retrospective-extras.md#checkpoints-branch-and-squash` for the full workflow.
 
 **Step 10 (Next Steps)**:
 - **Primary**: Merge to main → `git checkout main && git merge --ff-only <task-branch>`

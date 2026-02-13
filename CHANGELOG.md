@@ -2,6 +2,35 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 57: Convert CIG Commands to Skills
+
+**Status**: Complete (2026-02-13)
+**Duration**: ~6-7 hours active (vs. 2-3 days estimated = -60% to -75% variance)
+**Impact**: Feature — Migrated all 17 CIG commands from `.claude/commands/` to `.claude/skills/` format, adopting the skills system for better tool permission control and eliminating injection syntax.
+
+### Problem Addressed
+
+CIG commands used `!{bash}` and `!/path` context injection syntax which doesn't work in skills (Task 55 confirmed this empirically). Commands needed conversion to skills format with runtime tool call instructions to adopt the newer architecture and fix FR8 (permission error regression from injection syntax).
+
+### Key Changes
+
+1. **Converted 17 commands to skills** in `.claude/skills/cig-*/SKILL.md` with YAML frontmatter
+2. **Replaced all context injection** with 3 patterns: Pattern A (context-manager location), Pattern B (task-context-inference), Pattern C (skill-specific mandatory instructions)
+3. **Accounted for all 15 Pattern C injections**: 10 converted to runtime instructions, 5 removed as provably redundant
+4. **Renamed shared docs** from `.cig/docs/commands/` to `.cig/docs/skills/`
+5. **Fixed `cig-current-task`** pre-existing skill — added missing YAML frontmatter
+6. **Deleted all 17 command files** — clean cutover, no parallel operation
+
+### Test Results
+
+- 14 test cases: 12 PASS, 2 conditional PASS (token budget 930 vs 850 target — accepted trade-off)
+- 0 functional or regression failures
+- All 18 skills have valid frontmatter (18/18)
+
+### BACKLOG Items Affected
+
+- **Completed**: "Convert CIG Commands to Skills"
+
 ## Task 56: Refactor CIG Commands for Progressive Disclosure
 
 **Status**: Complete (2026-02-12)

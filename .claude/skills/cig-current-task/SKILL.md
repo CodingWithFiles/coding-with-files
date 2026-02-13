@@ -1,10 +1,10 @@
-# cig-current-task
-
-Manage the current task stack for context tracking.
-
-## Metadata
-- user-invocable: true
-- skill-version: 1.0
+---
+name: cig-current-task
+description: Manage the current task stack for context tracking
+user-invocable: true
+allowed-tools:
+  - Bash
+---
 
 ## Your task
 

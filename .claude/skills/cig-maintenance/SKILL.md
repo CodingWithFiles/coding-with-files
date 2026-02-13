@@ -1,7 +1,12 @@
 ---
+name: cig-maintenance
 description: Guide user through maintenance phase
-argument-hint: {task-path}
-allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/*:*), Bash(git rev-parse:*)
+user-invocable: true
+allowed-tools:
+  - Read
+  - Write
+  - Edit
+  - Bash
 ---
 
 ## Scope & Boundaries
@@ -13,14 +18,13 @@ allowed-tools: Read, Write, Edit, Bash(.cig/scripts/command-helpers/*:*), Bash(g
 ## Context
 
 **Task arguments**: {arguments}
-**Current task/workflow**: !/current-task-wf
+**Current task/workflow**: Run `.cig/scripts/command-helpers/task-context-inference` using the Bash tool.
 
-!{bash}
-.cig/scripts/command-helpers/context-manager location
+**First**: Run `.cig/scripts/command-helpers/context-manager location` using the Bash tool to confirm git root.
 
 ## Workflow
 
-**Steps 1-4 (Preamble)**: Read `.cig/docs/commands/workflow-preamble.md` and follow Steps 1-4 (argument parsing, task resolution, parent context, LLM decision).
+**Steps 1-4 (Preamble)**: Read `.cig/docs/skills/workflow-preamble.md` and follow Steps 1-4 (argument parsing, task resolution, parent context, LLM decision).
 
 **Step 5**: Read `.cig/docs/workflow/workflow-steps.md#maintenance` for detailed maintenance phase guidance.
 
