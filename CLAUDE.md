@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Status
 
-The Code Implementation Guide (CIG) system v2.0 is **implemented and operational**. Core functionality includes:
+The Coding with Files (CWF) system v2.0 is **implemented and operational**. Core functionality includes:
 - Hierarchical workflow system with 8 structured steps (a-plan through h-retrospective)
 - Infinite task nesting via decimal numbering (1, 1.1, 1.1.1, ...)
 - Token-efficient context inheritance (~90% reduction via structural maps)
@@ -14,33 +14,33 @@ The Code Implementation Guide (CIG) system v2.0 is **implemented and operational
 
 ## Development Commands
 
-### CIG System Commands
+### CWF System Commands
 - **Build**: Not applicable (documentation system)
 - **Test**: Manual validation through command execution
-- **Lint**: File integrity via `/cig-security-check`
+- **Lint**: File integrity via `/cwf-security-check`
 
-### Available CIG Commands
+### Available CWF Commands
 
 **Core Commands (v2.0)**:
-- `/cig-init` - Initialize CIG system
-- `/cig-new-task <num> <type> "description"` - Create hierarchical implementation guide (breaking change from v1.0)
-- `/cig-subtask <parent-path> <num> <type> "description"` - Create subtask with context inheritance (breaking change)
-- `/cig-status [task-path]` - Show hierarchical progress
-- `/cig-extract <task-path> <section-name>` - Extract sections (task-based, backward compatible)
+- `/cwf-init` - Initialize CWF system
+- `/cwf-new-task <num> <type> "description"` - Create hierarchical implementation guide (breaking change from v1.0)
+- `/cwf-subtask <parent-path> <num> <type> "description"` - Create subtask with context inheritance (breaking change)
+- `/cwf-status [task-path]` - Show hierarchical progress
+- `/cwf-extract <task-path> <section-name>` - Extract sections (task-based, backward compatible)
 
 **Workflow Commands (v2.0 - New)**:
-- `/cig-plan <task-path>` - Planning phase
-- `/cig-requirements <task-path>` - Requirements phase
-- `/cig-design <task-path>` - Design phase
-- `/cig-implementation <task-path>` - Implementation phase
-- `/cig-testing <task-path>` - Testing phase
-- `/cig-rollout <task-path>` - Rollout phase
-- `/cig-maintenance <task-path>` - Maintenance phase
-- `/cig-retrospective <task-path>` - Retrospective phase
+- `/cwf-plan <task-path>` - Planning phase
+- `/cwf-requirements <task-path>` - Requirements phase
+- `/cwf-design <task-path>` - Design phase
+- `/cwf-implementation <task-path>` - Implementation phase
+- `/cwf-testing <task-path>` - Testing phase
+- `/cwf-rollout <task-path>` - Rollout phase
+- `/cwf-maintenance <task-path>` - Maintenance phase
+- `/cwf-retrospective <task-path>` - Retrospective phase
 
 **Utility Commands**:
-- `/cig-security-check [verify|report]` - Verify system integrity
-- `/cig-config [init|list|reset]` - Configure CIG system
+- `/cwf-security-check [verify|report]` - Verify system integrity
+- `/cwf-config [init|list|reset]` - Configure CWF system
 
 ## Conventions
 
@@ -56,29 +56,29 @@ The Code Implementation Guide (CIG) system v2.0 is **implemented and operational
 
 **Token-Efficient Context Inheritance**: Parent context via structural maps (~50-100 tokens per parent) instead of full file reads (~500-1000 tokens). LLM receives headers, line ranges, and Read tool parameters, then decides what to read in detail. Status markers indicate parent context reliability.
 
-**Central Template Pool with Symlinks**: Single source of truth in `.cig/templates/pool/` with task-type-specific symlinks. Feature tasks get 8 files (a-h), bugfixes get 5 (a,c,d,e,h), hotfixes get 5 (a,d,e,f,h), chores get 4 (a,d,e,h). DRY principle eliminates duplication.
+**Central Template Pool with Symlinks**: Single source of truth in `.cwf/templates/pool/` with task-type-specific symlinks. Feature tasks get 8 files (a-h), bugfixes get 5 (a,c,d,e,h), hotfixes get 5 (a,d,e,f,h), chores get 4 (a,d,e,h). DRY principle eliminates duplication.
 
 **Script-Based Helper System**: Five helper scripts encapsulate deterministic operations - hierarchy resolution, format detection, status aggregation, version parsing, context inheritance (Perl-based). LLM focuses on intelligence, scripts handle file system traversal.
 
-**Progressive Disclosure Pattern**: Commands reference documentation (`.cig/docs/workflow/`) rather than duplicating content. Helper scripts provide structural information, LLM decides what matters. Reduces token consumption while preserving agency.
+**Progressive Disclosure Pattern**: Commands reference documentation (`.cwf/docs/workflow/`) rather than duplicating content. Helper scripts provide structural information, LLM decides what matters. Reduces token consumption while preserving agency.
 
-**Security Model**: u+rx (minimum 0500) permissions, SHA256 verification via `.cig/security/script-hashes.json`, git-based version tracking.
+**Security Model**: u+rx (minimum 0500) permissions, SHA256 verification via `.cwf/security/script-hashes.json`, git-based version tracking.
 
 ## System Integration
 
-- **Helper Scripts**: `.cig/scripts/command-helpers/` with self-documenting names
-- **Configuration**: Hierarchical config system with `cig-project.json`
+- **Helper Scripts**: `.cwf/scripts/command-helpers/` with self-documenting names
+- **Configuration**: Hierarchical config system with `cwf-project.json`
 - **Version Tracking**: Git-based versioning (`v0.1.1-5-gcea1c19` format)
 - **Task Management**: Support for GitHub/GitLab/JIRA with internal fallback
-- **Task Stack**: `.cig/task-stack` file stores current task context (managed via `/cig-current-task`)
+- **Task Stack**: `.cwf/task-stack` file stores current task context (managed via `/cwf-current-task`)
 
 ## File Protection (Advisory)
 
 The following files should not be directly edited with Edit or Write tools. Use the designated commands instead:
 
-### `.cig/task-stack`
+### `.cwf/task-stack`
 - **Purpose**: Tracks current task context as a LIFO stack
 - **Format**: Newline-delimited task dirnames (e.g., `34-feature-add-task-stack-script`)
-- **Use instead**: `/cig-current-task` skill for all operations (push, pop, list, clear)
+- **Use instead**: `/cwf-current-task` skill for all operations (push, pop, list, clear)
 - **Rationale**: Stack operations require atomic file locking (flock) to prevent corruption
 - **Advisory**: If you need to manipulate the stack, use the skill - direct edits may corrupt the file format

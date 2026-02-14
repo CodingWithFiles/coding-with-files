@@ -2,6 +2,36 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 59: Rebrand CIG to CWF (Coding with Files)
+
+**Status**: Complete (2026-02-14)
+**Duration**: ~2 hours (vs. 3-5 hours estimated = under estimate)
+**Impact**: Feature — Full rebrand from "Code Implementation Guide" (CIG) to "Coding with Files" (CWF, pronounced "swiff").
+
+### Key Changes
+
+1. **Structural renames**: `.cig/`→`.cwf/`, 19 skill dirs (`cig-*`→`cwf-*`), 5 helper scripts, `CIG-PROJECT-SPEC.md`→`CWF-PROJECT-SPEC.md`, `cig-project.json`→`cwf-project.json`
+2. **Perl namespace**: `CIG::*`→`CWF::*` across 15 modules. `TaskState` and `TaskContextInference` moved from lib root into `CWF::` namespace.
+3. **Content updates**: All SKILL.md files, root docs (README, CLAUDE.md, COMMANDS.md, DESIGN.md, BACKLOG), internal docs, configs updated
+4. **Security hashes**: Regenerated for all renamed/modified scripts and modules
+5. **README pronunciation**: "CWF is pronounced 'swiff'"
+
+### Preserved Unchanged
+
+- All historical task workflow docs (`implementation-guide/*/`)
+- CHANGELOG.md (append-only history)
+
+### Test Results
+
+- 20 test cases: 5 structural + 2 compilation + 6 content sweep + 3 functional + 4 regression, all PASS
+
+### BACKLOG Items Affected
+
+- **Added**: "Add Delete Task Skill" (High) — from Task 59 misclassification experience
+- **Added**: "Infer Task Type When Not Specified" (Medium) — agent should infer type from complexity
+
+---
+
 ## Task 58: Add Cancelled Status to Workflow System
 
 **Status**: Complete (2026-02-13)

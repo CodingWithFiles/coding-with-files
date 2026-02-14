@@ -24,9 +24,9 @@ This system provides a standardised approach to documenting software implementat
 
 ```
 <project>/implementation-guide/
-├── cig-project.json            # Code Implementation Guide Project configuration
+├── cwf-project.json            # Coding with Files Project configuration
 ├── README.md                   # Navigation and index
-├── .cig/
+├── .cwf/
 │   └── scripts/
 │       └── command-helpers/    # Helper scripts for compound operations
 │           ├── cig-load-autoload-config
@@ -144,7 +144,7 @@ Each document captures both planning and actual results:
 ## Script-Based Command Architecture
 
 ### Helper Scripts System
-To resolve Claude Code permission restrictions with compound bash operations, CIG commands utilise encapsulated helper scripts:
+To resolve Claude Code permission restrictions with compound bash operations, CWF commands utilise encapsulated helper scripts:
 
 #### Script Design Principles
 - **Self-Documenting Names**: Script names explicitly describe their function for LLM clarity
@@ -154,16 +154,16 @@ To resolve Claude Code permission restrictions with compound bash operations, CI
 
 #### Helper Script Functions
 ```
-.cig/scripts/command-helpers/
-├── cig-load-autoload-config         # Loads .cig/autoload.yaml or provides fallback
-├── cig-load-project-config          # Loads implementation-guide/cig-project.json
+.cwf/scripts/command-helpers/
+├── cig-load-autoload-config         # Loads .cwf/autoload.yaml or provides fallback
+├── cig-load-project-config          # Loads implementation-guide/cwf-project.json
 ├── cig-load-existing-tasks          # Discovers all task headers across implementation guide
 ├── cig-find-task-numbering-structure # Finds numbered directories for task sequencing
 └── cig-load-status-sections         # Extracts "Current Status" sections from tasks
 ```
 
 #### Permission Model
-- **Single Pattern**: `Bash(.cig/scripts/*)` allows all helper script execution
+- **Single Pattern**: `Bash(.cwf/scripts/*)` allows all helper script execution
 - **No Compound Operations**: Eliminates permission prompts for complex bash operations
 - **Encapsulated Logic**: Complex operations isolated within individual scripts
 
@@ -217,7 +217,7 @@ The system supports multiple task tracking platforms with fallback mechanisms:
 - **Canonical Source**: Remote Git repository as authoritative reference
 - **Hash Verification**: SHA256 checksums against remote repository
 - **Version Tracking**: Script frontmatter contains version and source information
-- **Security Command**: `/cig-security-check` verifies system integrity
+- **Security Command**: `/cwf-security-check` verifies system integrity
 
 #### Script Frontmatter Format
 ```bash
@@ -232,7 +232,7 @@ The system supports multiple task tracking platforms with fallback mechanisms:
 **Git-Based Versioning**: Scripts use `git describe --tags --always` format (e.g., `v0.1.1-5-gcea1c19`) which provides:
 - **Security Anchor**: Version reflects exact git state when file was last modified
 - **Tamper Detection**: Any modification requires updating the git reference
-- **Integrity Verification**: `/cig-security-check` can verify files against their specific commit
+- **Integrity Verification**: `/cwf-security-check` can verify files against their specific commit
 
 #### Remote Verification Methods
 - **GitHub API**: `curl -H "Accept: application/vnd.github.v3+json" "https://api.github.com/repos/{owner}/{repo}/contents/{path}?ref={ref}"`
@@ -242,10 +242,10 @@ The system supports multiple task tracking platforms with fallback mechanisms:
 ## Workflow Integration
 
 ### Project Setup
-1. Initialise with `/cig-init` command
-2. Configure `cig-project.json` with task management and source control settings
+1. Initialise with `/cwf-init` command
+2. Configure `cwf-project.json` with task management and source control settings
 3. Create categorised directory structure (feature/, bugfix/, hotfix/, chore/)
-4. Update project CLAUDE.md with extraction commands and CIG system hints
+4. Update project CLAUDE.md with extraction commands and CWF system hints
 
 ### Development Process
 1. **Planning Phase**: Focus on plan.md, requirements.md, design.md
@@ -298,14 +298,14 @@ The system supports multiple task tracking platforms with fallback mechanisms:
 ## Implementation Notes
 
 ### Getting Started
-Use Claude Code CIG commands:
-- `/cig-init` - Initialise CIG system with project configuration
-- `/cig-new-task <type> [task-id] <description>` - Create categorised implementation guides
-- `/cig-status [path]` - Show progress across task categories
-- `/cig-extract <file> <section>` - Extract specific document sections
-- `/cig-substep <path> <name>` - Add sub-implementation tasks
-- `/cig-retrospective <path>` - Post-completion analysis and variance tracking
-- `/cig-security-check [verify|report]` - Verify file integrity and sources for CIG system
+Use Claude Code CWF commands:
+- `/cwf-init` - Initialise CWF system with project configuration
+- `/cwf-new-task <type> [task-id] <description>` - Create categorised implementation guides
+- `/cwf-status [path]` - Show progress across task categories
+- `/cwf-extract <file> <section>` - Extract specific document sections
+- `/cwf-substep <path> <name>` - Add sub-implementation tasks
+- `/cwf-retrospective <path>` - Post-completion analysis and variance tracking
+- `/cwf-security-check [verify|report]` - Verify file integrity and sources for CWF system
 
 ### Best Practices
 - Don't modify original estimates after work begins

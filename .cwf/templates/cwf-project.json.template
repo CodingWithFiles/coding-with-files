@@ -1,0 +1,43 @@
+{
+  "title": "Coding with Files Project Configuration",
+  "version": "v0.2.1",
+  "_version-note": "Use git describe --tags --always format for version tracking",
+  "cwf-version": "v0.2.1",
+  "_cwf-version-note": "Should match your project version for consistency",
+  "project": {
+    "name": "Example Project",
+    "description": "Project configuration template for CWF system"
+  },
+  "source-management": {
+    "type": "github",
+    "url": "https://github.com/company/project",
+    "branch-naming-convention": "{task-type}/{task-id}-{task-description}"
+  },
+  "task-management": {
+    "type": "github",
+    "url": "https://github.com/company/project/issues",
+    "task-id-template": "#[::digit::]{1,}",
+    "examples": {
+      "issue": "#123",
+      "pull-request": "#456"
+    }
+  },
+  "supported-task-types": [
+    "feature",
+    "bugfix", 
+    "hotfix",
+    "chore",
+    "docs",
+    "refactor",
+    "test"
+  ],
+  "team": {
+    "default-assignee": "",
+    "reviewers": []
+  },
+  "templates": {
+    "task-reference-format": "standard",
+    "branch-name-max-length": 50,
+    "auto-generate-branch-suggestions": true
+  }
+}

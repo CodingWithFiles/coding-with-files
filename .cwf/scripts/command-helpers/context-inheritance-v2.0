@@ -1,0 +1,283 @@
+#!/usr/bin/perl -CDSL
+#
+# context-inheritance - Extract parent task context with headers, line ranges, and status
+#
+# Usage: context-inheritance <task-path> [--format=json]
+#
+# Examples:
+#   context-inheritance 1.1.1
+#   context-inheritance 1/1.1/1.1.1
+#   context-inheritance 1.1 --format=json
+#
+# Exit codes:
+#   0 - Success
+#   1 - Invalid path
+#   2 - Task not found
+#   3 - No parent tasks (top-level task)
+
+use strict;
+use warnings;
+use File::Basename;
+use FindBin;
+use lib "$FindBin::Bin/../../lib";
+
+use CWF::TaskPath qw(normalize validate build_glob resolve get_parent get_depth find_base_dir);
+use CWF::WorkflowFiles qw(list workflow_file_mappings);
+use CWF::MarkdownParser qw(extract_status);
+
+# Parse arguments
+if (@ARGV < 1) {
+    print STDERR "Error: Missing required argument <task-path>\n";
+    print STDERR "Usage: context-inheritance <task-path> [--format=json]\n";
+    exit 1;
+}
+
+my $task_path = $ARGV[0];
+my $format = "markdown";
+
+if (@ARGV > 1 && $ARGV[1] eq "--format=json") {
+    $format = "json";
+}
+
+# Normalize and validate task path
+$task_path = normalize($task_path);
+
+unless (validate($task_path)) {
+    print STDERR "Error: Invalid task path format: $task_path\n";
+    exit 1;
+}
+
+# Find base directory
+my $base_dir = find_base_dir();
+unless ($base_dir) {
+    print STDERR "Error: Cannot find implementation-guide directory\n";
+    exit 1;
+}
+
+# Resolve task to verify it exists
+my $task_info = resolve($task_path, $base_dir);
+unless ($task_info) {
+    print STDERR "Error: Task not found: $task_path\n";
+    exit 2;
+}
+
+# Check if this is a top-level task
+my $depth = get_depth($task_path);
+if ($depth <= 1) {
+    print STDERR "Error: No parent tasks found (this is a top-level task)\n";
+    exit 3;
+}
+
+# Build list of parent tasks
+my @parent_tasks;
+my @path_parts = split(/\./, $task_path);
+
+for my $d (1 .. $#path_parts) {
+    my $parent_num = join(".", @path_parts[0 .. $d-1]);
+    my $parent_info = resolve($parent_num, $base_dir);
+
+    if ($parent_info) {
+        push @parent_tasks, {
+            num => $parent_num,
+            dir => $parent_info->{full_path}
+        };
+    }
+}
+
+# Function to extract headers with line numbers
+sub extract_headers {
+    my ($file_path) = @_;
+    my @headers;
+
+    open(my $fh, '<', $file_path) or return @headers;
+
+    my $line_num = 0;
+    while (my $line = <$fh>) {
+        $line_num++;
+        if ($line =~ /^(#{1,6})\s+(.+)$/) {
+            my $level = length($1);
+            my $title = $2;
+            $title =~ s/\s+$//;  # trim trailing whitespace
+
+            push @headers, {
+                level => $level,
+                title => $title,
+                line => $line_num
+            };
+        }
+    }
+
+    close($fh);
+    return @headers;
+}
+
+# Function to calculate section boundaries
+sub calculate_boundaries {
+    my ($headers_ref, $total_lines) = @_;
+    my @headers = @$headers_ref;
+    my @sections;
+
+    for my $i (0 .. $#headers) {
+        my $header = $headers[$i];
+        my $start_line = $header->{line};
+        my $end_line;
+
+        # Find next header at same or higher level
+        my $found_end = 0;
+        for my $j ($i+1 .. $#headers) {
+            if ($headers[$j]->{level} <= $header->{level}) {
+                $end_line = $headers[$j]->{line} - 1;
+                $found_end = 1;
+                last;
+            }
+        }
+
+        # If no next header, use end of file
+        $end_line = $total_lines unless $found_end;
+
+        push @sections, {
+            title => $header->{title},
+            level => $header->{level},
+            start => $start_line,
+            end => $end_line
+        };
+    }
+
+    return @sections;
+}
+
+# parse_status is now provided by CWF::MarkdownParser::extract_status
+
+# Function to count lines in file
+sub count_lines {
+    my ($file_path) = @_;
+    open(my $fh, '<', $file_path) or return 0;
+    my $count = 0;
+    $count++ while <$fh>;
+    close($fh);
+    return $count;
+}
+
+# Process each parent task
+my @parent_data;
+
+foreach my $parent (@parent_tasks) {
+    my $parent_dir = $parent->{dir};
+    my $parent_name = basename($parent_dir);
+
+    my @files_data;
+
+    # Check each workflow file using shared mappings
+    my $mappings = workflow_file_mappings();
+    foreach my $wf (@$mappings) {
+        my $file_path;
+        my $file_name;
+
+        # Check new format first, then old format
+        if ($wf->{new} && -f "$parent_dir/$wf->{new}") {
+            $file_path = "$parent_dir/$wf->{new}";
+            $file_name = $wf->{new};
+        } elsif ($wf->{old} && -f "$parent_dir/$wf->{old}") {
+            $file_path = "$parent_dir/$wf->{old}";
+            $file_name = $wf->{old};
+        } else {
+            next;  # File doesn't exist, skip
+        }
+
+        # Extract status using shared library
+        my $status = extract_status($file_path);
+
+        # Extract headers
+        my @headers = extract_headers($file_path);
+
+        # Calculate boundaries
+        my $total_lines = count_lines($file_path);
+        my @sections = calculate_boundaries(\@headers, $total_lines);
+
+        push @files_data, {
+            name => $file_name,
+            path => $file_path,
+            status => $status,
+            sections => \@sections
+        };
+    }
+
+    push @parent_data, {
+        name => $parent_name,
+        num => $parent->{num},
+        files => \@files_data
+    };
+}
+
+# Output results
+if ($format eq "json") {
+    # JSON output
+    print "{\n";
+    print "  \"parent_tasks\": [\n";
+
+    for my $i (0 .. $#parent_data) {
+        my $parent = $parent_data[$i];
+        print "    {\n";
+        print "      \"task\": \"$parent->{name}\",\n";
+        print "      \"task_num\": \"$parent->{num}\",\n";
+        print "      \"files\": [\n";
+
+        my @files = @{$parent->{files}};
+        for my $j (0 .. $#files) {
+            my $file = $files[$j];
+            print "        {\n";
+            print "          \"name\": \"$file->{name}\",\n";
+            print "          \"path\": \"$file->{path}\",\n";
+            print "          \"status\": \"$file->{status}\",\n";
+            print "          \"sections\": [\n";
+
+            my @sections = @{$file->{sections}};
+            for my $k (0 .. $#sections) {
+                my $sect = $sections[$k];
+                my $limit = $sect->{end} - $sect->{start} + 1;
+                print "            {\n";
+                print "              \"title\": \"$sect->{title}\",\n";
+                print "              \"start_line\": $sect->{start},\n";
+                print "              \"end_line\": $sect->{end},\n";
+                print "              \"read_offset\": $sect->{start},\n";
+                print "              \"read_limit\": $limit\n";
+                print "            }";
+                print "," if $k < $#sections;
+                print "\n";
+            }
+
+            print "          ]\n";
+            print "        }";
+            print "," if $j < $#files;
+            print "\n";
+        }
+
+        print "      ]\n";
+        print "    }";
+        print "," if $i < $#parent_data;
+        print "\n";
+    }
+
+    print "  ]\n";
+    print "}\n";
+} else {
+    # Markdown output
+    print "## Parent Context\n\n";
+
+    foreach my $parent (@parent_data) {
+        print "### Parent: $parent->{name}\n\n";
+
+        foreach my $file (@{$parent->{files}}) {
+            print "**$file->{name}** [Status: $file->{status}] (`$file->{path}`):\n";
+
+            foreach my $sect (@{$file->{sections}}) {
+                my $limit = $sect->{end} - $sect->{start} + 1;
+                print "- $sect->{title} (L$sect->{start}-$sect->{end}, Read: offset=$sect->{start} limit=$limit)\n";
+            }
+
+            print "\n";
+        }
+    }
+}
+
+exit 0;

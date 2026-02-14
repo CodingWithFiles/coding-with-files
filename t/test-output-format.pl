@@ -2,7 +2,7 @@
 use strict;
 use warnings;
 use FindBin;
-use lib "$FindBin::Bin/../.cig/lib";
+use lib "$FindBin::Bin/../.cwf/lib";
 use TaskContextInference qw(format_output);
 
 my $test_count = 0;

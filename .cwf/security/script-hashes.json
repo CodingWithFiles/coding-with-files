@@ -1,0 +1,125 @@
+{
+  "version": "2.1",
+  "last_updated": "2026-02-14",
+  "scripts": {
+    "status-aggregator-v2.0": {
+      "path": ".cwf/scripts/command-helpers/status-aggregator-v2.0",
+      "sha256": "2231cbd64283ca1a957fb022600bd99999913021db3506a386ba0e254ffaf5e9",
+      "permissions": "0500"
+    },
+    "status-aggregator-v2.1": {
+      "path": ".cwf/scripts/command-helpers/status-aggregator-v2.1",
+      "sha256": "24648a5a1cee2156d2614402d4694452b583dbc6d30bb43e924b73fa7ec1e75c",
+      "permissions": "0700"
+    },
+    "task-context-inference": {
+      "path": ".cwf/scripts/command-helpers/task-context-inference",
+      "sha256": "b0d590d30d5c2758fbf6f03b6616f4c065b21c46c2bf41ac444755d9791e5670",
+      "permissions": "0755"
+    },
+    "task-stack": {
+      "path": ".cwf/scripts/command-helpers/task-stack",
+      "sha256": "a9591c457a87f58fcf94898298f95204c6cc85ec5a6bb500855f0c6b448b9643",
+      "permissions": "0755"
+    },
+    "checkpoints-branch-manager": {
+      "path": ".cwf/scripts/command-helpers/checkpoints-branch-manager",
+      "sha256": "58b0f16779fe7fcd02eb05403606ec4a85a795436cff4b2f19253619710a516d",
+      "permissions": "0500"
+    },
+    "context-inheritance-v2.0": {
+      "path": ".cwf/scripts/command-helpers/context-inheritance-v2.0",
+      "sha256": "96a67f3f74078dedf1c4f37d4ca2a0aa02f39d2b146ddc7c1f693bbc356e8958",
+      "permissions": "0500"
+    },
+    "context-inheritance-v2.1": {
+      "path": ".cwf/scripts/command-helpers/context-inheritance-v2.1",
+      "sha256": "dede39331c531c506b901ba077c1a23bcae12d9d5bf52fad4a92d1bae712202c",
+      "permissions": "0700"
+    },
+    "template-copier-v2.0": {
+      "path": ".cwf/scripts/command-helpers/template-copier-v2.0",
+      "sha256": "1aa9980ce9c2ca3352c974132bca47b0e77ba14d2d0ad608958e8aaf5841dca0",
+      "permissions": "0500"
+    },
+    "template-copier-v2.1": {
+      "path": ".cwf/scripts/command-helpers/template-copier-v2.1",
+      "sha256": "b519e186a24ea40d0cc02954d59e441c0684754b1223a109fcd95f9887d3457b",
+      "permissions": "0700"
+    },
+    "migrate-v1-to-v2.sh": {
+      "path": ".cwf/scripts/migrate-v1-to-v2.sh",
+      "sha256": "b2f682e59e968971eff99a3b216fd6d8bbbb29e86c5d178f44e0930d8ba0b1c1",
+      "permissions": "0700"
+    },
+    "validate-migration.sh": {
+      "path": ".cwf/scripts/validate-migration.sh",
+      "sha256": "90c2933399266a98dd3cf96db874d48deccaae3cb4f8b47412c1b29fb077b76a",
+      "permissions": "0700"
+    },
+    "rollback-migration.sh": {
+      "path": ".cwf/scripts/rollback-migration.sh",
+      "sha256": "ae8b65aab8d90d0a8d25120c7c2bccfb9fc95e789a88b112f2894ef1187def7f",
+      "permissions": "0700"
+    },
+    "migrate-v2.1-file-order": {
+      "path": ".cwf/scripts/migrations/migrate-v2.1-file-order",
+      "sha256": "91fe3084d61dc9c577293600bab33976a9737381974f1e13b95e83b302651e11",
+      "permissions": "0755"
+    }
+  },
+  "lib": {
+    "CWF::MarkdownParser": {
+      "path": ".cwf/lib/CWF/MarkdownParser.pm",
+      "sha256": "a6fe03e6f2fe47985fcde9e2bb98948ed774fc27affa8ee65e17f95db765ead3"
+    },
+    "CWF::TaskPath": {
+      "path": ".cwf/lib/CWF/TaskPath.pm",
+      "sha256": "34a82fdba26623423b21492a92924d17ba767a89b3d2d2e4037669cb93f2dc64"
+    },
+    "CWF::WorkflowFiles": {
+      "path": ".cwf/lib/CWF/WorkflowFiles.pm",
+      "sha256": "95c885b8f110efbb1c3720b85737df178322ee76f4524cbcc0598cc93f2ef91e"
+    },
+    "CWF::Options": {
+      "path": ".cwf/lib/CWF/Options.pm",
+      "sha256": "55eaf2397a8e76cc1854440b44431285866c4fec78d28087825963933ad738c7"
+    },
+    "CWF::StatusAggregator::Core": {
+      "path": ".cwf/lib/CWF/StatusAggregator/Core.pm",
+      "sha256": "f9d5bb66232df904fb05d4d47da18cc864cfffd96de922f582f37a060360ffd0"
+    },
+    "CWF::TemplateCopier::Core": {
+      "path": ".cwf/lib/CWF/TemplateCopier/Core.pm",
+      "sha256": "e05d7ba8c6a54428de61096319f23b4ee1f6569ddd331036257d7291296063f8"
+    },
+    "CWF::ContextInheritance::Core": {
+      "path": ".cwf/lib/CWF/ContextInheritance/Core.pm",
+      "sha256": "661e31842657db50ed192b90a44d33101de5f844ce3b70ce8e14364e3fb3ef80"
+    },
+    "CWF::WorkflowFiles::V20": {
+      "path": ".cwf/lib/CWF/WorkflowFiles/V20.pm",
+      "sha256": "3e64184b07650ff0ed350773186e78e67fbcec0eb760c9e449538c75fceb6f91"
+    },
+    "CWF::WorkflowFiles::V21": {
+      "path": ".cwf/lib/CWF/WorkflowFiles/V21.pm",
+      "sha256": "f0cda90dc463648f1d8dc7b8bcf92486a29e5c297b4729825f8bb96d3c719d88"
+    },
+    "CWF::Common": {
+      "path": ".cwf/lib/CWF/Common.pm",
+      "sha256": "96e6714b26afdf222963c0fe785005494d41600541456691bec08f3b25a3e80f"
+    },
+    "CWF::VersionRouter": {
+      "path": ".cwf/lib/CWF/VersionRouter.pm",
+      "sha256": "ce9cf476deb6d266c74c673a3b42dfcb2fb60f49418e106ce8b848314d75c506"
+    },
+    "CWF::TaskState": {
+      "path": ".cwf/lib/CWF/TaskState.pm",
+      "sha256": "10ff59a1bba133a6e5f49c8c0ef8679a8c14698ce378ef483469bc819aa890f2"
+    },
+    "CWF::TaskContextInference": {
+      "path": ".cwf/lib/CWF/TaskContextInference.pm",
+      "sha256": "a377cbf427a4be5004b1a055c89b4395ed7943a7d56bb8ca3241a66d8f5ec68b"
+    }
+  }
+}

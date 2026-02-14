@@ -1,0 +1,408 @@
+#!/usr/bin/perl -CDSL
+#
+# status-aggregator - Calculate task progress from status markers
+#
+# Usage: status-aggregator [task-path] [--format=json]
+#
+# Examples:
+#   status-aggregator                    # All tasks
+#   status-aggregator 1                  # Task 1 and descendants
+#   status-aggregator 1.1 --format=json  # Task 1.1 in JSON format
+#
+# Exit codes:
+#   0 - Success
+#   1 - Invalid arguments
+#   2 - Task not found
+
+use strict;
+use warnings;
+use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use File::Basename;
+use List::Util qw(max);
+
+use CWF::TaskPath qw(normalize validate resolve find_base_dir);
+use CWF::WorkflowFiles qw(list);
+use CWF::TaskState qw(state_done status_percent status_extract);
+use CWF::Options;
+
+# Parse arguments using CWF::Options
+my $spec = {
+    description => "status-aggregator - Calculate task progress from status markers",
+    options => [
+        { short => 'h', long => 'help', type => 'flag', desc => 'Show this help message' },
+        { short => 'w', long => 'workflow', type => 'flag', desc => 'Show individual workflow file statuses' },
+        { long => 'no-workflow', type => 'flag', desc => 'Suppress workflow file breakdown' },
+        { long => 'depth', type => 'value', desc => 'Hierarchy depth (0=top-level, -1=unlimited, default: 0)' },
+        { long => 'sort', type => 'value', desc => 'Sort order (numeric|date|modified, default: numeric)' },
+        { long => 'limit', type => 'value', desc => 'Limit output to N top-level tasks (applies to tasks only, not subtasks or workflow files)' },
+        { long => 'format', type => 'value', desc => 'Output format (markdown|json, default: markdown)' },
+    ],
+    positional => { name => 'task-path', optional => 1, desc => 'Task number to filter (e.g., "1", "1.1")' }
+};
+
+my $opts = CWF::Options::parse($spec, @ARGV);
+
+# Set defaults
+$opts->{depth} //= 0;
+$opts->{sort} //= 'numeric';
+$opts->{format} //= 'markdown';
+
+# Backward compatibility: positional arg implies unlimited depth unless --depth specified
+my $depth_explicitly_set = grep { /^--depth/ } @ARGV;
+if ($opts->{_positional} && !$depth_explicitly_set) {
+    $opts->{depth} = -1;
+}
+
+my $task_path = $opts->{_positional} // "";
+my $format = $opts->{format};
+
+# Validate --depth option
+if (defined $opts->{depth}) {
+    unless ($opts->{depth} =~ /^-?\d+$/) {
+        print STDERR "Error: Invalid depth value '$opts->{depth}', expected integer >= -1\n";
+        exit 1;
+    }
+    if ($opts->{depth} < -1) {
+        print STDERR "Error: Invalid depth value '$opts->{depth}', expected integer >= -1\n";
+        exit 1;
+    }
+}
+
+# Validate --sort option
+my %valid_sort_modes = (numeric => 1, date => 1, modified => 1);
+unless (exists $valid_sort_modes{$opts->{sort}}) {
+    print STDERR "Error: Invalid sort mode '$opts->{sort}', expected one of: numeric, date, modified\n";
+    exit 1;
+}
+
+# Validate --limit option
+if (defined $opts->{limit}) {
+    unless ($opts->{limit} =~ /^\d+$/ && $opts->{limit} > 0) {
+        print STDERR "Error: Invalid limit value '$opts->{limit}', expected positive integer\n";
+        exit 1;
+    }
+}
+
+# Calculate progress for a task directory
+sub calculate_progress {
+    my ($dir) = @_;
+
+    # Use TaskState library for completion calculation
+    my $progress = CWF::TaskState::state_done($dir);
+
+    # Warn on unknown statuses (for backward compatibility)
+    my $files = list($dir);
+    if ($files && @$files) {
+        for my $file (@$files) {
+            my $status = CWF::TaskState::status_extract($file->{path});
+            my $pct = CWF::TaskState::status_percent($status);
+
+            if ($pct == 0 && $status ne "Unknown" && $status !~ /^(Backlog|To-Do|Cancelled)$/i) {
+                my $filename = "$dir/" . $file->{name};
+                print STDERR "Warning: Unknown status \"$status\" in $filename\n";
+            }
+        }
+    }
+
+    return $progress;
+}
+
+# Get task timestamps from git log or filesystem
+sub get_task_timestamps {
+    my ($task_dir) = @_;
+
+    my $created;
+    my $modified;
+
+    # Try git log for creation timestamp (first commit adding any workflow file)
+    my $git_created = `git log --diff-filter=A --format=%ct -- "$task_dir"/*.md 2>/dev/null | sort -n | head -1`;
+    chomp($git_created);
+    $created = $git_created if $git_created =~ /^\d+$/;
+
+    # Try git log for modification timestamp (most recent commit)
+    my $git_modified = `git log -1 --format=%ct -- "$task_dir"/*.md 2>/dev/null`;
+    chomp($git_modified);
+    $modified = $git_modified if $git_modified =~ /^\d+$/;
+
+    # Fallback to filesystem mtime if git fails
+    unless (defined $created && defined $modified) {
+        my @mtimes;
+        for my $file (glob("$task_dir/*.md")) {
+            my $mtime = (stat($file))[9];
+            push @mtimes, $mtime if defined $mtime;
+        }
+
+        if (@mtimes) {
+            @mtimes = sort { $a <=> $b } @mtimes;
+            $created //= $mtimes[0];
+            $modified //= $mtimes[-1];
+        }
+    }
+
+    return {
+        created => $created // 0,
+        modified => $modified // 0
+    };
+}
+
+# Natural numeric sort comparator for task numbers
+sub natural_cmp {
+    my ($a_num, $b_num) = @_;
+
+    my @a_parts = split(/\./, $a_num);
+    my @b_parts = split(/\./, $b_num);
+
+    for (my $i = 0; $i < @a_parts || $i < @b_parts; $i++) {
+        my $a_val = $a_parts[$i] // 0;
+        my $b_val = $b_parts[$i] // 0;
+        return $a_val <=> $b_val if $a_val != $b_val;
+    }
+    return 0;
+}
+
+# Get workflow file statuses for a task directory
+sub get_workflow_status {
+    my ($task_dir) = @_;
+
+    my $files = list($task_dir);
+    my @workflow_files;
+
+    for my $file (@$files) {
+        my $status = CWF::TaskState::status_extract($file->{path});
+        my $percent = CWF::TaskState::status_percent($status);
+
+        push @workflow_files, {
+            name => $file->{name},
+            path => $file->{path},
+            status => $status,
+            percent => $percent
+        };
+    }
+
+    return \@workflow_files;
+}
+
+# Build task tree recursively
+sub build_tree {
+    my ($base_path, $indent, $task_num, $max_depth, $current_depth) = @_;
+    $indent //= "";
+    $task_num //= "";
+    $max_depth //= -1;
+    $current_depth //= 0;
+
+    # Stop recursion if depth limit reached (unless -1 = unlimited)
+    return () if $max_depth >= 0 && $current_depth > $max_depth;
+
+    my @output;
+
+    # Build search pattern
+    my $pattern;
+    if ($task_num) {
+        $pattern = "$base_path/*-*-*";  # Glob all, filter below for hierarchical matching
+    } else {
+        $pattern = "$base_path/[0-9]*-*-*";
+    }
+
+    # Get all matching directories and extract task numbers for sorting
+    my @dirs = grep { -d $_ } glob($pattern);
+
+    # Sort directories by task number (natural numeric sort)
+    @dirs = sort {
+        my $a_name = (split('/', $a))[-1];
+        my $b_name = (split('/', $b))[-1];
+
+        # Extract task numbers
+        my ($a_num) = $a_name =~ /^([0-9.]+)-/;
+        my ($b_num) = $b_name =~ /^([0-9.]+)-/;
+
+        natural_cmp($a_num // "", $b_num // "");
+    } @dirs;
+
+    for my $dir (@dirs) {
+
+        # Filter for hierarchical task matches
+        if ($task_num) {
+            my $dir_name = (split('/', $dir))[-1];
+            # Match task_num followed by dot (subtask) or hyphen (same level)
+            # e.g., task_num="1" matches "1-*" and "1.1-*" but not "10-*"
+            # Edge cases handled: 1 vs 10, 1.1 vs 1.10, 99 vs 999
+            next unless $dir_name =~ /^${task_num}(?:\.|-)./;
+        }
+
+        # Extract task info from directory name
+        my $dir_name = (split('/', $dir))[-1];
+        next unless $dir_name =~ /^([0-9.]+)-([a-z]+)-(.+)$/;
+
+        my ($num, $type, $slug) = ($1, $2, $3);
+
+        # Calculate progress
+        my $progress = calculate_progress($dir);
+
+        # Determine status indicator (single-width ASCII)
+        my $indicator;
+        if ($progress >= 100) {
+            $indicator = "*";  # Finished
+        } elsif ($progress > 0) {
+            $indicator = "+";  # In Progress
+        } else {
+            $indicator = "-";  # Not Started
+        }
+
+        push @output, {
+            line => "${indent}${indicator} ${num} (${type}): ${slug} - ${progress}%",
+            task => $dir_name,
+            num => $num,
+            type => $type,
+            slug => $slug,
+            progress => $progress,
+            dir => $dir,
+        };
+
+        # Recursively process subtasks (increment depth)
+        my @subtasks = build_tree($dir, "${indent}  ", $num, $max_depth, $current_depth + 1);
+        push @output, @subtasks;
+    }
+
+    return @output;
+}
+
+# Main execution
+my $base_dir = find_base_dir();
+unless ($base_dir) {
+    print STDERR "Error: Cannot find implementation-guide directory\n";
+    exit 1;
+}
+
+# If specific task path provided, validate it
+if ($task_path) {
+    $task_path = normalize($task_path);
+    unless (validate($task_path)) {
+        print STDERR "Error: Invalid task path format: $task_path\n";
+        exit 1;
+    }
+
+    my $result = resolve($task_path, $base_dir);
+    unless ($result) {
+        print STDERR "Error: Task not found: $task_path\n";
+        exit 2;
+    }
+
+    # FIX 2: For nested tasks (depth > 1), search within parent directory
+    # This enables direct nested queries like "status-aggregator 1.4"
+    # to work correctly by searching in the parent's subdirectories
+    if ($result->{depth} > 1) {
+        $base_dir = dirname($result->{full_path});
+    }
+}
+
+# Build tree
+my @tree = build_tree($base_dir, "", $task_path, $opts->{depth}, 0);
+
+# Enrich with workflow file details if --workflow flag set (and NOT suppressed by --no-workflow)
+if ($opts->{workflow} && !$opts->{'no-workflow'}) {
+    for my $task (@tree) {
+        $task->{workflow_files} = get_workflow_status($task->{dir});
+    }
+}
+
+# Enrich with timestamps if sorting by date or modified
+if ($opts->{sort} eq 'date' || $opts->{sort} eq 'modified') {
+    for my $task (@tree) {
+        $task->{timestamps} = get_task_timestamps($task->{dir});
+    }
+}
+
+# Sort tree based on --sort option
+if ($opts->{sort} eq 'date') {
+    @tree = sort { $a->{timestamps}{created} <=> $b->{timestamps}{created} } @tree;
+} elsif ($opts->{sort} eq 'modified') {
+    # Sort by most recent first (descending order)
+    @tree = sort { $b->{timestamps}{modified} <=> $a->{timestamps}{modified} } @tree;
+}
+# numeric sort is already applied in build_tree()
+
+# Apply --limit to top-level tasks only (not subtasks or workflow files)
+if (defined $opts->{limit} && $opts->{limit} > 0) {
+    my @limited_tree;
+    my $top_level_count = 0;
+    my $current_top_level_dir = '';
+
+    for my $task (@tree) {
+        # Extract directory basename to identify unique top-level tasks
+        my $dir_name = (split('/', $task->{dir}))[-1];
+
+        # Extract the top-level portion (before first dot, if any)
+        my ($top_level_part) = $task->{num} =~ /^(\d+)/;
+        my $top_level_key = "$top_level_part-$task->{type}-$task->{slug}";
+
+        # Check if this is a top-level task (no dots) or a subtask
+        my $is_top_level = ($task->{num} !~ /\./);
+
+        # If this is a new top-level task (not a subtask of current top-level)
+        if ($is_top_level && $top_level_key ne $current_top_level_dir) {
+            $top_level_count++;
+            $current_top_level_dir = $top_level_key;
+
+            # Stop if we've reached the limit
+            last if $top_level_count > $opts->{limit};
+        }
+
+        # Include this task (either top-level or subtask within limit)
+        push @limited_tree, $task;
+    }
+
+    @tree = @limited_tree;
+}
+
+# Output
+if ($format eq "json") {
+    print "{\n  \"tasks\": [\n";
+    for my $i (0 .. $#tree) {
+        my $t = $tree[$i];
+        print "    {";
+        print "\"task\": \"$t->{task}\", ";
+        print "\"num\": \"$t->{num}\", ";
+        print "\"type\": \"$t->{type}\", ";
+        print "\"progress\": $t->{progress}";
+
+        # Include workflow files if present
+        if ($t->{workflow_files}) {
+            print ", \"workflow_files\": [";
+            for my $j (0 .. $#{$t->{workflow_files}}) {
+                my $wf = $t->{workflow_files}[$j];
+                print "{\"name\": \"$wf->{name}\", ";
+                print "\"status\": \"$wf->{status}\", ";
+                print "\"percent\": $wf->{percent}}";
+                print "," if $j < $#{$t->{workflow_files}};
+            }
+            print "]";
+        }
+
+        print "}";
+        print "," if $i < $#tree;
+        print "\n";
+    }
+    print "  ]\n}\n";
+} else {
+    print "Task Progress:\n\n";
+    for my $t (@tree) {
+        print "$t->{line}\n";
+
+        # Show workflow files if --workflow flag set
+        if ($t->{workflow_files}) {
+            # Calculate max name length for padding
+            my $max_name_len = max(map { length($_->{name}) } @{$t->{workflow_files}});
+
+            for my $wf (@{$t->{workflow_files}}) {
+                my $indicator = $wf->{percent} >= 100 ? "*" :
+                               $wf->{percent} > 0 ? "+" : "-";
+                my $padding = " " x ($max_name_len + 2 - length($wf->{name}));
+                printf "  %s %s%s%s\t%d%%\n",
+                    $indicator, $wf->{name}, $padding, $wf->{status}, $wf->{percent};
+            }
+        }
+    }
+}
+
+exit 0;

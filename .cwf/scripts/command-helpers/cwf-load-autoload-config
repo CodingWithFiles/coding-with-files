@@ -1,0 +1,12 @@
+#!/bin/sh
+# Script: cig-load-autoload-config
+# Version: v0.1.1-5-gcea1c19
+# Source: https://github.com/OWNER/REPO
+# Purpose: Loads .cwf/autoload.yaml configuration file or provides fallback message
+# Replaces: cat .cwf/autoload.yaml 2>/dev/null || echo "No autoload config found"
+
+if [ -f ".cwf/autoload.yaml" ]; then
+    cat ".cwf/autoload.yaml"
+else
+    echo "No autoload config found"
+fi

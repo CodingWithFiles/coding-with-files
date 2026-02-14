@@ -1,10 +1,12 @@
-# Code Implementation Guide (CIG)
+# Coding with Files (CWF)
 
 A structured system for managing software development tasks through Claude Code slash commands.
 
+CWF is pronounced "swiff".
+
 ## Overview
 
-The Code Implementation Guide (CIG) provides a standardised approach to planning, implementing, and tracking software development tasks. Currently targeted for Claude Code integration through slash commands, it offers automated task creation, progress tracking, and documentation generation.
+Coding with Files (CWF) provides a standardised approach to planning, implementing, and tracking software development tasks. Currently targeted for Claude Code integration through slash commands, it offers automated task creation, progress tracking, and documentation generation.
 
 While this system is designed specifically for Claude Code, the methodology isn't strictly tied to any particular tool. Pull requests to support other development environments are welcome.
 
@@ -48,47 +50,47 @@ We welcome issues, pull requests, and suggestions! This project aims to become a
 1. Clone the repository:
    ```bash
    git clone <repository-url>
-   cd code-implementation-guide
+   cd coding-with-files
    ```
 
-2. Initialise CIG for your project:
+2. Initialise CWF for your project:
    ```
-   /cig-init
+   /cwf-init
    ```
 
 ## Commands
 
 ### Core Commands (v2.0)
 
-- `/cig-init` - Initialise CIG system with project configuration
-- `/cig-new-task <num> <type> "description"` - **Breaking change**: Create hierarchical implementation guide
-- `/cig-subtask <parent-path> <num> <type> "description"` - **Breaking change**: Create subtask with context inheritance
-- `/cig-status [task-path]` - Show progress across implementation guide hierarchy
-- `/cig-extract <task-path> <section-name>` - **Breaking change**: Extract section (task-based, backward compatible)
+- `/cwf-init` - Initialise CWF system with project configuration
+- `/cwf-new-task <num> <type> "description"` - **Breaking change**: Create hierarchical implementation guide
+- `/cwf-subtask <parent-path> <num> <type> "description"` - **Breaking change**: Create subtask with context inheritance
+- `/cwf-status [task-path]` - Show progress across implementation guide hierarchy
+- `/cwf-extract <task-path> <section-name>` - **Breaking change**: Extract section (task-based, backward compatible)
 
 ### Workflow Commands (v2.0 - New)
 
 Execute structured 8-step workflow for any task:
 
-- `/cig-plan <task-path>` - Guide through planning phase (goals, milestones, risks)
-- `/cig-requirements <task-path>` - Guide through requirements phase (FR/NFR, acceptance criteria)
-- `/cig-design <task-path>` - Guide through design phase (architecture, components, interfaces)
-- `/cig-implementation <task-path>` - Guide through implementation phase (code changes, tests)
-- `/cig-testing <task-path>` - Guide through testing phase (test strategy, validation)
-- `/cig-rollout <task-path>` - Guide through rollout phase (deployment, monitoring)
-- `/cig-maintenance <task-path>` - Guide through maintenance phase (support, optimization)
-- `/cig-retrospective <task-path>` - Guide through retrospective phase (learnings, variance)
+- `/cwf-task-plan <task-path>` - Guide through planning phase (goals, milestones, risks)
+- `/cwf-requirements-plan <task-path>` - Guide through requirements phase (FR/NFR, acceptance criteria)
+- `/cwf-design-plan <task-path>` - Guide through design phase (architecture, components, interfaces)
+- `/cwf-implementation-plan <task-path>` - Guide through implementation phase (code changes, tests)
+- `/cwf-testing-plan <task-path>` - Guide through testing phase (test strategy, validation)
+- `/cwf-rollout <task-path>` - Guide through rollout phase (deployment, monitoring)
+- `/cwf-maintenance <task-path>` - Guide through maintenance phase (support, optimization)
+- `/cwf-retrospective <task-path>` - Guide through retrospective phase (learnings, variance)
 
 ### Utility Commands
 
-- `/cig-config [init|list|reset]` - Configure CIG system paths and settings
-- `/cig-security-check [verify|report]` - Verify file integrity and sources for CIG system
+- `/cwf-config [init|list|reset]` - Configure CWF system paths and settings
+- `/cwf-security-check [verify|report]` - Verify file integrity and sources for CWF system
 
 ### Migration from v1.0
 
-**Breaking Changes**: `/cig-new-task`, `/cig-subtask`, and `/cig-extract` have new signatures (see [Migration Guide](.cig/docs/migration.md#what-gets-changed)).
+**Breaking Changes**: `/cwf-new-task`, `/cwf-subtask`, and `/cwf-extract` have new signatures (see [Migration Guide](.cwf/docs/migration.md#what-gets-changed)).
 
-**Migrating v1.0 Tasks**: Existing v1.0 tasks continue to work without migration. Migration to v2.0 hierarchical structure is **optional** but enables task decomposition and context inheritance. See [Migration Guide](.cig/docs/migration.md) for rationale, process, and safety features.
+**Migrating v1.0 Tasks**: Existing v1.0 tasks continue to work without migration. Migration to v2.0 hierarchical structure is **optional** but enables task decomposition and context inheritance. See [Migration Guide](.cwf/docs/migration.md) for rationale, process, and safety features.
 
 ## Task Types
 
@@ -96,7 +98,7 @@ Execute structured 8-step workflow for any task:
 Complete feature development lifecycle with 6 phases:
 - Plan, Requirements, Design, Testing, Rollout, Maintenance
 
-### Bugfix Tasks  
+### Bugfix Tasks
 Streamlined bug resolution with 4 phases:
 - Plan, Implementation, Testing, Rollout
 
@@ -122,15 +124,15 @@ implementation-guide/
 ├── hotfix/
 └── chore/
 
-.cig/
+.cwf/
 ├── autoload.yaml
 ├── scripts/
 │   └── command-helpers/    # Helper scripts for compound operations
-│       ├── cig-load-autoload-config
-│       ├── cig-load-project-config  
-│       ├── cig-load-existing-tasks
-│       ├── cig-find-task-numbering-structure
-│       └── cig-load-status-sections
+│       ├── cwf-load-autoload-config
+│       ├── cwf-load-project-config
+│       ├── cwf-load-existing-tasks
+│       ├── cwf-find-task-numbering-structure
+│       └── cwf-load-status-sections
 ├── utils/
 │   ├── config-loader.md
 │   ├── template-engine.md
@@ -146,11 +148,11 @@ implementation-guide/
 
 The system uses hierarchical configuration:
 
-1. **Global**: `~/.cig/autoload.yaml`
-2. **Project**: `.cig/autoload.yaml` 
-3. **Implementation Guide**: `implementation-guide/cig-project.json`
+1. **Global**: `~/.cwf/autoload.yaml`
+2. **Project**: `.cwf/autoload.yaml`
+3. **Implementation Guide**: `implementation-guide/cwf-project.json`
 
-Example `cig-project.json` (template available at `.cig/templates/cig-project.json.template`):
+Example `cwf-project.json` (template available at `.cwf/templates/cwf-project.json.template`):
 ```json
 {
   "name": "My Project",
@@ -170,7 +172,7 @@ Example `cig-project.json` (template available at `.cig/templates/cig-project.js
 Tasks use hierarchical numbering that syncs with filesystem structure:
 
 - **Level 1**: 1, 2, 3 (main tasks)
-- **Level 2**: 1.1, 1.2, 1.3 (subtasks)  
+- **Level 2**: 1.1, 1.2, 1.3 (subtasks)
 - **Level 3**: 1.1.1, 1.1.2, 1.1.3 (micro-tasks)
 
 Directory structure mirrors numbering exactly.
@@ -183,12 +185,12 @@ Directory structure mirrors numbering exactly.
 - Current commit hash
 
 **Current Version**: Run `git describe --tags --always` in repository for current version
-**CIG Project Schema**: Matches git version for consistency
+**CWF Project Schema**: Matches git version for consistency
 
 ## Contributing
 
-1. Create a feature branch following the CIG methodology
-2. Use `/cig-new-task feature` to structure your work
+1. Create a feature branch following the CWF methodology
+2. Use `/cwf-new-task feature` to structure your work
 3. Ensure hierarchical numbering matches directory structure
 4. Test all commands before submission
 
@@ -204,4 +206,4 @@ Claude Code is a trademark of Anthropic. This repository is not affiliated with 
 
 ## Support
 
-For issues and feature requests, please use the project's issue tracking system as configured in `cig-project.json`.
+For issues and feature requests, please use the project's issue tracking system as configured in `cwf-project.json`.

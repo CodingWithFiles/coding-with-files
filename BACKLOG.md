@@ -1,11 +1,42 @@
-# CIG System Backlog
+# CWF System Backlog
 
-Future tasks and improvements for the Code Implementation Guide system.
+Future tasks and improvements for the Coding with Files system.
 
 ---
 
-<!-- Completed: "Refactor CIG Commands for Progressive Disclosure" — Task 56 (2026-02-12) -->
-<!-- Completed: "Convert CIG Commands to Skills" — Task 57 (2026-02-13) -->
+<!-- Completed: "Refactor CWF Commands for Progressive Disclosure" — Task 56 (2026-02-12) -->
+<!-- Completed: "Convert CWF Commands to Skills" — Task 57 (2026-02-13) -->
+
+## Task: Add Delete Task Skill
+
+**Task-Type**: feature
+**Priority**: High
+
+Add a `/cwf-delete-task <num>` skill that cleanly removes a task: deletes the task directory, removes the git branch (if it exists), and optionally cleans the task stack. Currently, deleting a misclassified or abandoned task requires manual `git rm -r`, branch deletion, and directory cleanup — error-prone and tedious.
+
+**Scope**:
+- Delete task directory under `implementation-guide/`
+- Delete associated git branch (with confirmation)
+- Remove from task stack if present
+- Refuse to delete if task has subtasks (safety check)
+- Support `--force` flag to skip confirmation
+
+**Identified in**: Task 59 (misclassified as chore, needed manual delete/recreate)
+
+---
+
+## Task: Infer Task Type When Not Specified in new-task and subtask Skills
+
+**Task-Type**: feature
+**Priority**: Medium
+
+When `/cwf-new-task` or `/cwf-subtask` is invoked without a task type, the agent should infer the appropriate type based on the task description and complexity rather than failing with a validation error. If the inference is ambiguous, ask the user to choose. This prevents misclassification — e.g., a task with unclear requirements being created as a chore (no design phase) when it should be a feature.
+
+**Inference guidance**: Consider whether requirements/design phases are needed (feature), whether this fixes a defect (bugfix/hotfix), whether it's mechanical with no ambiguity (chore), or whether it's exploratory (discovery).
+
+**Identified in**: Task 59 (agent chose chore for a task with unclear requirements, required delete/recreate as feature)
+
+---
 
 ## Task: Update Branding and Documentation for Skills Architecture
 
@@ -14,7 +45,7 @@ Future tasks and improvements for the Code Implementation Guide system.
 **Status**: Follow-up from Task 57
 **Depends on**: Skills architecture stability confirmed across several tasks
 
-CLAUDE.md still references "commands" terminology and lists `/cig-*` as commands. Update all documentation to reflect the skills architecture: CLAUDE.md, README.md, any docs referencing `.claude/commands/`.
+CLAUDE.md still references "commands" terminology and lists `/cwf-*` as commands. Update all documentation to reflect the skills architecture: CLAUDE.md, README.md, any docs referencing `.claude/commands/`.
 
 **Scope**:
 - Update CLAUDE.md command references to skills
@@ -37,7 +68,7 @@ The rollout and maintenance templates are designed for production services (phas
 **Scope**:
 - Create "internal" variants of h-rollout.md and i-maintenance.md templates
 - Reduce to relevant sections (deployment strategy, known issues, architecture reference)
-- Template selection during `/cig-new-task` based on project type or explicit flag
+- Template selection during `/cwf-new-task` based on project type or explicit flag
 
 **Identified in**: Task 57 retrospective (j-retrospective.md — i-maintenance.md lessons learned)
 
@@ -49,14 +80,14 @@ The rollout and maintenance templates are designed for production services (phas
 **Priority**: Medium
 **Status**: Follow-up from Task 51
 
-Create `.cig/docs/maintenance/dead-code-audit-checklist.md` documenting comprehensive audit methodology to prevent missing active usage patterns.
+Create `.cwf/docs/maintenance/dead-code-audit-checklist.md` documenting comprehensive audit methodology to prevent missing active usage patterns.
 
 **Problem**: Task 51 audit incorrectly flagged `workflow_file_mappings()` and `format_error()` as dead code, missing same-file usage and script-to-library usage patterns. Errors caught during pre-removal verification, but audit methodology needs improvement.
 
 **Solution**: Create standardized dead code audit checklist:
-- **Cross-file usage**: `grep -r "function_name" .cig/lib/ .cig/scripts/`
+- **Cross-file usage**: `grep -r "function_name" .cwf/lib/ .cwf/scripts/`
 - **Same-file usage**: Check within each affected file for internal calls
-- **Script-to-library usage**: `grep -r "function_name" .cig/scripts/command-helpers/`
+- **Script-to-library usage**: `grep -r "function_name" .cwf/scripts/command-helpers/`
 - **POD documentation**: Check for public API declarations (`=head2 function_name`)
 - **Structured report format**: Function, file, lines, usage findings, verdict
 
@@ -68,13 +99,13 @@ Create `.cig/docs/maintenance/dead-code-audit-checklist.md` documenting comprehe
 
 ---
 
-## Task: Comprehensive Dead Code Audit for CIG Library Modules
+## Task: Comprehensive Dead Code Audit for CWF Library Modules
 
 **Task-Type**: chore
 **Priority**: Low
 **Status**: Follow-up from Task 51
 
-Run comprehensive dead code audit across all `.cig/lib/*.pm` files using improved methodology from dead code audit documentation.
+Run comprehensive dead code audit across all `.cwf/lib/*.pm` files using improved methodology from dead code audit documentation.
 
 **Problem**: Task 51 only addressed functions already identified as dead. Remaining library modules may have additional cleanup opportunities not yet discovered.
 
@@ -99,9 +130,9 @@ Run comprehensive dead code audit across all `.cig/lib/*.pm` files using improve
 **Priority**: Low
 **Status**: Follow-up from Task 50
 
-Create `.cig/docs/conventions/perl-idioms.md` documenting common idiomatic Perl patterns for CIG scripts.
+Create `.cwf/docs/conventions/perl-idioms.md` documenting common idiomatic Perl patterns for CWF scripts.
 
-**Problem**: Task 50 implementation initially used non-idiomatic patterns (`grep { defined($_) }` instead of `grep defined`, if/else blocks instead of ternary conditionals). User review during planning phase caught and corrected these, but patterns should be documented for consistency across all CIG scripts.
+**Problem**: Task 50 implementation initially used non-idiomatic patterns (`grep { defined($_) }` instead of `grep defined`, if/else blocks instead of ternary conditionals). User review during planning phase caught and corrected these, but patterns should be documented for consistency across all CWF scripts.
 
 **Solution**: Create perl-idioms.md with sections:
 - **Filtering**: `grep defined` vs `grep { defined($_) }`, `map` patterns
@@ -128,7 +159,7 @@ Allow task types to conditionally skip workflow phases based on type (e.g., bugf
 
 **Problem**: Task 50 added "Skipped" status for marking phases N/A, but developers must manually set status for each task. For task types with predictable phase applicability (bugfixes never need maintenance, hotfixes skip rollout), conditional logic would eliminate manual work.
 
-**Solution**: Add `"phase-applicability"` section to cig-project.json:
+**Solution**: Add `"phase-applicability"` section to cwf-project.json:
 ```json
 "phase-applicability": {
   "feature": ["a","b","c","d","e","f","g","h","i","j"],
@@ -140,7 +171,7 @@ Allow task types to conditionally skip workflow phases based on type (e.g., bugf
 Template-copier automatically marks non-applicable phases as "Skipped" during task creation.
 
 **Scope**:
-- Update cig-project.json schema
+- Update cwf-project.json schema
 - Modify template-copier to set "Status: Skipped" for non-applicable phases
 - Update workflow-steps.md with phase applicability by task type
 
@@ -150,18 +181,18 @@ Template-copier automatically marks non-applicable phases as "Skipped" during ta
 
 ---
 
-## Task: Create CIG Terminology Glossary
+## Task: Create CWF Terminology Glossary
 
 **Task-Type**: chore
 **Priority**: Low
 **Status**: Follow-up from Task 44
 
-Create glossary of CIG terms to ensure consistent usage across documentation and commands.
+Create glossary of CWF terms to ensure consistent usage across documentation and commands.
 
 **Scope**:
-- Create `.cig/docs/glossary.md` with standardized terminology
+- Create `.cwf/docs/glossary.md` with standardized terminology
 - Include terms like "checkpoints branch" vs "checkpoint branch", "workflow steps" vs "workflow phases"
-- Consider adding automated validation in `/cig-security-check` to catch inconsistencies
+- Consider adding automated validation in `/cwf-security-check` to catch inconsistencies
 
 **Rationale**: Terminology inconsistencies discovered during Task 44 ("checkpoints branch" needed for searchability). Glossary would prevent future confusion.
 
@@ -214,7 +245,7 @@ Update commands and skills that parse task context inference output to use the n
 
 Clarify that bugfix workflows skip h-rollout.md and use checkpoint commits for rollout instead.
 
-**Problem**: Task 36 attempted to use `/cig-rollout` but bugfix template doesn't include h-rollout.md, causing confusion about rollout phase.
+**Problem**: Task 36 attempted to use `/cwf-rollout` but bugfix template doesn't include h-rollout.md, causing confusion about rollout phase.
 
 **Solution**: Add explicit documentation about workflow type differences.
 
@@ -322,7 +353,7 @@ Add explicit commit checklist step to workflow documentation and templates to pr
 - Rollout phase
 - Retrospective phase
 
-Root cause: Exclusive focus on implementation-guide/ documentation files caused deliverables in other directories (.claude/, .cig/, etc.) to be overlooked.
+Root cause: Exclusive focus on implementation-guide/ documentation files caused deliverables in other directories (.claude/, .cwf/, etc.) to be overlooked.
 
 **Solution**: Add explicit commit review step to each workflow phase documentation.
 
@@ -338,7 +369,7 @@ Root cause: Exclusive focus on implementation-guide/ documentation files caused 
    ## Pre-Commit Checklist
    - [ ] Run `git status` to see all modified files
    - [ ] Review all modified files - are they material to this task?
-   - [ ] Stage all material changes: implementation-guide/, .claude/, .cig/, source files, etc.
+   - [ ] Stage all material changes: implementation-guide/, .claude/, .cwf/, source files, etc.
    - [ ] Verify staged changes match task scope (git diff --staged)
    - [ ] Don't assume only implementation-guide/ files need committing
    ```
@@ -368,7 +399,7 @@ Add explicit baseline verification step to implementation planning phase for tas
 **Solution**: Update d-implementation-plan.md template to include baseline verification section.
 
 **Scope**:
-1. **Update template**: `.cig/templates/pool/d-implementation-plan.md.template`
+1. **Update template**: `.cwf/templates/pool/d-implementation-plan.md.template`
 2. **Add section** after "Implementation Steps":
    ```markdown
    ## Baseline Verification (if applicable)
@@ -405,7 +436,7 @@ Add explicit baseline verification step to implementation planning phase for tas
 
 Add status field verification to workflow documentation as a pre-retrospective checkpoint.
 
-**Problem**: Task 35 had f-implementation-exec.md showing "Implemented" (50%) instead of "Finished" (100%), blocking task from showing 100% completion. This was only caught when running /cig-status before retrospective.
+**Problem**: Task 35 had f-implementation-exec.md showing "Implemented" (50%) instead of "Finished" (100%), blocking task from showing 100% completion. This was only caught when running /cwf-status before retrospective.
 
 **Solution**: Add explicit status verification step to retrospective workflow documentation.
 
@@ -416,7 +447,7 @@ Add status field verification to workflow documentation as a pre-retrospective c
 
    Before documenting retrospective learnings, verify task is actually finished:
 
-   7.1. **Run /cig-status <task-path>** to check completion percentage
+   7.1. **Run /cwf-status <task-path>** to check completion percentage
    7.2. **If <100%**: Review workflow file status fields
        - Look for "Implemented" (should be "Finished")
        - Look for "Testing" (should be "Finished")
@@ -445,7 +476,7 @@ Add status field verification to workflow documentation as a pre-retrospective c
 **Priority**: Medium
 **Status**: Partial completion (Task 35 fixed command references, conventions doc remains)
 
-**Context**: Task 35 fixed the 2 incorrect command references (`.claude/commands/cig-new-task.md` and `.claude/commands/cig-subtask.md`). The remaining work is to create conventions documentation to prevent future inconsistencies.
+**Context**: Task 35 fixed the 2 incorrect command references (`.claude/commands/cwf-new-task.md` and `.claude/commands/cwf-subtask.md`). The remaining work is to create conventions documentation to prevent future inconsistencies.
 
 **Scope**:
 
@@ -459,7 +490,7 @@ Create `docs/conventions/design-alignment.md` to prevent future inconsistencies:
    - Tools to use: grep, search patterns
 
 2. **Naming Consistency Guidelines**:
-   - Command naming patterns (e.g., `/cig-{workflow-step}-{action}`)
+   - Command naming patterns (e.g., `/cwf-{workflow-step}-{action}`)
    - When to use prefixes (cig-, task-, workflow-)
    - Avoiding ambiguous abbreviations
 
@@ -487,7 +518,7 @@ Before committing changes that create/rename/remove commands:
 - [ ] Search all `.md` files for old command name
 - [ ] Update all references in `.claude/commands/`
 - [ ] Update all references in `docs/`
-- [ ] Update template files in `.cig/templates/pool/`
+- [ ] Update template files in `.cwf/templates/pool/`
 - [ ] Update README.md, CLAUDE.md, COMMANDS.md
 - [ ] Search implementation guides for references
 - [ ] Test updated commands work correctly
@@ -665,16 +696,16 @@ Add instruction to include security integrity checks as a standard part of the t
 
 **Scope**:
 
-1. **Update workflow documentation** (`.cig/docs/workflow/workflow-steps.md`):
+1. **Update workflow documentation** (`.cwf/docs/workflow/workflow-steps.md`):
    - Add "Security Verification" as recommended step in Testing Execution section
    - Document when security checks are required (tasks modifying scripts/libraries)
-   - Document how to run verification (`/cig-security-check verify`)
+   - Document how to run verification (`/cwf-security-check verify`)
 
-2. **Update testing templates** (`.cig/templates/pool/g-testing-exec.md.template`):
+2. **Update testing templates** (`.cwf/templates/pool/g-testing-exec.md.template`):
    - Add "Security Verification" checkbox to execution checklist
-   - Add conditional guidance: "If this task modifies helper scripts or libraries, run `/cig-security-check verify` and update hashes"
+   - Add conditional guidance: "If this task modifies helper scripts or libraries, run `/cwf-security-check verify` and update hashes"
 
-3. **Update testing plan templates** (`.cig/templates/pool/e-testing-plan.md.template`):
+3. **Update testing plan templates** (`.cwf/templates/pool/e-testing-plan.md.template`):
    - Add "Security Verification" test case (TC-S1)
    - Test case validates script-hashes.json is up to date after implementation
 
@@ -709,13 +740,13 @@ Create a permanent, reusable security verification script instead of relying on 
 - May have inconsistent logic between invocations
 - Don't accumulate improvements over time
 
-**Solution**: Create permanent security verification script in CIG scripts directory.
+**Solution**: Create permanent security verification script in CWF scripts directory.
 
 **Scope**:
 
-1. **Create `.cig/scripts/verify-security`**:
+1. **Create `.cwf/scripts/verify-security`**:
    - Permanent bash script for security verification
-   - Reads `.cig/security/script-hashes.json`
+   - Reads `.cwf/security/script-hashes.json`
    - Verifies SHA256 hashes for all scripts and libraries
    - Checks file permissions (executable scripts need u+rx minimum)
    - Supports both "lib" and "libraries" sections (backward compatible)
@@ -725,14 +756,14 @@ Create a permanent, reusable security verification script instead of relying on 
    - Add verify-security script itself to script-hashes.json
    - Self-verifying: script can check its own integrity
 
-3. **Update `/cig-security-check` command**:
-   - Command should invoke `.cig/scripts/verify-security` for deterministic verification
+3. **Update `/cwf-security-check` command**:
+   - Command should invoke `.cwf/scripts/verify-security` for deterministic verification
    - Keep command as thin wrapper (progressive disclosure pattern)
    - Command adds user-friendly formatting and guidance
 
 4. **Documentation**:
-   - Document script in `.cig/docs/security/verification.md`
-   - Add usage examples to `/cig-security-check` command
+   - Document script in `.cwf/docs/security/verification.md`
+   - Add usage examples to `/cwf-security-check` command
    - Document exit codes and output format
 
 **Output Format** (same as current temporary script):
@@ -747,18 +778,18 @@ Last Updated: 2026-01-28
 
 HELPER SCRIPTS:
 ---------------
-✅ .cig/scripts/command-helpers/hierarchy-resolver
+✅ .cwf/scripts/command-helpers/hierarchy-resolver
    SHA256: <hash> (verified)
    Permissions: 700 (expected: 0500)
 
-❌ .cig/scripts/command-helpers/format-detector
+❌ .cwf/scripts/command-helpers/format-detector
    SHA256: <actual> (MISMATCH)
    Expected: <expected>
    Action: Update hash or review changes
 
 PERL LIBRARIES:
 ---------------
-✅ .cig/lib/TaskState.pm
+✅ .cwf/lib/TaskState.pm
    SHA256: <hash> (verified)
 
 =========================================
@@ -770,23 +801,23 @@ Total files checked: 29
 ❓ Missing files: 0
 
 ✅ ALL FILES VERIFIED
-CIG system integrity confirmed
+CWF system integrity confirmed
 ```
 
 **Benefits**:
 - Deterministic, repeatable security verification
 - Version controlled (improvements accumulate)
 - Single source of truth for verification logic
-- Can be invoked directly or via `/cig-security-check` command
+- Can be invoked directly or via `/cwf-security-check` command
 - Testable (can write tests for the verification logic)
 
 **Success Criteria**:
-- [ ] `.cig/scripts/verify-security` created and executable (0755)
+- [ ] `.cwf/scripts/verify-security` created and executable (0755)
 - [ ] Script added to script-hashes.json (self-verifying)
-- [ ] `/cig-security-check verify` uses permanent script
+- [ ] `/cwf-security-check verify` uses permanent script
 - [ ] Script handles both "lib" and "libraries" sections
 - [ ] Exit codes documented (0=success, 1=failures)
-- [ ] Documentation in `.cig/docs/security/verification.md`
+- [ ] Documentation in `.cwf/docs/security/verification.md`
 
 **Rationale**: Temporary scripts in `/tmp` are anti-pattern for deterministic operations. Permanent script enables consistent, repeatable security verification and accumulates improvements over time.
 
@@ -830,14 +861,14 @@ Execute three edge case tests for the task context inference system (Task 32) th
 **For TC-I3 (Uncorrelated Signals)**:
 - Create test fixture with conflicting signals
 - Set git branch to feature/32-slug
-- Set `.cig/current-task` to different task number (e.g., 11)
+- Set `.cwf/current-task` to different task number (e.g., 11)
 - Verify wrapper script outputs user prompt
 - Verify exit code 1 (uncorrelated)
 - Clean up test fixtures after test
 
 **For TC-I4 and TC-S2 (No Signals)**:
 - Switch to main branch (loses feature branch signal)
-- Clear `.cig/current-task` if present
+- Clear `.cwf/current-task` if present
 - Work in directory with no recent modifications
 - Verify wrapper script outputs error
 - Verify exit code 3 (no signals)
@@ -930,7 +961,7 @@ Create automated linter to detect hardcoded template filename references and ver
 - Documents expected template filenames
 
 **Implementation**:
-1. Add to `.cig/scripts/` as `template-reference-linter`
+1. Add to `.cwf/scripts/` as `template-reference-linter`
 2. Parse all `.md`, `.pl`, `.pm` files for template filename patterns
 3. Cross-reference against current template pool contents
 4. Flag deprecated names (e.g., "e-implementation-exec.md" in v2.1 context)
@@ -977,7 +1008,7 @@ Create automated migration tools to upgrade existing v2.0 tasks (a-plan.md throu
 **Note on rollback**: Git is the rollback capability (`git commit` before migration, `git reset --hard` if needed).
 
 **Scope**:
-- Migration script: `.cig/scripts/migrate-v20-to-v21.pl` or similar
+- Migration script: `.cwf/scripts/migrate-v20-to-v21.pl` or similar
 - Dry-run mode to preview changes before applying
 - Batch migration for all v2.0 tasks or selective migration
 - Validation checks before and after migration
@@ -986,7 +1017,7 @@ Create automated migration tools to upgrade existing v2.0 tasks (a-plan.md throu
 
 **Dependencies**:
 - Task 25 must be complete (v2.1 format defined, trampoline architecture implemented)
-- v2.1 template files must exist in `.cig/templates/pool/`
+- v2.1 template files must exist in `.cwf/templates/pool/`
 
 **Success Criteria**:
 - [ ] Migration script created and tested
@@ -1010,19 +1041,19 @@ Create automated migration tools to upgrade existing v2.0 tasks (a-plan.md throu
 
 ---
 
-## Task: Migrate CIG to Hybrid Plugin Model (Commands → Skills + Plugin)
+## Task: Migrate CWF to Hybrid Plugin Model (Commands → Skills + Plugin)
 
 **Task-Type**: feature
 **Priority**: Medium *(downgraded from High — see Task 54 update below)*
 
-Migrate CIG from commands-based architecture to hybrid plugin model (plugin with skills), as recommended by Task 16's decision matrix scoring but not implemented due to risk-adjusted thinking.
+Migrate CWF from commands-based architecture to hybrid plugin model (plugin with skills), as recommended by Task 16's decision matrix scoring but not implemented due to risk-adjusted thinking.
 
 **CRITICAL UPDATE — Task 54 Findings (2026-02-12)**:
 
 Task 54 (Discovery: Assess current 2026 W6 skills and plugin standards) found critical blockers that invalidate migration prerequisites:
 
 1. **Bug #17688**: Frontmatter hooks in SKILL.md don't trigger within plugins. This is the single most important finding — it invalidates the primary value proposition of plugin migration (hooks automation). Community traced root cause to different loader functions for plugin vs local components. Affects both inline and marketplace plugins.
-2. **Bug #22087**: SubagentStop hook failure (34 upvotes, 16 comments). Agents complete work but fail on termination. Blocks multi-agent orchestration, which CIG uses extensively.
+2. **Bug #22087**: SubagentStop hook failure (34 upvotes, 16 comments). Agents complete work but fail on termination. Blocks multi-agent orchestration, which CWF uses extensively.
 3. **No deprecation signal**: Task 54 found no evidence that commands are deprecated. Commands are merged into skills in v2.1.3 and continue to work. The assumption below that "commands are deprecated" is **not supported by evidence**.
 4. **Task 54 recommendation**: Keep Commands, 85% confidence. Decision matrix (4 options × 8 weighted criteria) reaffirmed Task 16's adjusted recommendation.
 
@@ -1060,7 +1091,7 @@ Task 16 (Discovery: Investigate skills configuration and integration) evaluated 
 
 ### Two-Phase Migration
 
-**Phase 1: Convert CIG Project to Plugin**
+**Phase 1: Convert CWF Project to Plugin**
 - **Goal**: Create `.claude/plugins/cig/PLUGIN.md` with proper structure
 - **Scope**:
   - Create plugin directory structure (`.claude/plugins/cig/`)
@@ -1069,11 +1100,11 @@ Task 16 (Discovery: Investigate skills configuration and integration) evaluated 
   - Implement hooks (SessionStart, PreToolUse, PostToolUse, Stop)
   - Test plugin loading and hooks execution
   - Validate plugin works alongside existing commands (parallel operation)
-- **Deliverable**: Working CIG plugin with hooks, running in parallel with existing commands
+- **Deliverable**: Working CWF plugin with hooks, running in parallel with existing commands
 - **Rationale**: Establishes plugin infrastructure without breaking existing workflows
 
 **Phase 2: Convert Commands to Skills (Gradual)**
-- **Goal**: Migrate CIG commands to skills incrementally
+- **Goal**: Migrate CWF commands to skills incrementally
 - **Scope**:
   - Start with high-value commands: `cig-new-task`, `cig-status`, `cig-subtask`
   - Convert each command to skill in `.claude/plugins/cig/skills/`
@@ -1081,7 +1112,7 @@ Task 16 (Discovery: Investigate skills configuration and integration) evaluated 
   - Gradually convert remaining 12 workflow commands
   - Deprecate command files as skills prove stable
   - Update documentation to reference skills instead of commands
-- **Deliverable**: All CIG functionality available as skills within plugin
+- **Deliverable**: All CWF functionality available as skills within plugin
 - **Rationale**: Gradual migration reduces risk, allows validation at each step
 
 ### Benefits of Hybrid Plugin Model
@@ -1101,7 +1132,7 @@ Task 16 (Discovery: Investigate skills configuration and integration) evaluated 
 ### Migration Strategy
 
 **Parallel Operation Period**:
-- Keep existing `.claude/commands/cig-*.md` files during migration
+- Keep existing `.claude/commands/cwf-*.md` files during migration
 - Skills take precedence when both exist (tested in Task 16)
 - Users can fall back to commands if skills have issues
 - Once skills proven stable (2-4 weeks usage), deprecate commands
@@ -1138,7 +1169,7 @@ Task 16 (Discovery: Investigate skills configuration and integration) evaluated 
 - [ ] Plugin operates in parallel with existing commands (no interference)
 
 **Phase 2 Complete**:
-- [ ] All 15+ CIG commands converted to skills
+- [ ] All 15+ CWF commands converted to skills
 - [ ] All skills tested and validated
 - [ ] Skills take precedence over commands (verified)
 - [ ] Documentation updated to reference skills
@@ -1146,7 +1177,7 @@ Task 16 (Discovery: Investigate skills configuration and integration) evaluated 
 - [ ] Task 11 unblocked (no `$ARGUMENTS` bug in skills)
 
 **Overall Success**:
-- [ ] CIG fully operational as hybrid plugin
+- [ ] CWF fully operational as hybrid plugin
 - [ ] Hooks providing automation value (measurable time savings)
 - [ ] Zero regression in functionality
 - [ ] Improved UX from skills architecture
@@ -1155,16 +1186,16 @@ Task 16 (Discovery: Investigate skills configuration and integration) evaluated 
 
 Recommended to create two separate implementation tasks:
 
-**Task A: "Convert CIG Project to Plugin Structure"**
+**Task A: "Convert CWF Project to Plugin Structure"**
 - **Task-Type**: feature
 - **Estimate**: 1-2 days
 - **Deliverable**: `.claude/plugins/cig/` with working hooks
 - **Risk**: Low (can run in parallel with commands)
 
-**Task B: "Convert CIG Commands to Skills (Gradual Migration)"**
+**Task B: "Convert CWF Commands to Skills (Gradual Migration)"**
 - **Task-Type**: feature
 - **Estimate**: 3-5 days (15+ commands to convert)
-- **Deliverable**: All CIG functionality as skills
+- **Deliverable**: All CWF functionality as skills
 - **Risk**: Low (gradual migration with fallback to commands)
 - **Dependency**: Task A must complete first
 
@@ -1180,17 +1211,17 @@ Recommended to create two separate implementation tasks:
 
 ---
 
-## Task: Create Automated Test Harness for CIG System
+## Task: Create Automated Test Harness for CWF System
 
 **Task-Type**: feature
 **Priority**: Medium
 **Status**: Proposed (identified in Task 25 retrospective)
 
-Create executable test harness to automate the 95 manual validation test cases currently performed via `/cig-status`, `/cig-security-check`, and manual command testing.
+Create executable test harness to automate the 95 manual validation test cases currently performed via `/cwf-status`, `/cwf-security-check`, and manual command testing.
 
-**Problem**: Currently all CIG system validation is manual:
-- Running `/cig-status` on Tasks 1-24 to verify regression
-- Running `/cig-security-check verify` to check script integrity
+**Problem**: Currently all CWF system validation is manual:
+- Running `/cwf-status` on Tasks 1-24 to verify regression
+- Running `/cwf-security-check verify` to check script integrity
 - Creating test tasks to validate template copying
 - Manually testing each workflow command
 - Manual validation is time-consuming and error-prone
@@ -1202,7 +1233,7 @@ Create executable test harness to automate the 95 manual validation test cases c
 - Acceptance tests (all functional requirements)
 
 **Scope**:
-1. Create `.cig/scripts/test-cig-system.sh` or similar
+1. Create `.cwf/scripts/test-cig-system.sh` or similar
 2. Automate functional test cases (TC-1.1 through TC-9.3)
 3. Automate non-functional tests (TC-P1, TC-S1-S4, TC-U1)
 4. Automate regression tests (TC-REG1-REG3)
@@ -1288,10 +1319,10 @@ Add brief explanation of how task status/progress calculation works to workflow 
 **Problem**: Current documentation explains status VALUES (Backlog=0%, Finished=100%) but not how task completion percentage is CALCULATED:
 - No explanation that status is aggregated from workflow file Status fields
 - No mention of status-aggregator script
-- No reference to /cig-status (user-invocable currently, agent-invocable after skills migration)
+- No reference to /cwf-status (user-invocable currently, agent-invocable after skills migration)
 - Users/LLM don't understand how "25% complete" is derived
 
-**Solution**: Add brief "How Status Works" section to `.cig/docs/workflow/workflow-steps.md`:
+**Solution**: Add brief "How Status Works" section to `.cwf/docs/workflow/workflow-steps.md`:
 
 ```markdown
 ## How Task Status Works
@@ -1299,7 +1330,7 @@ Add brief explanation of how task status/progress calculation works to workflow 
 Task completion percentage is calculated by aggregating the `## Status` field from each workflow file (a-plan.md through h-retrospective.md). Each status value has a percentage weight (Backlog=0%, In Progress=25%, Finished=100%, etc.).
 
 **To check task status**:
-- User runs: `/cig-status <task-path>` (command - user-only currently)
+- User runs: `/cwf-status <task-path>` (command - user-only currently)
 - Script: `status-aggregator <task-path>` (called by cig-status command)
 - Future: Agent can invoke via Skill("cig-status") after skills migration
 
@@ -1312,7 +1343,7 @@ Task completion percentage is calculated by aggregating the `## Status` field fr
 1. Add brief "How Task Status Works" section to workflow-steps.md
 2. Position after "Status Values" section (lines 16-48)
 3. Include references to status-aggregator script
-4. Note that /cig-status is user-only currently, agent-invocable after skills migration
+4. Note that /cwf-status is user-only currently, agent-invocable after skills migration
 5. Keep brief (4-6 sentences), follow progressive disclosure
 
 **Out of Scope**:
@@ -1339,7 +1370,7 @@ Task completion percentage is calculated by aggregating the `## Status` field fr
 Update all documentation and command references to use `status-aggregator` entry point script instead of outdated `status-aggregator` direct module reference.
 
 **Problem**: Task 25 implemented trampoline architecture where helper scripts are invoked via entry points (no .pl extension), not by calling .pl files directly:
-- Entry point: `.cig/scripts/command-helpers/status-aggregator`
+- Entry point: `.cwf/scripts/command-helpers/status-aggregator`
 - Routes to: `status-aggregator-v2.0` or `status-aggregator-v2.1` orchestration
 - Uses: Core::StatusAggregator module
 
@@ -1351,9 +1382,9 @@ Documentation and commands may still reference `status-aggregator` which:
 **Solution**: Find and update all references:
 
 **Files to check**:
-- `.cig/docs/workflow/workflow-steps.md`
-- `.cig/docs/context/tools.md`
-- `.claude/commands/cig-status.md`
+- `.cwf/docs/workflow/workflow-steps.md`
+- `.cwf/docs/context/tools.md`
+- `.claude/commands/cwf-status.md`
 - Any other documentation or command files
 - BACKLOG.md (this file)
 
@@ -1417,7 +1448,7 @@ List scenarios where action MIGHT be required (IF/THEN format):
 ```
 
 **Scope**:
-1. Update `.cig/templates/pool/g-maintenance.md.template` with new section
+1. Update `.cwf/templates/pool/g-maintenance.md.template` with new section
 2. Position after "Monitoring Requirements" section, before "Status"
 3. Include examples for both scenarios:
    - Example A: Feature with scheduled maintenance (database cleanup, log rotation)
@@ -1433,7 +1464,7 @@ List scenarios where action MIGHT be required (IF/THEN format):
 **Task-Type**: discovery
 **Priority**: Medium
 
-Analyse and standardise cross-document reference patterns used throughout CIG system documentation, templates, and command files.
+Analyse and standardise cross-document reference patterns used throughout CWF system documentation, templates, and command files.
 
 **Problem**: Currently inconsistent patterns for referencing other documents:
 - Templates use bold text: `**See e-testing.md for complete test plan**`
@@ -1446,13 +1477,13 @@ Analyse and standardise cross-document reference patterns used throughout CIG sy
 2. **Categorise use cases**: Different contexts may need different patterns (intra-task vs external, LLM-facing vs human-facing)
 3. **Define standard patterns**: Establish clear guidelines for each use case
 4. **Document rationale**: Explain why each pattern is used (progressive disclosure, readability, tooling support)
-5. **Update style guide**: Document patterns in `.cig/docs/` for future reference
+5. **Update style guide**: Document patterns in `.cwf/docs/` for future reference
 6. **Migration plan**: Optionally create plan to standardise existing references
 
 **Examples to analyse**:
 - Intra-task references: `d-implementation.md` → `e-testing.md`
 - External doc references: Templates → `workflow-steps.md`
-- Config references: Command files → `cig-project.json`
+- Config references: Command files → `cwf-project.json`
 
 **Outcome**: Clear, documented standard for cross-document references that follows DRY and progressive disclosure principles.
 
@@ -1476,14 +1507,14 @@ Remove decomposition check steps from all workflow command files except cig-plan
 **Scope**:
 1. **Audit**: Verify which command files currently include decomposition checks
 2. **Update commands**: Remove Step 7 (decomposition checks) from:
-   - `.claude/commands/cig-requirements.md`
-   - `.claude/commands/cig-design.md`
-   - `.claude/commands/cig-implementation.md`
-   - `.claude/commands/cig-testing.md`
-   - `.claude/commands/cig-rollout.md`
-   - `.claude/commands/cig-maintenance.md`
-   - `.claude/commands/cig-retrospective.md`
-3. **Keep in planning**: Retain decomposition checks in `.claude/commands/cig-plan.md` (where they belong)
+   - `.claude/commands/cwf-requirements.md`
+   - `.claude/commands/cwf-design.md`
+   - `.claude/commands/cwf-implementation.md`
+   - `.claude/commands/cwf-testing.md`
+   - `.claude/commands/cwf-rollout.md`
+   - `.claude/commands/cwf-maintenance.md`
+   - `.claude/commands/cwf-retrospective.md`
+3. **Keep in planning**: Retain decomposition checks in `.claude/commands/cwf-plan.md` (where they belong)
 4. **Update step numbers**: Renumber subsequent steps after removing Step 7
 5. **Update documentation**: Clarify in workflow-steps.md that decomposition is a planning-phase decision
 
@@ -1493,15 +1524,15 @@ Remove decomposition check steps from all workflow command files except cig-plan
 
 <!-- Removed: "Rollout Task 11 - Secure Argument Parsing" — Task 11 cancelled (superseded by Task 57, commands→skills bypasses $ARGUMENTS bug entirely). Removed in Task 58 retrospective. -->
 
-## Task: Security Review and Hardening of CIG Bash Invocations
+## Task: Security Review and Hardening of CWF Bash Invocations
 
 **Task-Type**: discovery
 **Priority**: Medium
 
-Comprehensive security review and hardening of all bash invocations in the CIG system to prevent command injection vulnerabilities. Task 11 revealed that LLM-level validation is critical for security.
+Comprehensive security review and hardening of all bash invocations in the CWF system to prevent command injection vulnerabilities. Task 11 revealed that LLM-level validation is critical for security.
 
 **Scope**:
-1. **Systematic review**: Audit all command files (`.claude/commands/cig-*.md`), helper scripts, and workflow documentation for places where user input reaches bash
+1. **Systematic review**: Audit all command files (`.claude/commands/cwf-*.md`), helper scripts, and workflow documentation for places where user input reaches bash
 2. **Fix vulnerabilities**: Apply secure argument parsing pattern to any vulnerable commands (known candidates: cig-subtask.md, cig-status.md)
 3. **Complete testing**: Run TC-8 testing coverage for all commands (8 workflow commands + cig-subtask + cig-status) with special character patterns (quotes, backticks, shell metacharacters)
 4. **Document threat model**: Create comprehensive threat model with attack scenarios, existing defenses, and mitigation strategies
@@ -1510,12 +1541,12 @@ Comprehensive security review and hardening of all bash invocations in the CIG s
 
 ---
 
-## Task: Extract CIG Argument Validation Pattern to Documentation
+## Task: Extract CWF Argument Validation Pattern to Documentation
 
 **Task-Type**: feature
 **Priority**: Needs-Triage
 
-Create reusable documentation for the secure argument parsing pattern developed in Task 11. This pattern (LLM validates format → extracts arguments → invokes bash with literals) prevents command injection and handles arbitrary user input safely. Should be documented in `.cig/docs/` for use in future CIG commands or similar systems. Include: (1) Security model explanation, (2) Format validation regex patterns, (3) Example implementation, (4) Test scenarios.
+Create reusable documentation for the secure argument parsing pattern developed in Task 11. This pattern (LLM validates format → extracts arguments → invokes bash with literals) prevents command injection and handles arbitrary user input safely. Should be documented in `.cwf/docs/` for use in future CWF commands or similar systems. Include: (1) Security model explanation, (2) Format validation regex patterns, (3) Example implementation, (4) Test scenarios.
 
 ---
 
@@ -1524,13 +1555,13 @@ Create reusable documentation for the secure argument parsing pattern developed 
 **Task-Type**: chore
 **Priority**: Low
 
-Consolidate exit codes across all CIG helper scripts to use errno-compatible values for better semantic meaning and consistency. Currently, exit codes are inconsistent across scripts (e.g., exit 3 means "Missing required argument" in hierarchy-resolver but "No parent tasks" in context-inheritance). Proposed standard:
+Consolidate exit codes across all CWF helper scripts to use errno-compatible values for better semantic meaning and consistency. Currently, exit codes are inconsistent across scripts (e.g., exit 3 means "Missing required argument" in hierarchy-resolver but "No parent tasks" in context-inheritance). Proposed standard:
 - 0 = Success
 - 2 = ENOENT (No such file or directory) - for "not found" errors
 - 13 = EACCES (Permission denied) - for permission errors
 - 22 = EINVAL (Invalid argument) - for validation errors
 
-Scripts to update: hierarchy-resolver, context-inheritance, status-aggregator, format-detector, template-version-parser, and any future helper scripts. Update documentation in script headers and `.cig/docs/` to reflect standard.
+Scripts to update: hierarchy-resolver, context-inheritance, status-aggregator, format-detector, template-version-parser, and any future helper scripts. Update documentation in script headers and `.cwf/docs/` to reflect standard.
 
 ---
 
@@ -1559,19 +1590,19 @@ Improve error message in `status-aggregator` to clarify that it expects a task n
 
 ---
 
-## ✓ Task: Fix CIG Commands to Work from Any Directory
+## ✓ Task: Fix CWF Commands to Work from Any Directory
 
 **Task-Type**: bugfix
 **Priority**: High
 **Status**: ✓ Complete (Task 36 - 2026-02-06)
 
-Fixed CIG workflow commands to work regardless of current working directory by adding git root detection to all 17 command files.
+Fixed CWF workflow commands to work regardless of current working directory by adding git root detection to all 17 command files.
 
 **Solution Implemented**: Added bash snippet to detect git repository root and cd to it before execution:
 ```bash
 GIT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
 if [ -z "$GIT_ROOT" ]; then
-    echo "Error: Not in a git repository. CIG commands must be run from within a git repository."
+    echo "Error: Not in a git repository. CWF commands must be run from within a git repository."
     exit 1
 fi
 cd "$GIT_ROOT"
@@ -1579,7 +1610,7 @@ echo "Working directory: $GIT_ROOT"
 ```
 
 **Results**:
-- All 17 command files updated (.claude/commands/cig-*.md)
+- All 17 command files updated (.claude/commands/cwf-*.md)
 - Commands now work from any directory within repository
 - Clear error handling for non-git directories
 - Working directory changes communicated to user/LLM
@@ -1602,7 +1633,7 @@ echo "Working directory: $GIT_ROOT"
 
 **Recommended Approach**: Option B with clear communication
 ```bash
-# At start of each CIG command
+# At start of each CWF command
 GIT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
 if [ -z "$GIT_ROOT" ]; then
     echo "Error: Not in a git repository"
@@ -1614,17 +1645,17 @@ echo "Working directory: $GIT_ROOT"
 ```
 
 **Scope**:
-- Update all CIG workflow commands (cig-plan, cig-requirements, cig-design, cig-implementation, cig-testing, cig-rollout, cig-maintenance, cig-retrospective)
+- Update all CWF workflow commands (cig-plan, cig-requirements, cig-design, cig-implementation, cig-testing, cig-rollout, cig-maintenance, cig-retrospective)
 - Update utility commands (cig-new-task, cig-subtask, cig-status, cig-extract, cig-config, cig-init)
 - Add git root detection to command templates
-- Document working directory behavior in `.cig/docs/`
+- Document working directory behavior in `.cwf/docs/`
 
 **Testing**:
 - Run commands from repository root (should work as before)
 - Run commands from task subdirectories (should work after fix)
 - Run commands from outside repository (should fail with clear error)
 
-**Rationale**: CIG commands should work reliably regardless of where Claude's current working directory is, preventing workflow interruptions and improving user experience.
+**Rationale**: CWF commands should work reliably regardless of where Claude's current working directory is, preventing workflow interruptions and improving user experience.
 
 ---
 
@@ -1644,10 +1675,10 @@ Add logic to cig-implementation-exec and cig-testing-exec commands to detect whe
 - Risk of blindly re-executing everything when only some steps changed
 
 **Scenario (from Task 26)**:
-1. User ran `/cig-implementation-exec 26`
+1. User ran `/cwf-implementation-exec 26`
 2. LLM saw execution file had OLD results from reverted implementation
 3. LLM incorrectly called this a BLOCKER ("plan is outdated")
-4. User had to manually re-run `/cig-implementation-plan 26` to "update" an already-correct plan
+4. User had to manually re-run `/cwf-implementation-plan 26` to "update" an already-correct plan
 5. Wasted time in circular navigation
 
 **What LLM Should Have Done**:
@@ -1705,8 +1736,8 @@ Similar logic but check f-testing-plan.md for changes:
 ### Commands to Update
 
 **Primary**:
-- `.claude/commands/cig-implementation-exec.md` (v2.1 only)
-- `.claude/commands/cig-testing-exec.md` (v2.1 only)
+- `.claude/commands/cwf-implementation-exec.md` (v2.1 only)
+- `.claude/commands/cwf-testing-exec.md` (v2.1 only)
 
 **Note**: cig-implementation.md and cig-testing.md don't need this (they're planning, not execution)
 
@@ -1796,7 +1827,7 @@ Similar logic but check f-testing-plan.md for changes:
 
 **Rationale**: Execution commands should be smart about re-execution. Having old results is NOT a blocker - it's normal when plans are revised. Only missing/invalid plans are real blockers. This task adds the intelligence to distinguish between these cases and handle re-execution efficiently.
 
-**Discovered**: During Task 26 when re-running `/cig-implementation-exec 26` after updating implementation plan to new architecture. LLM incorrectly flagged as blocker when execution file just needed clearing/updating.
+**Discovered**: During Task 26 when re-running `/cwf-implementation-exec 26` after updating implementation plan to new architecture. LLM incorrectly flagged as blocker when execution file just needed clearing/updating.
 
 ---
 
@@ -1840,13 +1871,13 @@ Implement Go-style interface pattern using Perl dispatch tables:
 #### Architecture
 
 ```perl
-# CIG::WorkflowFiles::Dispatch
-package CIG::WorkflowFiles::Dispatch;
+# CWF::WorkflowFiles::Dispatch
+package CWF::WorkflowFiles::Dispatch;
 
 use strict;
 use warnings;
-use CIG::WorkflowFiles::V20;
-use CIG::WorkflowFiles::V21;
+use CWF::WorkflowFiles::V20;
+use CWF::WorkflowFiles::V21;
 
 # Dispatch table - each version implements the same interface
 our %DISPATCH = (
@@ -1854,7 +1885,7 @@ our %DISPATCH = (
         list_wf_steps => sub {
             my ($opts) = @_;
             # v2.0 specific workflow file listing
-            return CIG::WorkflowFiles::V20::get_workflow_files(
+            return CWF::WorkflowFiles::V20::get_workflow_files(
                 $opts->{task_dir},
                 $opts->{task_type}
             );
@@ -1904,14 +1935,14 @@ validate_interfaces();  # Compile-time-ish checking
 
 ```perl
 # Single status-aggregator script (replaces v2.0 and v2.1 scripts)
-use CIG::WorkflowFiles::Dispatch;
+use CWF::WorkflowFiles::Dispatch;
 
 for my $task (@all_tasks) {
     # Detect version PER TASK
     my $version = detect_task_version($task->{dir});
 
     # Get version-specific operations (interface dispatch)
-    my $ops = CIG::WorkflowFiles::Dispatch::get_dispatch($version);
+    my $ops = CWF::WorkflowFiles::Dispatch::get_dispatch($version);
 
     # Call through interface - version-agnostic!
     my @wf_files = $ops->{list_wf_steps}({
@@ -1940,7 +1971,7 @@ for my $task (@all_tasks) {
 
 ### Implementation Steps
 
-1. **Create `CIG::WorkflowFiles::Dispatch` module**
+1. **Create `CWF::WorkflowFiles::Dispatch` module**
    - Define interface (required operations: list_wf_steps, get_task_progress, format_output)
    - Build dispatch table for v2.0 and v2.1
    - Add interface validation
@@ -1984,14 +2015,14 @@ for my $task (@all_tasks) {
 ### Files to Create/Modify
 
 **Create**:
-- `.cig/lib/CIG/WorkflowFiles/Dispatch.pm` - Interface dispatch module
+- `.cwf/lib/CIG/WorkflowFiles/Dispatch.pm` - Interface dispatch module
 
 **Modify**:
-- `.cig/lib/CIG/WorkflowFiles/V20.pm` - Add operations to match interface
-- `.cig/lib/CIG/WorkflowFiles/V21.pm` - Add operations to match interface
-- `.cig/scripts/command-helpers/status-aggregator` - Simplify or unify
-- `.cig/scripts/command-helpers/status-aggregator-v2.0` - Refactor or remove
-- `.cig/scripts/command-helpers/status-aggregator-v2.1` - Refactor or remove
+- `.cwf/lib/CIG/WorkflowFiles/V20.pm` - Add operations to match interface
+- `.cwf/lib/CIG/WorkflowFiles/V21.pm` - Add operations to match interface
+- `.cwf/scripts/command-helpers/status-aggregator` - Simplify or unify
+- `.cwf/scripts/command-helpers/status-aggregator-v2.0` - Refactor or remove
+- `.cwf/scripts/command-helpers/status-aggregator-v2.1` - Refactor or remove
 
 ### Scope Note
 
@@ -2005,7 +2036,7 @@ This is a **significant refactor** touching the core status aggregation architec
 ### Priority Justification
 
 **Medium Priority** because:
-- **Primary use case works**: Task-specific queries (`/cig-status 26`) work correctly
+- **Primary use case works**: Task-specific queries (`/cwf-status 26`) work correctly
 - **Workaround exists**: Use explicit task paths instead of `--workflow` alone
 - **Edge case impact**: Only affects `--workflow` without task argument in mixed-version projects
 - **Quality improvement**: Reduces code duplication, improves architecture
@@ -2026,22 +2057,22 @@ This is a **significant refactor** touching the core status aggregation architec
 **Priority**: Medium
 **Status**: Discovered in Task 26 retrospective (reference brittleness pattern)
 
-Remove file extensions from all CIG helper scripts and standardize invocation using portable shebangs with PERL5OPT environment configuration.
+Remove file extensions from all CWF helper scripts and standardize invocation using portable shebangs with PERL5OPT environment configuration.
 
 **Problem**: Current script naming is inconsistent and brittle:
 
 **Inconsistent naming**:
 ```bash
 # Scripts WITH extensions:
-.cig/scripts/command-helpers/hierarchy-resolver
-.cig/scripts/command-helpers/context-inheritance
-.cig/scripts/command-helpers/template-copier
-.cig/scripts/command-helpers/format-detector
+.cwf/scripts/command-helpers/hierarchy-resolver
+.cwf/scripts/command-helpers/context-inheritance
+.cwf/scripts/command-helpers/template-copier
+.cwf/scripts/command-helpers/format-detector
 
 # Scripts WITHOUT extensions:
-.cig/scripts/command-helpers/status-aggregator
-.cig/scripts/command-helpers/status-aggregator-v2.0
-.cig/scripts/command-helpers/status-aggregator-v2.1
+.cwf/scripts/command-helpers/status-aggregator
+.cwf/scripts/command-helpers/status-aggregator-v2.0
+.cwf/scripts/command-helpers/status-aggregator-v2.1
 ```
 
 **Reference brittleness**:
@@ -2097,7 +2128,7 @@ Change all Perl script shebangs:
 
 Rename all helper scripts:
 ```bash
-cd .cig/scripts/command-helpers/
+cd .cwf/scripts/command-helpers/
 
 mv hierarchy-resolver hierarchy-resolver
 mv context-inheritance context-inheritance
@@ -2131,7 +2162,7 @@ Verify PERL5OPT works correctly:
 perl -V | grep -i cdsl
 
 # Test script execution with Unicode
-echo "Testing: ñ ü 日本語" | .cig/scripts/command-helpers/hierarchy-resolver 1
+echo "Testing: ñ ü 日本語" | .cwf/scripts/command-helpers/hierarchy-resolver 1
 ```
 
 ## Implementation Checklist
@@ -2191,12 +2222,12 @@ So: `d-implementation-plan.md.template` stays as-is.
 - `status-aggregator-v2.1` (already no extension)
 
 **Command files to update** (~19 files):
-- All files in `.claude/commands/cig-*.md`
+- All files in `.claude/commands/cwf-*.md`
 
 **Documentation to update**:
 - `CLAUDE.md` - Helper script references
 - `README.md` - Usage examples
-- `.cig/docs/workflow/` - Any script references
+- `.cwf/docs/workflow/` - Any script references
 
 ## Related Tasks
 
@@ -2212,21 +2243,21 @@ This is a **reference architecture improvement** that prevents brittleness:
 - Cost: ~2 hours to rename and update references
 - Benefit: Permanent reduction in maintenance burden + consistency
 
-**Discovered**: During Task 26 retrospective when analyzing file naming confusion pattern and discussing how to prevent reference brittleness across the CIG system.
+**Discovered**: During Task 26 retrospective when analyzing file naming confusion pattern and discussing how to prevent reference brittleness across the CWF system.
 
 ---
 
-## Task: Audit CIG Commands for Hardcoded Data
+## Task: Audit CWF Commands for Hardcoded Data
 
 **Task-Type**: chore
 **Priority**: Low
 **Status**: Follow-up from Task 43
 
-Audit all CIG command files to identify and eliminate hardcoded data that should be read from configuration files instead.
+Audit all CWF command files to identify and eliminate hardcoded data that should be read from configuration files instead.
 
 **Scope**:
-- Check all `.claude/commands/cig-*.md` files for hardcoded lists, paths, or configuration values
-- Identify data that duplicates information in `script-hashes.json`, `cig-project.json`, or other config files
+- Check all `.claude/commands/cwf-*.md` files for hardcoded lists, paths, or configuration values
+- Identify data that duplicates information in `script-hashes.json`, `cwf-project.json`, or other config files
 - Refactor to read from canonical sources instead of duplicating data
 - Example: cig-security-check.md had hardcoded list of v2.0 scripts
 
@@ -2247,7 +2278,7 @@ Create quick reference documentation for workflow phase sequences (which files a
 - Document bugfix workflow: a, c, d, e, f, g, j (7 phases)
 - Document hotfix workflow: a, d, f, g, h (5 phases)
 - Document chore workflow: a, d, f, j (4 phases)
-- Add to `.cig/docs/workflow/` directory
+- Add to `.cwf/docs/workflow/` directory
 - Include in command help or error messages when phase skipped
 
 **Identified in**: Task 43 retrospective (j-retrospective.md)

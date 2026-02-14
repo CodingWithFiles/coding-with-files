@@ -2,34 +2,34 @@
 
 ## Goal
 
-Provide comprehensive command reference for Code Implementation Guide (CIG) system to enable efficient project documentation workflow.
+Provide comprehensive command reference for Coding with Files (CWF) system to enable efficient project documentation workflow.
 
 ## Setup Command
 
-### `/cig-init`
+### `/cwf-init`
 **Purpose**: Initialise implementation guide system in current project
 
-**Usage**:`/cig-init`
+**Usage**:`/cwf-init`
 
 **Actions**:
 - Creates `<git-root>/implementation-guide/` directory structure with task categories (feature/, bugfix/, hotfix/, chore/)
-- Generates `cig-project.json` Code Implementation Guide Project configuration file
+- Generates `cwf-project.json` Coding with Files Project configuration file
 - Creates README.md with navigation index and command reference
 - Creates `.templates/` directory with category-specific template files
-- Updates CLAUDE.md with section extraction hints, standard section names, and CIG system integration
+- Updates CLAUDE.md with section extraction hints, standard section names, and CWF system integration
 - Provides command reference and next steps
 
 **Output**: Confirmation message with available commands and setup completion status
 
 ## Unified Task Creation Command
 
-### `/cig-new-task <task-type> [task-id] <description>`
+### `/cwf-new-task <task-type> [task-id] <description>`
 **Purpose**: Create new categorised implementation guide with task tracking integration
 
 **Usage**:
-- `/cig-new-task feature JIRA-1234 "user authentication system"`
-- `/cig-new-task bugfix #567 "login validation error"`
-- `/cig-new-task hotfix "security vulnerability"`
+- `/cwf-new-task feature JIRA-1234 "user authentication system"`
+- `/cwf-new-task bugfix #567 "login validation error"`
+- `/cwf-new-task hotfix "security vulnerability"`
 
 **Creates**:
 - Categorised directory: `implementation-guide/{task-type}/N-{description}/`
@@ -59,10 +59,10 @@ Provide comprehensive command reference for Code Implementation Guide (CIG) syst
 
 ## Hierarchy Management Commands
 
-### `/cig-substep <parent-path> <substep-name>`
+### `/cwf-substep <parent-path> <substep-name>`
 **Purpose**: Create numbered subdirectory under existing feature
 
-**Usage**: `/cig-substep 1-auth-system user-model`
+**Usage**: `/cwf-substep 1-auth-system user-model`
 
 **Creates**:
 - Directory: `1-auth-system/1.1-user-model/`
@@ -72,19 +72,19 @@ Provide comprehensive command reference for Code Implementation Guide (CIG) syst
 
 ## Utility Commands
 
-### `/cig-status [feature-path]`
+### `/cwf-status [feature-path]`
 **Purpose**: Show completion status across implementation guide hierarchy
 
 **Usage**:
-- `/cig-status` - Shows all guides
-- `/cig-status 1-auth-system` - Shows specific feature status
+- `/cwf-status` - Shows all guides
+- `/cwf-status 1-auth-system` - Shows specific feature status
 
 **Output**: Progress summary with completion percentages, blockers, next actions
 
-### `/cig-extract <file-path> <section-name>`
+### `/cwf-extract <file-path> <section-name>`
 **Purpose**: Extract specific section from implementation guide document
 
-**Usage**:`/cig-extract 1-auth-system/plan.md "Original Estimate"`
+**Usage**:`/cwf-extract 1-auth-system/plan.md "Original Estimate"`
 
 **Method**: Uses `sed -n '/^## <section-name>/,/^## /p' <file> | head -n -1`
 
@@ -98,10 +98,10 @@ Provide comprehensive command reference for Code Implementation Guide (CIG) syst
 - "Current Status" - Progress tracking
 - "Documentation" - Links to related documents and references
 
-### `/cig-retrospective <feature-path>`
+### `/cwf-retrospective <feature-path>`
 **Purpose**: Facilitate post-completion analysis and variance tracking
 
-**Usage**:`/cig-retrospective 1-auth-system`
+**Usage**:`/cwf-retrospective 1-auth-system`
 
 **Actions**:
 - Prompts for Actual Results in all feature documents
@@ -109,10 +109,10 @@ Provide comprehensive command reference for Code Implementation Guide (CIG) syst
 - Facilitates Lessons Learned documentation
 - Updates status.md with completion markers
 
-### `/cig-security-check [verify|report]`
-**Purpose**: Verify file integrity and sources for CIG system
+### `/cwf-security-check [verify|report]`
+**Purpose**: Verify file integrity and sources for CWF system
 
-**Usage**:`/cig-security-check verify`
+**Usage**:`/cwf-security-check verify`
 
 **Actions**:
 - Validates helper script integrity against canonical repository
@@ -129,18 +129,18 @@ Provide comprehensive command reference for Code Implementation Guide (CIG) syst
 
 ### Typical Command Progression
 
-1. **Project Setup**: `/cig-init`
-2. **Task Creation**: `/cig-new-task feature JIRA-1234 "major feature"`
-3. **Break Down**: `/cig-substep feature/1-major-feature first-component`
+1. **Project Setup**: `/cwf-init`
+2. **Task Creation**: `/cwf-new-task feature JIRA-1234 "major feature"`
+3. **Break Down**: `/cwf-substep feature/1-major-feature first-component`
 4. **Implementation**: Work with generated documents (plan.md → requirements.md → design.md → implementation.md)
-5. **Progress Tracking**: `/cig-status feature/1-major-feature`
-6. **Section Review**: `/cig-extract feature/1-major-feature/plan.md "Success Criteria"`
-7. **Post-Completion**: `/cig-retrospective feature/1-major-feature`
+5. **Progress Tracking**: `/cwf-status feature/1-major-feature`
+6. **Section Review**: `/cwf-extract feature/1-major-feature/plan.md "Success Criteria"`
+7. **Post-Completion**: `/cwf-retrospective feature/1-major-feature`
 
 ### Status Monitoring
 
-- Use `/cig-status` regularly to track progress
-- Use `/cig-extract` to review specific sections without loading full documents
+- Use `/cwf-status` regularly to track progress
+- Use `/cwf-extract` to review specific sections without loading full documents
 - Update Original Estimate → Actual Results progression through implementation
 
 ## Integration with CLAUDE.md
