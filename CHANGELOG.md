@@ -2,6 +2,38 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 60: Add Installation Instructions
+
+**Status**: Complete (2026-02-15)
+**Duration**: ~2 hours (vs. 1-2 hours estimated = on target)
+**Impact**: Chore — New INSTALL.md enabling users to install CWF into their own repos.
+
+### Key Changes
+
+1. **INSTALL.md**: Two first-class installation methods — git subtree (two-split approach) and file copy (static/manual upgrade)
+2. **README.md**: Installation section replaced with concise summary linking to INSTALL.md
+3. **Git subtree two-split**: Verified approach using `git subtree split` for `.cwf/` and `.claude/skills/` from single CWF repo
+
+### Scope Notes
+
+This is an intentionally incomplete implementation. Deferred to Task 61 (feature):
+- `curl | bash` install script
+- Tag-based release management with update/rollback
+
+### BACKLOG Items Added
+
+- **Audit /cwf-init for obsolete category subdirectories** (chore, medium)
+- **template-copier-v2.1 undef warnings** (bugfix, high)
+- **/cwf-init should run security check and fix permissions** (bugfix, low)
+- **Add status update helper script** (feature, low)
+
+### Test Results
+
+- 11 test cases: 3 structure + 3 path accuracy + 2 command validity + 2 README integration + 1 verification, all PASS
+- External validation: both methods tested against real repo
+
+---
+
 ## Task 59: Rebrand CIG to CWF (Coding with Files)
 
 **Status**: Complete (2026-02-14)

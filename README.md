@@ -47,16 +47,11 @@ We welcome issues, pull requests, and suggestions! This project aims to become a
 
 ## Installation
 
-1. Clone the repository:
-   ```bash
-   git clone <repository-url>
-   cd coding-with-files
-   ```
+CWF can be installed via git subtree (for upstream sync) or file copy (for static/manual upgrades). Both methods are fully supported.
 
-2. Initialise CWF for your project:
-   ```
-   /cwf-init
-   ```
+**Prerequisites**: Git 1.7+, Perl 5.20+, Bash 4+, Claude Code.
+
+See **[INSTALL.md](INSTALL.md)** for complete instructions, post-install setup, and troubleshooting.
 
 ## Commands
 
