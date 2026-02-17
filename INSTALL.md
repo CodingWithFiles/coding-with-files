@@ -41,6 +41,8 @@ less /tmp/cwf-install.bash   # review the script
 CWF_REF=v2.0.0 bash /tmp/cwf-install.bash
 ```
 
+**Important**: After install, restart Claude Code (or start a new conversation) for CWF skills to register. Then run `/cwf-init` to complete project setup.
+
 After install, use the management script for ongoing operations:
 
 ```bash

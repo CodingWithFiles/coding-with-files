@@ -14,7 +14,9 @@ use strict;
 use warnings;
 use File::Basename;
 use File::Temp qw(tempdir);
-use File::Path qw(rmtree);
+use File::Path qw(rmtree make_path);
+use File::Find;
+use File::Copy qw(copy);
 use Cwd qw(getcwd);
 
 # --- Helpers ------------------------------------------------------------------
@@ -237,6 +239,22 @@ sub update_subtree {
     return;
 }
 
+sub copy_tree {
+    my ($src, $dst) = @_;
+    find(sub {
+        my $rel = $File::Find::name;
+        $rel =~ s/^\Q$src\E//;
+        my $target = "$dst$rel";
+        if (-d) {
+            make_path($target) unless -d $target;
+        } else {
+            copy($_, $target)
+                or die_msg("Failed to copy $_ to $target: $!");
+        }
+    }, $src);
+    return;
+}
+
 sub update_copy {
     my ($git_root, $clone_dir, $ref) = @_;
 
@@ -245,17 +263,14 @@ sub update_copy {
     rmtree("$git_root/.cwf-skills");
 
     # Copy fresh
-    system("cp", "-r", "$clone_dir/.cwf", "$git_root/.cwf") == 0
-        or die_msg("Failed to copy .cwf/");
+    copy_tree("$clone_dir/.cwf", "$git_root/.cwf");
     log_msg("Copied .cwf/");
 
-    system("cp", "-r", "$clone_dir/.claude/skills", "$git_root/.cwf-skills") == 0
-        or die_msg("Failed to copy .cwf-skills/");
+    copy_tree("$clone_dir/.claude/skills", "$git_root/.cwf-skills");
     log_msg("Copied .cwf-skills/");
 
     # Fix permissions
-    system("find", "$git_root/.cwf/scripts", "-type", "f", "-exec", "chmod", "u+rx", "{}", ";") == 0
-        or die_msg("Failed to fix permissions");
+    find(sub { chmod 0755, $_ if -f }, "$git_root/.cwf/scripts");
     log_msg("Fixed script permissions");
     return;
 }
@@ -267,8 +282,7 @@ sub create_skill_symlinks {
     my $staging_dir = "$git_root/.cwf-skills";
 
     # Ensure .claude/skills/ exists
-    system("mkdir", "-p", $skills_dir) == 0
-        or die_msg("Failed to create $skills_dir");
+    make_path($skills_dir) unless -d $skills_dir;
 
     # Remove stale CWF symlinks
     for my $link (glob("$skills_dir/cwf-*")) {

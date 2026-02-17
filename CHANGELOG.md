@@ -2,6 +2,25 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 62: Fix Install Script / cwf-init Boundary and Post-Install UX
+
+**Status**: Complete (2026-02-17)
+**Duration**: 1 session (vs. 1 session estimated = on target)
+**Impact**: Bugfix — Clean separation between install script (plumbing) and /cwf-init (project setup).
+
+### Key Changes
+
+1. **Install script boundary**: Removed `implementation-guide/` and `.gitignore` creation from `post_install()` — these are now exclusively `/cwf-init`'s responsibility
+2. **cwf-manage Perl idioms**: Replaced `system()` file operations with core Perl (`File::Find`, `File::Copy`, `File::Path`). Added `copy_tree()` helper.
+3. **cwf-init UX**: Added PERL5OPT detection (skip suggestion if already configured) and post-init commit step
+4. **INSTALL.md**: Documents that Claude Code restart is needed after install for skills to register
+
+### Test Results
+
+- 15 test cases: 3 boundary + 5 Perl idioms + 3 SKILL.md + 1 docs + 3 regression, all PASS
+
+---
+
 ## Task 61: CWF Install Script and Release Management
 
 **Status**: Complete (2026-02-16)

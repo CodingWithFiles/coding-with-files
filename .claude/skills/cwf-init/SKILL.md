@@ -18,7 +18,7 @@ allowed-tools:
 **First**: Run `.cwf/scripts/command-helpers/context-manager location` using the Bash tool to confirm git root.
 
 **Mandatory context** (run before proceeding):
-- Run `ls -la implementation-guide/ 2>/dev/null || echo "No implementation-guide found"` using the Bash tool to check if CIG is already initialised.
+- Run `ls -la implementation-guide/ 2>/dev/null || echo "No implementation-guide found"` using the Bash tool to check if CWF is already initialised.
 
 ## Workflow
 
@@ -46,7 +46,10 @@ allowed-tools:
 - Use idempotent check: `grep -q '^\\.cwf/task-stack$' .gitignore || echo '.cwf/task-stack' >> .gitignore`
 
 ### 6. Configure Claude Code Settings (user action required)
-- Inform user to add PERL5OPT to `~/.claude/settings.json`:
+- First, check if PERL5OPT is already configured:
+  `grep -q 'PERL5OPT' ~/.claude/settings.json 2>/dev/null`
+- **If already configured**: Inform user "PERL5OPT is already configured — no action needed" and skip to next step
+- **If not configured**: Inform user to add PERL5OPT to `~/.claude/settings.json`:
   ```json
   {
     "env": {
@@ -57,6 +60,15 @@ allowed-tools:
 - This enables Unicode handling in Perl helper scripts
 - Without this, scripts will issue warnings but continue to work
 
+### 7. Commit Init Output
+- Stage all files created or modified by init:
+  ```bash
+  git add implementation-guide/ .gitignore
+  ```
+- Also stage CLAUDE.md if it was modified in step 4
+- Offer to commit with message: "Initialise CWF project configuration"
+- Follow the project's commit conventions (see `docs/conventions/commit-messages.md` if present)
+
 **Success**: Complete CWF system ready for `/cwf-new-task` usage
 
 ## Success Criteria
@@ -65,4 +77,5 @@ allowed-tools:
 - [ ] Project configuration generated
 - [ ] Navigation index created
 - [ ] .gitignore updated
-- [ ] User informed about PERL5OPT setting
+- [ ] PERL5OPT checked and user informed only if not already configured
+- [ ] Init output committed (or offered to user)

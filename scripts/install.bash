@@ -216,21 +216,6 @@ post_install() {
     # Create skill symlinks
     create_skill_symlinks
 
-    # Create implementation-guide directory
-    if [[ ! -d "implementation-guide" ]]; then
-        mkdir -p implementation-guide
-        log "Post-install: created implementation-guide/"
-    fi
-
-    # Update .gitignore
-    if [[ ! -f ".gitignore" ]]; then
-        echo '.cwf/task-stack' > .gitignore
-        log "Post-install: created .gitignore with .cwf/task-stack"
-    elif ! grep -q '^\\.cwf/task-stack$' .gitignore; then
-        echo '.cwf/task-stack' >> .gitignore
-        log "Post-install: added .cwf/task-stack to .gitignore"
-    fi
-
     # Write version file
     cat > .cwf/version <<VEOF
 cwf_version=$ref
