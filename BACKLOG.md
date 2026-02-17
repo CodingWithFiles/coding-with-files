@@ -9,6 +9,76 @@ Future tasks and improvements for the Coding with Files system.
 
 <!-- Completed: "Fix Install Script / cwf-init Boundary and Post-Install UX" — Task 62 (2026-02-17) -->
 
+## Task: Harden Install Script Pre-Flight Checks and Simplify Bootstrap
+
+**Task-Type**: bugfix
+**Priority**: High
+
+Two issues found during agent install testing:
+
+1. **No initial commit check**: `install.bash` attempts `git subtree add` which requires at least one commit. If the repo was just `git init`'d with no commits, the subtree add fails with "working tree has modifications. Cannot add." — a confusing error. The install script should check for at least one commit and return a clear error message.
+
+2. **Replace sparse-checkout bootstrap with `git archive` one-liner**: The 4-line sparse-checkout sequence in README.md and INSTALL.md can be replaced with a single `git archive --remote=<url> <ref> -- scripts/install.bash | tar -xO | bash` command. This works with GitLab, Gitea, self-hosted git, and `file://` URLs. GitHub doesn't support `git archive --remote`, but already has the `curl -fsSL <raw-url> | bash` one-liner. Two clean one-liners cover all hosts.
+
+**Identified in**: Task 63 external testing (agent install)
+
+---
+
+## Task: Remove v1.0 Category Subdirectories from /cwf-init
+
+**Task-Type**: bugfix
+**Priority**: High
+
+`/cwf-init` still creates `implementation-guide/{feature,bugfix,hotfix,chore}/` subdirectories from the v1.0 flat-category format. In v2.0+ tasks are created directly under `implementation-guide/` with the type embedded in the directory name (e.g. `1-feature-foo/`). The category subdirectories are unused and misleading.
+
+**Identified in**: Task 63 external testing (agent install)
+
+---
+
+## Task: Add `cwf-manage validate` and CWF::Validate Module Suite
+
+**Task-Type**: feature
+**Priority**: High
+
+Add a `validate` subcommand to `cwf-manage` that runs comprehensive validation across all config and workflow files. Backed by a `CWF::Validate` module suite split by subsystem, so individual helper scripts can call a subset of validation functions without pulling in the full suite.
+
+**Architecture**:
+- `CWF::Validate::Config` — validate `cwf-project.json` schema: required keys (`supported-task-types`, `source-management.branch-naming-convention`, etc.), correct types, no unknown keys
+- `CWF::Validate::Workflow` — validate workflow step files (a-task-plan.md through j-retrospective.md): required sections present, status field values valid, next-action references valid skills, template version matches
+- `CWF::Validate::Consistency` — cross-file checks: branch name in task reference matches git branch, task numbers match directory names, status progression valid
+- `CWF::Validate::Security` — script hash verification (consolidate existing `/cwf-security-check` logic)
+- `cwf-manage validate` — thin wrapper that calls all validation modules, reports all violations (not just first), exits non-zero on failure
+
+**Integration points**:
+- Called at end of `/cwf-init` to catch config schema mismatches immediately
+- Called at end of each skill via workflow preamble or checkpoint commit step as a post-skill guard
+- Individual modules callable from helper scripts (e.g. template-copier can call `CWF::Validate::Config::check_required_keys()` before accessing config)
+
+**Rationale**: LLM-generated content (especially from `/cwf-init`) can diverge from expected schemas. A missing config key currently causes a fatal runtime error in template-copier-v2.1. Catching these at skill boundaries prevents downstream failures. Splitting by subsystem keeps modules focused and avoids pulling unnecessary dependencies.
+
+**Identified in**: Task 63 external testing (agent install)
+
+---
+
+## Task: Improve CWF Skill Initialisation in /cwf-init
+
+**Task-Type**: feature
+**Priority**: High
+
+Several improvements to `/cwf-init` identified through external agent testing:
+
+1. **Auto-register skill permissions**: Offer to add all 18 CWF skill permissions to `.claude/settings.json` so agents don't get prompted on every skill call. Ask the user first — don't silently modify permissions. Read existing `.claude/settings.json` (or create it), merge `Skill(cwf-*)` entries into `permissions.allow`, preserve existing permissions, list skills being added.
+
+2. **Add CWF enforcement preamble to CLAUDE.md**: Generate a prominent `**IMPORTANT**` section at the top of CLAUDE.md (or create AGENTS.md) stating:
+   - CWF is installed — use the `Skill` tool to invoke CWF skills, do not manually follow skill instructions
+   - All workflow steps must be executed — if genuinely unnecessary, mark as `Skipped` via the workflow process, do not silently omit them
+
+3. **Enforce init commit before task work**: Agents have been observed skipping the post-init commit (Step 7 of cwf-init SKILL.md). Consider whether the enforcement preamble above is sufficient, or whether an additional guard is needed.
+
+**Identified in**: Task 63 external testing (agent install)
+
+---
+
 ## Task: Add Delete Task Skill
 
 **Task-Type**: feature

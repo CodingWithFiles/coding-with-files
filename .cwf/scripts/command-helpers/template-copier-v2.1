@@ -120,6 +120,7 @@ Exit codes:
   2 - Not found
   3 - Permission error
 USAGE
+    return;
 }
 
 # Find git repository root and templates directory
@@ -194,7 +195,7 @@ sub validate_task_type {
         exit 1;
     }
 
-    my @supported_types = @{$config->{'supported-task-types'}};
+    my @supported_types = @{$config->{'supported-task-types'} // [qw(feature bugfix hotfix chore discovery)]};
     unless (grep { $_ eq $type } @supported_types) {
         print STDERR "Error: Invalid task type '$type'\n";
         print STDERR "Supported types: " . join(", ", @supported_types) . "\n";
@@ -278,7 +279,8 @@ sub get_phase_sequence {
     closedir($dh);
 
     # Sort alphabetically to get sequence
-    return sort @phases;
+    my @sorted = sort @phases;
+    return @sorted;
 }
 
 # Compute next action based on current phase and task type
@@ -349,7 +351,7 @@ sub compute_variables {
 
     # Branch name from config pattern
     my $config = load_config();
-    my $pattern = $config->{'branch-naming-convention'};
+    my $pattern = $config->{'branch-naming-convention'} // '';
 
     # Extract slug from destination basename
     my $basename = basename($params->{destination});
@@ -380,7 +382,7 @@ sub substitute_variables {
     my ($content, $vars) = @_;
 
     for my $key (keys %$vars) {
-        my $value = $vars->{$key};
+        my $value = $vars->{$key} // '';
         $content =~ s/\{\{$key\}\}/$value/g;
     }
 
@@ -523,6 +525,7 @@ sub output_results {
 
         print "\nTotal: $total files copied\n";
     }
+    return;
 }
 
 # Main execution

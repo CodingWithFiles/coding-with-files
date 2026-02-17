@@ -2,6 +2,32 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 63: Fix template-copier-v2.1 Undef Warnings and Sparse-Checkout Bootstrap
+
+**Status**: Complete (2026-02-17)
+**Duration**: 1 session (vs. 1 session estimated = on target)
+**Impact**: Bugfix — Zero undef warnings during template creation; agent-friendly install bootstrap documented.
+
+### Key Changes
+
+1. **Undef guards in template-copier-v2.1**: `$pattern // ''` (line 354), `$value // ''` (line 385), `supported-task-types // [default list]` (line 198)
+2. **Perlcritic stern**: Fixed 3 pre-existing violations — explicit `return` on `print_usage` and `output_results`, `return sort` ambiguity resolved
+3. **Sparse-checkout bootstrap**: Added agent-friendly 4-line install sequence to README.md and INSTALL.md for non-GitHub hosts
+4. **Security hash**: Updated for template-copier-v2.1
+
+### Test Results
+
+- 10 test cases: 2 static analysis + 2 source inspection + 2 integration + 1 hash + 2 docs + 1 array guard, all PASS
+
+### BACKLOG Items Added
+
+- **Harden install script**: Initial commit pre-flight + replace sparse checkout with `git archive` one-liner
+- **Remove v1.0 category dirs from /cwf-init**
+- **`cwf-manage validate` and CWF::Validate module suite**
+- **Improve CWF skill initialisation in /cwf-init** (permissions, enforcement preamble, post-init commit)
+
+---
+
 ## Task 62: Fix Install Script / cwf-init Boundary and Post-Install UX
 
 **Status**: Complete (2026-02-17)

@@ -51,6 +51,17 @@ CWF can be installed via git subtree (for upstream sync) or file copy (for stati
 
 **Prerequisites**: Git 1.7+, Perl 5.20+, Bash 4+, Claude Code.
 
+### Quick Install (Any Git Host)
+
+```bash
+git clone --depth 1 --filter=blob:none --sparse <cwf-repo-url> /tmp/cwf-bootstrap
+git -C /tmp/cwf-bootstrap sparse-checkout set scripts
+CWF_SOURCE=<cwf-repo-url> bash /tmp/cwf-bootstrap/scripts/install.bash
+rm -rf /tmp/cwf-bootstrap
+```
+
+This fetches only the install script (~few KB) via sparse checkout, then runs it. Works with any git host (GitHub, GitLab, Gitea, etc.).
+
 See **[INSTALL.md](INSTALL.md)** for complete instructions, post-install setup, and troubleshooting.
 
 ## Commands

@@ -6,6 +6,19 @@ This guide covers how to install Coding with Files (CWF) into your own repositor
 
 The install script automates the full setup. It works for both humans and agents with zero interaction.
 
+### Any Git Host (Sparse Checkout)
+
+Works with any git host — GitHub, GitLab, Gitea, self-hosted, etc. Fetches only the install script (~few KB) rather than the full repository.
+
+```bash
+git clone --depth 1 --filter=blob:none --sparse <cwf-repo-url> /tmp/cwf-bootstrap
+git -C /tmp/cwf-bootstrap sparse-checkout set scripts
+CWF_SOURCE=<cwf-repo-url> bash /tmp/cwf-bootstrap/scripts/install.bash
+rm -rf /tmp/cwf-bootstrap
+```
+
+### GitHub (curl one-liner)
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/mattkeenan/coding-with-files/main/scripts/install.bash | bash
 ```
