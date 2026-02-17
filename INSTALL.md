@@ -1,6 +1,59 @@
 # Installing CWF
 
-This guide covers how to install Coding with Files (CWF) into your own repository. There are two methods — both are first-class and fully supported.
+This guide covers how to install Coding with Files (CWF) into your own repository.
+
+## Quick Install (Script)
+
+The install script automates the full setup. It works for both humans and agents with zero interaction.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/mattkeenan/coding-with-files/main/scripts/install.bash | bash
+```
+
+Override defaults with environment variables:
+
+```bash
+# Use file copy instead of git subtree
+curl -fsSL <url> | CWF_METHOD=copy bash
+
+# Install a specific version
+curl -fsSL <url> | CWF_REF=v2.0.0 bash
+
+# Install from a local clone or mirror
+curl -fsSL <url> | CWF_SOURCE=file:///path/to/cwf-repo bash
+
+# Overwrite an existing install
+curl -fsSL <url> | CWF_FORCE=1 bash
+```
+
+| Variable | Default | Values |
+|----------|---------|--------|
+| `CWF_METHOD` | `subtree` | `subtree`, `copy` |
+| `CWF_REF` | `latest` | Tag, branch, commit SHA, or `latest` |
+| `CWF_SOURCE` | GitHub URL | Any git URL or `file://` path |
+| `CWF_FORCE` | (unset) | `1` to overwrite existing install |
+
+For the download-then-inspect approach:
+
+```bash
+curl -fsSL <url> -o /tmp/cwf-install.bash
+less /tmp/cwf-install.bash   # review the script
+CWF_REF=v2.0.0 bash /tmp/cwf-install.bash
+```
+
+After install, use the management script for ongoing operations:
+
+```bash
+.cwf/scripts/cwf-manage status          # show installed version
+.cwf/scripts/cwf-manage list-releases   # list available versions
+.cwf/scripts/cwf-manage update          # update to latest
+.cwf/scripts/cwf-manage update v2.1.0   # update to specific version
+.cwf/scripts/cwf-manage rollback v2.0.0 # revert to previous version
+```
+
+## Manual Install
+
+Three methods are available for manual installation. All are first-class and fully supported.
 
 | Method | Best for | Upstream sync | Upgrade path |
 |--------|----------|---------------|--------------|
@@ -24,7 +77,7 @@ bash --version | head -1
 
 ## Method 1: Git Subtree
 
-Git subtree embeds CWF into your repo with a link back to the upstream source. This uses two subtree splits from the single CWF repo — one for the core system (`.cwf/`) and one for the skills (`.claude/skills/`).
+Git subtree embeds CWF into your repo with a link back to the upstream source. This uses two subtree splits from the single CWF repo — one for the core system (`.cwf/`) and one for the skills (`.cwf-skills/`). Skills are then symlinked into `.claude/skills/` so they coexist with any skills you already have.
 
 ### Install
 
@@ -40,14 +93,21 @@ git subtree split --prefix=.claude/skills -b cwf-skills
 # Switch to your project repo
 cd /path/to/your/repo
 
-# Add both subtrees
+# Add both subtrees (.cwf-skills/ is a staging prefix)
 git subtree add --prefix=.cwf /tmp/cwf-source cwf-core --squash
-git subtree add --prefix=.claude/skills /tmp/cwf-source cwf-skills --squash
+git subtree add --prefix=.cwf-skills /tmp/cwf-source cwf-skills --squash
+
+# Create symlinks from .cwf-skills/ into .claude/skills/
+mkdir -p .claude/skills
+for d in .cwf-skills/cwf-*/; do
+    ln -s "../../.cwf-skills/$(basename "$d")" ".claude/skills/$(basename "$d")"
+done
 ```
 
 This installs:
 - `.cwf/` — scripts, templates, documentation, Perl libraries, security hashes
-- `.claude/skills/cwf-*` — 18 skill definitions (one SKILL.md each)
+- `.cwf-skills/cwf-*` — 18 skill definitions (one SKILL.md each)
+- `.claude/skills/cwf-*` — symlinks to `.cwf-skills/cwf-*`
 
 ### Update
 
@@ -61,13 +121,21 @@ git subtree split --prefix=.claude/skills -b cwf-skills --rejoin
 # Switch to your project repo and pull updates
 cd /path/to/your/repo
 git subtree pull --prefix=.cwf /tmp/cwf-source cwf-core --squash -m "Update CWF core"
-git subtree pull --prefix=.claude/skills /tmp/cwf-source cwf-skills --squash -m "Update CWF skills"
+git subtree pull --prefix=.cwf-skills /tmp/cwf-source cwf-skills --squash -m "Update CWF skills"
+
+# Recreate symlinks (handles skill renames across versions)
+rm -f .claude/skills/cwf-*  # remove old symlinks only
+mkdir -p .claude/skills
+for d in .cwf-skills/cwf-*/; do
+    ln -s "../../.cwf-skills/$(basename "$d")" ".claude/skills/$(basename "$d")"
+done
 ```
 
 ### Remove
 
 ```bash
-git rm -r .cwf .claude/skills/cwf-*
+git rm -r .cwf .cwf-skills
+rm -f .claude/skills/cwf-*  # remove symlinks
 git commit -m "Remove CWF"
 ```
 
@@ -83,38 +151,43 @@ Copy the CWF files directly into your repo. This gives you full control over whe
 # 1. Core system (scripts, templates, docs, libraries)
 cp -r <cwf-source-path>/.cwf .cwf
 
-# 2. Claude Code skills (slash commands)
+# 2. Skills to staging prefix
+cp -r <cwf-source-path>/.claude/skills .cwf-skills
+
+# 3. Fix permissions
+find .cwf/scripts -type f -exec chmod u+rx {} \;
+
+# 4. Create symlinks into .claude/skills/
 mkdir -p .claude/skills
-cp -r <cwf-source-path>/.claude/skills/cwf-* .claude/skills/
+for d in .cwf-skills/cwf-*/; do
+    ln -s "../../.cwf-skills/$(basename "$d")" ".claude/skills/$(basename "$d")"
+done
 ```
 
 This copies:
 - `.cwf/` — scripts, templates, documentation, Perl libraries, security hashes (~70 files)
-- `.claude/skills/cwf-*` — 18 skill definitions (one SKILL.md each)
-
-### Fix permissions
-
-File copy may not preserve execute permissions. Run this after copying:
-
-```bash
-find .cwf/scripts -type f -exec chmod u+rx {} \;
-```
+- `.cwf-skills/cwf-*` — 18 skill definitions (one SKILL.md each)
+- `.claude/skills/cwf-*` — symlinks to `.cwf-skills/cwf-*`
 
 ### Update
 
 To upgrade to a newer CWF release, repeat the copy from the newer source:
 
 ```bash
-# Replace .cwf/ with the newer version
-rm -rf .cwf
+# Replace .cwf/ and .cwf-skills/ with the newer version
+rm -rf .cwf .cwf-skills
 cp -r <cwf-source-path>/.cwf .cwf
-
-# Replace skills with the newer versions
-rm -rf .claude/skills/cwf-*
-cp -r <cwf-source-path>/.claude/skills/cwf-* .claude/skills/
+cp -r <cwf-source-path>/.claude/skills .cwf-skills
 
 # Fix permissions
 find .cwf/scripts -type f -exec chmod u+rx {} \;
+
+# Recreate symlinks
+rm -f .claude/skills/cwf-*
+mkdir -p .claude/skills
+for d in .cwf-skills/cwf-*/; do
+    ln -s "../../.cwf-skills/$(basename "$d")" ".claude/skills/$(basename "$d")"
+done
 ```
 
 Review the CWF CHANGELOG for breaking changes before upgrading.
@@ -122,7 +195,8 @@ Review the CWF CHANGELOG for breaking changes before upgrading.
 ### Remove
 
 ```bash
-rm -rf .cwf .claude/skills/cwf-*
+rm -rf .cwf .cwf-skills
+rm -f .claude/skills/cwf-*  # remove symlinks
 # Also remove implementation-guide/ if you no longer need task history
 ```
 
@@ -167,8 +241,9 @@ After installation, verify everything is in place:
 # Check .cwf directory exists with expected structure
 ls .cwf/scripts/command-helpers/context-manager
 
-# Check skills are installed
-ls .claude/skills/cwf-init/SKILL.md
+# Check skills are installed (symlinks resolve)
+ls -la .claude/skills/cwf-init  # should show symlink to ../../.cwf-skills/cwf-init
+cat .claude/skills/cwf-init/SKILL.md
 
 # Check helper scripts are executable
 .cwf/scripts/command-helpers/context-manager location

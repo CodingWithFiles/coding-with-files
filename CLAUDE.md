@@ -41,6 +41,7 @@ The Coding with Files (CWF) system v2.0 is **implemented and operational**. Core
 **Utility Commands**:
 - `/cwf-security-check [verify|report]` - Verify system integrity
 - `/cwf-config [init|list|reset]` - Configure CWF system
+- `.cwf/scripts/cwf-manage` - Manage CWF installation (status, update, rollback, list-releases)
 
 ## Conventions
 

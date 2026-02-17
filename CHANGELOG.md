@@ -2,6 +2,39 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 61: CWF Install Script and Release Management
+
+**Status**: Complete (2026-02-16)
+**Duration**: 2 sessions (vs. 1-2 sessions estimated = on target)
+**Impact**: Feature — Zero-interaction bootstrap install script and Perl management script for CWF lifecycle.
+
+### Key Changes
+
+1. **Bootstrap script** (`scripts/install.bash`, ~240 lines): `curl | bash` installer supporting subtree (default) and copy methods via `CWF_METHOD`, `CWF_REF`, `CWF_SOURCE`, `CWF_FORCE` env vars
+2. **Management script** (`.cwf/scripts/cwf-manage`, ~345 lines Perl): `status`, `list-releases`, `update`, `rollback` subcommands with dispatch table
+3. **Staging prefix + symlinks**: Skills install to `.cwf-skills/` and are symlinked into `.claude/skills/`, preserving existing consumer skills
+4. **INSTALL.md**: Added "Quick Install (Script)" section; updated manual methods for `.cwf-skills/` staging prefix
+5. **Perlcritic**: Clean at severity 4 (stern) — explicit returns on all subs, dispatch table for command routing
+
+### Design Decision
+
+Original design used `.claude/skills/` as a subtree prefix, which would clobber existing consumer skills. Reworked through full process (b→g) to use `.cwf-skills/` staging prefix with relative symlinks. This was the critical design insight of the task.
+
+### Test Results
+
+- 28 test cases: 4 subtree + 1 copy + 3 symlink + 4 ref resolution + 2 prereq + 8 management + 2 docs + 2 regression, all PASS
+- Pass 1: 5 bugs found. Pass 2 (after rework): 0 bugs found.
+
+### BACKLOG Items Added
+
+- **Replace backtick operators with IPC::Open3 in cwf-manage** (chore, very low)
+
+### BACKLOG Items Completed
+
+- Task 60 deferred items (install script, tag-based release management) now implemented
+
+---
+
 ## Task 60: Add Installation Instructions
 
 **Status**: Complete (2026-02-15)

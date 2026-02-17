@@ -7,6 +7,29 @@ Future tasks and improvements for the Coding with Files system.
 <!-- Completed: "Refactor CWF Commands for Progressive Disclosure" — Task 56 (2026-02-12) -->
 <!-- Completed: "Convert CWF Commands to Skills" — Task 57 (2026-02-13) -->
 
+## Task: Fix Install Script / cwf-init Boundary and Post-Install UX
+
+**Task-Type**: bugfix
+**Priority**: High
+**Status**: Follow-up from Task 61
+
+Three issues with the install-then-init workflow, discovered during external testing:
+
+### Part 1: Install script and /cwf-init overlap
+The install script creates `implementation-guide/` and updates `.gitignore`, then `/cwf-init` checks for and partially recreates those same things. The boundary is unclear. The install script should handle only CWF plumbing (`.cwf/`, `.cwf-skills/`, symlinks, `.cwf/version`) and leave project setup (`implementation-guide/`, `.gitignore`, `CLAUDE.md`) entirely to `/cwf-init`.
+
+### Part 2: /cwf-init doesn't detect existing PERL5OPT config
+`/cwf-init` tells the user to add PERL5OPT configuration even when it's already present. Should detect existing config and skip or confirm.
+
+### Part 3: /cwf-init leaves files uncommitted
+The subtree adds from the install script are committed, but everything `/cwf-init` creates (`CLAUDE.md`, `implementation-guide/`, `.gitignore` updates) is left unstaged. `/cwf-init` should offer to commit its output.
+
+**Note**: Skills aren't registered until Claude Code is restarted after install. This is a Claude Code limitation, not a CWF bug — document in INSTALL.md.
+
+**Identified in**: Task 61 external testing
+
+---
+
 ## Task: Add Delete Task Skill
 
 **Task-Type**: feature
@@ -2357,3 +2380,18 @@ Create quick reference documentation for workflow phase sequences (which files a
 - Include in command help or error messages when phase skipped
 
 **Identified in**: Task 43 retrospective (j-retrospective.md)
+
+---
+
+## Task: Replace Backtick Operators with IPC::Open3 in cwf-manage
+
+**Task-Type**: chore
+**Priority**: Very Low
+
+Replace backtick operators in `.cwf/scripts/cwf-manage` with `IPC::Open3` calls to satisfy perlcritic severity 3 (harsh). `IPC::Open3` is core since Perl 5.000. Currently 5 backtick usages for simple `git` commands — functional and readable as-is, but not PBP-compliant at level 3.
+
+**Scope**:
+- Replace backticks in `find_git_root()`, `resolve_ref()`, `resolve_sha()`, `cmd_list_releases()`
+- Consider also adding `/x` flag to simple regexes (8 hits) and converting the if-elsif dispatch to a hash table (1 hit) for full level 3 compliance
+
+**Identified in**: Task 61 (perlcritic --harsh on cwf-manage)

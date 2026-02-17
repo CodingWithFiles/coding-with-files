@@ -66,6 +66,11 @@
       "path": ".cwf/scripts/migrations/migrate-v2.1-file-order",
       "sha256": "91fe3084d61dc9c577293600bab33976a9737381974f1e13b95e83b302651e11",
       "permissions": "0755"
+    },
+    "cwf-manage": {
+      "path": ".cwf/scripts/cwf-manage",
+      "sha256": "909c5b59bc0fedd807874a4c2e53ff899dd5e0553c757c8f56febcd59c0c2cc7",
+      "permissions": "0700"
     }
   },
   "lib": {

@@ -1,0 +1,347 @@
+#!/usr/bin/env perl
+#
+# CWF Management Script
+# Manage an installed CWF instance: status, list-releases, update, rollback.
+#
+# Usage:
+#   cwf-manage status          Show installed version and method
+#   cwf-manage list-releases   List available tagged releases
+#   cwf-manage update [ref]    Update to ref (default: latest)
+#   cwf-manage rollback <ref>  Revert to a previous version
+#   cwf-manage help            Show this help
+#
+use strict;
+use warnings;
+use File::Basename;
+use File::Temp qw(tempdir);
+use File::Path qw(rmtree);
+use Cwd qw(getcwd);
+
+# --- Helpers ------------------------------------------------------------------
+
+sub log_msg { print "[CWF] @_\n"; return; }
+
+sub die_msg {
+    print STDERR "[CWF] ERROR: @_\n";
+    exit 1;
+}
+
+# --- Version file -------------------------------------------------------------
+
+sub find_git_root {
+    my $root = `git rev-parse --show-toplevel 2>/dev/null`;
+    chomp $root;
+    die_msg("Not inside a git repository") unless $root;
+    return $root;
+}
+
+sub read_version_file {
+    my ($git_root) = @_;
+    my $path = "$git_root/.cwf/version";
+    die_msg("No .cwf/version file found — is CWF installed?") unless -f $path;
+
+    my %version;
+    open my $fh, '<', $path or die_msg("Cannot read $path: $!");
+    while (<$fh>) {
+        chomp;
+        next if /^\s*#/ || /^\s*$/;
+        if (/^(\w+)=(.*)$/) {
+            $version{$1} = $2;
+        }
+    }
+    close $fh;
+    return %version;
+}
+
+sub write_version_file {
+    my ($git_root, %version) = @_;
+    my $path = "$git_root/.cwf/version";
+    open my $fh, '>', $path or die_msg("Cannot write $path: $!");
+    for my $key (sort keys %version) {
+        print $fh "$key=$version{$key}\n";
+    }
+    close $fh;
+    return;
+}
+
+# --- Ref resolution -----------------------------------------------------------
+
+sub resolve_ref {
+    my ($clone_dir, $ref) = @_;
+
+    if ($ref eq 'latest') {
+        my @tags = `git -C "$clone_dir" tag -l 'v*' --sort=-version:refname`;
+        chomp @tags;
+        die_msg("No version tags found. Use a branch name or commit SHA instead.") unless @tags;
+        my $latest = $tags[0];
+        log_msg("Resolved 'latest' to $latest");
+        return $latest;
+    }
+
+    my $check = `git -C "$clone_dir" rev-parse --verify "$ref" 2>/dev/null`;
+    chomp $check;
+    die_msg("Invalid ref: $ref — not found in source repo") unless $check;
+
+    return $ref;
+}
+
+sub resolve_sha {
+    my ($clone_dir, $ref) = @_;
+    my $sha = `git -C "$clone_dir" rev-parse "$ref"`;
+    chomp $sha;
+    return $sha;
+}
+
+# --- Subcommands --------------------------------------------------------------
+
+sub cmd_status {
+    my ($git_root) = @_;
+    my %v = read_version_file($git_root);
+
+    log_msg("CWF Installation Status");
+    printf "  %-12s %s\n", "Version:", $v{cwf_version} // 'unknown';
+    printf "  %-12s %s\n", "Method:",  $v{cwf_method}  // 'unknown';
+    printf "  %-12s %s\n", "Ref:",     $v{cwf_ref}     // 'unknown';
+    printf "  %-12s %s\n", "SHA:",     $v{cwf_sha}     // 'unknown';
+    printf "  %-12s %s\n", "Source:",  $v{cwf_source}  // 'unknown';
+    printf "  %-12s %s\n", "Installed:", $v{cwf_installed} // 'unknown';
+    return;
+}
+
+sub cmd_list_releases {
+    my ($git_root) = @_;
+    my %v = read_version_file($git_root);
+    my $source = $v{cwf_source} or die_msg("No cwf_source in .cwf/version");
+    my $current = $v{cwf_version} // '';
+
+    log_msg("Available releases from $source");
+
+    my @lines = `git ls-remote --tags "$source" 'v*' 2>/dev/null`;
+    die_msg("Failed to query remote tags from $source") if $?;
+
+    # Extract tag names, filter out ^{} derefs
+    my @tags;
+    for (@lines) {
+        chomp;
+        if (m{refs/tags/(v[^\^]+)$}) {
+            push @tags, $1;
+        }
+    }
+
+    die_msg("No version tags found at $source") unless @tags;
+
+    # Sort by semver descending (using git's version sort via a subprocess)
+    @tags = reverse sort { version_cmp($a, $b) } @tags;
+
+    for my $tag (@tags) {
+        my $marker = ($tag eq $current) ? ' (installed)' : '';
+        printf "  %s%s\n", $tag, $marker;
+    }
+    return;
+}
+
+sub version_cmp {
+    my ($a, $b) = @_;
+    # Strip leading 'v'
+    (my $va = $a) =~ s/^v//;
+    (my $vb = $b) =~ s/^v//;
+
+    my @pa = split /\./, $va;
+    my @pb = split /\./, $vb;
+
+    my $len = @pa > @pb ? scalar @pa : scalar @pb;
+    for my $i (0 .. $len - 1) {
+        my $na = $pa[$i] // 0;
+        my $nb = $pb[$i] // 0;
+        my $cmp = $na <=> $nb;
+        return $cmp if $cmp;
+    }
+    return 0;
+}
+
+sub cmd_update {
+    my ($git_root, $ref) = @_;
+    $ref //= 'latest';
+
+    my %v = read_version_file($git_root);
+    my $method = $v{cwf_method} or die_msg("No cwf_method in .cwf/version");
+    my $source = $v{cwf_source} or die_msg("No cwf_source in .cwf/version");
+
+    log_msg("Updating CWF (method: $method, ref: $ref)");
+
+    # Clone source to temp dir
+    my $tmpdir = tempdir(CLEANUP => 1);
+    my $clone_dir = "$tmpdir/cwf-source";
+    log_msg("Cloning CWF source...");
+    system("git", "clone", "--quiet", $source, $clone_dir) == 0
+        or die_msg("Failed to clone $source");
+
+    # Resolve ref
+    my $resolved = resolve_ref($clone_dir, $ref);
+    my $sha = resolve_sha($clone_dir, $resolved);
+
+    # Checkout
+    system("git", "-C", $clone_dir, "checkout", "--quiet", $resolved) == 0
+        or die_msg("Failed to checkout $resolved");
+
+    if ($method eq 'subtree') {
+        update_subtree($git_root, $clone_dir, $resolved);
+    } elsif ($method eq 'copy') {
+        update_copy($git_root, $clone_dir, $resolved);
+    } else {
+        die_msg("Unknown install method: $method");
+    }
+
+    # Recreate symlinks
+    create_skill_symlinks($git_root);
+
+    # Update version file
+    $v{cwf_version}   = $resolved;
+    $v{cwf_ref}       = $resolved;
+    $v{cwf_sha}       = $sha;
+    $v{cwf_installed} = gmtime_iso();
+    write_version_file($git_root, %v);
+
+    log_msg("Updated to $resolved ($sha)");
+    return;
+}
+
+sub cmd_rollback {
+    my ($git_root, $ref) = @_;
+    die_msg("rollback requires a ref argument (e.g. cwf-manage rollback v2.0.0)") unless $ref;
+    log_msg("Rolling back to $ref");
+    cmd_update($git_root, $ref);
+    return;
+}
+
+# --- Update helpers -----------------------------------------------------------
+
+sub update_subtree {
+    my ($git_root, $clone_dir, $ref) = @_;
+
+    log_msg("Creating subtree splits...");
+    system("git", "-C", $clone_dir, "subtree", "split", "--prefix=.cwf", "-b", "cwf-core") == 0
+        or die_msg("Failed to split .cwf/");
+    system("git", "-C", $clone_dir, "subtree", "split", "--prefix=.claude/skills", "-b", "cwf-skills") == 0
+        or die_msg("Failed to split .claude/skills/");
+
+    log_msg("Pulling .cwf/ update...");
+    system("git", "-C", $git_root, "subtree", "pull", "--prefix=.cwf",
+           $clone_dir, "cwf-core", "--squash", "-m", "Update CWF core ($ref)") == 0
+        or die_msg("Failed to update .cwf/ subtree");
+
+    log_msg("Pulling .cwf-skills/ update...");
+    system("git", "-C", $git_root, "subtree", "pull", "--prefix=.cwf-skills",
+           $clone_dir, "cwf-skills", "--squash", "-m", "Update CWF skills ($ref)") == 0
+        or die_msg("Failed to update .cwf-skills/ subtree");
+    return;
+}
+
+sub update_copy {
+    my ($git_root, $clone_dir, $ref) = @_;
+
+    # Remove existing
+    rmtree("$git_root/.cwf");
+    rmtree("$git_root/.cwf-skills");
+
+    # Copy fresh
+    system("cp", "-r", "$clone_dir/.cwf", "$git_root/.cwf") == 0
+        or die_msg("Failed to copy .cwf/");
+    log_msg("Copied .cwf/");
+
+    system("cp", "-r", "$clone_dir/.claude/skills", "$git_root/.cwf-skills") == 0
+        or die_msg("Failed to copy .cwf-skills/");
+    log_msg("Copied .cwf-skills/");
+
+    # Fix permissions
+    system("find", "$git_root/.cwf/scripts", "-type", "f", "-exec", "chmod", "u+rx", "{}", ";") == 0
+        or die_msg("Failed to fix permissions");
+    log_msg("Fixed script permissions");
+    return;
+}
+
+sub create_skill_symlinks {
+    my ($git_root) = @_;
+
+    my $skills_dir = "$git_root/.claude/skills";
+    my $staging_dir = "$git_root/.cwf-skills";
+
+    # Ensure .claude/skills/ exists
+    system("mkdir", "-p", $skills_dir) == 0
+        or die_msg("Failed to create $skills_dir");
+
+    # Remove stale CWF symlinks
+    for my $link (glob("$skills_dir/cwf-*")) {
+        unlink $link if -l $link;
+    }
+
+    # Create relative symlinks
+    my $count = 0;
+    for my $skill_dir (glob("$staging_dir/cwf-*")) {
+        next unless -d $skill_dir;
+        my $name = basename($skill_dir);
+        symlink("../../.cwf-skills/$name", "$skills_dir/$name")
+            or die_msg("Failed to create symlink for $name: $!");
+        $count++;
+    }
+
+    log_msg("Created $count skill symlinks in .claude/skills/");
+    return;
+}
+
+sub gmtime_iso {
+    my @t = gmtime();
+    return sprintf("%04d-%02d-%02dT%02d:%02d:%02dZ",
+        $t[5]+1900, $t[4]+1, $t[3], $t[2], $t[1], $t[0]);
+}
+
+# --- Help ---------------------------------------------------------------------
+
+sub cmd_help {
+    print <<'HELP';
+CWF Management Script
+
+Usage: cwf-manage <command> [args]
+
+Commands:
+  status           Show installed CWF version, method, and source
+  list-releases    List available tagged releases from the CWF remote
+  update [ref]     Update to a specific ref (default: latest tag)
+  rollback <ref>   Revert to a previous version
+  help             Show this help message
+
+Examples:
+  cwf-manage status
+  cwf-manage list-releases
+  cwf-manage update
+  cwf-manage update v2.1.0
+  cwf-manage rollback v2.0.0
+HELP
+    return;
+}
+
+# --- Main ---------------------------------------------------------------------
+
+sub main {
+    my $cmd = shift @ARGV // 'help';
+    my $git_root = find_git_root();
+
+    my %dispatch = (
+        'status'        => sub { cmd_status($git_root) },
+        'list-releases' => sub { cmd_list_releases($git_root) },
+        'update'        => sub { cmd_update($git_root, shift @ARGV) },
+        'rollback'      => sub { cmd_rollback($git_root, shift @ARGV) },
+        'help'          => sub { cmd_help() },
+    );
+
+    if (my $handler = $dispatch{$cmd}) {
+        $handler->();
+    } else {
+        print STDERR "[CWF] ERROR: Unknown command: $cmd\n";
+        print STDERR "Run 'cwf-manage help' for available commands.\n";
+        exit 1;
+    }
+    return;
+}
+
+main();
