@@ -2,6 +2,18 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 67: Fix Stale Statuses in Tasks 46 and 49
+
+**Status**: Complete (2026-02-18)
+**Duration**: <1 session (trivial)
+**Impact**: Chore — 7 status field edits; tasks 46 and 49 now show 100%.
+
+### Key Changes
+- Task 46: `f-implementation-exec.md`, `g-testing-exec.md` — `Backlog` → `Finished`
+- Task 49: `a`, `c`, `d`, `e` — `In Progress` → `Finished`; `f` — `Implemented` → `Finished`
+
+---
+
 ## Task 66: Fix Terminal Status Handling in state_done and Status Aggregators
 
 **Status**: Complete (2026-02-18)
