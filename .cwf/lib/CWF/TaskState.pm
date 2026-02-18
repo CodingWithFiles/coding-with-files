@@ -22,7 +22,6 @@ my %DEFAULT_STATUS_MAP = (
     'Finished'    => 100,
     'Skipped'     => 100,
     'Testing'     => 75,
-    'Implemented' => 50,
     'In Progress' => 25,
     'Blocked'     => 15,
     'To-Do'       => 0,
@@ -119,7 +118,7 @@ Rules:
 - 100% complete → 0 (CLIFF: no work left)
 - Fresh (0%, no active work) → 10 (baseline)
 - Dormant (started but no active) → completion * 0.3 (dampened)
-- Active (has In Progress/Testing/Implemented) → completion (linear ramp)
+- Active (has In Progress/Testing) → completion (linear ramp)
 
 This represents "how much room to progress" - tasks near completion score
 higher (momentum to finish), blocked tasks score 0 (can't work).
@@ -166,7 +165,7 @@ Loads mappings from cwf-project.json workflow.status-values, falls back
 to defaults if not configured.
 
 Default mappings:
-- Finished: 100%, Testing: 75%, Implemented: 50%
+- Finished: 100%, Testing: 75%
 - In Progress: 25%, Blocked: 15%
 - To-Do: 0%, Backlog: 0%
 
@@ -305,10 +304,10 @@ sub _is_closed {
     return ($status eq 'Finished' || $status eq 'Cancelled' || $status eq 'Skipped');
 }
 
-# Check if status indicates active work (In Progress, Testing, Implemented)
+# Check if status indicates active work (In Progress, Testing)
 sub _is_active_work {
     my ($status) = @_;
-    return ($status eq 'In Progress' || $status eq 'Testing' || $status eq 'Implemented');
+    return ($status eq 'In Progress' || $status eq 'Testing');
 }
 
 # Return maximum value from array

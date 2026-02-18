@@ -32,7 +32,7 @@ allowed-tools:
 - Open f-implementation-exec.md and update as you work
 - **Focus on**: Executing planned steps, recording actual results, documenting deviations
 - **Avoid**: Changing the plan (update d-implementation-plan.md if plan needs adjustment)
-- Status: "In Progress" when starting, "Implemented" when complete, "Blocked" if stuck
+- Status: "In Progress" when starting, "Finished" when complete, "Blocked" if stuck
 
 **Step 7**: Execute implementation steps systematically per d-implementation-plan.md. Test locally, document results, note deviations.
 

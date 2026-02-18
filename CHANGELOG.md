@@ -2,6 +2,25 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 69: Remove Obsolete `Implemented` Status Value
+
+**Status**: Complete (2026-02-18)
+**Duration**: <1 session (trivial)
+**Impact**: Bugfix — eliminates the root cause of recurring `f-implementation-exec.md` being left at `Implemented` (50%) instead of `Finished` (100%). The `Implemented` status was a v2.0 artefact made obsolete when v2.1 split implementation and testing into separate files.
+
+### Key Changes
+- `cwf-project.json`: Removed `"Implemented": 50` from `status-values`
+- `TaskState.pm`: Removed from `%DEFAULT_STATUS_MAP`, `_is_active_work`, POD, and comments
+- `cwf-implementation-exec/SKILL.md`: Fixed instruction from `"Implemented" when complete` → `"Finished" when complete` (direct source of recurring misuse)
+- `workflow-steps.md`: Removed `Implemented` from Status Values documentation
+- `script-hashes.json`: Updated SHA256 for `TaskState.pm`
+- `BACKLOG.md`: Retired "Add Status Field Review to Pre-Retrospective Checklist" (symptom workaround — root cause now fixed)
+
+### Test Results
+8/8 tests pass.
+
+---
+
 ## Task 68: Remove v1.0 Category Subdirectories from cwf-init
 
 **Status**: Complete (2026-02-18)

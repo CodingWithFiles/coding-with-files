@@ -529,47 +529,7 @@ Add explicit baseline verification step to implementation planning phase for tas
 
 ---
 
-## Task: Add Status Field Review to Pre-Retrospective Checklist
-
-**Task-Type**: chore
-**Priority**: Low
-**Status**: Identified from Task 35 retrospective
-
-Add status field verification to workflow documentation as a pre-retrospective checkpoint.
-
-**Problem**: Task 35 had f-implementation-exec.md showing "Implemented" (50%) instead of "Finished" (100%), blocking task from showing 100% completion. This was only caught when running /cwf-status before retrospective.
-
-**Solution**: Add explicit status verification step to retrospective workflow documentation.
-
-**Scope**:
-1. **Update workflow-steps.md**: Add to retrospective section (before Step 8: Execute Retrospective):
-   ```markdown
-   ### 7. Verify Task Status
-
-   Before documenting retrospective learnings, verify task is actually finished:
-
-   7.1. **Run /cwf-status <task-path>** to check completion percentage
-   7.2. **If <100%**: Review workflow file status fields
-       - Look for "Implemented" (should be "Finished")
-       - Look for "Testing" (should be "Finished")
-       - Look for "Blocked" (resolve or document)
-   7.3. **Update status fields** before proceeding with retrospective
-   7.4. **If still <100%**: Task not finished - identify and finish missing work
-   ```
-
-2. **Update cig-retrospective.md command**: Add step 7 between current steps 6 and 7
-
-**Success Criteria**:
-- [ ] Workflow documentation includes status verification step
-- [ ] Step positioned before retrospective execution (catches issues early)
-- [ ] Clear guidance on what to do if status <100%
-- [ ] Future tasks catch status field issues before retrospective
-
-**Rationale**: Systematic status verification prevents completing retrospective on incomplete tasks and ensures accurate progress tracking.
-
-**Discovered**: Task 35 retrospective - f-implementation-exec.md status was "Implemented" not "Finished"
-
----
+<!-- Completed: "Add Status Field Review to Pre-Retrospective Checklist" — Task 69 (2026-02-18) — Root cause fixed: Implemented status removed entirely -->
 
 ## Task: Create Design-Alignment Conventions Document
 

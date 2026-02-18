@@ -120,7 +120,7 @@
     },
     "CWF::TaskState": {
       "path": ".cwf/lib/CWF/TaskState.pm",
-      "sha256": "921df1c4161ae2e0e3f45d853c4a0a808c62dd741e2b8352339177d5aeb37882"
+      "sha256": "17f4fef6776ea394dfccd7cc25ae3d9062f009efbef86eafe1781422b4b9dd2d"
     },
     "CWF::TaskContextInference": {
       "path": ".cwf/lib/CWF/TaskContextInference.pm",

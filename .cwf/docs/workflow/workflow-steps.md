@@ -39,7 +39,6 @@ The following status values are defined in the project configuration:
 - **Blocked** (15%): Task started but cannot proceed until blocker resolved
 - **To-Do** (0%): Task ready to begin, prioritized
 - **In Progress** (25%): Work actively underway
-- **Implemented** (50%): Code complete, not yet tested
 - **Testing** (75%): Testing in progress, validation ongoing
 - **Finished** (100%): Fully complete, all criteria met
 - **Cancelled** (0%): Task abandoned or superseded; terminal status, no further work expected. Document cancellation reason separately. Works with both v2.0 and v2.1 formats.
