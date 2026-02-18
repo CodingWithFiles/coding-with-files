@@ -120,34 +120,26 @@ Maintenance and operational tasks with 4 phases:
 
 ```
 implementation-guide/
-├── feature/
-│   ├── 1-task-name/
-│   │   ├── plan.md
-│   │   ├── requirements.md
-│   │   └── ...
-│   └── 2-another-task/
-├── bugfix/
-├── hotfix/
-└── chore/
+├── cwf-project.json
+├── 1-feature-task-name/
+│   ├── a-task-plan.md
+│   ├── b-requirements-plan.md
+│   ├── c-design-plan.md
+│   └── ...
+├── 1.1-chore-subtask/
+│   └── ...
+└── 2-bugfix-another-task/
 
 .cwf/
 ├── autoload.yaml
+├── lib/
+│   └── CWF/                 # Perl library modules
 ├── scripts/
-│   └── command-helpers/    # Helper scripts for compound operations
-│       ├── cwf-load-autoload-config
-│       ├── cwf-load-project-config
-│       ├── cwf-load-existing-tasks
-│       ├── cwf-find-task-numbering-structure
-│       └── cwf-load-status-sections
-├── utils/
-│   ├── config-loader.md
-│   ├── template-engine.md
-│   └── ...
+│   └── command-helpers/     # Helper scripts for compound operations
+├── security/
+│   └── script-hashes.json
 └── templates/
-    ├── feature/
-    ├── bugfix/
-    ├── hotfix/
-    └── chore/
+    └── pool/                # Template source files (task-type symlinks alongside)
 ```
 
 ## Configuration

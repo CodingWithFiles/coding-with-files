@@ -24,16 +24,7 @@ Two issues found during agent install testing:
 
 ---
 
-## Task: Remove v1.0 Category Subdirectories from /cwf-init
-
-**Task-Type**: bugfix
-**Priority**: High
-
-`/cwf-init` still creates `implementation-guide/{feature,bugfix,hotfix,chore}/` subdirectories from the v1.0 flat-category format. In v2.0+ tasks are created directly under `implementation-guide/` with the type embedded in the directory name (e.g. `1-feature-foo/`). The category subdirectories are unused and misleading.
-
-**Identified in**: Task 63 external testing (agent install)
-
----
+<!-- Completed: "Remove v1.0 Category Subdirectories from /cwf-init" — Task 68 (2026-02-18) -->
 
 ## Task: Improve CWF Skill Initialisation in /cwf-init
 
@@ -104,20 +95,7 @@ CLAUDE.md still references "commands" terminology and lists `/cwf-*` as commands
 
 ---
 
-## Task: Audit /cwf-init for Obsolete Category Subdirectories
-
-**Task-Type**: chore
-**Priority**: Medium
-
-`/cwf-init` (SKILL.md line 27) creates category subdirectories (`feature/`, `bugfix/`, `hotfix/`, `chore/`) under `implementation-guide/`. The v2.0/v2.1 hierarchical numbering system stores tasks directly under `implementation-guide/` with number prefixes (e.g. `60-chore-add-installation-instructions/`), so these subdirectories are unused.
-
-**Scope**:
-- Remove category subdirectory creation from `/cwf-init`
-- Update INSTALL.md and README.md project structure if they reference these dirs
-
-**Identified in**: Task 60 (installation instructions review)
-
----
+<!-- Completed: "Audit /cwf-init for Obsolete Category Subdirectories" — Task 68 (2026-02-18) -->
 
 
 ## Bug: template-copier-v2.1 Emits Warnings for Unresolved Template Variables

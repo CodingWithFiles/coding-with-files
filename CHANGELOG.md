@@ -2,6 +2,19 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 68: Remove v1.0 Category Subdirectories from cwf-init
+
+**Status**: Complete (2026-02-18)
+**Duration**: <1 session (trivial)
+**Impact**: Hotfix — `cwf-init` no longer instructs agents to create obsolete `feature/`, `bugfix/`, `hotfix/`, `chore/` subdirectories under `implementation-guide/`. README Project Structure updated to v2.1 layout.
+
+### Key Changes
+- `.claude/skills/cwf-init/SKILL.md`: Removed bullet instructing category subdir creation (v1.0 legacy)
+- `README.md`: Replaced stale v1.0 Project Structure block with v2.1 number-prefixed layout; updated `.cwf/` subtree to reflect current reality (`lib/CWF/`, `security/`, `templates/pool/`)
+- `BACKLOG.md`: Retired both duplicate entries covering this issue (Task 63 High + Task 60 Medium)
+
+---
+
 ## Task 67: Fix Stale Statuses in Tasks 46 and 49
 
 **Status**: Complete (2026-02-18)

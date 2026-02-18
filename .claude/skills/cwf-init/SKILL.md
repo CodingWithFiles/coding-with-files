@@ -24,7 +24,6 @@ allowed-tools:
 
 ### 1. Create Directory Structure
 - `implementation-guide/` at git root
-- Category subdirectories: `feature/`, `bugfix/`, `hotfix/`, `chore/`
 
 ### 2. Generate Project Configuration
 - Create `implementation-guide/cwf-project.json` from template
