@@ -119,16 +119,6 @@ CLAUDE.md still references "commands" terminology and lists `/cwf-*` as commands
 
 ---
 
-## Task: Clean Up Task 47 Workflow File Statuses
-
-**Task-Type**: chore
-**Priority**: Medium
-
-Task 47 (bugfix/47-fix-var-use-in-commands-to-avoid-bash-issues) was completed and squashed but four workflow files still show `In Progress`: a-task-plan.md, c-design-plan.md, d-implementation-plan.md, e-testing-plan.md. This causes task-context-inference to treat task 47 as an active candidate. Update all four to `Finished`.
-
-**Identified in**: Task 64 planning (task-context-inference noise)
-
----
 
 ## Bug: template-copier-v2.1 Emits Warnings for Unresolved Template Variables
 

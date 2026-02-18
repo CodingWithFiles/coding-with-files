@@ -102,7 +102,7 @@ Deferred to `/cig-testing-exec 47` phase - will execute manual command tests the
 **Blockers**: None encountered.
 
 ## Status
-**Status**: Implemented
+**Status**: Finished
 **Next Action**: /cig-rollout
 **Blockers**: None identified
 

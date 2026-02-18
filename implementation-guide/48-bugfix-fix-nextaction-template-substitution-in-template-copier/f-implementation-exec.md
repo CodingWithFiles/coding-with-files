@@ -80,7 +80,7 @@ Before marking status=Finished, verify:
 **If deferral required**: Get user approval, document rationale, create follow-up task.
 
 ## Status
-**Status**: Implemented
+**Status**: Finished
 **Next Action**: /cig-testing-exec 48 (bugfix workflow: implementation-exec → testing-exec → retrospective)
 **Blockers**: None
 

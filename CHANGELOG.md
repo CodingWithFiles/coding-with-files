@@ -2,6 +2,27 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 65: Fix Stale In Progress Statuses in Tasks 47 and 48
+
+**Status**: Complete (2026-02-18)
+**Duration**: <1 session (trivial)
+**Impact**: Chore — 10 status field edits; tasks 47 and 48 now show 100% in status-aggregator and no longer appear in task-context-inference output.
+
+### Key Changes
+
+1. Tasks 47 and 48: `a-task-plan.md`, `c-design-plan.md`, `d-implementation-plan.md`, `e-testing-plan.md` — `In Progress` → `Finished`
+2. Tasks 47 and 48: `f-implementation-exec.md` — `Implemented` → `Finished`
+
+### Root Cause
+
+Retrospective skills did not require updating intermediate workflow files before marking j-retrospective.md Finished. Both tasks had retrospectives that set j-retrospective.md to Finished but left a–f stale.
+
+### Recommendation Added
+
+`.cwf/docs/skills/retrospective-extras.md` should include an explicit checklist item: "Set all preceding workflow files (a through g) to Finished." (See j-retrospective.md for full recommendation.)
+
+---
+
 ## Task 64: cwf-manage validate and CWF::Validate Module Suite
 
 **Status**: Complete (2026-02-18)

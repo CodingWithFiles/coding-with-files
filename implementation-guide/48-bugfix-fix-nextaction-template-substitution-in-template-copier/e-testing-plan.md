@@ -145,7 +145,7 @@ Validate that `compute_next_action()` correctly derives command names from templ
 - **Target**: 9/9 total tests (100% including optional tests)
 
 ## Status
-**Status**: In Progress
+**Status**: Finished
 **Next Action**: /cig-implementation-exec 48 (bugfix workflow: testing-plan → implementation-exec → testing-exec)
 **Blockers**: Task 47 must be merged before implementation execution
 
