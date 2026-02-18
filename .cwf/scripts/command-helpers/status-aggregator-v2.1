@@ -120,7 +120,7 @@ sub calculate_progress {
             my $status = CWF::TaskState::status_extract($file->{path});
             my $pct = CWF::TaskState::status_percent($status);
 
-            if (defined($pct) && $pct == 0 && $status ne "Unknown" && $status !~ /^(Backlog|To-Do|Cancelled)$/i) {
+            if (defined($pct) && $pct == 0 && $status ne "Unknown" && $status !~ /^(Backlog|To-Do|Cancelled|Skipped)$/i) {
                 my $filename = "$dir/" . $file->{name};
                 print STDERR "Warning: Unknown status \"$status\" in $filename\n";
             }

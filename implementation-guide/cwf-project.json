@@ -77,7 +77,7 @@
       "Testing": 75,
       "Finished": 100,
       "Cancelled": 0,
-      "Skipped": null
+      "Skipped": 100
     }
   },
   "integration": {

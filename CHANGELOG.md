@@ -2,6 +2,28 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 66: Fix Terminal Status Handling in state_done and Status Aggregators
+
+**Status**: Complete (2026-02-18)
+**Duration**: <1 session
+**Impact**: Bugfix — tasks where all workflow files are Cancelled or Skipped now score 100% in status-aggregator. Blocked tasks now surface in task-context-inference at a low DORMANT score rather than being hidden.
+
+### Key Changes
+
+1. **`CWF::TaskState.pm`**:
+   - Add `Skipped => 100` to `%DEFAULT_STATUS_MAP`
+   - Replace `_is_terminal` (Blocked|Finished|Cancelled) with `_is_closed` (Finished|Cancelled|Skipped) — Blocked is recoverable, not terminal
+   - Fix `state_done` MIN: closed steps mapped to 100 before MIN calculation (not their raw score)
+   - Remove dead `$blocked_count`/`$is_workable`/`!$is_workable` from `state_achievable` — CLIFF catches all-closed tasks; Blocked falls to DORMANT (≈4)
+   - Fix 4 pre-existing perlcritic violations (`grep` block form, `RequireBriefOpen`, `_max`/`_min` unpack)
+2. **`cwf-project.json`**: `"Skipped": null` → `"Skipped": 100` (config overrides `%DEFAULT_STATUS_MAP`; both must match)
+3. **Both aggregators**: Add `Skipped` to unknown-status warning exclusion regex
+
+### Test Results
+14/14 test cases pass. Task 11 (all Cancelled) now shows 100%.
+
+---
+
 ## Task 65: Fix Stale In Progress Statuses in Tasks 47 and 48
 
 **Status**: Complete (2026-02-18)

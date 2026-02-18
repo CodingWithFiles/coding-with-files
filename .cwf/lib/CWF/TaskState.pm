@@ -20,6 +20,7 @@ our $VERSION = '1.0.0';
 # Default status value mappings (if not in cwf-project.json)
 my %DEFAULT_STATUS_MAP = (
     'Finished'    => 100,
+    'Skipped'     => 100,
     'Testing'     => 75,
     'Implemented' => 50,
     'In Progress' => 25,
@@ -95,7 +96,7 @@ sub state_done {
     my @statuses = _get_all_statuses($task_dir);
     return 0 unless @statuses;
 
-    my @percentages = grep defined, map { status_percent($_) } @statuses;
+    my @percentages = grep { defined $_ } map { _is_closed($_) ? 100 : status_percent($_) } @statuses;
     return 0 unless @percentages;
 
     # MIN bottleneck formula
@@ -116,7 +117,6 @@ want to complete it" with linear ramp and cliff at 100%.
 
 Rules:
 - 100% complete → 0 (CLIFF: no work left)
-- All blocked/finished → 0 (can't progress)
 - Fresh (0%, no active work) → 10 (baseline)
 - Dormant (started but no active) → completion * 0.3 (dampened)
 - Active (has In Progress/Testing/Implemented) → completion (linear ramp)
@@ -136,20 +136,13 @@ sub state_achievable {
     my @statuses = _get_all_statuses($task_dir);
     return 0 unless @statuses;
 
-    my $blocked_count = grep { _is_terminal($_) } @statuses;
     my $active_count = grep { _is_active_work($_) } @statuses;
-    my $total_count = scalar(@statuses);
-
-    my $is_workable = ($blocked_count < $total_count);
 
     # Step 3: Cliff function
     my $work_potential;
 
     if ($completion >= 100) {
         # CLIFF: Complete, no work left
-        $work_potential = 0;
-    } elsif (!$is_workable) {
-        # BLOCKED: All steps blocked/finished, can't progress
         $work_potential = 0;
     } elsif ($completion == 0 && $active_count == 0) {
         # FRESH: No progress yet, no active work - small baseline
@@ -223,13 +216,14 @@ Returns: Status string or "Unknown" if not found.
 sub status_extract {
     my ($file_path) = @_;
 
-    open(my $fh, '<', $file_path) or return "Unknown";
+    my @lines;
+    { open(my $fh, '<', $file_path) or return "Unknown"; @lines = <$fh>; close $fh; }
 
     my $in_code_block = 0;
     my $in_status_section = 0;
     my $status_sections_found = 0;
 
-    while (my $line = <$fh>) {
+    for my $line (@lines) {
         chomp $line;
 
         # Track code blocks (triple backticks only)
@@ -252,7 +246,6 @@ sub status_extract {
 
         # Look for **Status**: line in status section
         if ($in_status_section && $line =~ /^\*\*Status\*\*:\s*(.+?)\s*$/) {
-            close $fh;
             return $1;
         }
 
@@ -262,7 +255,6 @@ sub status_extract {
         }
     }
 
-    close $fh;
     return "Unknown";
 }
 
@@ -307,10 +299,10 @@ sub _get_all_statuses {
     return @statuses;
 }
 
-# Check if status indicates no work is possible (terminal state)
-sub _is_terminal {
+# Check if status indicates step is intentionally ended (not a progress bottleneck)
+sub _is_closed {
     my ($status) = @_;
-    return ($status eq 'Blocked' || $status eq 'Finished' || $status eq 'Cancelled');
+    return ($status eq 'Finished' || $status eq 'Cancelled' || $status eq 'Skipped');
 }
 
 # Check if status indicates active work (In Progress, Testing, Implemented)
@@ -321,8 +313,9 @@ sub _is_active_work {
 
 # Return maximum value from array
 sub _max {
-    my $max = shift;
-    for (@_) {
+    my @vals = @_;
+    my $max = shift @vals;
+    for (@vals) {
         $max = $_ if $_ > $max;
     }
     return $max;
@@ -330,8 +323,9 @@ sub _max {
 
 # Return minimum value from array
 sub _min {
-    my $min = shift;
-    for (@_) {
+    my @vals = @_;
+    my $min = shift @vals;
+    for (@vals) {
         $min = $_ if $_ < $min;
     }
     return $min;
