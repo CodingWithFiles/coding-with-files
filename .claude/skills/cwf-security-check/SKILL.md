@@ -3,7 +3,6 @@ name: cwf-security-check
 description: Verify file integrity and sources for CWF system
 user-invocable: true
 allowed-tools:
-  - Read
   - Bash
 ---
 
@@ -18,43 +17,29 @@ allowed-tools:
 
 **First**: Run `.cwf/scripts/command-helpers/context-manager location` using the Bash tool to confirm git root.
 
-**Mandatory context** (run before verification):
-- Run `.cwf/scripts/command-helpers/cwf-load-project-config` using the Bash tool to load project configuration and security settings.
-- Run `find .claude/skills -name "SKILL.md" -type f 2>/dev/null || echo "No CIG skills found"` using the Bash tool to enumerate CIG skills.
-- Run `find .cwf/scripts/command-helpers -name "cig-*" -type f 2>/dev/null || echo "No v1.0 helper scripts found"` using the Bash tool to enumerate v1.0 helper scripts.
-- Run `find .cwf/scripts/command-helpers -name "*.sh" -o -name "*.pl" -type f 2>/dev/null || echo "No v2.0 helper scripts found"` using the Bash tool to enumerate v2.0 helper scripts.
-
 ## Workflow
 
 **Parse arguments**: `[verify|report]`
-- verify: Full integrity verification against canonical source
-- report: Summary report of current file status
+- verify: Full integrity verification (default)
+- report: Same as verify
 
-### 1. Load Security Config
-From `cwf-project.json` security section or `.cwf/security/script-hashes.json`
+### 1. Run the deterministic validator
 
-### 2. Verify Helper Scripts
-- Check permissions (u+rx, at least 0500)
-- Calculate SHA256, compare against `.cwf/security/script-hashes.json`
+```bash
+perl -I.cwf/lib .cwf/scripts/cwf-manage validate
+```
 
-### 3. Verify Legacy Scripts
-- cig-load-autoload-config, cig-load-project-config, cig-load-existing-tasks, cig-find-task-numbering-structure, cig-load-status-sections
+This checks:
+- **Config**: `cwf-project.json` has required fields (`supported-task-types`, `source-management`)
+- **Workflow**: Every `.md` file under `implementation-guide/` has a `## Status` section with a valid status value
+- **Consistency**: Task number in dirname matches `**Task**:` field; active task branch matches current git branch
+- **Security**: Each file in `.cwf/security/script-hashes.json` exists, has correct permissions (if recorded), and SHA256 matches
 
-### 4. Verify CIG Skills
-- Check version indicators, validate against `security.file-integrity` patterns
+### 2. Report results
 
-### 5. Generate Report
-- File-by-file status, permission checks, hash verification, version mismatches
-
-**Verification Methods**:
-- Local: `git ls-tree {ref} -- {path}`
-- Remote: GitHub API contents endpoint with SHA comparison
-- Fallback: Local git verification if remote unavailable
-
-**Report Format**: Per-file status line with pass/fail indicator, version, SHA256, source. Summary with totals and action items for failures.
+- If `cwf-manage validate` exits 0: report **OK**
+- If it exits 1: show violations as-is — each violation includes file, field, actual value, expected value, and a fix action
 
 ## Success Criteria
-- [ ] Project config and file lists loaded
-- [ ] Helper scripts verified (permissions + hashes)
-- [ ] CIG skills verified
-- [ ] Report generated with pass/fail status
+- [ ] `cwf-manage validate` run successfully
+- [ ] Violations reported (if any) with actionable fix instructions

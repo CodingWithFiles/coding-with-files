@@ -35,31 +35,6 @@ Two issues found during agent install testing:
 
 ---
 
-## Task: Add `cwf-manage validate` and CWF::Validate Module Suite
-
-**Task-Type**: feature
-**Priority**: High
-
-Add a `validate` subcommand to `cwf-manage` that runs comprehensive validation across all config and workflow files. Backed by a `CWF::Validate` module suite split by subsystem, so individual helper scripts can call a subset of validation functions without pulling in the full suite.
-
-**Architecture**:
-- `CWF::Validate::Config` — validate `cwf-project.json` schema: required keys (`supported-task-types`, `source-management.branch-naming-convention`, etc.), correct types, no unknown keys
-- `CWF::Validate::Workflow` — validate workflow step files (a-task-plan.md through j-retrospective.md): required sections present, status field values valid, next-action references valid skills, template version matches
-- `CWF::Validate::Consistency` — cross-file checks: branch name in task reference matches git branch, task numbers match directory names, status progression valid
-- `CWF::Validate::Security` — script hash verification (consolidate existing `/cwf-security-check` logic)
-- `cwf-manage validate` — thin wrapper that calls all validation modules, reports all violations (not just first), exits non-zero on failure
-
-**Integration points**:
-- Called at end of `/cwf-init` to catch config schema mismatches immediately
-- Called at end of each skill via workflow preamble or checkpoint commit step as a post-skill guard
-- Individual modules callable from helper scripts (e.g. template-copier can call `CWF::Validate::Config::check_required_keys()` before accessing config)
-
-**Rationale**: LLM-generated content (especially from `/cwf-init`) can diverge from expected schemas. A missing config key currently causes a fatal runtime error in template-copier-v2.1. Catching these at skill boundaries prevents downstream failures. Splitting by subsystem keeps modules focused and avoids pulling unnecessary dependencies.
-
-**Identified in**: Task 63 external testing (agent install)
-
----
-
 ## Task: Improve CWF Skill Initialisation in /cwf-init
 
 **Task-Type**: feature
@@ -141,6 +116,17 @@ CLAUDE.md still references "commands" terminology and lists `/cwf-*` as commands
 - Update INSTALL.md and README.md project structure if they reference these dirs
 
 **Identified in**: Task 60 (installation instructions review)
+
+---
+
+## Task: Clean Up Task 47 Workflow File Statuses
+
+**Task-Type**: chore
+**Priority**: Medium
+
+Task 47 (bugfix/47-fix-var-use-in-commands-to-avoid-bash-issues) was completed and squashed but four workflow files still show `In Progress`: a-task-plan.md, c-design-plan.md, d-implementation-plan.md, e-testing-plan.md. This causes task-context-inference to treat task 47 as an active candidate. Update all four to `Finished`.
+
+**Identified in**: Task 64 planning (task-context-inference noise)
 
 ---
 
@@ -2429,6 +2415,32 @@ Create quick reference documentation for workflow phase sequences (which files a
 - Include in command help or error messages when phase skipped
 
 **Identified in**: Task 43 retrospective (j-retrospective.md)
+
+---
+
+## Task: Comprehensive Perl Test Suite for CWF Library Modules
+
+**Task-Type**: feature
+**Priority**: High
+
+The `t/` directory contains only `t/task-state.t` (covering `TaskState.pm`, using the now-obsolete `.cig/lib` path). All other CWF Perl modules have no `.t` files. Tests written during Task 64 were inline `perl -e` heredocs — correct but not reusable or runnable via `prove`.
+
+This is the first time CWF is establishing comprehensive automated testing, so it warrants the full feature workflow: requirements to define coverage standards, design to establish test patterns and fixture strategies, then implementation.
+
+**Key questions for requirements/design**:
+- What coverage target is meaningful? (all public subs? branch coverage? statement coverage?)
+- What test data strategy? (`File::Temp` temp dirs, in-repo fixtures, or both?)
+- Should `prove t/` be a prerequisite for `cwf-manage validate` or a separate guard?
+- Which modules are testable in isolation vs. require a git repo fixture?
+- Does `Test::More` suffice or do we want `Test2::Suite`?
+
+**Known scope**:
+- Migrate `t/task-state.t` to `.cwf/lib` path
+- Add `.t` files for all four `CWF::Validate::*` modules (Task 64 inline tests are the starting point)
+- Audit and add `.t` files for: `CWF::MarkdownParser`, `CWF::TaskPath`, `CWF::WorkflowFiles`, `CWF::Common`, `CWF::Options`, `CWF::VersionRouter`, `CWF::TaskContextInference`, `CWF::StatusAggregator::Core`, `CWF::TemplateCopier::Core`, `CWF::ContextInheritance::Core`
+- `prove t/` as the standard test runner
+
+**Identified in**: Task 64 testing exec and retrospective
 
 ---
 

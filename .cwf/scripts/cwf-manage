@@ -18,6 +18,12 @@ use File::Path qw(rmtree make_path);
 use File::Find;
 use File::Copy qw(copy);
 use Cwd qw(getcwd);
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use CWF::Validate::Config      ();
+use CWF::Validate::Workflow    ();
+use CWF::Validate::Consistency ();
+use CWF::Validate::Security    ();
 
 # --- Helpers ------------------------------------------------------------------
 
@@ -311,6 +317,34 @@ sub gmtime_iso {
 
 # --- Help ---------------------------------------------------------------------
 
+sub cmd_validate {
+    my ($git_root) = @_;
+
+    my @all_violations = (
+        CWF::Validate::Config::validate($git_root),
+        CWF::Validate::Workflow::validate($git_root),
+        CWF::Validate::Consistency::validate($git_root),
+        CWF::Validate::Security::validate($git_root),
+    );
+
+    if (!@all_violations) {
+        log_msg("validate: OK");
+        return;
+    }
+
+    for my $v (@all_violations) {
+        printf "[%s] %s\n",        $v->{category}, $v->{file};
+        printf "  Field:    %s\n", $v->{field};
+        printf "  Actual:   %s\n", $v->{actual};
+        printf "  Expected: %s\n", $v->{expected};
+        printf "  Fix:      %s\n", $v->{fix};
+        print  "\n";
+    }
+
+    printf "[CWF] %d violation(s) found.\n", scalar @all_violations;
+    exit 1;
+}
+
 sub cmd_help {
     print <<'HELP';
 CWF Management Script
@@ -322,6 +356,7 @@ Commands:
   list-releases    List available tagged releases from the CWF remote
   update [ref]     Update to a specific ref (default: latest tag)
   rollback <ref>   Revert to a previous version
+  validate         Validate config and workflow files; exit non-zero on violations
   help             Show this help message
 
 Examples:
@@ -330,6 +365,7 @@ Examples:
   cwf-manage update
   cwf-manage update v2.1.0
   cwf-manage rollback v2.0.0
+  cwf-manage validate
 HELP
     return;
 }
@@ -345,6 +381,7 @@ sub main {
         'list-releases' => sub { cmd_list_releases($git_root) },
         'update'        => sub { cmd_update($git_root, shift @ARGV) },
         'rollback'      => sub { cmd_rollback($git_root, shift @ARGV) },
+        'validate'      => sub { cmd_validate($git_root) },
         'help'          => sub { cmd_help() },
     );
 

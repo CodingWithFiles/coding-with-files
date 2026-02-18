@@ -9,7 +9,9 @@
     "chore",
     "discovery"
   ],
-  "branch-naming-convention": "{{task-type}}/{{task-id}}-{{description-slug}}",
+  "source-management": {
+    "branch-naming-convention": "{task-type}/{task-id}-{description-slug}"
+  },
   "task-tracking": {
     "system": "github-issues",
     "base-url": "https://github.com/anthropics/claude-code/issues",

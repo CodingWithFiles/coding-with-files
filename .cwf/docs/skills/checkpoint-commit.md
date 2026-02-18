@@ -20,4 +20,10 @@ After completing a workflow phase, create a checkpoint commit to preserve progre
 
 3. **Rationale**: Checkpoint commits preserve incremental progress and enable retrospective squashing workflow (Step 10 in cig-retrospective).
 
+4. **Validate** (post-commit guard):
+   ```bash
+   perl -I.cwf/lib .cwf/scripts/cwf-manage validate
+   ```
+   If violations are reported, fix them before proceeding to the next skill.
+
 See `.cwf/docs/workflow/workflow-steps.md` for phase-specific commit guidance.

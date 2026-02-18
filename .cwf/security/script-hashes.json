@@ -1,6 +1,6 @@
 {
   "version": "2.1",
-  "last_updated": "2026-02-14",
+  "last_updated": "2026-02-18",
   "scripts": {
     "status-aggregator-v2.0": {
       "path": ".cwf/scripts/command-helpers/status-aggregator-v2.0",
@@ -69,7 +69,7 @@
     },
     "cwf-manage": {
       "path": ".cwf/scripts/cwf-manage",
-      "sha256": "cc60a21e53fd8e4ff52dccaf2767be082602d8b2ae3bbcc6bc1d8ef004502bce",
+      "sha256": "3cb0c6c40c36882b7b3b3d268e438896516ac65394d375deb0f00b285b8bab69",
       "permissions": "0700"
     }
   },
@@ -125,6 +125,22 @@
     "CWF::TaskContextInference": {
       "path": ".cwf/lib/CWF/TaskContextInference.pm",
       "sha256": "a377cbf427a4be5004b1a055c89b4395ed7943a7d56bb8ca3241a66d8f5ec68b"
+    },
+    "CWF::Validate::Config": {
+      "path": ".cwf/lib/CWF/Validate/Config.pm",
+      "sha256": "acbb96d9436b3b54604acbfacec9cb6d4ed77d95aee55796c626766a73c86a3c"
+    },
+    "CWF::Validate::Workflow": {
+      "path": ".cwf/lib/CWF/Validate/Workflow.pm",
+      "sha256": "3101cc901ea9beb57e5e374bbf5a4a9d7230072be0937bb890dbd6ad51cfb035"
+    },
+    "CWF::Validate::Consistency": {
+      "path": ".cwf/lib/CWF/Validate/Consistency.pm",
+      "sha256": "dae53992f52263622d186f9e6ee1eeff9b0bb28cf0c8dc12fbd601e1228cd1e1"
+    },
+    "CWF::Validate::Security": {
+      "path": ".cwf/lib/CWF/Validate/Security.pm",
+      "sha256": "259d5b4f90560d1bb93c7302ca445c17086e8c2c1300101d997e0cb37d459c0f"
     }
   }
 }

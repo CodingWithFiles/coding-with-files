@@ -129,6 +129,7 @@ reasons: none
     # Internal metadata (not output)
     signals => \@signals,
 }
+```
 
 ## Constraints
 

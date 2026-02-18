@@ -1,3 +1,9 @@
+# Personal Claude Code settings (machine-specific, not for sharing)
+.claude/settings.local.json
+
+# CWF task stack (user-specific workspace state)
+.cwf/task-stack
+
 # Scratchpad - working notes not to be committed
 scratchpad.md
 scratchpad

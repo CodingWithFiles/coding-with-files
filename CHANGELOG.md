@@ -2,6 +2,38 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 64: cwf-manage validate and CWF::Validate Module Suite
+
+**Status**: Complete (2026-02-18)
+**Duration**: 1 session (vs. 2-3 sessions estimated — well under)
+**Impact**: Feature — Deterministic validation of config, workflow, consistency, and security fields across the entire repo, callable as a post-skill guard.
+
+### Key Changes
+
+1. **Four new modules** under `.cwf/lib/CWF/Validate/`:
+   - `Config.pm` — validates `cwf-project.json` schema (supported-task-types, source-management)
+   - `Workflow.pm` — validates `## Status` section presence and value in all workflow files
+   - `Consistency.pm` — cross-checks task num in dirname vs `**Task**:` field; branch vs git branch for active tasks
+   - `Security.pm` — SHA256 + permissions verification using `Digest::SHA` (no shell subprocess)
+2. **`cwf-manage validate` subcommand** — calls all four modules, reports all violations before exit, exits 1 if any
+3. **`/cwf-security-check` skill simplified** — now a thin wrapper delegating to `cwf-manage validate`
+4. **`checkpoint-commit.md` updated** — step 4 added: run `cwf-manage validate` after every checkpoint commit
+5. **Side-fixes found by the validator on first run**:
+   - Unclosed ` ```perl ` code fence in task 37 `c-design-plan.md` (made `## Status` invisible to any parser)
+   - Missing `source-management` key in `implementation-guide/cwf-project.json`
+   - `chmod 0755` on `task-context-inference`, `task-stack`, `migrate-v2.1-file-order` (permissions mismatch)
+
+### Test Results
+
+- 25 test cases (2 static + 6 Config + 4 Workflow + 4 Consistency + 5 Security + 3 integration + 2 regression), all PASS
+- 1 additional test (lib files without `permissions` key skip the permissions check)
+
+### BACKLOG Items Added
+
+- **Expand Perl test suite to cover all CWF library modules** (chore, High) — `t/` currently has only `task-state.t`; all four new modules and the remaining 10 library modules need proper `.t` files runnable via `prove t/`
+
+---
+
 ## Task 63: Fix template-copier-v2.1 Undef Warnings and Sparse-Checkout Bootstrap
 
 **Status**: Complete (2026-02-17)
