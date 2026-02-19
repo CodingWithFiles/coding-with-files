@@ -2,6 +2,24 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 70: Improve CWF Skill Initialisation in cwf-init
+
+**Status**: Complete (2026-02-19)
+**Duration**: <1 session
+**Impact**: Feature — `cwf-init` now produces a fully-functional CWF environment from a fresh project. Fixes three problems identified in Task 63 external agent testing: skill permission prompts on every call, agents manually following SKILL.md instead of using the `Skill` tool, and the post-init commit being skipped.
+
+### Key Changes
+- `.claude/skills/cwf-init/SKILL.md`: Extended from 7 to 8 steps:
+  - Step 4 (Update CLAUDE.md): Now prepends a CWF enforcement preamble with idempotency check
+  - Step 6 (new — Register Skill Permissions): Lists CWF skills dynamically, asks user to confirm, merges into project `.claude/settings.json` with idempotent merge
+  - Step 7 (renumbered): PERL5OPT configuration unchanged
+  - Step 8 (renumbered + strengthened): Mandatory init commit — "Do not begin task work until this commit is made"
+
+### Test Results
+9/9 tests pass. No defects.
+
+---
+
 ## Task 69: Remove Obsolete `Implemented` Status Value
 
 **Status**: Complete (2026-02-18)

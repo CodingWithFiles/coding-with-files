@@ -9,6 +9,22 @@ Future tasks and improvements for the Coding with Files system.
 
 <!-- Completed: "Fix Install Script / cwf-init Boundary and Post-Install UX" — Task 62 (2026-02-17) -->
 
+## Task: Add Missing Checkpoint Commit Instructions to cwf-requirements-plan and cwf-maintenance
+
+**Task-Type**: hotfix
+**Priority**: High
+
+`cwf-requirements-plan` and `cwf-maintenance` are the only two workflow step skills missing a checkpoint commit step. All other workflow step skills (task-plan, design-plan, implementation-plan, testing-plan, implementation-exec, testing-exec, rollout) reference `.cwf/docs/skills/checkpoint-commit.md` and include a "Stage: <file>" instruction. Without it, agents completing these phases do not commit their work, leaving progress unprotected.
+
+**Scope**:
+- Add Step 8 (checkpoint commit) to `cwf-requirements-plan/SKILL.md`: `Stage: b-requirements-plan.md`
+- Add Step 8 (checkpoint commit) to `cwf-maintenance/SKILL.md`: `Stage: i-maintenance.md`
+- Follow the same pattern as adjacent skills (e.g. cwf-design-plan Step 8)
+
+**Identified in**: Task 70 pre-planning investigation (2026-02-19)
+
+---
+
 ## Task: Harden Install Script Pre-Flight Checks and Simplify Bootstrap
 
 **Task-Type**: bugfix
@@ -26,22 +42,7 @@ Two issues found during agent install testing:
 
 <!-- Completed: "Remove v1.0 Category Subdirectories from /cwf-init" — Task 68 (2026-02-18) -->
 
-## Task: Improve CWF Skill Initialisation in /cwf-init
-
-**Task-Type**: feature
-**Priority**: High
-
-Several improvements to `/cwf-init` identified through external agent testing:
-
-1. **Auto-register skill permissions**: Offer to add all 18 CWF skill permissions to `.claude/settings.json` so agents don't get prompted on every skill call. Ask the user first — don't silently modify permissions. Read existing `.claude/settings.json` (or create it), merge `Skill(cwf-*)` entries into `permissions.allow`, preserve existing permissions, list skills being added.
-
-2. **Add CWF enforcement preamble to CLAUDE.md**: Generate a prominent `**IMPORTANT**` section at the top of CLAUDE.md (or create AGENTS.md) stating:
-   - CWF is installed — use the `Skill` tool to invoke CWF skills, do not manually follow skill instructions
-   - All workflow steps must be executed — if genuinely unnecessary, mark as `Skipped` via the workflow process, do not silently omit them
-
-3. **Enforce init commit before task work**: Agents have been observed skipping the post-init commit (Step 7 of cwf-init SKILL.md). Consider whether the enforcement preamble above is sufficient, or whether an additional guard is needed.
-
-**Identified in**: Task 63 external testing (agent install)
+<!-- Completed: "Improve CWF Skill Initialisation in /cwf-init" — Task 70 (2026-02-19) -->
 
 ---
 
