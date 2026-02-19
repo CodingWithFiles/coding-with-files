@@ -2,6 +2,21 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 71: Add Missing Checkpoint Commit Instructions to cwf-requirements-plan and cwf-maintenance
+
+**Status**: Complete (2026-02-19)
+**Duration**: <1 session (trivial)
+**Impact**: Hotfix — `cwf-requirements-plan` and `cwf-maintenance` were the only two wf step skills missing a checkpoint commit step. Agents completing these phases did not commit their workflow files. Both now have Step 8 (checkpoint commit) with the correct Stage file, and Next Steps renumbered to Step 9.
+
+### Key Changes
+- `.claude/skills/cwf-requirements-plan/SKILL.md`: Added Step 8 checkpoint commit (`Stage: b-requirements-plan.md`), renumbered Next Steps to Step 9
+- `.claude/skills/cwf-maintenance/SKILL.md`: Added Step 8 checkpoint commit (`Stage: i-maintenance.md`), renumbered Next Steps to Step 9
+
+### Test Results
+6/6 tests pass. Full skill audit (TC-5) confirmed cwf-new-task, cwf-subtask, and cwf-retrospective are legitimately exempt.
+
+---
+
 ## Task 70: Improve CWF Skill Initialisation in cwf-init
 
 **Status**: Complete (2026-02-19)

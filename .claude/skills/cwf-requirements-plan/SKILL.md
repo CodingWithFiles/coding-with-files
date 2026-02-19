@@ -36,7 +36,9 @@ allowed-tools:
 
 **Step 7**: Check decomposition signals. See `.cwf/docs/workflow/decomposition-guide.md`.
 
-**Step 8 (Next Steps)**:
+**Step 8**: Checkpoint commit. See `.cwf/docs/skills/checkpoint-commit.md`. Stage: `b-requirements-plan.md`
+
+**Step 9 (Next Steps)**:
 - **Primary**: Move to design → `/cwf-design-plan <task-path>`
 - **Alt**: Return to planning if requirements reveal scope issues
 - **Alt**: Create subtasks if complexity signals triggered

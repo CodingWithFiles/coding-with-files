@@ -9,19 +9,25 @@ Future tasks and improvements for the Coding with Files system.
 
 <!-- Completed: "Fix Install Script / cwf-init Boundary and Post-Install UX" — Task 62 (2026-02-17) -->
 
-## Task: Add Missing Checkpoint Commit Instructions to cwf-requirements-plan and cwf-maintenance
+<!-- Completed: "Add Missing Checkpoint Commit Instructions to cwf-requirements-plan and cwf-maintenance" — Task 71 (2026-02-19) -->
 
-**Task-Type**: hotfix
-**Priority**: High
+---
 
-`cwf-requirements-plan` and `cwf-maintenance` are the only two workflow step skills missing a checkpoint commit step. All other workflow step skills (task-plan, design-plan, implementation-plan, testing-plan, implementation-exec, testing-exec, rollout) reference `.cwf/docs/skills/checkpoint-commit.md` and include a "Stage: <file>" instruction. Without it, agents completing these phases do not commit their work, leaving progress unprotected.
+## Bug: checkpoints-branch-manager verify emits error instead of warning
 
-**Scope**:
-- Add Step 8 (checkpoint commit) to `cwf-requirements-plan/SKILL.md`: `Stage: b-requirements-plan.md`
-- Add Step 8 (checkpoint commit) to `cwf-maintenance/SKILL.md`: `Stage: i-maintenance.md`
-- Follow the same pattern as adjacent skills (e.g. cwf-design-plan Step 8)
+**Task-Type**: bugfix
+**Priority**: Medium
 
-**Identified in**: Task 70 pre-planning investigation (2026-02-19)
+`verify_checkpoints_branch()` calls `die` when `git log <checkpoints-branch> --oneline`
+exits non-zero. This occurs even when the branch exists (e.g. SIGPIPE from piping
+output through `head`). The result is a misleading "error: checkpoints branch not
+found" message.
+
+**Fix**: Change `die` → `warn` in `verify_checkpoints_branch()`.
+
+**File**: `.cwf/scripts/command-helpers/checkpoints-branch-manager`
+
+**Identified in**: Task 71 retrospective (2026-02-19)
 
 ---
 
