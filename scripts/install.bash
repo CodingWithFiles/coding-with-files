@@ -61,6 +61,13 @@ check_prerequisites() {
         die "Must run from git root ($git_root), not $PWD"
     fi
 
+    # Subtree method requires at least one commit in the target repo
+    if [[ "$CWF_METHOD" == "subtree" ]]; then
+        if ! git rev-parse HEAD >/dev/null 2>&1; then
+            die "Repository has no commits. Create an initial commit before installing CWF (subtree method requires at least one commit)."
+        fi
+    fi
+
     # Check for existing install
     if [[ -d ".cwf" && "$CWF_FORCE" != "1" ]]; then
         echo "[CWF] ERROR: CWF is already installed (.cwf/ exists). Set CWF_FORCE=1 to overwrite." >&2

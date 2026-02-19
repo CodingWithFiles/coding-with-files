@@ -2,6 +2,28 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 75: Harden Install Script with Pre-Flight Checks and Simplify Bootstrap
+
+**Status**: Complete (2026-02-19)
+**Duration**: <1 session (trivial)
+**Impact**: Bugfix — `install.bash` now exits with a clear error when the target repo
+has no commits (subtree method requires at least one). Bootstrap docs simplified from
+a 4-line sparse-checkout sequence to clean one-liners.
+
+### Key Changes
+- `scripts/install.bash`: Added initial-commit guard in `check_prerequisites()` —
+  subtree method only; exits with descriptive error if `git rev-parse HEAD` fails
+- `README.md`: Replaced 4-line sparse-checkout block with two one-liners (GitHub curl,
+  non-GitHub `git archive --remote`)
+- `INSTALL.md`: Same replacement; relabelled sections as "GitHub" and
+  "GitLab, Gitea, Forgejo, self-hosted"
+
+### Test Results
+6/6 tests pass. Guard fires correctly for empty repo + subtree; skipped for committed
+repo + subtree and all copy-method repos.
+
+---
+
 ## Task 74: Fix template-copier-v2.1 Uninitialized Variable Warnings
 
 **Status**: Complete (2026-02-19)

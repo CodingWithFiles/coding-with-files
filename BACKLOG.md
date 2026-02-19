@@ -31,20 +31,7 @@ found" message.
 
 ---
 
-## Task: Harden Install Script Pre-Flight Checks and Simplify Bootstrap
-
-**Task-Type**: bugfix
-**Priority**: High
-
-Two issues found during agent install testing:
-
-1. **No initial commit check**: `install.bash` attempts `git subtree add` which requires at least one commit. If the repo was just `git init`'d with no commits, the subtree add fails with "working tree has modifications. Cannot add." — a confusing error. The install script should check for at least one commit and return a clear error message.
-
-2. **Replace sparse-checkout bootstrap with `git archive` one-liner**: The 4-line sparse-checkout sequence in README.md and INSTALL.md can be replaced with a single `git archive --remote=<url> <ref> -- scripts/install.bash | tar -xO | bash` command. This works with GitLab, Gitea, self-hosted git, and `file://` URLs. GitHub doesn't support `git archive --remote`, but already has the `curl -fsSL <raw-url> | bash` one-liner. Two clean one-liners cover all hosts.
-
-**Identified in**: Task 63 external testing (agent install)
-
----
+<!-- Completed: "Harden Install Script Pre-Flight Checks and Simplify Bootstrap" — Task 75 (2026-02-19) -->
 
 <!-- Completed: "Remove v1.0 Category Subdirectories from /cwf-init" — Task 68 (2026-02-18) -->
 
