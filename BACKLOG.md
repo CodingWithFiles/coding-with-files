@@ -105,32 +105,7 @@ CLAUDE.md still references "commands" terminology and lists `/cwf-*` as commands
 <!-- Completed: "Audit /cwf-init for Obsolete Category Subdirectories" — Task 68 (2026-02-18) -->
 
 
-## Bug: template-copier-v2.1 Emits Warnings for Unresolved Template Variables
-
-**Task-Type**: bugfix
-**Priority**: High
-
-`template-copier-v2.1` (lines 366-368, 384) warns on uninitialized values during placeholder substitution when variables are unavailable at copy time. Observed when running `task-workflow create` during `/cwf-new-task`:
-
-```
-Use of uninitialized value $branch in substitution (s///) at .cwf/scripts/command-helpers/task-workflow.d/../template-copier-v2.1 line 366.
-Use of uninitialized value $branch in substitution (s///) at ... line 367.
-Use of uninitialized value $branch in substitution (s///) at ... line 368.
-Use of uninitialized value $value in substitution iterator at ... line 384.  (×10)
-```
-
-**Root cause**: `$branch` is undef because the git branch doesn't exist yet at template copy time (branch is created after the copy). `$value` warnings are from other unpopulated template variables (task URL, project URL) where `cwf-project.json` fields are empty.
-
-**Impact**: Placeholder fields end up blank in templates (e.g. `**Branch**:` is empty) requiring manual fill-in during the task plan step. Functional but noisy and leaves incomplete metadata.
-
-**Scope**:
-- Handle undef gracefully in template-copier-v2.1 (lines 366-368, 384) — substitute empty string or leave placeholder intact rather than warning
-- Consider whether `/cwf-new-task` should create the branch before copying templates so `$branch` is available
-- Populate missing variables from context where possible (e.g. infer branch name from task type/num/slug)
-
-**Identified in**: Task 60 (testing CWF installation in a fresh repo)
-
----
+<!-- Completed: "Fix template-copier-v2.1 Uninitialized Variable Warnings" — Task 74 (2026-02-19) -->
 
 ## Bug: /cwf-init Should Run Security Check and Fix Permissions
 

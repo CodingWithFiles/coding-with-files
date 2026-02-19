@@ -351,7 +351,7 @@ sub compute_variables {
 
     # Branch name from config pattern
     my $config = load_config();
-    my $pattern = $config->{'branch-naming-convention'} // '';
+    my $pattern = $config->{'source-management'}{'branch-naming-convention'} // '';
 
     # Extract slug from destination basename
     my $basename = basename($params->{destination});
@@ -363,11 +363,11 @@ sub compute_variables {
         $slug = $params->{description};
     }
 
-    # Substitute variables in branch pattern
+    # Substitute variables in branch pattern (config uses single-brace placeholders)
     my $branch = $pattern;
-    $branch =~ s/\{\{task-type\}\}/$params->{task_type}/g;
-    $branch =~ s/\{\{task-id\}\}/$params->{task_num}/g;
-    $branch =~ s/\{\{description-slug\}\}/$slug/g;
+    $branch =~ s/\{task-type\}/$params->{task_type}/g;
+    $branch =~ s/\{task-id\}/$params->{task_num}/g;
+    $branch =~ s/\{description-slug\}/$slug/g;
     $vars{branchName} = $branch;
 
     # Add new template variables

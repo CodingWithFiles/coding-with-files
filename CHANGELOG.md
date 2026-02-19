@@ -2,6 +2,26 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 74: Fix template-copier-v2.1 Uninitialized Variable Warnings
+
+**Status**: Complete (2026-02-19)
+**Duration**: <1 session (trivial)
+**Impact**: Bugfix — `Branch` field in all generated template files is now correctly populated from the project's branch-naming convention. Previously always blank due to two compounding silent bugs in `build_template_vars`.
+
+### Root Cause
+Two bugs in `build_template_vars`, both silent:
+1. Config key path `$config->{'branch-naming-convention'}` was wrong — the key is nested under `source-management`. The `// ''` default masked the undef silently.
+2. Substitution regex used double-brace format `{{task-type}}` but the config pattern uses single-brace `{task-type}` — substitution never fired.
+
+### Key Changes
+- `.cwf/scripts/command-helpers/template-copier-v2.1`: Fixed config key path (line 354) and substitution brace format (lines 368-370)
+- `.cwf/security/script-hashes.json`: Updated SHA256 for `template-copier-v2.1`
+
+### Test Results
+5/5 tests pass. Branch field correct for both bugfix and feature task types. No stderr warnings.
+
+---
+
 ## Task 71: Add Missing Checkpoint Commit Instructions to cwf-requirements-plan and cwf-maintenance
 
 **Status**: Complete (2026-02-19)
