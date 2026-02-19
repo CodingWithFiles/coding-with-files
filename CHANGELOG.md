@@ -2,6 +2,26 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 76: Add Re-Execution Guidance to Implementation and Testing Exec Skills
+
+**Status**: Complete (2026-02-19)
+**Duration**: <1 session (trivial)
+**Impact**: Bugfix — agents re-running `cwf-implementation-exec` or `cwf-testing-exec`
+on an already-executed phase now have explicit instructions: work forward, don't revert
+commits, use `Task N: Pass 2: …` commit naming, append results rather than overwriting.
+
+### Key Changes
+- `.cwf/docs/skills/re-execution.md` (new): shared guidance doc with Detection, Core
+  Rule (no reverts), Commit Naming, Doc Handling, and Non-Blocker sections
+- `.claude/skills/cwf-implementation-exec/SKILL.md`: conditional re-execution check
+  inserted between Step 5 and Step 6
+- `.claude/skills/cwf-testing-exec/SKILL.md`: same insertion
+
+### Test Results
+6/6 tests pass (content review).
+
+---
+
 ## Task 75: Harden Install Script with Pre-Flight Checks and Simplify Bootstrap
 
 **Status**: Complete (2026-02-19)

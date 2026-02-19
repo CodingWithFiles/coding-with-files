@@ -28,6 +28,8 @@ allowed-tools:
 
 **Step 5**: Read `e-testing-plan.md` for test strategy, test cases, and success criteria.
 
+**Re-execution check**: If `g-testing-exec.md` already has results from a prior run, read `.cwf/docs/skills/re-execution.md` before proceeding.
+
 **Step 6 (Execute)**:
 - Open g-testing-exec.md and update as you work
 - **Focus on**: Executing planned tests, recording results, documenting failures

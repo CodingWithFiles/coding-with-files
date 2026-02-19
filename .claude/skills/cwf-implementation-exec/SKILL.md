@@ -28,6 +28,8 @@ allowed-tools:
 
 **Step 5**: Read `d-implementation-plan.md` for detailed implementation steps, files to modify, and expected changes.
 
+**Re-execution check**: If `f-implementation-exec.md` already has results from a prior run, read `.cwf/docs/skills/re-execution.md` before proceeding.
+
 **Step 6 (Execute)**:
 - Open f-implementation-exec.md and update as you work
 - **Focus on**: Executing planned steps, recording actual results, documenting deviations
