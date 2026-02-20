@@ -2,6 +2,31 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 79: Update Branding and Documentation for Skills Architecture
+
+**Status**: Complete (2026-02-20)
+**Duration**: <1 session (estimated: <1 session — on target)
+**Impact**: Bugfix — CLAUDE.md and README.md now reflect current skills architecture
+terminology and correct v2.1 skill names throughout.
+
+### Key Changes
+- `CLAUDE.md`: "Available CWF Commands" → "Available CWF Skills"; section headers
+  "Core/Workflow/Utility Commands" → "Skills"; replaced entire v2.0 workflow skill
+  list with current v2.1 names (`/cwf-task-plan`, `/cwf-requirements-plan`,
+  `/cwf-design-plan`, `/cwf-implementation-plan`, `/cwf-implementation-exec`,
+  `/cwf-testing-plan`, `/cwf-testing-exec`); prose "commands reference docs" →
+  "skills reference docs"; "designated commands" → "designated skills"
+- `README.md`: "slash commands" → "skills" (×2 in overview); "Test all commands" →
+  "Test all skills" (contributing section)
+
+### BACKLOG Items Completed
+- "Update Branding and Documentation for Skills Architecture" (from Task 57 retrospective)
+
+### Test Results
+6/6 grep-based TCs pass. `prove t/` exits 0 (158 tests, no regressions).
+
+---
+
 ## Task 78: Fix Progress Signal Non-Determinism in task-context-inference
 
 **Status**: Complete (2026-02-19)

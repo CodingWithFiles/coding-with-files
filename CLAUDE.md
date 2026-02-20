@@ -10,7 +10,7 @@ The Coding with Files (CWF) system v2.0 is **implemented and operational**. Core
 - Token-efficient context inheritance (~90% reduction via structural maps)
 - 5 helper scripts for deterministic operations (hierarchy resolution, format detection, status aggregation, version parsing, context inheritance)
 - Central template pool with task-type-specific symlinks (DRY principle)
-- Progressive disclosure pattern (commands reference docs, don't duplicate)
+- Progressive disclosure pattern (skills reference docs, don't duplicate)
 
 ## Development Commands
 
@@ -19,26 +19,28 @@ The Coding with Files (CWF) system v2.0 is **implemented and operational**. Core
 - **Test**: Manual validation through command execution
 - **Lint**: File integrity via `/cwf-security-check`
 
-### Available CWF Commands
+### Available CWF Skills
 
-**Core Commands (v2.0)**:
+**Core Skills**:
 - `/cwf-init` - Initialize CWF system
 - `/cwf-new-task <num> <type> "description"` - Create hierarchical implementation guide (breaking change from v1.0)
 - `/cwf-subtask <parent-path> <num> <type> "description"` - Create subtask with context inheritance (breaking change)
 - `/cwf-status [task-path]` - Show hierarchical progress
 - `/cwf-extract <task-path> <section-name>` - Extract sections (task-based, backward compatible)
 
-**Workflow Commands (v2.0 - New)**:
-- `/cwf-plan <task-path>` - Planning phase
-- `/cwf-requirements <task-path>` - Requirements phase
-- `/cwf-design <task-path>` - Design phase
-- `/cwf-implementation <task-path>` - Implementation phase
-- `/cwf-testing <task-path>` - Testing phase
+**Workflow Skills**:
+- `/cwf-task-plan <task-path>` - Planning phase
+- `/cwf-requirements-plan <task-path>` - Requirements phase
+- `/cwf-design-plan <task-path>` - Design phase
+- `/cwf-implementation-plan <task-path>` - Implementation plan phase
+- `/cwf-implementation-exec <task-path>` - Implementation execution phase
+- `/cwf-testing-plan <task-path>` - Testing plan phase
+- `/cwf-testing-exec <task-path>` - Testing execution phase
 - `/cwf-rollout <task-path>` - Rollout phase
 - `/cwf-maintenance <task-path>` - Maintenance phase
 - `/cwf-retrospective <task-path>` - Retrospective phase
 
-**Utility Commands**:
+**Utility Skills**:
 - `/cwf-security-check [verify|report]` - Verify system integrity
 - `/cwf-config [init|list|reset]` - Configure CWF system
 - `.cwf/scripts/cwf-manage` - Manage CWF installation (status, update, rollback, list-releases)
@@ -61,7 +63,7 @@ The Coding with Files (CWF) system v2.0 is **implemented and operational**. Core
 
 **Script-Based Helper System**: Five helper scripts encapsulate deterministic operations - hierarchy resolution, format detection, status aggregation, version parsing, context inheritance (Perl-based). LLM focuses on intelligence, scripts handle file system traversal.
 
-**Progressive Disclosure Pattern**: Commands reference documentation (`.cwf/docs/workflow/`) rather than duplicating content. Helper scripts provide structural information, LLM decides what matters. Reduces token consumption while preserving agency.
+**Progressive Disclosure Pattern**: Skills reference documentation (`.cwf/docs/workflow/`) rather than duplicating content. Helper scripts provide structural information, LLM decides what matters. Reduces token consumption while preserving agency.
 
 **Security Model**: u+rx (minimum 0500) permissions, SHA256 verification via `.cwf/security/script-hashes.json`, git-based version tracking.
 
@@ -75,7 +77,7 @@ The Coding with Files (CWF) system v2.0 is **implemented and operational**. Core
 
 ## File Protection (Advisory)
 
-The following files should not be directly edited with Edit or Write tools. Use the designated commands instead:
+The following files should not be directly edited with Edit or Write tools. Use the designated skills instead:
 
 ### `.cwf/task-stack`
 - **Purpose**: Tracks current task context as a LIFO stack

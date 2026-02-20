@@ -1,12 +1,12 @@
 # Coding with Files (CWF)
 
-A structured system for managing software development tasks through Claude Code slash commands.
+A structured system for managing software development tasks through Claude Code skills.
 
 CWF is pronounced "swiff".
 
 ## Overview
 
-Coding with Files (CWF) provides a standardised approach to planning, implementing, and tracking software development tasks. Currently targeted for Claude Code integration through slash commands, it offers automated task creation, progress tracking, and documentation generation.
+Coding with Files (CWF) provides a standardised approach to planning, implementing, and tracking software development tasks. Currently targeted for Claude Code integration through skills, it offers automated task creation, progress tracking, and documentation generation.
 
 While this system is designed specifically for Claude Code, the methodology isn't strictly tied to any particular tool. Pull requests to support other development environments are welcome.
 
@@ -193,7 +193,7 @@ Directory structure mirrors numbering exactly.
 1. Create a feature branch following the CWF methodology
 2. Use `/cwf-new-task feature` to structure your work
 3. Ensure hierarchical numbering matches directory structure
-4. Test all commands before submission
+4. Test all skills before submission
 
 ## License
 

@@ -70,24 +70,7 @@ When `/cwf-new-task` or `/cwf-subtask` is invoked without a task type, the agent
 
 ---
 
-## Task: Update Branding and Documentation for Skills Architecture
-
-**Task-Type**: chore
-**Priority**: High
-**Status**: Follow-up from Task 57
-**Depends on**: Skills architecture stability confirmed across several tasks
-
-CLAUDE.md still references "commands" terminology and lists `/cwf-*` as commands. Update all documentation to reflect the skills architecture: CLAUDE.md, README.md, any docs referencing `.claude/commands/`.
-
-**Scope**:
-- Update CLAUDE.md command references to skills
-- Update any user-facing documentation
-- Verify no stale references to `.claude/commands/` path
-- Advance main once documentation is current
-
-**Identified in**: Task 57 retrospective (j-retrospective.md)
-
----
+<!-- Completed: "Update Branding and Documentation for Skills Architecture" — Task 79 (2026-02-20) -->
 
 <!-- Completed: "Audit /cwf-init for Obsolete Category Subdirectories" — Task 68 (2026-02-18) -->
 
