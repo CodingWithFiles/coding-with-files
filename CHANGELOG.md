@@ -2,6 +2,30 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 80: Fix install.bash file:// Source Defaults to HEAD
+
+**Status**: Complete (2026-02-21)
+**Duration**: <1 session (estimated: <1 session — on target)
+**Impact**: Bugfix — installing CWF from a local `file://` clone with no `CWF_REF`
+set previously resolved `latest` to the most recent git tag (e.g. `v0.2.1`), which
+predates the `.cig` → `.cwf` rename and causes a fatal subtree error. Now defaults
+to `HEAD` when `CWF_SOURCE` is a `file://` URL.
+
+### Key Changes
+- `scripts/install.bash`: added 4-line guard at top of `resolve_ref()`:
+  if ref is `latest` and `CWF_SOURCE` starts with `file://`, log
+  `"file:// source detected — defaulting CWF_REF to HEAD"` and return `HEAD`.
+  Remote sources (`https://`, `git://`, `ssh://`) are unaffected.
+- `INSTALL.md`: added "Installing from a local clone" subsection after the env vars
+  table — documents `file://` URL syntax, HEAD default behaviour, and explicit
+  `CWF_REF` override example.
+
+### Test Results
+5/5 TCs pass including 2 live end-to-end installs into temp repos.
+`prove t/` exits 0 (158 tests, no regressions).
+
+---
+
 ## Task 79: Update Branding and Documentation for Skills Architecture
 
 **Status**: Complete (2026-02-20)

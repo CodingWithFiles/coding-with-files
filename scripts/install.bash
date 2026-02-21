@@ -86,6 +86,12 @@ resolve_ref() {
     local clone_dir="$1"
     local ref="$2"
 
+    if [[ "$ref" == "latest" && "$CWF_SOURCE" == file://* ]]; then
+        log "file:// source detected — defaulting CWF_REF to HEAD"
+        echo "HEAD"
+        return
+    fi
+
     if [[ "$ref" == "latest" ]]; then
         local latest
         latest="$(git -C "$clone_dir" tag -l 'v*' --sort=-version:refname | head -1)"

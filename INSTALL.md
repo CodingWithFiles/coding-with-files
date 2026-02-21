@@ -41,6 +41,26 @@ curl -fsSL <url> | CWF_FORCE=1 bash
 | `CWF_SOURCE` | GitHub URL | Any git URL or `file://` path |
 | `CWF_FORCE` | (unset) | `1` to overwrite existing install |
 
+### Installing from a local clone
+
+If you have a local clone of the CWF repository (e.g. for development or air-gapped
+environments), use a `file://` URL as the source:
+
+```bash
+git archive --remote=file:///path/to/coding-with-files HEAD scripts/install.bash \
+  | tar -xO > /tmp/cwf-install.bash
+CWF_SOURCE=file:///path/to/coding-with-files bash /tmp/cwf-install.bash
+```
+
+When `CWF_SOURCE` is a `file://` URL, `CWF_REF` defaults to `HEAD` rather than the
+latest release tag. This ensures you install the current state of the repository
+rather than a potentially outdated tagged release. To install a specific tag from a
+local clone, set `CWF_REF` explicitly:
+
+```bash
+CWF_SOURCE=file:///path/to/coding-with-files CWF_REF=v0.2.1 bash /tmp/cwf-install.bash
+```
+
 For the download-then-inspect approach:
 
 ```bash
