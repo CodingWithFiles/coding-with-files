@@ -2145,32 +2145,6 @@ Create quick reference documentation for workflow phase sequences (which files a
 
 ---
 
-## Task: Comprehensive Perl Test Suite for CWF Library Modules
-
-**Task-Type**: feature
-**Priority**: High
-
-The `t/` directory contains only `t/task-state.t` (covering `TaskState.pm`, using the now-obsolete `.cig/lib` path). All other CWF Perl modules have no `.t` files. Tests written during Task 64 were inline `perl -e` heredocs — correct but not reusable or runnable via `prove`.
-
-This is the first time CWF is establishing comprehensive automated testing, so it warrants the full feature workflow: requirements to define coverage standards, design to establish test patterns and fixture strategies, then implementation.
-
-**Key questions for requirements/design**:
-- What coverage target is meaningful? (all public subs? branch coverage? statement coverage?)
-- What test data strategy? (`File::Temp` temp dirs, in-repo fixtures, or both?)
-- Should `prove t/` be a prerequisite for `cwf-manage validate` or a separate guard?
-- Which modules are testable in isolation vs. require a git repo fixture?
-- Does `Test::More` suffice or do we want `Test2::Suite`?
-
-**Known scope**:
-- Migrate `t/task-state.t` to `.cwf/lib` path
-- Add `.t` files for all four `CWF::Validate::*` modules (Task 64 inline tests are the starting point)
-- Audit and add `.t` files for: `CWF::MarkdownParser`, `CWF::TaskPath`, `CWF::WorkflowFiles`, `CWF::Common`, `CWF::Options`, `CWF::VersionRouter`, `CWF::TaskContextInference`, `CWF::StatusAggregator::Core`, `CWF::TemplateCopier::Core`, `CWF::ContextInheritance::Core`
-- `prove t/` as the standard test runner
-
-**Identified in**: Task 64 testing exec and retrospective
-
----
-
 ## Task: Replace Backtick Operators with IPC::Open3 in cwf-manage
 
 **Task-Type**: chore

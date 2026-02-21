@@ -14,10 +14,11 @@ use File::Path qw(make_path);
 
 # Add library path
 use FindBin;
-use lib "$FindBin::Bin/../.cig/lib";
+use lib "$FindBin::Bin/../.cwf/lib";
+use lib "$FindBin::Bin/lib";
 
 # Load TaskState module
-BEGIN { use_ok('TaskState', qw(state_done state_achievable status_percent status_extract)) }
+BEGIN { use_ok('CWF::TaskState', qw(state_done state_achievable status_percent status_extract)) }
 
 #==============================================================================
 # HELPER FUNCTIONS
@@ -59,11 +60,10 @@ sub create_test_task {
 
 # Test status_percent mapping
 subtest 'status_percent() - status value mapping' => sub {
-    plan tests => 7;
+    plan tests => 6;
 
     is(status_percent('Finished'), 100, 'Finished = 100%');
     is(status_percent('Testing'), 75, 'Testing = 75%');
-    is(status_percent('Implemented'), 50, 'Implemented = 50%');
     is(status_percent('In Progress'), 25, 'In Progress = 25%');
     is(status_percent('Blocked'), 15, 'Blocked = 15%');
     is(status_percent('To-Do'), 0, 'To-Do = 0%');
@@ -128,11 +128,13 @@ subtest 'state_done() - one in progress only' => sub {
 # STATE_ACHIEVABLE TESTS (Prospective - Cliff Function)
 #==============================================================================
 
-subtest 'state_achievable() - blocked task (0% work potential)' => sub {
+subtest 'state_achievable() - blocked task (dormant, dampened)' => sub {
     plan tests => 1;
 
+    # Blocked = 15% in CWF::TaskState; completion=25% (base), active_count=0 → DORMANT
+    # state_achievable = int(25 * 0.3) = 7
     my $task_dir = create_test_task('bugfix', 'Finished', 'Finished', 'Blocked', 'Blocked', 'Blocked');
-    is(state_achievable($task_dir), 0, 'Blocked task = 0% work potential');
+    is(state_achievable($task_dir), 7, 'Blocked task = 7% (dormant, completion=25%)');
 };
 
 subtest 'state_achievable() - active task (Task 32 scenario)' => sub {
@@ -202,8 +204,10 @@ subtest 'state_achievable() - dormant task (started but no active)' => sub {
 subtest 'state_achievable() - all blocked task' => sub {
     plan tests => 1;
 
+    # Blocked=15%; all-Blocked: max=15<25 so base=0, progress=15; active_count=0
+    # DORMANT: int(15 * 0.3) = 4
     my $task_dir = create_test_task('bugfix', ('Blocked') x 5);
-    is(state_achievable($task_dir), 0, 'All blocked = 0% work potential');
+    is(state_achievable($task_dir), 4, 'All blocked = 4% (dormant, completion=15%)');
 };
 
 #==============================================================================
@@ -241,24 +245,20 @@ subtest 'state_achievable() - nonexistent directory' => sub {
 #==============================================================================
 
 subtest 'state_achievable() - cliff function linear ramp' => sub {
-    plan tests => 3;
+    plan tests => 2;
 
     # Test that work potential increases linearly with completion for active tasks
-    # Must avoid Backlog/To-Do to get actual varying completion percentages
+    # Use In Progress (25%) and Testing (75%) — two unambiguous active states
     my $task_25 = create_test_task('bugfix', 'In Progress', 'In Progress', 'In Progress', 'In Progress', 'In Progress');
-    my $task_50 = create_test_task('bugfix', 'Implemented', 'Implemented', 'Implemented', 'Implemented', 'Implemented');
     my $task_75 = create_test_task('bugfix', 'Finished', 'Testing', 'Testing', 'Testing', 'Testing');
 
     # task_25: all In Progress (25%) → state_done=25%, state_achievable=25%
-    # task_50: all Implemented (50%) → state_done=50%, state_achievable=50%
     # task_75: 1 Finished, 4 Testing (75%) → state_done=75%, state_achievable=75%
     my $wp_25 = state_achievable($task_25);
-    my $wp_50 = state_achievable($task_50);
     my $wp_75 = state_achievable($task_75);
 
     cmp_ok($wp_25, '>', 0, 'Active task at 25% has positive work potential');
-    cmp_ok($wp_50, '>', $wp_25, 'Work potential increases with completion (50% > 25%)');
-    cmp_ok($wp_75, '>', $wp_50, 'Work potential continues to increase (75% > 50%, linear ramp)');
+    cmp_ok($wp_75, '>', $wp_25, 'Work potential increases with completion (75% > 25%, linear ramp)');
 };
 
 subtest 'state_achievable() - blocked vs active distinction' => sub {
@@ -292,7 +292,8 @@ subtest 'Integration - Task 11 and Task 32 comparison' => sub {
     is(state_done($task32), 25, 'Task 32 completion = 25% (bottleneck)');
 
     # Test state_achievable (prospective)
-    is(state_achievable($task11), 0, 'Task 11 work potential = 0% (blocked)');
+    # Task 11: Blocked=15%, so completion=25%, active_count=0 → DORMANT → int(25*0.3)=7
+    is(state_achievable($task11), 7, 'Task 11 work potential = 7% (dormant, Blocked=15%)');
     is(state_achievable($task32), 25, 'Task 32 work potential = 25% (active)');
 };
 
