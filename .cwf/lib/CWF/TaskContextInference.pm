@@ -414,6 +414,7 @@ sub _get_progress_signal {
     }
 
     @candidates = sort { $b->{score} <=> $a->{score} } @candidates;
+    @candidates = grep { $_->{score} > 0 } @candidates;
     @candidates = splice(@candidates, 0, 5);
 
     return { name => 'progress', weight => WEIGHT_PROGRESS_MAX, null => 1 }

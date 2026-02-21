@@ -2,6 +2,59 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 78: Fix Progress Signal Non-Determinism in task-context-inference
+
+**Status**: Complete (2026-02-19)
+**Duration**: <1 session (estimated: <1 session — on target)
+**Impact**: Hotfix — `task-context-inference` now returns a consistent
+`confidence: correlated` result on every run. Previously, completed tasks with
+`state_achievable == 0` produced `score == 0` in `_get_progress_signal`, and
+Perl's non-deterministic sort order for equal elements caused a different random
+task to appear as a noise partner on each invocation, yielding `confidence:
+uncorrelated` every time.
+
+### Key Changes
+- `.cwf/lib/CWF/TaskContextInference.pm`: added `grep { $_->{score} > 0 }` filter
+  after sort and before splice in `_get_progress_signal`
+- `.cwf/security/script-hashes.json`: SHA256 updated for modified module
+- `t/taskcontextinference.t`: regression subtest added —
+  `get_all_signals() - progress candidates all have score > 0`
+
+### Test Results
+158 tests across 17 files (up from 157), all pass. 5× consecutive runs of
+`task-context-inference` produce identical output.
+
+---
+
+## Task 77: Comprehensive Perl Test Suite for CWF Library Modules
+
+**Status**: Complete (2026-02-19)
+**Duration**: ~1 session (estimated 3–5 days — 80% faster than estimate)
+**Impact**: Feature — establishes `prove t/` as the standard quality gate for all 17
+CWF library modules. Regressions are now caught automatically rather than through
+manual inspection.
+
+### Key Changes
+- `t/lib/CWFTest/Fixtures.pm` (new): shared test helper with `create_task_dir`,
+  `create_git_repo`, `create_config`
+- `t/task-state.t` (migrated): updated from `.cig/lib` to `.cwf/lib`, removed
+  obsolete `Implemented` status, corrected `Blocked` expected values (15%, not 0%)
+- 16 new `.t` files (one per remaining `.pm`): common, contextinheritance, markdownparser,
+  options, statusaggregator, taskcontextinference, taskpath, templatecopier,
+  validate-config, validate-consistency, validate-security, validate-workflow,
+  versionrouter, workflowfiles, workflowfiles-v20, workflowfiles-v21
+
+### Test Results
+157 tests across 17 files, all pass, suite runtime ~0.9s.
+
+### Notable Patterns (Perl test footguns documented in i-maintenance.md)
+- `ok(grep { ... } @list, $msg)` — message included in grep list; use `ok((grep {...}), $msg)`
+- `qw(In\ Progress)` — creates two words; use `('In Progress', ...)`
+- Functions not in `@EXPORT_OK` must be called fully qualified
+- `Blocked` status = 15% in `CWF::TaskState`, not 0%
+
+---
+
 ## Task 76: Add Re-Execution Guidance to Implementation and Testing Exec Skills
 
 **Status**: Complete (2026-02-19)

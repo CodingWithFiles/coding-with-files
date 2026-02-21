@@ -124,7 +124,7 @@
     },
     "CWF::TaskContextInference": {
       "path": ".cwf/lib/CWF/TaskContextInference.pm",
-      "sha256": "a377cbf427a4be5004b1a055c89b4395ed7943a7d56bb8ca3241a66d8f5ec68b"
+      "sha256": "6d486c825fe0753271554fe69c0bbd3add7a95d58fc2cd8bbb5c12f409b997d2"
     },
     "CWF::Validate::Config": {
       "path": ".cwf/lib/CWF/Validate/Config.pm",

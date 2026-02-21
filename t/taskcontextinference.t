@@ -133,4 +133,24 @@ subtest 'get_all_signals() - each signal has required keys' => sub {
     ok($all_ok, 'all signals have name, weight, null keys');
 };
 
+# Regression: task 78 — _get_progress_signal must not emit zero-score candidates.
+# Before fix: completed tasks (score=0) appeared as progress candidates, causing
+# non-deterministic task_num on every run. After fix: grep filters them out.
+subtest 'get_all_signals() - progress candidates all have score > 0' => sub {
+    plan tests => 1;
+
+    my @signals = get_all_signals();
+    my ($progress) = grep { $_->{name} eq 'progress' } @signals;
+    my $all_positive = 1;
+    if (defined $progress && !$progress->{null} && ref($progress->{candidates}) eq 'ARRAY') {
+        for my $c (@{$progress->{candidates}}) {
+            if (!defined $c->{score} || $c->{score} <= 0) {
+                $all_positive = 0;
+                last;
+            }
+        }
+    }
+    ok($all_positive, 'no zero-score candidates in progress signal');
+};
+
 done_testing();
