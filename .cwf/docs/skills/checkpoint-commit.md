@@ -4,12 +4,16 @@ After completing a workflow phase, create a checkpoint commit to preserve progre
 
 ## Procedure
 
-1. **Stage** the workflow file for the current phase:
+1. **Update status** in the current phase's workflow file:
+   Set `**Status**: Finished` (and update `**Next Action**` if needed) before staging —
+   this keeps `cwf-status` accurate throughout the task.
+
+2. **Stage** the workflow file for the current phase:
    ```bash
    git add implementation-guide/<task-dir>/<workflow-file>.md
    ```
 
-2. **Commit** with a "why"-focused message:
+3. **Commit** with a "why"-focused message:
    ```bash
    git commit -m "Task N: Complete <phase> phase
 
@@ -18,9 +22,9 @@ After completing a workflow phase, create a checkpoint commit to preserve progre
    Co-developed-by: Claude Opus 4.6 <noreply@anthropic.com>"
    ```
 
-3. **Rationale**: Checkpoint commits preserve incremental progress and enable retrospective squashing workflow (Step 10 in cig-retrospective).
+4. **Rationale**: Checkpoint commits preserve incremental progress and enable retrospective squashing workflow (Step 10 in cig-retrospective).
 
-4. **Validate** (post-commit guard):
+5. **Validate** (post-commit guard):
    ```bash
    perl -I.cwf/lib .cwf/scripts/cwf-manage validate
    ```

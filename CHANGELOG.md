@@ -2,6 +2,26 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 83: Add Status Update Step to checkpoint-commit.md
+
+**Status**: Complete (2026-02-21)
+**Duration**: <1 session (estimated: <30 min — slightly over due to full wf cycle)
+**Impact**: Hotfix — `checkpoint-commit.md` now instructs the LLM to set
+`**Status**: Finished` in the current phase's workflow file before staging,
+so `cwf-status` stays accurate throughout a task rather than only being
+corrected at retrospective time. All wf step skills inherit the fix
+automatically — no per-skill edits needed.
+
+### Key Changes
+- `.cwf/docs/skills/checkpoint-commit.md`: inserted new step 1 ("Update status")
+  before "Stage"; renumbered original steps 1-4 → 2-5
+
+### Test Results
+3/3 TCs pass: new step present as step 1, existing steps renumbered 2-5,
+wording unambiguous.
+
+---
+
 ## Task 82: Fix checkpoints-branch-manager verify die → warn
 
 **Status**: Complete (2026-02-21)
