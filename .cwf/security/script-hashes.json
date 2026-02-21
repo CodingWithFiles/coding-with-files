@@ -24,7 +24,7 @@
     },
     "checkpoints-branch-manager": {
       "path": ".cwf/scripts/command-helpers/checkpoints-branch-manager",
-      "sha256": "58b0f16779fe7fcd02eb05403606ec4a85a795436cff4b2f19253619710a516d",
+      "sha256": "8313df5cffa836f5284c1a1778f7fcdab815539175e9e78bf696061c98151bb6",
       "permissions": "0500"
     },
     "context-inheritance-v2.0": {

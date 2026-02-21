@@ -17,21 +17,7 @@ Future tasks and improvements for the Coding with Files system.
 
 ---
 
-## Bug: checkpoints-branch-manager verify emits error instead of warning
-
-**Task-Type**: bugfix
-**Priority**: Medium
-
-`verify_checkpoints_branch()` calls `die` when `git log <checkpoints-branch> --oneline`
-exits non-zero. This occurs even when the branch exists (e.g. SIGPIPE from piping
-output through `head`). The result is a misleading "error: checkpoints branch not
-found" message.
-
-**Fix**: Change `die` → `warn` in `verify_checkpoints_branch()`.
-
-**File**: `.cwf/scripts/command-helpers/checkpoints-branch-manager`
-
-**Identified in**: Task 71 retrospective (2026-02-19)
+<!-- Completed: "Fix checkpoints-branch-manager verify emits die instead of warn on SIGPIPE" — Task 82 (2026-02-21) -->
 
 ---
 

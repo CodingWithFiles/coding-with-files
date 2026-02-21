@@ -44,7 +44,10 @@ sub verify_checkpoints_branch {
     my $checkpoints_branch = "$branch-checkpoints";
 
     system("git", "log", $checkpoints_branch, "--oneline");
-    die "$SCRIPT_PATH: error: checkpoints branch not found\n" if $? != 0;
+    if ($? != 0) {
+        warn "$SCRIPT_PATH: warning: checkpoints branch not found\n";
+        exit 1;
+    }
 }
 
 # Main

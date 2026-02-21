@@ -2,6 +2,27 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 82: Fix checkpoints-branch-manager verify die → warn
+
+**Status**: Complete (2026-02-21)
+**Duration**: <1 session (estimated: <1 session — on target)
+**Impact**: Bugfix — `verify_checkpoints_branch()` now emits a non-fatal warning
+instead of a fatal Perl exception when `git log` exits non-zero (e.g. SIGPIPE
+from piping through `head`, or branch genuinely absent). Callers receive exit
+code 1 they can handle, with no misleading stack trace.
+
+### Key Changes
+- `.cwf/scripts/command-helpers/checkpoints-branch-manager`: replaced
+  `die "… error: checkpoints branch not found\n" if $? != 0` with
+  `warn "… warning: …\n"; exit 1` in `verify_checkpoints_branch()`
+- `.cwf/security/script-hashes.json`: SHA256 updated for changed script
+
+### Test Results
+4/4 TCs pass: happy path (exit 0), error path (exit 1, warn not die),
+create regression, and `cwf-manage validate` integrity check.
+
+---
+
 ## Task 81: Enforce Single Canonical Task Type List
 
 **Status**: Complete (2026-02-21)
