@@ -2,6 +2,30 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 84: Backlog Audit — Remove Moot Items
+
+**Status**: Complete (2026-02-21)
+**Duration**: ~1 hour (estimated: 1 hour — on target)
+**Impact**: Chore — backlog reduced from 41 to 33 active items by removing 8 items
+superseded by architecture changes or already implemented, and correcting the scope
+of 1 mis-specified item.
+
+### Items Removed
+- Item 12: "Update Commands/Skills to Use New Inference Output Format" — plural format never adopted
+- Item 15: "Document Checkpoint Commit → Squash Workflow" — already in retrospective-extras.md Step 10
+- Item 20: "Create Permanent Security Verification Script" — superseded by `cwf-manage validate`
+- Item 24: "Migrate CWF to Hybrid Plugin Model" — skills migration done (Task 57); plugin hooks blocked by Bug #17688
+- Item 26: "Design Task-Type-Specific Workflow Variants" — already implemented in `task-workflow create`
+- "Create Automated Test Harness" — t/ directory has 15+ test files covering all major modules
+- "Security Review and Hardening of CWF Bash Invocations" — commands→skills, all Perl, $ARGUMENTS moot
+- "Standardize Script Naming and Invocation" — already extensionless throughout
+
+### Item Updated
+- "Remove Decomposition Checks from Non-Planning Workflow Steps" — scope corrected: keep Step 7
+  in all `*-plan` skills; remove only from cwf-rollout and cwf-maintenance
+
+---
+
 ## Task 83: Add Status Update Step to checkpoint-commit.md
 
 **Status**: Complete (2026-02-21)

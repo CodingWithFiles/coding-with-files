@@ -262,21 +262,8 @@ Create integration test harness that manipulates git state to produce real signa
 
 ---
 
-## Task: Update Commands/Skills to Use New Inference Output Format
-
-**Task-Type**: chore
-**Priority**: Low
-**Status**: Follow-up from Task 37
-
-Update commands and skills that parse task context inference output to use the new structured format with plural fields.
-
-**Scope**:
-- Audit commands that call task-context-inference
-- Update parsing logic to handle plural fields (task_nums, task_slugs)
-- Handle inconclusive scenarios gracefully (prompt user when current=inconclusive)
-- Use `current` field for version detection (backward compatibility)
-
-**Identified in**: Task 37 retrospective (j-retrospective.md)
+<!-- Removed: "Update Commands/Skills to Use New Inference Output Format" — Task 84 (2026-02-21) -->
+<!-- Reason: Moot — task-context-inference still uses singular task_num field; plural format was never adopted; skills work correctly as-is -->
 
 ---
 
@@ -352,34 +339,8 @@ Create reusable grep/diff verification patterns for multi-file update tasks.
 
 ---
 
-## Task: Document Checkpoint Commit → Squash Workflow
-
-**Task-Type**: chore
-**Priority**: Low
-**Status**: Identified from Task 36 retrospective
-
-Document the standard pattern: checkpoint commits → backup branch → squash → rebase.
-
-**Problem**: Task 35 and 36 both used checkpoint commits with final squashing, but pattern isn't documented.
-
-**Solution**: Create workflow documentation for checkpoint/squash pattern.
-
-**Scope**:
-1. **Create `docs/workflow/checkpoint-squash.md`**:
-   - When to use checkpoint commits (during development)
-   - How to create backup branch (`git branch $(git rev-parse --abbrev-ref HEAD)-checkpoints`)
-   - How to squash (`git reset --soft <base-commit>`)
-   - How to rebase dependent branches
-2. **Add to workflow-steps.md**: Reference checkpoint/squash pattern
-
-**Success Criteria**:
-- [ ] Pattern documented with step-by-step instructions
-- [ ] Examples showing backup branch creation and squashing
-- [ ] Future tasks can reference standard pattern
-
-**Rationale**: Standardizes effective git workflow used in recent tasks.
-
-**Discovered**: Task 36 retrospective - checkpoint/squash pattern worked well
+<!-- Removed: "Document Checkpoint Commit → Squash Workflow" — Task 84 (2026-02-21) -->
+<!-- Reason: Already documented in .cwf/docs/skills/retrospective-extras.md Step 10 ("Checkpoints Branch and Squash") with exact commands -->
 
 ---
 
@@ -729,102 +690,8 @@ Add instruction to include security integrity checks as a standard part of the t
 
 ---
 
-## Task: Create Permanent Security Verification Script
-
-**Task-Type**: chore
-**Priority**: Medium
-**Status**: Identified during Task 32 security verification
-
-Create a permanent, reusable security verification script instead of relying on temporary `/tmp/verify-cig-security.sh` scripts created ad-hoc.
-
-**Problem**: Security verification currently requires creating temporary bash scripts in `/tmp` that:
-- Need to be recreated each time
-- Are not version controlled
-- May have inconsistent logic between invocations
-- Don't accumulate improvements over time
-
-**Solution**: Create permanent security verification script in CWF scripts directory.
-
-**Scope**:
-
-1. **Create `.cwf/scripts/verify-security`**:
-   - Permanent bash script for security verification
-   - Reads `.cwf/security/script-hashes.json`
-   - Verifies SHA256 hashes for all scripts and libraries
-   - Checks file permissions (executable scripts need u+rx minimum)
-   - Supports both "lib" and "libraries" sections (backward compatible)
-   - Returns exit code 0 (all verified) or 1 (failures/missing)
-
-2. **Add to security hash tracking**:
-   - Add verify-security script itself to script-hashes.json
-   - Self-verifying: script can check its own integrity
-
-3. **Update `/cwf-security-check` command**:
-   - Command should invoke `.cwf/scripts/verify-security` for deterministic verification
-   - Keep command as thin wrapper (progressive disclosure pattern)
-   - Command adds user-friendly formatting and guidance
-
-4. **Documentation**:
-   - Document script in `.cwf/docs/security/verification.md`
-   - Add usage examples to `/cwf-security-check` command
-   - Document exit codes and output format
-
-**Output Format** (same as current temporary script):
-```
-=========================================
-CIG Security Verification Report
-=========================================
-
-Date: 2026-01-28 18:20:12
-Version: 2.1
-Last Updated: 2026-01-28
-
-HELPER SCRIPTS:
----------------
-✅ .cwf/scripts/command-helpers/hierarchy-resolver
-   SHA256: <hash> (verified)
-   Permissions: 700 (expected: 0500)
-
-❌ .cwf/scripts/command-helpers/format-detector
-   SHA256: <actual> (MISMATCH)
-   Expected: <expected>
-   Action: Update hash or review changes
-
-PERL LIBRARIES:
----------------
-✅ .cwf/lib/TaskState.pm
-   SHA256: <hash> (verified)
-
-=========================================
-SUMMARY
-=========================================
-Total files checked: 29
-✅ Verified: 29
-❌ Failed verification: 0
-❓ Missing files: 0
-
-✅ ALL FILES VERIFIED
-CWF system integrity confirmed
-```
-
-**Benefits**:
-- Deterministic, repeatable security verification
-- Version controlled (improvements accumulate)
-- Single source of truth for verification logic
-- Can be invoked directly or via `/cwf-security-check` command
-- Testable (can write tests for the verification logic)
-
-**Success Criteria**:
-- [ ] `.cwf/scripts/verify-security` created and executable (0755)
-- [ ] Script added to script-hashes.json (self-verifying)
-- [ ] `/cwf-security-check verify` uses permanent script
-- [ ] Script handles both "lib" and "libraries" sections
-- [ ] Exit codes documented (0=success, 1=failures)
-- [ ] Documentation in `.cwf/docs/security/verification.md`
-
-**Rationale**: Temporary scripts in `/tmp` are anti-pattern for deterministic operations. Permanent script enables consistent, repeatable security verification and accumulates improvements over time.
-
-**Related**: Task 32 (created temporary verification scripts during security check)
+<!-- Removed: "Create Permanent Security Verification Script" — Task 84 (2026-02-21) -->
+<!-- Reason: Superseded by `cwf-manage validate` / CWF::Validate::Security.pm — version-controlled, reads script-hashes.json, verifies SHA256 and permissions -->
 
 ---
 
@@ -1044,216 +911,13 @@ Create automated migration tools to upgrade existing v2.0 tasks (a-plan.md throu
 
 ---
 
-## Task: Migrate CWF to Hybrid Plugin Model (Commands → Skills + Plugin)
-
-**Task-Type**: feature
-**Priority**: Medium *(downgraded from High — see Task 54 update below)*
-
-Migrate CWF from commands-based architecture to hybrid plugin model (plugin with skills), as recommended by Task 16's decision matrix scoring but not implemented due to risk-adjusted thinking.
-
-**CRITICAL UPDATE — Task 54 Findings (2026-02-12)**:
-
-Task 54 (Discovery: Assess current 2026 W6 skills and plugin standards) found critical blockers that invalidate migration prerequisites:
-
-1. **Bug #17688**: Frontmatter hooks in SKILL.md don't trigger within plugins. This is the single most important finding — it invalidates the primary value proposition of plugin migration (hooks automation). Community traced root cause to different loader functions for plugin vs local components. Affects both inline and marketplace plugins.
-2. **Bug #22087**: SubagentStop hook failure (34 upvotes, 16 comments). Agents complete work but fail on termination. Blocks multi-agent orchestration, which CWF uses extensively.
-3. **No deprecation signal**: Task 54 found no evidence that commands are deprecated. Commands are merged into skills in v2.1.3 and continue to work. The assumption below that "commands are deprecated" is **not supported by evidence**.
-4. **Task 54 recommendation**: Keep Commands, 85% confidence. Decision matrix (4 options × 8 weighted criteria) reaffirmed Task 16's adjusted recommendation.
-
-**Prerequisite added**: Bug #17688 must be resolved before migration can proceed.
-**Review trigger**: Q3 2026 or when Bug #17688 is fixed, whichever comes first.
-**See**: `implementation-guide/54-discovery-assess-current-2026-w6-skills-and-plugin-stds/f-implementation-exec.md` for full research.
+<!-- Removed: "Migrate CWF to Hybrid Plugin Model (Commands → Skills + Plugin)" — Task 84 (2026-02-21) -->
+<!-- Reason: Commands→Skills migration completed in Task 57; plugin hooks blocked by Bug #17688; Task 54 disproved core premise (commands not deprecated, "Keep Commands" confirmed at 85% confidence) -->
 
 ---
 
-**Context - Task 16 Decision Matrix**:
-
-Task 16 (Discovery: Investigate skills configuration and integration) evaluated 4 architecture options with weighted criteria scoring:
-- **Hybrid Plugin: 55/75** ← HIGHEST SCORE
-- Keep Commands: 47/75
-- Plugin (skills-only): 39/75
-- Skills-Only: 37/75
-
-**The Issue**: Despite Hybrid Plugin scoring highest, Task 16's recommendation was "Keep Commands" based on "risk-adjusted thinking" (reversibility, migration risk, uncertain hooks value). During retrospective discussion, it was acknowledged that this may have been **post-hoc rationalization** - the lower-scoring option was selected due to implementation focus bias. However, Task 54's independent research reaffirmed the "Keep Commands" recommendation with additional evidence (Bug #17688, no deprecation signal, community consensus).
-
-**Why This Decision Needs Revisiting** *(original rationale, partially invalidated by Task 54)*:
-
-~~The landscape has changed significantly since Task 16 (2026-01-14):~~
-1. ~~**Commands are deprecated**: Anthropic is focusing on skills, commands looking increasingly legacy~~ **Task 54 found no deprecation signal. Commands merged into skills in v2.1.3 and continue to work.**
-2. **Task 11 blocked by unfixable bug**: Claude Code's `$ARGUMENTS` expansion bug (unbalanced sigils with special characters) prevents secure argument passing to commands. Reported to Anthropic but sitting unanswered. *(Still valid — but skills migration blocked by Bug #17688)*
-3. ~~**Hybrid Plugin avoids the bug**: Skills don't use `!{path} $ARGUMENTS` pattern, bypassing the security issue entirely~~ **True, but plugin hooks are broken (#17688), so the primary benefit is unavailable.**
-4. ~~**"Safety" of Keep Commands was illusory**: The rationale for choosing Keep Commands (safety, reversibility) no longer holds when the platform is deprecating commands~~ **Task 54 confirmed Keep Commands remains safe — no deprecation signal found.**
-
-**The Decision Matrix Was Right**: Hybrid Plugin scored highest for good reasons:
-- Hooks provide automation value (SessionStart, PreToolUse, PostToolUse)
-- Gradual migration path (convert commands incrementally to skills)
-- Modern architecture aligned with Claude Code's future
-- No `$ARGUMENTS` security bug
-
-**Solution**: Implement the Hybrid Plugin model that scored 55/75 in Task 16's decision matrix.
-
-### Two-Phase Migration
-
-**Phase 1: Convert CWF Project to Plugin**
-- **Goal**: Create `.claude/plugins/cig/PLUGIN.md` with proper structure
-- **Scope**:
-  - Create plugin directory structure (`.claude/plugins/cig/`)
-  - Create PLUGIN.md manifest with metadata, hooks configuration
-  - Set up plugin-specific references and documentation structure
-  - Implement hooks (SessionStart, PreToolUse, PostToolUse, Stop)
-  - Test plugin loading and hooks execution
-  - Validate plugin works alongside existing commands (parallel operation)
-- **Deliverable**: Working CWF plugin with hooks, running in parallel with existing commands
-- **Rationale**: Establishes plugin infrastructure without breaking existing workflows
-
-**Phase 2: Convert Commands to Skills (Gradual)**
-- **Goal**: Migrate CWF commands to skills incrementally
-- **Scope**:
-  - Start with high-value commands: `cig-new-task`, `cig-status`, `cig-subtask`
-  - Convert each command to skill in `.claude/plugins/cig/skills/`
-  - Test each skill individually
-  - Gradually convert remaining 12 workflow commands
-  - Deprecate command files as skills prove stable
-  - Update documentation to reference skills instead of commands
-- **Deliverable**: All CWF functionality available as skills within plugin
-- **Rationale**: Gradual migration reduces risk, allows validation at each step
-
-### Benefits of Hybrid Plugin Model
-
-**Immediate Benefits**:
-- **Unblocks Task 11**: No `$ARGUMENTS` bug in skills architecture
-- **Future-proof**: Aligned with Claude Code's skills-focused direction
-- **Hooks automation**: SessionStart can auto-detect current task, PreToolUse can validate operations
-- **Better UX**: Skills can provide richer context and validation than commands
-
-**Long-term Benefits**:
-- **Sustainable architecture**: Not dependent on deprecated commands system
-- **Extensibility**: Plugin model supports growth (new skills, new hooks)
-- **Security**: No shell argument expansion vulnerabilities
-- **Maintainability**: Skills have clearer tool allowlists and validation patterns
-
-### Migration Strategy
-
-**Parallel Operation Period**:
-- Keep existing `.claude/commands/cwf-*.md` files during migration
-- Skills take precedence when both exist (tested in Task 16)
-- Users can fall back to commands if skills have issues
-- Once skills proven stable (2-4 weeks usage), deprecate commands
-
-**Rollback Plan**:
-- Delete `.claude/plugins/cig/` directory to revert to commands
-- Commands still present, immediately available
-- Low-risk migration (can abort at any time)
-
-**Testing Approach**:
-- Create plugin with 2-3 pilot skills first (cig-new-task, cig-status)
-- Validate hooks work as expected
-- Test skills/commands precedence (skills should win)
-- Gradually add remaining skills after pilot validation
-
-### Dependencies
-
-**Prerequisites**:
-- Task 16 research (COMPLETE - provides architecture blueprint)
-- Understanding of plugin structure (documented in Task 16)
-- Understanding of skills structure (documented in Task 16)
-
-**Blockers**:
-- None - plugin/skills architecture is stable in Claude Code
-- Task 16 testing confirmed hooks work in plugin mode
-- Skills precedence over commands is deterministic
-
-### Success Criteria
-
-**Phase 1 Complete**:
-- [ ] `.claude/plugins/cig/PLUGIN.md` created with valid manifest
-- [ ] Hooks implemented and tested (SessionStart, PreToolUse, PostToolUse, Stop)
-- [ ] Plugin loads successfully on Claude Code startup
-- [ ] Plugin operates in parallel with existing commands (no interference)
-
-**Phase 2 Complete**:
-- [ ] All 15+ CWF commands converted to skills
-- [ ] All skills tested and validated
-- [ ] Skills take precedence over commands (verified)
-- [ ] Documentation updated to reference skills
-- [ ] Command files deprecated (optional: delete or archive)
-- [ ] Task 11 unblocked (no `$ARGUMENTS` bug in skills)
-
-**Overall Success**:
-- [ ] CWF fully operational as hybrid plugin
-- [ ] Hooks providing automation value (measurable time savings)
-- [ ] Zero regression in functionality
-- [ ] Improved UX from skills architecture
-
-### Task Breakdown
-
-Recommended to create two separate implementation tasks:
-
-**Task A: "Convert CWF Project to Plugin Structure"**
-- **Task-Type**: feature
-- **Estimate**: 1-2 days
-- **Deliverable**: `.claude/plugins/cig/` with working hooks
-- **Risk**: Low (can run in parallel with commands)
-
-**Task B: "Convert CWF Commands to Skills (Gradual Migration)"**
-- **Task-Type**: feature
-- **Estimate**: 3-5 days (15+ commands to convert)
-- **Deliverable**: All CWF functionality as skills
-- **Risk**: Low (gradual migration with fallback to commands)
-- **Dependency**: Task A must complete first
-
-### References
-
-- **Task 16 Implementation**: `implementation-guide/16-discovery-investigate-skills-configuration-and-integration/d-implementation.md` lines 1274-1378 (decision matrix with scores)
-- **Task 16 Retrospective**: `implementation-guide/16-discovery-investigate-skills-configuration-and-integration/h-retrospective.md` (acknowledges post-hoc rationalization)
-- **Task 11 Blocker**: `implementation-guide/11-bugfix-only-pass-needed-args-to-scripts/` (blocked by `$ARGUMENTS` bug)
-- **Plugin Structure Reference**: Task 16 documented plugin manifest format, hooks configuration, and directory structure
-- **Skills Structure Reference**: Task 16 documented SKILL.md format, tool allowlists, and user-invocable patterns
-
-**Rationale**: The original decision matrix was correct. Hybrid Plugin scored 55/75 for good reasons. Post-hoc rationalization led to selecting the lower-scoring "Keep Commands" option, but changed circumstances (commands deprecated, Task 11 blocked) now make the migration both necessary and urgent. This task corrects the decision and implements the architecture that Task 16's scoring recommended.
-
----
-
-## Task: Create Automated Test Harness for CWF System
-
-**Task-Type**: feature
-**Priority**: Medium
-**Status**: Proposed (identified in Task 25 retrospective)
-
-Create executable test harness to automate the 95 manual validation test cases currently performed via `/cwf-status`, `/cwf-security-check`, and manual command testing.
-
-**Problem**: Currently all CWF system validation is manual:
-- Running `/cwf-status` on Tasks 1-24 to verify regression
-- Running `/cwf-security-check verify` to check script integrity
-- Creating test tasks to validate template copying
-- Manually testing each workflow command
-- Manual validation is time-consuming and error-prone
-
-**Solution**: Create automated test script that validates all 95 test cases from Task 25 testing plan:
-- Checkpoint 1-9 validation (Core modules, trampoline, templates, commands)
-- Non-functional tests (performance, security, usability)
-- Regression tests (Tasks 1-24 continue working)
-- Acceptance tests (all functional requirements)
-
-**Scope**:
-1. Create `.cwf/scripts/test-cig-system.sh` or similar
-2. Automate functional test cases (TC-1.1 through TC-9.3)
-3. Automate non-functional tests (TC-P1, TC-S1-S4, TC-U1)
-4. Automate regression tests (TC-REG1-REG3)
-5. Automate acceptance tests (FR1-FR13 validation)
-6. Generate test report with pass/fail summary
-7. Exit code 0 if all pass, non-zero if any fail
-
-**Benefits**:
-- One-command validation: `test-cig-system.sh` replaces 95 manual checks
-- Prevents regressions when making changes
-- Faster validation during development
-- CI/CD integration capability
-
-**Success Criteria**:
-- [ ] Test harness created and executable
-- [ ] All 95 test cases automated
-- [ ] Clear pass/fail reporting
+<!-- Removed: "Create Automated Test Harness for CWF System" — Task 84 (2026-02-21) -->
+<!-- Reason: Done — t/ directory has 15+ test files covering all major modules (statusaggregator, workflowfiles, templatecopier, contextinheritance, taskpath, validate-*, etc.) -->
 - [ ] Runs in <2 minutes
 - [ ] Can run on any Perl 5.14+ system
 
@@ -1262,52 +926,8 @@ Create executable test harness to automate the 95 manual validation test cases c
 ---
 
 
-## Task: Design Task-Type-Specific Workflow Variants
-
-**Task-Type**: discovery
-**Priority**: Low
-**Status**: Proposed (identified in Task 25 retrospective)
-
-Research and design task-type-specific workflow variants to match workflow overhead to task complexity.
-
-**Problem**: Currently all task types potentially use 10-phase workflow (v2.1):
-- Feature tasks: Full 10-phase makes sense
-- Chore tasks: Rollout and maintenance may be unnecessary overhead
-- Hotfix tasks: May need express workflow (skip planning, document retrospectively)
-- Discovery tasks: Research outputs don't need rollout/maintenance
-
-**Observation** (from Task 25 retrospective):
-"Template File Count Verbose: 10 files per feature task (a-j) is comprehensive but verbose"
-"Future Consideration: Consider optional 'lite' workflow for smaller tasks"
-
-**Solution**: Research whether task-type-specific workflows provide value:
-
-**Proposed Variants**:
-- **Feature**: Full 10-phase (a-j) - comprehensive for major features
-- **Bugfix**: Abbreviated 7-phase (a, c, d, e, f, g, j) - skip rollout, maintenance
-- **Hotfix**: Express 5-phase (a, d, e, f, g, j) - skip design, planning, rollout, maintenance
-- **Chore**: Minimal 4-phase (a, d, e, g, j) - skip rollout, maintenance, testing
-- **Discovery**: Research 8-phase (a-g except h,i) - skip rollout, maintenance
-
-**Scope**:
-1. Research: Analyze existing Tasks 1-25 by type - which phases were actually used?
-2. Survey: Are there phases that add overhead without value for certain task types?
-3. Design: Define phase sets per task type with rationale
-4. Validate: Would proposed variants have worked for historical tasks?
-5. Document: Recommendations for implementing variants (if beneficial)
-
-**Out of Scope** (this is discovery, not implementation):
-- Actually implementing variants
-- Changing existing templates
-- Migration of existing tasks
-
-**Success Criteria**:
-- [ ] Historical task analysis complete (which phases used per task type)
-- [ ] Variants defined with clear rationale
-- [ ] Trade-offs documented (flexibility vs simplicity)
-- [ ] Recommendation: implement variants, keep current, or other approach
-
-**Rationale**: If task-type workflows can be optimized without losing value, it reduces overhead and improves UX. Discovery phase determines if optimization is worthwhile.
+<!-- Removed: "Design Task-Type-Specific Workflow Variants" — Task 84 (2026-02-21) -->
+<!-- Reason: Already implemented — task-workflow create produces type-specific file sets (feature=8, bugfix=5, hotfix=5, chore=4); workflow-overview.md documents variants -->
 
 ---
 
@@ -1497,50 +1117,32 @@ Analyse and standardise cross-document reference patterns used throughout CWF sy
 **Task-Type**: chore
 **Priority**: Medium
 
-Remove decomposition check steps from all workflow command files except cig-plan.md, as decomposition decisions should only be made during the planning phase.
+Remove decomposition check steps from execution, rollout, and maintenance skill files. Each planning step may uncover decomposition need, so all `*-plan` skills retain the check — only non-planning steps should have it removed.
 
-**Problem**: Currently, all workflow command files (cig-requirements, cig-design, cig-implementation, cig-testing, cig-rollout, cig-maintenance, cig-retrospective) include "Step 7: Check Decomposition Signals" which:
-- Creates confusion about when to decompose tasks
-- Adds unnecessary cognitive load during execution phases
-- Violates single-responsibility principle (planning decisions during execution)
-- Decomposition decisions should be made once during planning, not reconsidered at every workflow step
+**Problem**: Execution and rollout/maintenance skills include "Step 7: Check Decomposition Signals" which adds cognitive load where it doesn't belong — decomposition can only be acted on during planning, not mid-execution.
 
-**Solution**: Remove "Check Decomposition Signals" step from all workflow commands except cig-plan.md
+**Solution**: Remove decomposition check from non-planning skills only.
 
 **Scope**:
-1. **Audit**: Verify which command files currently include decomposition checks
-2. **Update commands**: Remove Step 7 (decomposition checks) from:
-   - `.claude/commands/cwf-requirements.md`
-   - `.claude/commands/cwf-design.md`
-   - `.claude/commands/cwf-implementation.md`
-   - `.claude/commands/cwf-testing.md`
-   - `.claude/commands/cwf-rollout.md`
-   - `.claude/commands/cwf-maintenance.md`
-   - `.claude/commands/cwf-retrospective.md`
-3. **Keep in planning**: Retain decomposition checks in `.claude/commands/cwf-plan.md` (where they belong)
-4. **Update step numbers**: Renumber subsequent steps after removing Step 7
-5. **Update documentation**: Clarify in workflow-steps.md that decomposition is a planning-phase decision
+1. **Keep** Step 7 in all `*-plan` skills (each planning phase may reveal scope growth):
+   - `.claude/skills/cwf-task-plan/SKILL.md`
+   - `.claude/skills/cwf-requirements-plan/SKILL.md`
+   - `.claude/skills/cwf-design-plan/SKILL.md`
+   - `.claude/skills/cwf-implementation-plan/SKILL.md`
+   - `.claude/skills/cwf-testing-plan/SKILL.md`
+2. **Remove** Step 7 from non-planning skills:
+   - `.claude/skills/cwf-rollout/SKILL.md`
+   - `.claude/skills/cwf-maintenance/SKILL.md`
+3. **Renumber** subsequent steps after removal
 
-**Rationale**: Decomposition is a planning decision that should be made once upfront, not reconsidered during each workflow phase. This simplifies workflow steps and makes the planning phase the clear decision point for task breakdown.
+**Rationale**: Planning steps legitimately re-evaluate scope as requirements, design, and implementation details emerge. Rollout and maintenance are execution phases where decomposition can no longer redirect the task.
 
 ---
 
 <!-- Removed: "Rollout Task 11 - Secure Argument Parsing" — Task 11 cancelled (superseded by Task 57, commands→skills bypasses $ARGUMENTS bug entirely). Removed in Task 58 retrospective. -->
 
-## Task: Security Review and Hardening of CWF Bash Invocations
-
-**Task-Type**: discovery
-**Priority**: Medium
-
-Comprehensive security review and hardening of all bash invocations in the CWF system to prevent command injection vulnerabilities. Task 11 revealed that LLM-level validation is critical for security.
-
-**Scope**:
-1. **Systematic review**: Audit all command files (`.claude/commands/cwf-*.md`), helper scripts, and workflow documentation for places where user input reaches bash
-2. **Fix vulnerabilities**: Apply secure argument parsing pattern to any vulnerable commands (known candidates: cig-subtask.md, cig-status.md)
-3. **Complete testing**: Run TC-8 testing coverage for all commands (8 workflow commands + cig-subtask + cig-status) with special character patterns (quotes, backticks, shell metacharacters)
-4. **Document threat model**: Create comprehensive threat model with attack scenarios, existing defenses, and mitigation strategies
-
-**Related to**: Task 11 (secure argument parsing pattern implementation)
+<!-- Removed: "Security Review and Hardening of CWF Bash Invocations" — Task 84 (2026-02-21) -->
+<!-- Reason: Moot — commands migrated to skills (Task 57), command-helpers are all Perl with no shell metacharacter exposure; $ARGUMENTS bug bypassed entirely -->
 
 ---
 
@@ -1884,199 +1486,8 @@ This is a **significant refactor** touching the core status aggregation architec
 
 ---
 
-## Task: Standardize Script Naming and Invocation (Remove Extensions)
-
-**Task-Type**: refactor
-**Priority**: Medium
-**Status**: Discovered in Task 26 retrospective (reference brittleness pattern)
-
-Remove file extensions from all CWF helper scripts and standardize invocation using portable shebangs with PERL5OPT environment configuration.
-
-**Problem**: Current script naming is inconsistent and brittle:
-
-**Inconsistent naming**:
-```bash
-# Scripts WITH extensions:
-.cwf/scripts/command-helpers/hierarchy-resolver
-.cwf/scripts/command-helpers/context-inheritance
-.cwf/scripts/command-helpers/template-copier
-.cwf/scripts/command-helpers/format-detector
-
-# Scripts WITHOUT extensions:
-.cwf/scripts/command-helpers/status-aggregator
-.cwf/scripts/command-helpers/status-aggregator-v2.0
-.cwf/scripts/command-helpers/status-aggregator-v2.1
-```
-
-**Reference brittleness**:
-- Command prompts reference "hierarchy-resolver"
-- If rewritten in Python → becomes "hierarchy-resolver.py"
-- All references break throughout system
-
-**Shebang issues**:
-- Currently use `#!/usr/bin/perl -CDSL` (hardcoded path)
-- Or `#!/usr/bin/env perl` (can't pass flags)
-- Need `-CDSL` flags for Unicode handling at execution time (before `use` statements)
-
-**Implementation leakage**:
-- `.pl` extension exposes implementation detail
-- Users shouldn't care if script is Perl, Python, shell, or compiled binary
-- Unix philosophy: executables are executables
-
-## Solution: Unix Best Practices
-
-### Step 1: Configure PERL5OPT in Claude Code
-
-Add to `.claude/settings.json`:
-```json
-{
-  "env": {
-    "PERL5OPT": "-CDSL"
-  }
-}
-```
-
-**What `-CDSL` does**:
-- `-C`: Enable Unicode support for streams
-- `-D`: UTF-8 for default file I/O layer
-- `-S`: UTF-8 for STDIN
-- `-L`: UTF-8 for STDOUT/STDERR
-
-This ensures Unicode handling before script execution (not after `use utf8`).
-
-### Step 2: Standardize Shebangs
-
-Change all Perl script shebangs:
-```perl
-# OLD (hardcoded path):
-#!/usr/bin/perl -CDSL
-
-# NEW (portable):
-#!/usr/bin/env perl
-```
-
-**Benefit**: Flags come from `PERL5OPT`, shebang finds perl in PATH.
-
-### Step 3: Remove Script Extensions
-
-Rename all helper scripts:
-```bash
-cd .cwf/scripts/command-helpers/
-
-mv hierarchy-resolver hierarchy-resolver
-mv context-inheritance context-inheritance
-mv template-copier template-copier
-mv format-detector format-detector
-```
-
-### Step 4: Update All References
-
-**Files to update**:
-1. `.claude/commands/*.md` - All command prompts that reference scripts
-2. `CLAUDE.md` - Documentation references
-3. `README.md` - Usage examples
-4. This BACKLOG.md - Task descriptions
-5. Any workflow templates that mention scripts
-6. Git history documentation (note: references in committed tasks will be stale but acceptable)
-
-**Search pattern**:
-```bash
-grep -r "hierarchy-resolver\.pl" .claude/
-grep -r "context-inheritance\.pl" .claude/
-grep -r "template-copier\.pl" .claude/
-grep -r "format-detector\.pl" .claude/
-```
-
-### Step 5: Test Unicode Handling
-
-Verify PERL5OPT works correctly:
-```bash
-# Test that flags are applied
-perl -V | grep -i cdsl
-
-# Test script execution with Unicode
-echo "Testing: ñ ü 日本語" | .cwf/scripts/command-helpers/hierarchy-resolver 1
-```
-
-## Implementation Checklist
-
-- [ ] Add `PERL5OPT="-CDSL"` to `.claude/settings.json`
-- [ ] Update all Perl shebangs to `#!/usr/bin/env perl`
-- [ ] Rename all `.pl` scripts (remove extension)
-- [ ] Update all command prompt references (*.md in .claude/commands/)
-- [ ] Update CLAUDE.md documentation
-- [ ] Update README.md examples
-- [ ] Update BACKLOG.md task descriptions
-- [ ] Test all scripts still execute correctly
-- [ ] Test Unicode handling works (PERL5OPT applied)
-- [ ] Verify no broken references remain
-
-## Success Criteria
-
-- [ ] All helper scripts have no file extensions
-- [ ] All shebangs use `#!/usr/bin/env perl` (portable)
-- [ ] PERL5OPT configured in `.claude/settings.json`
-- [ ] All command prompts reference extensionless names
-- [ ] Documentation updated (CLAUDE.md, README.md)
-- [ ] Unicode test passes (scripts handle UTF-8 correctly)
-- [ ] No grep hits for "*.pl" in command references
-
-## Benefits
-
-1. **Refactor-safe**: Can rewrite in any language without breaking references
-2. **Unix philosophy**: Implementation hidden, interface stable
-3. **Consistency**: All scripts follow same naming convention
-4. **Portable**: `#!/usr/bin/env perl` finds perl in PATH
-5. **Unicode-correct**: `-CDSL` flags applied at execution time
-6. **Future-proof**: Tomorrow you could rewrite in Python/Go/Rust
-7. **Team-wide**: Settings file ensures all Claude Code sessions get PERL5OPT
-
-## Note: Templates Are Different
-
-Template files keep `.template` extension because:
-- They're **data files**, not executables
-- Extension distinguishes templates from actual workflow files
-- Never executed directly, always copied/processed
-- Extension indicates "this is a template, not a real file"
-
-So: `d-implementation-plan.md.template` stays as-is.
-
-## Affected Components
-
-**Scripts to rename** (4 files):
-- `hierarchy-resolver` → `hierarchy-resolver`
-- `context-inheritance` → `context-inheritance`
-- `template-copier` → `template-copier`
-- `format-detector` → `format-detector`
-
-**Scripts already correct** (3 files):
-- `status-aggregator` (already no extension)
-- `status-aggregator-v2.0` (already no extension)
-- `status-aggregator-v2.1` (already no extension)
-
-**Command files to update** (~19 files):
-- All files in `.claude/commands/cwf-*.md`
-
-**Documentation to update**:
-- `CLAUDE.md` - Helper script references
-- `README.md` - Usage examples
-- `.cwf/docs/workflow/` - Any script references
-
-## Related Tasks
-
-- **Research and Consolidate Cross-Document Reference Patterns** - This implements one standard (extensionless scripts)
-- **Fix v2.1 Workflow File Order** - Both involve fixing reference consistency
-- **Create version-detector helper** - Would be created without `.pl` extension
-
-## Rationale
-
-This is a **reference architecture improvement** that prevents brittleness:
-- Current state: 50+ references to "hierarchy-resolver" break if script rewritten
-- Future state: References to "hierarchy-resolver" work regardless of implementation
-- Cost: ~2 hours to rename and update references
-- Benefit: Permanent reduction in maintenance burden + consistency
-
-**Discovered**: During Task 26 retrospective when analyzing file naming confusion pattern and discussing how to prevent reference brittleness across the CWF system.
+<!-- Removed: "Standardize Script Naming and Invocation (Remove Extensions)" — Task 84 (2026-02-21) -->
+<!-- Reason: Done — all command-helpers already use extensionless names (context-manager, task-workflow, workflow-manager, status-aggregator-v2.*, etc.); no .pl/.sh extensions present -->
 
 ---
 
