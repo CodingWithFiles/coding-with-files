@@ -11,6 +11,10 @@ Future tasks and improvements for the Coding with Files system.
 
 <!-- Completed: "Add Missing Checkpoint Commit Instructions to cwf-requirements-plan and cwf-maintenance" — Task 71 (2026-02-19) -->
 
+<!-- Completed: "Fix install.bash file:// Source Defaults to HEAD" — Task 80 (2026-02-21) -->
+
+<!-- Completed: "Enforce Single Canonical Task Type List Across CWF Modules" — Task 81 (2026-02-21) -->
+
 ---
 
 ## Bug: checkpoints-branch-manager verify emits error instead of warning

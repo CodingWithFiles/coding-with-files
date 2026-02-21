@@ -16,6 +16,7 @@ use strict;
 use warnings;
 use Exporter 'import';
 use JSON::PP;
+use CWF::WorkflowFiles::V21 qw(supported_types);
 
 our @EXPORT_OK = qw(validate validate_config_hash);
 
@@ -53,14 +54,15 @@ sub validate_config_hash {
     my ($config, $file) = @_;
     my @violations;
 
-    # Check supported-task-types: must exist and be an arrayref
+    # Check supported-task-types: must exist, be an arrayref, and match canonical list
     if (!exists $config->{'supported-task-types'}) {
+        my $canonical = join('","', supported_types());
         push @violations, _violation(
             $file,
             'supported-task-types',
             '(missing)',
             'array of task type strings',
-            'Add "supported-task-types": ["feature","bugfix","hotfix","chore","discovery"] to ' . $file,
+            'Add "supported-task-types": ["' . $canonical . '"] to ' . $file,
         );
     } elsif (ref $config->{'supported-task-types'} ne 'ARRAY') {
         push @violations, _violation(
@@ -68,8 +70,28 @@ sub validate_config_hash {
             'supported-task-types',
             ref($config->{'supported-task-types'}) || 'scalar',
             'array (JSON array)',
-            'Change supported-task-types to a JSON array: ["feature","bugfix","hotfix","chore","discovery"]',
+            'Change supported-task-types to a JSON array',
         );
+    } else {
+        my @project_types = @{ $config->{'supported-task-types'} };
+        my %canonical     = map { $_ => 1 } supported_types();
+        my %project       = map { $_ => 1 } @project_types;
+
+        my @unknown = sort grep { !exists $canonical{$_} } @project_types;
+        push @violations, _violation(
+            $file, 'supported-task-types',
+            'unknown types: ' . join(', ', @unknown),
+            'only canonical types: ' . join(', ', supported_types()),
+            'Remove unknown types from supported-task-types in ' . $file,
+        ) if @unknown;
+
+        my @missing = sort grep { !exists $project{$_} } supported_types();
+        push @violations, _violation(
+            $file, 'supported-task-types',
+            'missing types: ' . join(', ', @missing),
+            'all canonical types: ' . join(', ', supported_types()),
+            'Add missing types to supported-task-types in ' . $file . ': ' . join(', ', @missing),
+        ) if @missing;
     }
 
     # Check source-management: must exist and be a hashref

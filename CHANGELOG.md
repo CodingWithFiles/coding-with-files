@@ -2,6 +2,30 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 81: Enforce Single Canonical Task Type List
+
+**Status**: Complete (2026-02-21)
+**Duration**: <1 session (estimated: <1 session — on target)
+**Impact**: Bugfix — `cwf-manage validate` now catches projects with unknown task types
+(e.g. `docs`, `refactor`, `test`) or missing canonical types (e.g. missing `discovery`).
+Previously these passed silently.
+
+### Key Changes
+- `CWF::WorkflowFiles::V21`: added `supported_types()` export returning sorted keys of
+  `%WORKFLOW_FILES` — single source of truth, no separate hardcoded list
+- `CWF::Validate::Config`: bidirectional validation against `supported_types()`:
+  unknown types in config produce a violation; missing canonical types produce a violation
+- `.cwf/templates/cwf-project.json.template`: replaced ghost types (`docs`, `refactor`,
+  `test`) with correct canonical list `[feature, bugfix, hotfix, chore, discovery]`
+- `.cwf/docs/workflow/decomposition-guide.md`: updated file count table with v2.1
+  actuals and added `discovery` type
+- `script-hashes.json`: SHA256 updated for both modified `.pm` files
+
+### Test Results
+8/8 TCs pass. `prove t/` — 162 tests, 17 files, all pass. No regressions.
+
+---
+
 ## Task 80: Fix install.bash file:// Source Defaults to HEAD
 
 **Status**: Complete (2026-02-21)

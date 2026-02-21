@@ -108,7 +108,7 @@
     },
     "CWF::WorkflowFiles::V21": {
       "path": ".cwf/lib/CWF/WorkflowFiles/V21.pm",
-      "sha256": "f0cda90dc463648f1d8dc7b8bcf92486a29e5c297b4729825f8bb96d3c719d88"
+      "sha256": "3a45eac5deefd161c82f80eb0f83f6779878c40177ca6c91b4c63e8d6d9d05bf"
     },
     "CWF::Common": {
       "path": ".cwf/lib/CWF/Common.pm",
@@ -128,7 +128,7 @@
     },
     "CWF::Validate::Config": {
       "path": ".cwf/lib/CWF/Validate/Config.pm",
-      "sha256": "acbb96d9436b3b54604acbfacec9cb6d4ed77d95aee55796c626766a73c86a3c"
+      "sha256": "6496ced7be778945368182f41e6ed0aa884abf3fd16929e34935f3dcd3726985"
     },
     "CWF::Validate::Workflow": {
       "path": ".cwf/lib/CWF/Validate/Workflow.pm",

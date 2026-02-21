@@ -60,4 +60,26 @@ subtest 'get_workflow_files() - unknown type falls back to feature' => sub {
     ok(ref($files) eq 'ARRAY' && @$files > 0, 'unknown type falls back to feature list');
 };
 
+subtest 'supported_types() - returns canonical list' => sub {
+    plan tests => 3;
+
+    use CWF::WorkflowFiles::V21 qw(supported_types);
+    my @types = supported_types();
+    ok(@types == 5,                              'returns 5 types');
+    ok((grep { $_ eq 'discovery' } @types), 'includes discovery');
+    ok((grep { $_ eq 'feature'   } @types), 'includes feature');
+};
+
+subtest 'supported_types() - all types have workflow files defined' => sub {
+    plan tests => 1;
+
+    use CWF::WorkflowFiles::V21 qw(supported_types);
+    my $all_have_files = 1;
+    for my $type (supported_types()) {
+        my $files = CWF::WorkflowFiles::V21::get_workflow_files($type);
+        $all_have_files = 0 unless ref($files) eq 'ARRAY' && @$files > 0;
+    }
+    ok($all_have_files, 'all types from supported_types() have workflow files defined');
+};
+
 done_testing();

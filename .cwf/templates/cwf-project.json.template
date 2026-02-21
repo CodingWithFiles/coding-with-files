@@ -24,12 +24,10 @@
   },
   "supported-task-types": [
     "feature",
-    "bugfix", 
+    "bugfix",
     "hotfix",
     "chore",
-    "docs",
-    "refactor",
-    "test"
+    "discovery"
   ],
   "team": {
     "default-assignee": "",

@@ -78,4 +78,4 @@ Use `/cwf-subtask <parent-path> <num> <type> "description"`:
 /cwf-subtask 1.1 1.1.1 feature "User model"
 ```
 
-Each subtask gets appropriate workflow files based on task type (feature: 8 files, bugfix: 5 files, hotfix: 5 files, chore: 4 files) with explicit parent reference for context inheritance.
+Each subtask gets appropriate workflow files based on task type (feature: 10 files, bugfix: 7 files, hotfix: 7 files, chore: 6 files, discovery: 8 files) with explicit parent reference for context inheritance.

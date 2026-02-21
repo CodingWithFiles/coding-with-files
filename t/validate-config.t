@@ -20,7 +20,7 @@ subtest 'validate_config_hash() - valid config returns no violations' => sub {
     plan tests => 1;
 
     my $config = {
-        'supported-task-types' => ['feature', 'bugfix'],
+        'supported-task-types' => ['feature', 'bugfix', 'hotfix', 'chore', 'discovery'],
         'source-management' => {
             'branch-naming-convention' => '{task-type}/{task-id}-{description-slug}',
         },
@@ -35,13 +35,13 @@ subtest 'validate_config_hash() - missing supported-task-types' => sub {
     my $config = { 'source-management' => { 'branch-naming-convention' => 'x' } };
     my @v = validate_config_hash($config, '/fake/cwf-project.json');
     ok(@v > 0, 'returns violation');
-    is($v[0]{field}, 'supported-task-types', 'violation on supported-task-types');
+    ok((grep { $_->{field} eq 'supported-task-types' } @v), 'violation on supported-task-types');
 };
 
 subtest 'validate_config_hash() - missing source-management' => sub {
     plan tests => 1;
 
-    my $config = { 'supported-task-types' => ['feature'] };
+    my $config = { 'supported-task-types' => ['feature', 'bugfix', 'hotfix', 'chore', 'discovery'] };
     my @v = validate_config_hash($config, '/fake/cwf-project.json');
     ok((grep { $_->{field} eq 'source-management' } @v), 'violation on source-management');
 };
@@ -50,7 +50,7 @@ subtest 'validate_config_hash() - empty branch-naming-convention' => sub {
     plan tests => 1;
 
     my $config = {
-        'supported-task-types' => ['feature'],
+        'supported-task-types' => ['feature', 'bugfix', 'hotfix', 'chore', 'discovery'],
         'source-management' => { 'branch-naming-convention' => '' },
     };
     my @v = validate_config_hash($config, '/fake/cwf-project.json');
@@ -100,11 +100,35 @@ subtest 'validate() - valid config file returns no violations' => sub {
     require File::Path;
     File::Path::make_path("$tmp/implementation-guide");
     open my $fh, '>', "$tmp/implementation-guide/cwf-project.json" or die $!;
-    print $fh '{"supported-task-types":["feature"],"source-management":{"branch-naming-convention":"x"}}';
+    print $fh '{"supported-task-types":["feature","bugfix","hotfix","chore","discovery"],"source-management":{"branch-naming-convention":"x"}}';
     close $fh;
 
     my @v = validate($tmp);
     is(scalar @v, 0, 'valid config → no violations');
+};
+
+subtest 'validate_config_hash() - unknown task type is a violation' => sub {
+    plan tests => 2;
+
+    my $config = {
+        'supported-task-types' => ['feature', 'bugfix', 'hotfix', 'chore', 'discovery', 'docs'],
+        'source-management' => { 'branch-naming-convention' => 'x' },
+    };
+    my @v = validate_config_hash($config, '/fake/cwf-project.json');
+    ok(@v > 0, 'returns violation');
+    ok((grep { $_->{actual} =~ /unknown.*docs/ } @v), 'violation mentions docs as unknown');
+};
+
+subtest 'validate_config_hash() - missing canonical type is a violation' => sub {
+    plan tests => 2;
+
+    my $config = {
+        'supported-task-types' => ['feature', 'bugfix', 'hotfix', 'chore'],
+        'source-management' => { 'branch-naming-convention' => 'x' },
+    };
+    my @v = validate_config_hash($config, '/fake/cwf-project.json');
+    ok(@v > 0, 'returns violation');
+    ok((grep { $_->{actual} =~ /missing.*discovery/ } @v), 'violation mentions missing discovery');
 };
 
 done_testing();

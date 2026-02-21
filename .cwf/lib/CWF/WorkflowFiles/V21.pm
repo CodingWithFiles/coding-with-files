@@ -24,6 +24,9 @@ Key changes from v2.0:
 
 use strict;
 use warnings;
+use Exporter 'import';
+
+our @EXPORT_OK = qw(get_workflow_files supported_types);
 
 =head1 WORKFLOW FILES
 
@@ -111,6 +114,20 @@ sub get_workflow_files {
     my ($task_type) = @_;
 
     return $WORKFLOW_FILES{$task_type} || $WORKFLOW_FILES{feature};
+}
+
+=head2 supported_types()
+
+Return the canonical list of supported task types.
+Derived from %WORKFLOW_FILES keys — single source of truth.
+
+Returns:
+  Sorted list of type name strings
+
+=cut
+
+sub supported_types {
+    return sort keys %WORKFLOW_FILES;
 }
 
 1;
