@@ -2,6 +2,8 @@
 
 Shared instructions for all CWF workflow commands. Follow these steps before executing phase-specific workflow.
 
+**Terminology**: For canonical term definitions (CWF, wf, skill, slug, task branch, checkpoints branch, checkpoint commit, squash commit) see `.cwf/docs/glossary.md`.
+
 **Helper scripts location**: `.cwf/scripts/command-helpers/`
 
 ## Argument Parsing

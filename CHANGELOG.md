@@ -2,6 +2,25 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 87: Create CWF Terminology Glossary
+
+**Status**: Complete (2026-02-22)
+**Duration**: ~45 minutes (estimated: <1 hour — on target)
+**Impact**: Hotfix — 8 previously undefined terms (CWF, wf, skill, slug, task branch,
+checkpoints branch, checkpoint commit, squash commit) now canonically defined in
+`.cwf/docs/glossary.md`. `workflow-preamble.md` references the glossary so every skill
+invocation surfaces it to lesser models without extra steps.
+
+### Changes
+- `.cwf/docs/glossary.md`: new file — index + 8 entries, grep-friendly `## TERM` headings,
+  cross-references to authoritative sources for terms already defined elsewhere
+- `.cwf/docs/skills/workflow-preamble.md`: added `**Terminology**` reference line
+
+### BACKLOG Items Addressed
+- "Create CWF Terminology Glossary" (Low priority, follow-up from Task 44)
+
+---
+
 ## Task 86: Remove Decomposition Checks from Non-Planning Workflow Steps
 
 **Status**: Complete (2026-02-22)

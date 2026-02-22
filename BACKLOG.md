@@ -224,24 +224,8 @@ Template-copier automatically marks non-applicable phases as "Skipped" during ta
 
 ---
 
-## Task: Create CWF Terminology Glossary
-
-**Task-Type**: chore
-**Priority**: Low
-**Status**: Follow-up from Task 44
-
-Create glossary of CWF terms to ensure consistent usage across documentation and commands.
-
-**Scope**:
-- Create `.cwf/docs/glossary.md` with standardized terminology
-- Include terms like "checkpoints branch" vs "checkpoint branch", "workflow steps" vs "workflow phases"
-- Consider adding automated validation in `/cwf-security-check` to catch inconsistencies
-
-**Rationale**: Terminology inconsistencies discovered during Task 44 ("checkpoints branch" needed for searchability). Glossary would prevent future confusion.
-
-**Identified in**: Task 44 retrospective (j-retrospective.md)
-
----
+<!-- Removed: "Create CWF Terminology Glossary" — Task 87 (2026-02-22) -->
+<!-- Reason: Completed — .cwf/docs/glossary.md created with 8 terms -->
 
 ## Task: Create Integration Test for Inconclusive Inference Scenarios
 
