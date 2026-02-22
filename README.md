@@ -26,11 +26,11 @@ We welcome issues, pull requests, and suggestions! This project aims to become a
 
 ## Features
 
-### v2.0 - Hierarchical Workflow System
+### Hierarchical Workflow System
 - **Infinite Task Nesting**: Decimal numbering (1, 1.1, 1.1.1) with unlimited depth
-- **8-Step Workflow**: Structured progression from planning through retrospective
+- **10-Phase Workflow**: Planning and execution phases separated for each stage (plan → exec)
 - **Token-Efficient Context Inheritance**: Parent context via structural maps (~50-100 tokens vs 500-1000)
-- **Progressive Disclosure**: Commands reference documentation rather than duplicating content
+- **Progressive Disclosure**: Skills reference documentation rather than duplicating content
 - **Central Template Pool**: DRY principle with symlink-based templates per task type
 - **Universal Decomposition Signals**: 5 signals guide when to break tasks into subtasks
 - **Dynamic Workflow Transitions**: Non-linear state machine based on step outcomes
@@ -56,7 +56,7 @@ CWF can be installed via git subtree (for upstream sync) or file copy (for stati
 **GitHub**:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/mattkeenan/coding-with-files/main/scripts/install.bash | bash
+curl -fsSL https://raw.githubusercontent.com/CodingWithFiles/coding-with-files/main/scripts/install.bash | bash
 ```
 
 **GitLab, Gitea, Forgejo, self-hosted**:
@@ -69,55 +69,52 @@ See **[INSTALL.md](INSTALL.md)** for complete instructions, post-install setup, 
 
 ## Commands
 
-### Core Commands (v2.0)
+### Core Commands
 
 - `/cwf-init` - Initialise CWF system with project configuration
-- `/cwf-new-task <num> <type> "description"` - **Breaking change**: Create hierarchical implementation guide
-- `/cwf-subtask <parent-path> <num> <type> "description"` - **Breaking change**: Create subtask with context inheritance
+- `/cwf-new-task <num> <type> "description"` - Create hierarchical implementation guide
+- `/cwf-subtask <parent-path> <num> <type> "description"` - Create subtask with context inheritance
 - `/cwf-status [task-path]` - Show progress across implementation guide hierarchy
-- `/cwf-extract <task-path> <section-name>` - **Breaking change**: Extract section (task-based, backward compatible)
+- `/cwf-extract <task-path> <section-name>` - Extract section from implementation guide
 
-### Workflow Commands (v2.0 - New)
+### Workflow Commands
 
-Execute structured 8-step workflow for any task:
+Execute structured workflow phases for any task. Phases are split into planning and
+execution steps — plan first, then execute separately:
 
-- `/cwf-task-plan <task-path>` - Guide through planning phase (goals, milestones, risks)
-- `/cwf-requirements-plan <task-path>` - Guide through requirements phase (FR/NFR, acceptance criteria)
-- `/cwf-design-plan <task-path>` - Guide through design phase (architecture, components, interfaces)
-- `/cwf-implementation-plan <task-path>` - Guide through implementation phase (code changes, tests)
-- `/cwf-testing-plan <task-path>` - Guide through testing phase (test strategy, validation)
-- `/cwf-rollout <task-path>` - Guide through rollout phase (deployment, monitoring)
-- `/cwf-maintenance <task-path>` - Guide through maintenance phase (support, optimization)
-- `/cwf-retrospective <task-path>` - Guide through retrospective phase (learnings, variance)
+- `/cwf-task-plan <task-path>` - Planning phase (goals, milestones, risks)
+- `/cwf-requirements-plan <task-path>` - Requirements phase (FR/NFR, acceptance criteria)
+- `/cwf-design-plan <task-path>` - Design phase (architecture, components, interfaces)
+- `/cwf-implementation-plan <task-path>` - Implementation plan (files to change, steps)
+- `/cwf-implementation-exec <task-path>` - Implementation execution (write the code)
+- `/cwf-testing-plan <task-path>` - Testing plan (test strategy, test cases)
+- `/cwf-testing-exec <task-path>` - Testing execution (run tests, record results)
+- `/cwf-rollout <task-path>` - Rollout phase (deployment, monitoring, rollback plan)
+- `/cwf-maintenance <task-path>` - Maintenance phase (support, optimisation)
+- `/cwf-retrospective <task-path>` - Retrospective phase (variance, learnings)
 
 ### Utility Commands
 
 - `/cwf-config [init|list|reset]` - Configure CWF system paths and settings
 - `/cwf-security-check [verify|report]` - Verify file integrity and sources for CWF system
 
-### Migration from v1.0
-
-**Breaking Changes**: `/cwf-new-task`, `/cwf-subtask`, and `/cwf-extract` have new signatures (see [Migration Guide](.cwf/docs/migration.md#what-gets-changed)).
-
-**Migrating v1.0 Tasks**: Existing v1.0 tasks continue to work without migration. Migration to v2.0 hierarchical structure is **optional** but enables task decomposition and context inheritance. See [Migration Guide](.cwf/docs/migration.md) for rationale, process, and safety features.
-
 ## Task Types
 
-### Feature Tasks
-Complete feature development lifecycle with 6 phases:
-- Plan, Requirements, Design, Testing, Rollout, Maintenance
+Each task type runs a subset of the 10 available workflow phases, matched to its scope.
+Phases are always split into a planning step and a separate execution step.
 
-### Bugfix Tasks
-Streamlined bug resolution with 4 phases:
-- Plan, Implementation, Testing, Rollout
+### Feature Tasks (10 phases)
+Full development lifecycle:
+plan → requirements → design → implementation plan → implementation exec → testing plan → testing exec → rollout → maintenance → retrospective
 
-### Hotfix Tasks
-Rapid critical issue resolution with 3 phases:
-- Plan, Implementation, Rollout
+### Bugfix Tasks (7 phases)
+plan → design → implementation plan → implementation exec → testing plan → testing exec → retrospective
 
-### Chore Tasks
-Maintenance and operational tasks with 4 phases:
-- Plan, Implementation, Validation, Maintenance
+### Hotfix Tasks (7 phases)
+plan → implementation plan → implementation exec → testing plan → testing exec → rollout → retrospective
+
+### Chore Tasks (6 phases)
+plan → implementation plan → implementation exec → testing plan → testing exec → retrospective
 
 ## Project Structure
 
@@ -180,13 +177,13 @@ Directory structure mirrors numbering exactly.
 
 ## Version Information
 
-**Git-Based Versioning**: This project uses `git describe --tags --always` format for version tracking (e.g., `v0.1.1-5-gcea1c19`):
-- Base version from most recent git tag
-- Number of commits since tag
-- Current commit hash
+CWF uses `v{major}.{minor}.{task_num}` semver tags:
+- **major**: breaking changes (wf file format, removed features, install incompatibilities)
+- **minor**: new user-visible features (new skills, workflow phases, helper scripts)
+- **patch**: CWF task number of the most recently completed task at time of tagging
 
-**Current Version**: Run `git describe --tags --always` in repository for current version
-**CWF Project Schema**: Matches git version for consistency
+Run `cwf-manage list-releases` to see available upgrades from the configured source.
+Run `git describe --tags --always` for the current working-tree version.
 
 ## Contributing
 
@@ -207,4 +204,5 @@ Claude Code is a trademark of Anthropic. This repository is not affiliated with 
 
 ## Support
 
-For issues and feature requests, please use the project's issue tracking system as configured in `cwf-project.json`.
+For issues and feature requests, please open a GitHub issue:
+https://github.com/CodingWithFiles/coding-with-files/issues

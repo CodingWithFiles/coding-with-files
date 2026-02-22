@@ -2,6 +2,26 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 91: README.md Updates for v1.0.90
+
+**Status**: Complete (2026-02-22)
+**Duration**: ~30 minutes (estimated: <1 hour — well under)
+**Impact**: Bugfix — brings README.md in sync with v1.0.90: correct org URL, full v2.1
+10-skill workflow command list, accurate task-type phase counts, semver convention, and
+direct GitHub issues link. One unplanned fix: `v2.0` heading in Features section caught
+by TC-3 absence-grep.
+
+### Changes
+- `README.md`: install URL `mattkeenan` → `CodingWithFiles`; full v2.1 Commands section
+  (10 workflow skills, plan/exec split noted); Task Types phase counts and sequences;
+  Version Information with `v{major}.{minor}.{task_num}` and `cwf-manage list-releases`;
+  support link → direct GitHub issues URL; Features section `v2.0` heading removed
+
+### BACKLOG Items Addressed
+- None
+
+---
+
 ## Task 90: Fix Stale CIG References in WF Step Templates and Template-Copier
 
 **Status**: Complete (2026-02-22)
