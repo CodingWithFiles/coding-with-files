@@ -85,3 +85,19 @@ The following files should not be directly edited with Edit or Write tools. Use 
 - **Use instead**: `/cwf-current-task` skill for all operations (push, pop, list, clear)
 - **Rationale**: Stack operations require atomic file locking (flock) to prevent corruption
 - **Advisory**: If you need to manipulate the stack, use the skill - direct edits may corrupt the file format
+
+## Versioning
+
+CWF uses `v{major}.{minor}.{task_num}` semver tags on the main branch.
+
+- **major**: breaking changes — wf file format changes, removal of installed features,
+  install script incompatibilities
+- **minor**: new user-visible features (new skills, new workflow phases, new helper scripts)
+- **patch = task_num**: CWF task number of the most recently completed task at time of
+  tagging; never set manually
+
+**Tagging, pushing tags, and creating GitHub releases are human-only actions.** Models
+must not `git tag`, `git push --tags`, create releases, or suggest merging to main.
+
+**This convention is internal to CWF development.** Do not reference this section from
+any installed file (`.cwf/docs/`, `.cwf/templates/`, `.cwf/scripts/`, or skills).

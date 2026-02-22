@@ -2,6 +2,33 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 89: Update Version Conventions
+
+**Status**: Complete (2026-02-22)
+**Duration**: ~2 hours (estimated: 0.5 days — well under)
+**Impact**: Feature — establishes `v{major}.{minor}.{task_num}` semver convention for CWF
+itself, documented dev-side only; updates `cwf-manage list-releases` from a full tag dump
+to a curated upgrade view showing the latest patch on current minor, one entry per higher
+minor, and one entry per higher major.
+
+### Changes
+- `CLAUDE.md`: new `## Versioning` section defining the semver scheme, human-only tagging
+  constraint, and isolation requirement (not to be referenced from any installed file)
+- `.cwf/scripts/cwf-manage`: new `parse_semver` sub (strict `v\d+.\d+.\d+` via regex);
+  new `filter_releases` sub (closure-based bucket rules, map/grep pipeline); updated
+  `cmd_list_releases` with `$show_all` param and `--all` flag; updated `cmd_help`
+- `.cwf/security/script-hashes.json`: updated SHA256 for modified `cwf-manage`
+- `t/cwf-manage-list-releases.t`: new unit test file, 11 subtests, no network dependency
+
+### Bug Found and Fixed
+TC-2 (`parse_semver` no-v-prefix rejection) caught that the plan's `s/^v//` approach
+silently accepted `1.2.3`. Fixed with single-regex `/^v(\d+)\.(\d+)\.(\d+)$/`.
+
+### BACKLOG Items Addressed
+- None
+
+---
+
 ## Task 88: Refactor Workflow Docs for Efficiency
 
 **Status**: Complete (2026-02-22)

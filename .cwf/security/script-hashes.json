@@ -1,6 +1,6 @@
 {
   "version": "2.1",
-  "last_updated": "2026-02-18",
+  "last_updated": "2026-02-22",
   "scripts": {
     "status-aggregator-v2.0": {
       "path": ".cwf/scripts/command-helpers/status-aggregator-v2.0",
@@ -69,7 +69,7 @@
     },
     "cwf-manage": {
       "path": ".cwf/scripts/cwf-manage",
-      "sha256": "3cb0c6c40c36882b7b3b3d268e438896516ac65394d375deb0f00b285b8bab69",
+      "sha256": "3ad612511a41889f8dfe7268012e84041426ea0249c1ccb1e7f978c7e0cf8e0b",
       "permissions": "0700"
     }
   },

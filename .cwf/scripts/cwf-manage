@@ -20,6 +20,7 @@ use File::Copy qw(copy);
 use Cwd qw(getcwd);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
+use List::Util qw(first);
 use CWF::Validate::Config      ();
 use CWF::Validate::Workflow    ();
 use CWF::Validate::Consistency ();
@@ -117,9 +118,9 @@ sub cmd_status {
 }
 
 sub cmd_list_releases {
-    my ($git_root) = @_;
+    my ($git_root, $show_all) = @_;
     my %v = read_version_file($git_root);
-    my $source = $v{cwf_source} or die_msg("No cwf_source in .cwf/version");
+    my $source  = $v{cwf_source}  or die_msg("No cwf_source in .cwf/version");
     my $current = $v{cwf_version} // '';
 
     log_msg("Available releases from $source");
@@ -127,23 +128,37 @@ sub cmd_list_releases {
     my @lines = `git ls-remote --tags "$source" 'v*' 2>/dev/null`;
     die_msg("Failed to query remote tags from $source") if $?;
 
-    # Extract tag names, filter out ^{} derefs
     my @tags;
     for (@lines) {
         chomp;
-        if (m{refs/tags/(v[^\^]+)$}) {
-            push @tags, $1;
-        }
+        push @tags, $1 if m{refs/tags/(v[^\^]+)$};
     }
-
     die_msg("No version tags found at $source") unless @tags;
 
-    # Sort by semver descending (using git's version sort via a subprocess)
-    @tags = reverse sort { version_cmp($a, $b) } @tags;
+    my @sorted = reverse sort { version_cmp($a, $b) } @tags;
 
-    for my $tag (@tags) {
+    if ($show_all) {
+        for my $tag (@sorted) {
+            my $marker = ($tag eq $current) ? ' (installed)' : '';
+            printf "  %s%s\n", $tag, $marker;
+        }
+        return;
+    }
+
+    # Filtered default view
+    my @filtered = filter_releases($current, @sorted);
+    my %shown    = map { $_ => 1 } @filtered;
+    my @display  = sort { version_cmp($b, $a) }
+                       (@filtered, ($shown{$current} ? () : $current));
+    my $hidden   = scalar(@sorted) - scalar(@display);
+
+    for my $tag (@display) {
         my $marker = ($tag eq $current) ? ' (installed)' : '';
         printf "  %s%s\n", $tag, $marker;
+    }
+    if ($hidden > 0) {
+        printf "\n  Run 'cwf-manage list-releases --all' to see all %d releases.\n",
+               scalar @sorted;
     }
     return;
 }
@@ -165,6 +180,40 @@ sub version_cmp {
         return $cmp if $cmp;
     }
     return 0;
+}
+
+sub parse_semver {
+    my ($tag) = @_;
+    my @p = ($tag =~ /^v(\d+)\.(\d+)\.(\d+)$/);
+    return @p ? ($p[0]+0, $p[1]+0, $p[2]+0) : ();
+}
+
+sub filter_releases {
+    my ($current, @tags) = @_;   # @tags already sorted descending
+    my @cc = parse_semver($current);
+    # If current version is not strict semver, show everything except current
+    return grep { $_ ne $current } @tags unless @cc;
+    my ($cm, $cmi, $cp) = @cc;
+
+    # Outer lexicals captured (and mutated per iteration) by both closures in each rule
+    my ($tm, $tmi, $tp);
+    my @rules = (
+        [ sub { $tm > $cm                                }, sub { "major-$tm"  } ],
+        [ sub { $tm == $cm && $tmi > $cmi               }, sub { "minor-$tmi" } ],
+        [ sub { $tm == $cm && $tmi == $cmi && $tp > $cp }, sub { 'same-minor' } ],
+    );
+
+    my %seen;
+    return
+        map  { $_->[1] }
+        grep { !$seen{ $_->[0] }++ }
+        map  {
+            ($tm, $tmi, $tp) = parse_semver($_);
+            my $rule = first { $_->[0]->() } @rules;
+            $rule ? [ $rule->[1]->(), $_ ] : ();
+        }
+        grep { $_ ne $current && parse_semver($_) }
+        @tags;
 }
 
 sub cmd_update {
@@ -353,7 +402,7 @@ Usage: cwf-manage <command> [args]
 
 Commands:
   status           Show installed CWF version, method, and source
-  list-releases    List available tagged releases from the CWF remote
+  list-releases [--all]    List available tagged releases from the CWF remote
   update [ref]     Update to a specific ref (default: latest tag)
   rollback <ref>   Revert to a previous version
   validate         Validate config and workflow files; exit non-zero on violations
@@ -378,7 +427,7 @@ sub main {
 
     my %dispatch = (
         'status'        => sub { cmd_status($git_root) },
-        'list-releases' => sub { cmd_list_releases($git_root) },
+        'list-releases' => sub { my $all = grep { $_ eq '--all' } @ARGV; cmd_list_releases($git_root, $all) },
         'update'        => sub { cmd_update($git_root, shift @ARGV) },
         'rollback'      => sub { cmd_rollback($git_root, shift @ARGV) },
         'validate'      => sub { cmd_validate($git_root) },
