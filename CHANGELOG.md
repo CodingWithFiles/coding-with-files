@@ -2,6 +2,24 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 93: README.md — Problem and Benefits Sections
+
+**Status**: Complete (2026-02-22)
+**Duration**: ~45 minutes (estimated: <1 hour — on target)
+**Impact**: Bugfix — adds three new sections near the top of README.md explaining the
+problem CWF solves, what it does, and why the structure matters. Includes a Dan Shapiro
+Five Levels reference (targeting Level 3–3.3) and the 80% token-efficiency context
+reduction figure.
+
+### Changes
+- `README.md`: inserted "The Problem With AI-Assisted Coding", "What CWF Does", and
+  "Why the Structure Matters" between `## Overview` and `## Project Status`
+
+### BACKLOG Items Addressed
+- None
+
+---
+
 ## Task 92: Fix COMMERCIAL-LICENSE.md GPL-2.0 → AGPL-3.0
 
 **Status**: Complete (2026-02-22)
