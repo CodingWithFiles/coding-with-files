@@ -2,6 +2,22 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 92: Fix COMMERCIAL-LICENSE.md GPL-2.0 → AGPL-3.0
+
+**Status**: Complete (2026-02-22)
+**Duration**: ~20 minutes (estimated: <15 minutes — on target)
+**Impact**: Hotfix — corrects incorrect licence references in COMMERCIAL-LICENSE.md. CWF has
+never been released under GPL-2.0; that licence applied briefly to the predecessor project
+(CIG). The incorrect text was carried over during the Task 59 CIG→CWF rebrand.
+
+### Changes
+- `COMMERCIAL-LICENSE.md`: all three GPL-2.0 / GPL v2.0 references replaced with AGPL-3.0
+
+### BACKLOG Items Addressed
+- None
+
+---
+
 ## Task 91: README.md Updates for v1.0.90
 
 **Status**: Complete (2026-02-22)
