@@ -34,11 +34,9 @@ allowed-tools:
 - **Avoid**: Initial implementation details, design decisions, testing procedures
 - Key content: monitoring, alerting, maintenance schedule, common issues, runbooks
 
-**Step 7**: Check decomposition signals if maintenance tasks are complex.
+**Step 7**: Checkpoint commit. See `.cwf/docs/skills/checkpoint-commit.md`. Stage: `i-maintenance.md`
 
-**Step 8**: Checkpoint commit. See `.cwf/docs/skills/checkpoint-commit.md`. Stage: `i-maintenance.md`
-
-**Step 9 (Next Steps)**:
+**Step 8 (Next Steps)**:
 - **Primary**: Task complete, ready for retrospective → `/cwf-retrospective <task-path>`
 - **Alt**: Create follow-up tasks for identified improvements
 

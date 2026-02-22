@@ -2,6 +2,24 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 86: Remove Decomposition Checks from Non-Planning Workflow Steps
+
+**Status**: Complete (2026-02-22)
+**Duration**: ~30 minutes (estimated: <1 hour — well under)
+**Impact**: Hotfix — Step 7 decomposition check removed from `cwf-rollout` and
+`cwf-maintenance` SKILL.md files; remaining steps renumbered (8→7, 9→8).
+Decomposition checks are only actionable during planning; rollout and maintenance
+operate on already-committed work and gained no benefit from the check.
+
+### Changes
+- `.claude/skills/cwf-rollout/SKILL.md`: removed Step 7 decomposition check, renumbered Steps 8→7, 9→8
+- `.claude/skills/cwf-maintenance/SKILL.md`: removed Step 7 decomposition check, renumbered Steps 8→7, 9→8
+
+### BACKLOG Items Addressed
+- "Remove Decomposition Checks from Non-Planning Workflow Steps" (Medium priority)
+
+---
+
 ## Task 85: Ensure Retrospective Checkpoint Commit Stages Entire Task Directory
 
 **Status**: Complete (2026-02-22)

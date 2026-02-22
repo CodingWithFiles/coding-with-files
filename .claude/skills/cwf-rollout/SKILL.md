@@ -34,11 +34,9 @@ allowed-tools:
 - **Avoid**: Implementation details, test cases, design decisions
 - Key content: deployment strategy, pre-deployment checklist, phased rollout, monitoring, rollback triggers
 
-**Step 7**: Check decomposition signals. See `.cwf/docs/workflow/decomposition-guide.md`.
+**Step 7**: Checkpoint commit. See `.cwf/docs/skills/checkpoint-commit.md`. Stage: `h-rollout.md`
 
-**Step 8**: Checkpoint commit. See `.cwf/docs/skills/checkpoint-commit.md`. Stage: `h-rollout.md`
-
-**Step 9 (Next Steps)**:
+**Step 8 (Next Steps)**:
 - **Primary**: Move to maintenance → `/cwf-maintenance <task-path>`
 - **Alt**: Execute rollback if issues detected
 - **Alt**: Extend monitoring if uncertainty remains

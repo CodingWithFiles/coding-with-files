@@ -1112,32 +1112,8 @@ Analyse and standardise cross-document reference patterns used throughout CWF sy
 
 ---
 
-## Task: Remove Decomposition Checks from Non-Planning Workflow Steps
-
-**Task-Type**: chore
-**Priority**: Medium
-
-Remove decomposition check steps from execution, rollout, and maintenance skill files. Each planning step may uncover decomposition need, so all `*-plan` skills retain the check — only non-planning steps should have it removed.
-
-**Problem**: Execution and rollout/maintenance skills include "Step 7: Check Decomposition Signals" which adds cognitive load where it doesn't belong — decomposition can only be acted on during planning, not mid-execution.
-
-**Solution**: Remove decomposition check from non-planning skills only.
-
-**Scope**:
-1. **Keep** Step 7 in all `*-plan` skills (each planning phase may reveal scope growth):
-   - `.claude/skills/cwf-task-plan/SKILL.md`
-   - `.claude/skills/cwf-requirements-plan/SKILL.md`
-   - `.claude/skills/cwf-design-plan/SKILL.md`
-   - `.claude/skills/cwf-implementation-plan/SKILL.md`
-   - `.claude/skills/cwf-testing-plan/SKILL.md`
-2. **Remove** Step 7 from non-planning skills:
-   - `.claude/skills/cwf-rollout/SKILL.md`
-   - `.claude/skills/cwf-maintenance/SKILL.md`
-3. **Renumber** subsequent steps after removal
-
-**Rationale**: Planning steps legitimately re-evaluate scope as requirements, design, and implementation details emerge. Rollout and maintenance are execution phases where decomposition can no longer redirect the task.
-
----
+<!-- Removed: "Remove Decomposition Checks from Non-Planning Workflow Steps" — Task 86 (2026-02-22) -->
+<!-- Reason: Completed — Step 7 removed from cwf-rollout and cwf-maintenance SKILL.md files -->
 
 <!-- Removed: "Rollout Task 11 - Secure Argument Parsing" — Task 11 cancelled (superseded by Task 57, commands→skills bypasses $ARGUMENTS bug entirely). Removed in Task 58 retrospective. -->
 
