@@ -44,7 +44,7 @@ Execute the tests defined in e-testing-plan.md and verify implementation from d-
 **Next Action**: {{nextAction}}
 **Blockers**: None identified
 
-**See `.cig/docs/workflow/workflow-steps.md#status-values` for valid status values**
+**See `.cwf/docs/workflow/workflow-steps.md#status-values` for valid status values**
 
 ## Actual Results
 *To be filled upon completion*

@@ -90,7 +90,7 @@ Define ongoing maintenance, monitoring, and support requirements for {{descripti
 **Next Action**: {{nextAction}}
 **Blockers**: None identified
 
-**See `.cig/docs/workflow/workflow-steps.md#status-values` for valid status values**
+**See `.cwf/docs/workflow/workflow-steps.md#status-values` for valid status values**
 
 ## Actual Results
 *To be filled upon completion*

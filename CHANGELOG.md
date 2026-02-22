@@ -2,6 +2,25 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 90: Fix Stale CIG References in WF Step Templates and Template-Copier
+
+**Status**: Complete (2026-02-22)
+**Duration**: ~20 minutes (estimated: <0.25 days — well under)
+**Impact**: Hotfix — closes a Task 59 (CIG→CWF rebrand) miss that caused every new task
+created since the rebrand to have wrong paths and skill names in generated wf step files.
+Two fix sites: the `**See ...` Status footer in all 10 wf step templates (`.cig/` →
+`.cwf/`), and `name_to_action()` in `template-copier-v2.1` (`/cig-` → `/cwf-`).
+
+### Changes
+- `.cwf/templates/pool/*.template` (all 10): Status footer path corrected
+- `.cwf/scripts/command-helpers/template-copier-v2.1`: lines 332 and 399 `/cig-` → `/cwf-`
+- `.cwf/security/script-hashes.json`: SHA256 updated for modified template-copier-v2.1
+
+### BACKLOG Items Addressed
+- None
+
+---
+
 ## Task 89: Update Version Conventions
 
 **Status**: Complete (2026-02-22)
