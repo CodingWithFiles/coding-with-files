@@ -2,6 +2,23 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 85: Ensure Retrospective Checkpoint Commit Stages Entire Task Directory
+
+**Status**: Complete (2026-02-22)
+**Duration**: ~1 hour (estimated: <1 hour — on target)
+**Impact**: Hotfix — closes the gap that caused stale wf step statuses to persist
+in task squash commits after retrospectives (root cause of tasks 77 and 81 showing <100%).
+
+### Changes
+- `retrospective-extras.md`: Updated "Verify Task Status" to use
+  `workflow-manager status <task_num> --workflow`, require all steps to be in a
+  terminal status, and explicitly state that 100% overall is the norm
+- `retrospective-extras.md`: Added "Retrospective Checkpoint Commit" section with
+  `git add implementation-guide/<task-dir>/` to stage entire task directory,
+  overriding the generic single-file staging from `checkpoint-commit.md`
+
+---
+
 ## Task 84: Backlog Audit — Remove Moot Items
 
 **Status**: Complete (2026-02-21)

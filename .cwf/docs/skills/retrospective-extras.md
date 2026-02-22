@@ -16,10 +16,34 @@ Before proceeding, verify you're on the correct task branch:
 
 Before documenting retrospective:
 
-1. Verify workflow docs match reality — update any that don't reflect actual state
-2. Run `/cwf-status <task-path>` to verify 100% (all phases "Finished")
-3. If <100%: identify and finish missing work or create follow-up tasks
-4. If 100%: proceed to retrospective
+1. Ensure all wf step files reflect reality — every step must be in a terminal status
+   (Finished, Skipped, Cancelled). Update any that don't.
+2. Run `.cwf/scripts/command-helpers/workflow-manager status <task_num> --workflow`
+   to confirm the overall task is at 100%.
+3. **100% is the norm.** If below 100%: identify and resolve missing work or create
+   follow-up tasks. The user must be explicitly informed if the task cannot reach 100%
+   before the retrospective proceeds.
+
+## Retrospective Checkpoint Commit
+
+After completing j-retrospective.md, stage the **entire task directory** and commit.
+This overrides the single-file staging in `checkpoint-commit.md` (which applies to all
+other phases) — status corrections from Step 7 must be included in this commit:
+
+```bash
+git add implementation-guide/<task-dir>/
+git commit -m "Task N: Complete retrospective — <one-line summary>
+
+<Why — what this task accomplished>
+
+Co-developed-by: Claude Sonnet 4.6 <noreply@anthropic.com>"
+```
+
+Then validate:
+
+```bash
+.cwf/scripts/cwf-manage validate
+```
 
 ## CHANGELOG.md and BACKLOG.md Update (Step 9)
 
