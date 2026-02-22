@@ -14,10 +14,8 @@ Centralized blocker handling guidance for all CWF workflow phases. This document
 - Decomposition needed but unclear how → Create investigation subtask to explore options
 
 **Reversion Guidance**:
-- If reverting to earlier phase: Update status to "Backlog" or "To-Do", document reason
-- Document the blocker in "Actual Results" or "Blockers" section
-- Update status to "Blocked" until blocker is resolved
-- When blocker resolved, restart planning with new information
+- If reverting to earlier phase: call `/cwf-task-plan` to restart planning
+- **General procedure**: See General Reversion Guidance below.
 
 **When to Revert**:
 - Planning reveals the task description is fundamentally wrong
@@ -34,10 +32,7 @@ Centralized blocker handling guidance for all CWF workflow phases. This document
 - Missing domain knowledge to specify requirements → Create discovery subtask or research spike
 
 **Reversion Guidance**:
-- If reverting to planning: Update a-task-plan.md with new understanding, then restart requirements
-- Document the blocker in "Actual Results" section
-- Update status to "Blocked" until blocker is resolved
-- When blocker resolved, update requirements with new information
+- If reverting to planning: call `/cwf-task-plan` then `/cwf-requirements-plan`
 
 **When to Revert**:
 - Requirements gathering reveals the planned approach is not viable
@@ -54,11 +49,8 @@ Centralized blocker handling guidance for all CWF workflow phases. This document
 - Design shows task is too complex for one phase → Revert to planning, decompose into subtasks
 
 **Reversion Guidance**:
-- If reverting to requirements: Update b-requirements-plan.md with design insights, then redesign
-- If reverting to planning: Update a-task-plan.md with new constraints, reconsider approach
-- Document the blocker in "Actual Results" section
-- Update status to "Blocked" until blocker is resolved
-- When blocker resolved, update design with new approach
+- If reverting to requirements: call `/cwf-requirements-plan` then `/cwf-design-plan`
+- If reverting to planning: call `/cwf-task-plan`, work forward through `/cwf-requirements-plan` and `/cwf-design-plan`
 
 **When to Revert**:
 - Design exploration reveals fundamental requirement gaps
@@ -75,11 +67,8 @@ Centralized blocker handling guidance for all CWF workflow phases. This document
 - Missing tools/libraries not in design → Revert to design to evaluate alternatives
 
 **Reversion Guidance**:
-- If reverting to design: Update c-design-plan.md with implementation insights, then replan
-- If reverting to requirements: Update b-requirements-plan.md, propagate changes through design
-- Document the blocker in "Actual Results" section
-- Update status to "Blocked" until blocker is resolved
-- When blocker resolved, update implementation plan with new approach
+- If reverting to design: call `/cwf-design-plan` then `/cwf-implementation-plan`
+- If reverting to requirements: call `/cwf-requirements-plan`, work forward through `/cwf-design-plan` and `/cwf-implementation-plan`
 
 **When to Revert**:
 - Implementation plan reveals design is not implementable as specified
@@ -96,11 +85,8 @@ Centralized blocker handling guidance for all CWF workflow phases. This document
 - External API changes break integration → Update plan and design to accommodate
 
 **Reversion Guidance**:
-- If reverting to planning: Update d-implementation-plan.md with learnings, then re-execute
-- If reverting to design: Update c-design-plan.md with discovered constraints, replan and re-execute
-- Document the blocker in "Blockers Encountered" section
-- Update status to "Blocked" until blocker is resolved
-- When blocker resolved, resume execution with updated approach
+- If reverting to planning: call `/cwf-implementation-plan` then `/cwf-implementation-exec`
+- If reverting to design: call `/cwf-design-plan`, work forward through `/cwf-implementation-plan` and `/cwf-implementation-exec`
 
 **When to Revert**:
 - Execution proves the planned approach does not work
@@ -117,11 +103,8 @@ Centralized blocker handling guidance for all CWF workflow phases. This document
 - Missing test data or test doubles → Create test infrastructure subtask first
 
 **Reversion Guidance**:
-- If reverting to requirements: Add testable acceptance criteria, then update test plan
-- If reverting to design: Add testability considerations, then replan testing
-- Document the blocker in "Actual Results" section
-- Update status to "Blocked" until blocker is resolved
-- When blocker resolved, update test plan with new test cases
+- If reverting to requirements: call `/cwf-requirements-plan` then `/cwf-testing-plan`
+- If reverting to design: call `/cwf-design-plan` then `/cwf-testing-plan`
 
 **When to Revert**:
 - Test planning reveals requirements are not testable as written
@@ -138,11 +121,8 @@ Centralized blocker handling guidance for all CWF workflow phases. This document
 - Missing test data or fixtures → Create test data generation subtask
 
 **Reversion Guidance**:
-- If reverting to implementation: Fix defects, re-run tests until passing
-- If reverting to design: Address design issues, update implementation, retest
-- Document the blocker in "Blockers Encountered" section
-- Update status to "Blocked" until blocker is resolved
-- When blocker resolved, resume testing with fixes applied
+- If reverting to implementation: call `/cwf-implementation-exec` then `/cwf-testing-exec`
+- If reverting to design: call `/cwf-design-plan`, work forward through `/cwf-implementation-plan`, `/cwf-implementation-exec`, and `/cwf-testing-exec`
 
 **When to Revert**:
 - Critical defects found that require implementation changes
@@ -160,10 +140,7 @@ Centralized blocker handling guidance for all CWF workflow phases. This document
 
 **Reversion Guidance**:
 - If deployment fails: Rollback to previous version, document issue
-- If critical issues found: Revert to f-implementation-exec.md to fix, retest, redeploy
-- Document the blocker in "Actual Results" section
-- Update status to "Blocked" until blocker is resolved
-- When blocker resolved, attempt rollout again with fixes
+- If critical issues found: call `/cwf-implementation-exec`, then work forward through `/cwf-testing-exec` and `/cwf-rollout`
 
 **When to Revert**:
 - Deployment fails and cannot be completed
@@ -180,10 +157,7 @@ Centralized blocker handling guidance for all CWF workflow phases. This document
 - Technical debt accumulating → Create refactoring subtask to address
 
 **Reversion Guidance**:
-- Document maintenance issues in "Actual Results" section
 - Create subtasks to address specific maintenance problems
-- Update status to "Blocked" if maintenance issues prevent further work
-- When issues resolved, resume normal maintenance
 
 **When to Revert**:
 - Maintenance costs exceed expected thresholds
@@ -200,7 +174,6 @@ Centralized blocker handling guidance for all CWF workflow phases. This document
 **Reversion Guidance**:
 - Retrospective has no formal "reversion" - it's reflection on completed work
 - If data is missing: Document with available information, note gaps
-- Update status to "Blocked" if retrospective cannot proceed without key information
 
 ## General Reversion Guidance
 
@@ -229,44 +202,4 @@ Before reverting, ask:
 
 ## Decomposition Signals
 
-### When Blockers Indicate Task Should Be Split
-
-Consider decomposing into subtasks when:
-
-1. **Time Signal**: Current task will take >1 week even with reversion
-2. **People Signal**: Different parts need different expertise
-3. **Complexity Signal**: Task involves 3+ distinct concerns that could be separated
-4. **Risk Signal**: High-risk components should be isolated for focused testing
-5. **Independence Signal**: Parts can be worked on separately without blocking each other
-6. **Blocker Signal**: Same blocker keeps recurring, suggesting task is too large
-
-### How to Decompose When Blocked
-
-1. Identify independent sub-concerns within the task
-2. Create subtasks using `/cwf-subtask <parent> <num> <type> "description"`
-3. Update parent task to reference new subtasks
-4. Set parent task status to show it's decomposed into subtasks
-5. Work on subtasks independently
-6. Integrate results back into parent task
-
-### Example Decomposition Scenarios
-
-- **Large feature blocked by missing API**: Split into "API implementation" + "Feature using API"
-- **Complex design with no consensus**: Split into "Spike alternative A" + "Spike alternative B" + "Design comparison"
-- **Implementation revealing scope creep**: Split into "Core functionality" + "Nice-to-have enhancements"
-
-## References
-
-This document consolidates blocker handling guidance that was previously in:
-- `.claude/commands/cwf-task-plan.md`
-- `.claude/commands/cwf-requirements-plan.md`
-- `.claude/commands/cwf-design-plan.md`
-- `.claude/commands/cwf-implementation-plan.md`
-- `.claude/commands/cwf-implementation-exec.md`
-- `.claude/commands/cwf-testing-plan.md`
-- `.claude/commands/cwf-testing-exec.md`
-- `.claude/commands/cwf-rollout.md`
-- `.claude/commands/cwf-maintenance.md`
-- `.claude/commands/cwf-retrospective.md`
-
-For workflow step details, see `.cwf/docs/workflow/workflow-steps.md`
+See `.cwf/docs/workflow/decomposition-guide.md` for the full signal reference.

@@ -2,6 +2,32 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 88: Refactor Workflow Docs for Efficiency
+
+**Status**: Complete (2026-02-22)
+**Duration**: ~1 hour (estimated: 0.5 days — well under)
+**Impact**: Bugfix — eliminates three categories of token waste from CWF workflow docs:
+repeated checkpoint commit blocks (8 phases × ~8 lines), duplicate "Typical Structure"
+sections (10 phases × ~8 lines), and 3-line per-phase boilerplate in blocker-patterns.md
+(9 phases × 3 lines). File-edit reversion instructions in blocker-patterns.md replaced
+with explicit `/cwf-` skill call chains. Net change: −272 lines, +134 lines added (references).
+Progressive disclosure preserved — every removal points to its canonical source.
+
+### Changes
+- `.cwf/docs/skills/checkpoint-commit.md`: fix stale `perl -I` command; `<>` → `{}` on placeholders
+- `.cwf/docs/skills/retrospective-extras.md`: all `<var>` model-substitution variables → `{var}`
+- `.cwf/docs/workflow/workflow-steps.md`: checkpoint commit blocks replaced with 1-line references;
+  Typical Structure sections replaced with template pool references; jq blocks removed; source reference added
+- `.cwf/docs/workflow/blocker-patterns.md`: per-phase 3-line boilerplate removed; file-edit reversion
+  instructions replaced with `/cwf-` skill call chains; Decomposition Signals body → reference;
+  stale `.claude/commands/` References section removed
+- `.cwf/docs/workflow/decomposition-guide.md`: Context Inheritance body → reference to workflow-overview.md
+
+### BACKLOG Items Addressed
+- None (originated from ad-hoc plan)
+
+---
+
 ## Task 87: Create CWF Terminology Glossary
 
 **Status**: Complete (2026-02-22)

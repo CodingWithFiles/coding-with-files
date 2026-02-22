@@ -17,20 +17,6 @@ This document covers all phases for both v2.0 and v2.1 formats.
 
 When updating the **Status** field in workflow files, use ONLY valid status values from `cwf-project.json`.
 
-### Query Valid Statuses
-
-List all valid status values:
-```bash
-jq -r '.workflow["status-values"] | to_entries[] | "\(.key): \(.value)%"' \
-  implementation-guide/cwf-project.json
-```
-
-Get percentage for specific status:
-```bash
-jq -r '.workflow["status-values"]["In Progress"]' \
-  implementation-guide/cwf-project.json
-```
-
 ### Valid Status Values
 
 The following status values are defined in the project configuration:
@@ -59,6 +45,8 @@ Examples:
 **Distinction**: "Skipped" (not applicable to this task) ≠ "Backlog" (not started yet) ≠ "Finished" (completed).
 
 **IMPORTANT**: Do not use arbitrary status values. Always select from this list. If you encounter an unknown status value, the system will warn you and default to 0% completion.
+
+**Source**: `implementation-guide/cwf-project.json` → `.workflow["status-values"]`
 
 ---
 
@@ -103,26 +91,9 @@ When planning, explicitly consider:
 - What constraints limit our approach?
 - Is this task too large (check decomposition signals)?
 
-**Typical Structure**:
-- Goal: One clear sentence
-- Success Criteria: 3-5 measurable outcomes
-- Original Estimate: Effort, complexity, dependencies
-- Major Milestones: 3-5 high-level achievements
-- Risk Assessment: High and medium priority risks with mitigation
-- Dependencies: External requirements, team coordination
-- Constraints: Technical limitations, resource bounds
-- Decomposition Check: Review 5 signals
+**Structure**: Defined in workflow file template (`.cwf/templates/pool/`).
 
-**Checkpoint Commit**:
-After completing the planning phase, create a checkpoint commit:
-```bash
-git add implementation-guide/<task-dir>/a-task-plan.md
-git commit -m "Task N: Complete planning phase
-
-<Brief explanation of why - what problem does this solve>
-
-Co-developed-by: Claude Sonnet 4.5 <noreply@anthropic.com>"
-```
+**Checkpoint Commit**: See `.cwf/docs/skills/checkpoint-commit.md`. Stage: `a-task-plan.md`
 
 **Transition Triggers**:
 - **Primary → Requirements**: Planning complete, objectives clear
@@ -164,24 +135,9 @@ Co-developed-by: Claude Sonnet 4.5 <noreply@anthropic.com>"
 - How do we verify each requirement? (Acceptance criteria)
 - What are the hard constraints?
 
-**Typical Structure**:
-- Goal: Define specifications
-- Functional Requirements: FR1-FRn with clear criteria
-- Non-Functional Requirements: NFR1-NFR5 with measurable targets
-- User Stories: As a...I want...so that...
-- Constraints: Technical, integration, resource
-- Acceptance Criteria: Testable checkpoints (AC1-ACn)
+**Structure**: Defined in workflow file template (`.cwf/templates/pool/`).
 
-**Checkpoint Commit**:
-After completing the requirements phase, create a checkpoint commit:
-```bash
-git add implementation-guide/<task-dir>/b-requirements-plan.md
-git commit -m "Task N: Complete requirements phase
-
-<Brief explanation focusing on why these requirements matter>
-
-Co-developed-by: Claude Sonnet 4.5 <noreply@anthropic.com>"
-```
+**Checkpoint Commit**: See `.cwf/docs/skills/checkpoint-commit.md`. Stage: `b-requirements-plan.md`
 
 **Transition Triggers**:
 - **Primary → Design**: Requirements clear and approved
@@ -220,26 +176,9 @@ Co-developed-by: Claude Sonnet 4.5 <noreply@anthropic.com>"
 - Does design satisfy requirements?
 - Is design validated and approved?
 
-**Typical Structure**:
-- Goal: Define architecture
-- Design Priorities: Testability → Readability → Consistency → Simplicity → Reversibility
-- Key Decisions: Architecture choice, rationale, trade-offs
-- Technology Stack: Frontend, backend, database with rationale
-- System Design: Component overview, data flow
-- Interface Design: API endpoints, data models
-- Constraints: Technical factors influencing design
-- Validation: Design review, approval, integration verification
+**Structure**: Defined in workflow file template (`.cwf/templates/pool/`).
 
-**Checkpoint Commit**:
-After completing the design phase, create a checkpoint commit:
-```bash
-git add implementation-guide/<task-dir>/c-design-plan.md
-git commit -m "Task N: Complete design phase
-
-<Brief explanation of why this design approach was chosen>
-
-Co-developed-by: Claude Sonnet 4.5 <noreply@anthropic.com>"
-```
+**Checkpoint Commit**: See `.cwf/docs/skills/checkpoint-commit.md`. Stage: `c-design-plan.md`
 
 **Transition Triggers**:
 - **Primary → Implementation**: Design approved and validated
@@ -277,25 +216,9 @@ Co-developed-by: Claude Sonnet 4.5 <noreply@anthropic.com>"
 - What are validation criteria before completion?
 - Are we following patterns from existing codebase?
 
-**Typical Structure**:
-- Goal: Implement following design
-- Workflow: Patterns first → Test → Minimal impl → Refactor green
-- Files to Modify: Primary and supporting changes
-- Implementation Steps: Numbered checklist with checkboxes
-- Code Changes: Before/after snippets showing approach
-- Test Coverage: Unit, integration, regression tests
-- Validation Criteria: How to verify success
+**Structure**: Defined in workflow file template (`.cwf/templates/pool/`).
 
-**Checkpoint Commit**:
-After completing the implementation planning phase, create a checkpoint commit:
-```bash
-git add implementation-guide/<task-dir>/d-implementation-plan.md
-git commit -m "Task N: Complete implementation planning phase
-
-<Brief explanation of implementation strategy and why>
-
-Co-developed-by: Claude Sonnet 4.5 <noreply@anthropic.com>"
-```
+**Checkpoint Commit**: See `.cwf/docs/skills/checkpoint-commit.md`. Stage: `d-implementation-plan.md`
 
 **Transition Triggers**:
 - **Primary → Implementation Execution** (v2.1): Plan complete, ready to execute `/cwf-implementation-exec`
@@ -332,24 +255,9 @@ Co-developed-by: Claude Sonnet 4.5 <noreply@anthropic.com>"
 - Were any blockers encountered?
 - What remains to be done?
 
-**Typical Structure**:
-- Goal: Execute implementation following plan
-- Execution Checklist: Steps from d-implementation-plan.md with completion status
-- Actual Results: What actually happened for each step
-- Deviations: Differences from plan with rationale
-- Blockers Encountered: Issues that prevented progress
-- Status: Updated based on execution progress
+**Structure**: Defined in workflow file template (`.cwf/templates/pool/`).
 
-**Checkpoint Commit**:
-After completing the implementation execution phase, create a checkpoint commit:
-```bash
-git add implementation-guide/<task-dir>/f-implementation-exec.md <modified-files>
-git commit -m "Task N: Complete implementation execution phase
-
-<Brief explanation of what was implemented and why>
-
-Co-developed-by: Claude Sonnet 4.5 <noreply@anthropic.com>"
-```
+**Checkpoint Commit**: See `.cwf/docs/skills/checkpoint-commit.md`. Stage: `f-implementation-exec.md`
 
 **Transition Triggers**:
 - **Primary → Testing Planning**: Execution complete, all implementation steps done
@@ -389,23 +297,9 @@ Co-developed-by: Claude Sonnet 4.5 <noreply@anthropic.com>"
 - How will tests be automated and integrated into CI/CD?
 - What are success criteria for testing phase?
 
-**Typical Structure**:
-- Goal: Define test strategy
-- Test Strategy: Test levels, coverage targets
-- Test Cases: Functional (Given/When/Then) and non-functional
-- Test Environment: Setup requirements, automation
-- Validation Criteria: Success metrics
+**Structure**: Defined in workflow file template (`.cwf/templates/pool/`).
 
-**Checkpoint Commit**:
-After completing the testing planning phase, create a checkpoint commit:
-```bash
-git add implementation-guide/<task-dir>/e-testing-plan.md
-git commit -m "Task N: Complete testing planning phase
-
-<Brief explanation of test strategy and why>
-
-Co-developed-by: Claude Sonnet 4.5 <noreply@anthropic.com>"
-```
+**Checkpoint Commit**: See `.cwf/docs/skills/checkpoint-commit.md`. Stage: `e-testing-plan.md`
 
 **Transition Triggers**:
 - **Primary → Testing Execution** (v2.1): Test plan complete, ready to execute `/cwf-testing-exec`
@@ -442,24 +336,9 @@ Co-developed-by: Claude Sonnet 4.5 <noreply@anthropic.com>"
 - What is the test coverage achieved?
 - What remains to be tested?
 
-**Typical Structure**:
-- Goal: Execute tests following plan
-- Execution Checklist: Steps from testing plan file (e-testing-plan.md for v2.1, f-testing-plan.md for v2.0)
-- Test Results: Tables with PASS/FAIL status for each test
-- Test Failures: Detailed documentation with reproduction steps
-- Coverage Report: Metrics showing achieved coverage
-- Status: Updated based on test execution progress
+**Structure**: Defined in workflow file template (`.cwf/templates/pool/`).
 
-**Checkpoint Commit**:
-After completing the testing execution phase, create a checkpoint commit:
-```bash
-git add implementation-guide/<task-dir>/g-testing-exec.md
-git commit -m "Task N: Complete testing execution phase
-
-<Brief explanation of test results and validation>
-
-Co-developed-by: Claude Sonnet 4.5 <noreply@anthropic.com>"
-```
+**Checkpoint Commit**: See `.cwf/docs/skills/checkpoint-commit.md`. Stage: `g-testing-exec.md`
 
 **Transition Triggers**:
 - **Primary → Rollout**: All tests pass, coverage targets met
@@ -497,25 +376,9 @@ Co-developed-by: Claude Sonnet 4.5 <noreply@anthropic.com>"
 - What are rollback triggers and procedures?
 - What are success criteria for each rollout phase?
 
-**Typical Structure**:
-- Goal: Define deployment strategy
-- Deployment Strategy: Release type, rationale, rollback plan
-- Pre-Deployment Checklist: Tests, security, performance, docs
-- Rollout Plan: Phased approach with monitoring periods
-- Monitoring: Key metrics, alerting rules
-- Rollback Plan: Triggers and procedures
-- Success Criteria: Deployment complete, metrics within range
+**Structure**: Defined in workflow file template (`.cwf/templates/pool/`).
 
-**Checkpoint Commit**:
-After completing the rollout phase, create a checkpoint commit:
-```bash
-git add implementation-guide/<task-dir>/h-rollout.md
-git commit -m "Task N: Complete rollout phase
-
-<Brief explanation of deployment strategy and outcome>
-
-Co-developed-by: Claude Sonnet 4.5 <noreply@anthropic.com>"
-```
+**Checkpoint Commit**: See `.cwf/docs/skills/checkpoint-commit.md`. Stage: `h-rollout.md`
 
 **Transition Triggers**:
 - **Primary → Maintenance**: Deployment successful, monitoring stable
@@ -551,14 +414,7 @@ Co-developed-by: Claude Sonnet 4.5 <noreply@anthropic.com>"
 - What scaling strategy is appropriate?
 - What runbooks and documentation are needed?
 
-**Typical Structure**:
-- Goal: Define ongoing support
-- Monitoring Requirements: System health, metrics, alerting
-- Maintenance Tasks: Regular schedule (daily, weekly, monthly, quarterly)
-- Incident Response: Common issues, troubleshooting, escalation
-- Performance Optimization: Areas, scaling strategy
-- Documentation: Runbooks, knowledge base
-- Success Criteria: Monitoring operational, procedures documented
+**Structure**: Defined in workflow file template (`.cwf/templates/pool/`).
 
 **Transition Triggers**:
 - **Primary → Retrospective**: Task complete, ready for learning capture
@@ -596,15 +452,7 @@ Co-developed-by: Claude Sonnet 4.5 <noreply@anthropic.com>"
 - Are all Actual Results sections filled in?
 - Is task marked as complete?
 
-**Typical Structure**:
-- Goal: Capture learnings and variance
-- Executive Summary: Duration, scope, outcome
-- Variance Analysis: Time/effort, scope changes, quality
-- What Went Well: Successes, effective processes
-- What Could Be Improved: Challenges, inefficiencies
-- Key Learnings: Technical, process, risk mitigation
-- Recommendations: Process improvements, tools, future work
-- Status: Finished with completion date
+**Structure**: Defined in workflow file template (`.cwf/templates/pool/`).
 
 **Transition Triggers**:
 - **Primary → Complete**: Retrospective done, archive materials

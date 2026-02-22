@@ -10,12 +10,12 @@ After completing a workflow phase, create a checkpoint commit to preserve progre
 
 2. **Stage** the workflow file for the current phase:
    ```bash
-   git add implementation-guide/<task-dir>/<workflow-file>.md
+   git add implementation-guide/{task-dir}/{workflow-file}.md
    ```
 
 3. **Commit** with a "why"-focused message:
    ```bash
-   git commit -m "Task N: Complete <phase> phase
+   git commit -m "Task {N}: Complete {phase} phase
 
    <Brief explanation of why — what problem does this solve>
 
@@ -26,7 +26,7 @@ After completing a workflow phase, create a checkpoint commit to preserve progre
 
 5. **Validate** (post-commit guard):
    ```bash
-   perl -I.cwf/lib .cwf/scripts/cwf-manage validate
+   .cwf/scripts/cwf-manage validate
    ```
    If violations are reported, fix them before proceeding to the next skill.
 

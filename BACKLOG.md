@@ -29,6 +29,29 @@ Future tasks and improvements for the Coding with Files system.
 
 ---
 
+## Task: Standardise Placeholder Syntax in Remaining CLI Docs
+
+**Task-Type**: chore
+**Priority**: Low
+**Status**: Follow-up from Task 88
+
+`workflow-preamble.md` and `decomposition-guide.md` use `<var>` syntax in CLI argument
+documentation (showing command syntax, not model-substitution targets). Task 88 established
+the convention: `{}` = "substitute this value", `<>` = reserved for HTML/XML/email.
+These files should be audited and any model-substitution `<var>` instances converted to
+`{var}`. Pure CLI syntax examples (e.g. `cmd <arg>`) should be reviewed to determine
+whether a deliberate style-guide entry would be clearer.
+
+**Scope**:
+- Audit `.cwf/docs/skills/workflow-preamble.md` for `<var>` instances
+- Audit `.cwf/docs/workflow/decomposition-guide.md` for `<var>` instances
+- Convert model-substitution uses to `{}`; decide on CLI syntax documentation style
+- Add a one-liner to the style guide (or glossary) clarifying the distinction
+
+**Identified in**: Task 88 retrospective (j-retrospective.md)
+
+---
+
 ## Task: Add Delete Task Skill
 
 **Task-Type**: feature

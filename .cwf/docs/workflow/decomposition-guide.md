@@ -52,12 +52,7 @@ implementation-guide/
 
 ## Context Inheritance
 
-Subtasks inherit parent context through token-efficient structural maps:
-
-- **Automatic**: `/cwf-subtask` and workflow commands automatically load parent context via `context-inheritance`
-- **Structural Maps**: Headers and line ranges (~50-100 tokens) instead of full files (~500-1000 tokens)
-- **LLM Agency**: LLM decides which parent sections to read in detail using Read tool
-- **Status Awareness**: Parent status markers indicate reliability of inherited context
+See `.cwf/docs/workflow/workflow-overview.md` for context inheritance details.
 
 ## When NOT to Decompose
 

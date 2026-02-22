@@ -7,8 +7,8 @@ Additional steps specific to the retrospective phase, beyond the standard workfl
 Before proceeding, verify you're on the correct task branch:
 
 1. Check current branch: `git branch --show-current`
-2. Expected format: `<type>/<task-num>-<slug>` (e.g., `feature/44-refactor-template-generation-system`)
-3. If on wrong branch: STOP and suggest `git checkout <task-branch>`
+2. Expected format: `{type}/{task-num}-{slug}` (e.g., `feature/44-refactor-template-generation-system`)
+3. If on wrong branch: STOP and suggest `git checkout {task-branch}`
 
 **Rationale**: Retrospective must run on task branch so git operations apply to correct branch before merge.
 
@@ -18,7 +18,7 @@ Before documenting retrospective:
 
 1. Ensure all wf step files reflect reality — every step must be in a terminal status
    (Finished, Skipped, Cancelled). Update any that don't.
-2. Run `.cwf/scripts/command-helpers/workflow-manager status <task_num> --workflow`
+2. Run `.cwf/scripts/command-helpers/workflow-manager status {task_num} --workflow`
    to confirm the overall task is at 100%.
 3. **100% is the norm.** If below 100%: identify and resolve missing work or create
    follow-up tasks. The user must be explicitly informed if the task cannot reach 100%
@@ -31,8 +31,8 @@ This overrides the single-file staging in `checkpoint-commit.md` (which applies 
 other phases) — status corrections from Step 7 must be included in this commit:
 
 ```bash
-git add implementation-guide/<task-dir>/
-git commit -m "Task N: Complete retrospective — <one-line summary>
+git add implementation-guide/{task-dir}/
+git commit -m "Task {N}: Complete retrospective — {one-line summary}
 
 <Why — what this task accomplished>
 
@@ -95,10 +95,10 @@ Preserves all checkpoint commits for future reference.
 
 ```bash
 checkpoints-branch-manager show-history  # Find base commit
-git reset --soft <base-commit-hash>      # Soft reset to base
-git commit -m "Task N: <brief title>     # New squashed commit
+git reset --soft {base-commit-hash}      # Soft reset to base
+git commit -m "Task {N}: {brief title}     # New squashed commit
 
-<Why this change was needed>
+{Why this change was needed}
 
 Co-developed-by: Claude Opus 4.6 <noreply@anthropic.com>"
 ```
@@ -115,5 +115,5 @@ Confirm all checkpoint commits preserved on checkpoints branch.
 
 ```bash
 git checkout main
-git merge --ff-only <task-branch>
+git merge --ff-only {task-branch}
 ```
