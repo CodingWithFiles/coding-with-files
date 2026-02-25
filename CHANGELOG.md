@@ -2,6 +2,24 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 94: Fix Stale Repo URL in install.bash and INSTALL.md
+
+**Status**: Complete (2026-02-25)
+**Duration**: < 1 hour (estimated: < 1 hour — on target)
+**Impact**: Bugfix — corrects stale `mattkeenan/coding-with-files` GitHub org references
+that would have caused default installs to fail. Task 91 fixed `README.md` but missed
+`scripts/install.bash` (the `CWF_SOURCE` default) and `INSTALL.md` (the quick-install
+curl command). Both corrected.
+
+### Changes
+- `scripts/install.bash:24`: `CWF_SOURCE` default URL `mattkeenan` → `CodingWithFiles`
+- `INSTALL.md:12`: quick-install curl command `mattkeenan` → `CodingWithFiles`
+
+### BACKLOG Items Addressed
+- None
+
+---
+
 ## Task 93: README.md — Problem and Benefits Sections
 
 **Status**: Complete (2026-02-22)

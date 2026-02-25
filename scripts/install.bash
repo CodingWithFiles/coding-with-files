@@ -21,7 +21,7 @@ set -euo pipefail
 
 readonly CWF_METHOD="${CWF_METHOD:-subtree}"
 readonly CWF_REF="${CWF_REF:-latest}"
-readonly CWF_SOURCE="${CWF_SOURCE:-https://github.com/mattkeenan/coding-with-files.git}"
+readonly CWF_SOURCE="${CWF_SOURCE:-https://github.com/CodingWithFiles/coding-with-files.git}"
 readonly CWF_FORCE="${CWF_FORCE:-0}"
 
 # --- Helpers ------------------------------------------------------------------

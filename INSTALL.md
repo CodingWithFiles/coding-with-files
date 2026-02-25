@@ -9,7 +9,7 @@ The install script automates the full setup. It works for both humans and agents
 ### GitHub
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/mattkeenan/coding-with-files/main/scripts/install.bash | bash
+curl -fsSL https://raw.githubusercontent.com/CodingWithFiles/coding-with-files/main/scripts/install.bash | bash
 ```
 
 ### GitLab, Gitea, Forgejo, self-hosted
