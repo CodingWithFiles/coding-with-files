@@ -13,7 +13,7 @@ allowed-tools:
 
 **This step**: Complete j-retrospective.md with learnings, metrics analysis, and process improvements.
 **Not this step**: Implementation, testing, or deployment (those are complete). This is reflection only.
-**If blocked or finished**: Call `workflow-manager control --current-step=j-retrospective --task-path=<path>` to determine next action.
+**If blocked or finished**: Call `.cwf/scripts/command-helpers/workflow-manager control --current-step=j-retrospective --task-path=<path>` to determine next action.
 
 ## Context
 

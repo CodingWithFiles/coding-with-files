@@ -13,7 +13,7 @@ allowed-tools:
 
 **This step**: Complete a-task-plan.md with goals, success criteria, milestones, risks, and decomposition check.
 **Not this step**: Requirements gathering, design, implementation, testing, or deployment.
-**If blocked or finished**: Call `workflow-manager control --current-step=a-task-plan --task-path=<path>` to determine next action.
+**If blocked or finished**: Call `.cwf/scripts/command-helpers/workflow-manager control --current-step=a-task-plan --task-path=<path>` to determine next action.
 
 ## Context
 

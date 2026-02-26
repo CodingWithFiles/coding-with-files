@@ -13,7 +13,7 @@ allowed-tools:
 
 **This step**: Complete d-implementation-plan.md with files to modify, implementation steps, and validation criteria.
 **Not this step**: Writing code (that's f-implementation-exec), testing, or deployment.
-**If blocked or finished**: Call `workflow-manager control --current-step=d-implementation-plan --task-path=<path>` to determine next action.
+**If blocked or finished**: Call `.cwf/scripts/command-helpers/workflow-manager control --current-step=d-implementation-plan --task-path=<path>` to determine next action.
 
 ## Context
 

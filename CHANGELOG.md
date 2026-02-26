@@ -2,6 +2,22 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 95: Fix Bare workflow-manager Path in All wf Step Skills
+
+**Status**: Complete (2026-02-26)
+**Duration**: < 1 hour (estimated: < 1 hour — on target)
+**Impact**: Bugfix — all 10 wf step SKILL.md files referenced `workflow-manager control`
+without a path, causing models to fail with "command not found" when trying to use the
+control flow feature. Fixed to `.cwf/scripts/command-helpers/workflow-manager control`.
+
+### Changes
+- `.claude/skills/cwf-{task-plan,requirements-plan,design-plan,implementation-plan,implementation-exec,testing-plan,testing-exec,rollout,maintenance,retrospective}/SKILL.md`: "If blocked or finished" line updated with full repo-relative path
+
+### BACKLOG Items Addressed
+- None
+
+---
+
 ## Task 94: Fix Stale Repo URL in install.bash and INSTALL.md
 
 **Status**: Complete (2026-02-25)

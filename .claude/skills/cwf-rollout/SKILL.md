@@ -13,7 +13,7 @@ allowed-tools:
 
 **This step**: Complete h-rollout.md with deployment plan, rollback procedures, and rollout results.
 **Not this step**: Implementation, testing (already done), or long-term maintenance (that's i-maintenance.md).
-**If blocked or finished**: Call `workflow-manager control --current-step=h-rollout --task-path=<path>` to determine next action.
+**If blocked or finished**: Call `.cwf/scripts/command-helpers/workflow-manager control --current-step=h-rollout --task-path=<path>` to determine next action.
 
 ## Context
 

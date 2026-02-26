@@ -13,7 +13,7 @@ allowed-tools:
 
 **This step**: Now you run tests. Execute test cases from e-testing-plan.md and document results in g-testing-exec.md.
 **Not this step**: Planning tests (that's e-testing-plan), fixing bugs (that's f-implementation-exec), or deployment.
-**If blocked or finished**: Call `workflow-manager control --current-step=g-testing-exec --task-path=<path>` to determine next action.
+**If blocked or finished**: Call `.cwf/scripts/command-helpers/workflow-manager control --current-step=g-testing-exec --task-path=<path>` to determine next action.
 
 ## Context
 

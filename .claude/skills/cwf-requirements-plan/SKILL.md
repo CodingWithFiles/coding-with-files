@@ -13,7 +13,7 @@ allowed-tools:
 
 **This step**: Complete b-requirements-plan.md with functional requirements, non-functional requirements, and acceptance criteria.
 **Not this step**: Design decisions, implementation planning, code writing, or testing.
-**If blocked or finished**: Call `workflow-manager control --current-step=b-requirements-plan --task-path=<path>` to determine next action.
+**If blocked or finished**: Call `.cwf/scripts/command-helpers/workflow-manager control --current-step=b-requirements-plan --task-path=<path>` to determine next action.
 
 ## Context
 

@@ -13,7 +13,7 @@ allowed-tools:
 
 **This step**: Complete i-maintenance.md with monitoring plan, support procedures, and ongoing maintenance results.
 **Not this step**: Implementation, testing, or initial deployment (complete). Final reflection in j-retrospective.md.
-**If blocked or finished**: Call `workflow-manager control --current-step=i-maintenance --task-path=<path>` to determine next action.
+**If blocked or finished**: Call `.cwf/scripts/command-helpers/workflow-manager control --current-step=i-maintenance --task-path=<path>` to determine next action.
 
 ## Context
 

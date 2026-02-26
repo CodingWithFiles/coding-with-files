@@ -13,7 +13,7 @@ allowed-tools:
 
 **This step**: Complete c-design-plan.md with architecture decisions, component design, and interface specifications.
 **Not this step**: Implementation, testing, or deployment.
-**If blocked or finished**: Call `workflow-manager control --current-step=c-design-plan --task-path=<path>` to determine next action.
+**If blocked or finished**: Call `.cwf/scripts/command-helpers/workflow-manager control --current-step=c-design-plan --task-path=<path>` to determine next action.
 
 ## Context
 
