@@ -95,6 +95,11 @@ sub build_glob {
 # Resolve task by number to actual directory and metadata (FR1.1)
 # Core resolution function - all other resolve_* functions delegate to this
 #
+# Uses iterative ancestor walk for nested directory hierarchy:
+#   resolve_num("48.1.3") splits into ["48", "48.1", "48.1.3"]
+#   and resolves each level inside the previous directory.
+#   Top-level tasks (no dots) resolve with a single glob — unchanged.
+#
 # Args: $num - task number (e.g., "1.1", "33")
 #       $base_dir - base directory (optional, defaults to find_base_dir())
 # Returns: hashref with keys: full_path, num, type, slug, format, parent_path, depth
@@ -112,13 +117,19 @@ sub resolve_num {
     $base_dir //= find_base_dir();
     return undef unless $base_dir;
 
-    # Build and execute glob
-    my $pattern = build_glob($num, $base_dir);
-    my @matches = glob($pattern);
+    # Iterative ancestor walk: resolve each level inside the previous
+    my @parts = split(/\./, $num);
+    my $current_dir = $base_dir;
 
-    return undef unless @matches;
+    for my $i (0 .. $#parts) {
+        my $ancestor_num = join(".", @parts[0 .. $i]);
+        my $pattern = build_glob($ancestor_num, $current_dir);
+        my @matches = glob($pattern);
+        return undef unless @matches;
+        $current_dir = $matches[0];
+    }
 
-    my $full_path = $matches[0];
+    my $full_path = $current_dir;
     my $dir_name = basename($full_path);
 
     # Parse directory name: <num>-<type>-<slug>
@@ -364,9 +375,10 @@ sub find_children {
     $base_dir //= find_base_dir();
     return () unless $base_dir;
 
-    # Scan for child directories matching pattern: $num.\d+-*-*
-    # Task directories are always flat in base_dir (v2.0 and v2.1)
-    my @child_dirs = glob("$base_dir/$num.*-*-*");
+    # Resolve the task to find its actual directory, then scan inside it
+    my $task = resolve_num($num, $base_dir);
+    my $search_dir = $task ? $task->{full_path} : $base_dir;
+    my @child_dirs = glob("$search_dir/$num.*-*-*");
 
     # Resolve each child directory to hashref and filter to immediate children only
     my @children;

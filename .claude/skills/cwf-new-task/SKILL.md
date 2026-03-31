@@ -38,7 +38,7 @@ allowed-tools:
 ### 2. Generate Slug and Directory Path
 - Slug: lowercase, spaces to hyphens, remove special chars, truncate 50 chars
 - Top-level: `implementation-guide/<num>-<type>-<slug>/`
-- Subtask: Use `context-manager hierarchy` to find parent, create subdirectory
+- Subtask: nested inside parent directory (e.g. task 48.1 → `implementation-guide/48-feature-parent/48.1-bugfix-slug/`)
 
 ### 3. Copy Template Files
 ```bash

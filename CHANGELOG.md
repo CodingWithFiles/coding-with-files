@@ -2,6 +2,35 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 96: Fix Subtask Resolution to Support Nested Directory Hierarchy
+
+**Status**: Complete (2026-03-31)
+**Duration**: 1 session (estimated: 1–2 sessions — on target)
+**Impact**: Bugfix — nested subtask directories (a founding design goal) were never
+supported by the resolution code. `resolve_num()` only searched flat in
+`implementation-guide/`, so `context-manager hierarchy 48.1` failed with "Task not found"
+when `48.1` was correctly nested inside `48`'s directory. Now uses iterative ancestor walk
+to resolve any nesting depth.
+
+### Changes
+- `.cwf/lib/CWF/TaskPath.pm`: `resolve_num()` rewritten with iterative ancestor walk;
+  `find_children()` searches inside resolved task dir instead of flat base
+- `.cwf/scripts/command-helpers/template-copier-v2.1`: `construct_destination()` nests
+  subtasks inside resolved parent directory
+- `.claude/skills/cwf-new-task/SKILL.md`, `.claude/skills/cwf-subtask/SKILL.md`: explicit
+  nested path examples replacing ambiguous "create subdirectory"
+- `.cwf/security/script-hashes.json`: updated hashes for modified scripts
+
+### BACKLOG Items Addressed
+- None
+
+### Migration Note
+Existing flat subtasks (e.g. `implementation-guide/48.1-bugfix-*` at top level) will not
+be found by the new nested resolution. Move them into their parent directory:
+`implementation-guide/48-*/48.1-bugfix-*/`
+
+---
+
 ## Task 95: Fix Bare workflow-manager Path in All wf Step Skills
 
 **Status**: Complete (2026-02-26)

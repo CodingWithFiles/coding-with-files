@@ -44,7 +44,7 @@
     },
     "template-copier-v2.1": {
       "path": ".cwf/scripts/command-helpers/template-copier-v2.1",
-      "sha256": "f1a895b767f0bf2b8d4523c96ca86792b930194ce6eb8413aac0d47c76f9f69b",
+      "sha256": "c4e37c5ea2442fd695d6d7f0b324ef592247b9a217f215aaec01853e75b5a498",
       "permissions": "0700"
     },
     "migrate-v1-to-v2.sh": {
@@ -80,7 +80,7 @@
     },
     "CWF::TaskPath": {
       "path": ".cwf/lib/CWF/TaskPath.pm",
-      "sha256": "34a82fdba26623423b21492a92924d17ba767a89b3d2d2e4037669cb93f2dc64"
+      "sha256": "0ce944b3460dce26e5c679b7a78cf926620173ad42c6ff2f7c243bfd323b8eaa"
     },
     "CWF::WorkflowFiles": {
       "path": ".cwf/lib/CWF/WorkflowFiles.pm",

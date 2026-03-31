@@ -43,7 +43,8 @@ allowed-tools:
 - Verify `num` follows hierarchical pattern from parent
 - Check subtask doesn't already exist
 - Generate slug (same algorithm as `/cwf-new-task`)
-- Copy templates via `task-workflow create` (same as `/cwf-new-task` Step 3)
+- Subtask directory is nested inside parent (e.g. task 48.1 → `implementation-guide/48-feature-parent/48.1-bugfix-slug/`)
+- Copy templates via `task-workflow create` with `--destination` pointing inside parent dir
 - Set `{{parentTask}}` to parent task number
 
 ### 4. Provide Next Steps
