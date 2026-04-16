@@ -2,6 +2,37 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 97: Research Claude Code Best Practices for CWF Quality Improvements
+
+**Status**: Complete (2026-04-16)
+**Duration**: 1 session (estimated: 1 session — on target)
+**Impact**: Discovery — systematic review of Claude Code best practices corpus (40+ files,
+10 topic areas) against CWF current implementation. Produced 6 prioritised backlog items
+for quality improvements. Emergent discussion on agent process enforcement yielded insights
+on Deming-inspired post-training approaches.
+
+### Findings
+- Path-scoped rules (`.claude/rules/`) are the closest to enforcement for skill usage
+- PreToolUse hooks survive compaction where CLAUDE.md instructions do not
+- Stop event hooks can validate output correctness at completion boundaries
+- Progressive disclosure via Read is better than `@import` for prompt cache stability
+- Agent process enforcement is fundamentally impossible with full system access
+
+### BACKLOG Items Created
+- Path-scoped rules for wf file protection (feature, High)
+- PreToolUse hook for rule re-injection (feature, High)
+- Stop event hooks research (discovery, High)
+- Gotchas via LMM memory analysis (discovery, High)
+- Compaction failure frequency research (discovery, Medium)
+- Session hygiene guidance (chore, Medium)
+
+### Architectural Decisions
+- Rejected `context: fork` — agent needs skill output in context for subsequent decisions
+- Rejected `disable-model-invocation` — contradicts skill-first philosophy (skills are quality gates)
+- Deferred `@import` — current progressive disclosure approach is better for caching
+
+---
+
 ## Task 96: Fix Subtask Resolution to Support Nested Directory Hierarchy
 
 **Status**: Complete (2026-03-31)

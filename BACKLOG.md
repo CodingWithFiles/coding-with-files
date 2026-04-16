@@ -1512,6 +1512,145 @@ Create quick reference documentation for workflow phase sequences (which files a
 
 ---
 
+## Task: Add Path-Scoped Rules for Workflow File Protection
+
+**Task-Type**: feature
+**Priority**: High
+**Status**: Backlog
+
+Add `.claude/rules/` with path-scoped rule files that auto-load when the agent touches wf step files, instructing it to use the corresponding skill instead of editing directly.
+
+**Problem**: Agents hyper-optimise locally — they see "I need to update this file" and edit directly, bypassing the skill that encodes the specification. This causes specification escape and quality degradation. External enforcement is impossible (agent has full system access), and commit-message conventions have been proven ineffective (see gate-to-breakout-tech).
+
+**Solution**: Create path-scoped rules using `.claude/rules/` with glob patterns matching `implementation-guide/**/{a,b,c,d,e,f,g,h,i,j}-*.md`. The rule injects a strong instruction to use the corresponding `/cwf-{step}` skill whenever the agent is operating on wf step files. This is advisory not enforcement, but it's injected automatically at the point of action — the agent sees the instruction when it matters most.
+
+**Scope**:
+- Create `.claude/rules/workflow-files.md` with path-scoped frontmatter
+- Rule text should name the specific skill for each step prefix (a→cwf-task-plan, b→cwf-requirements-plan, etc.)
+- Must be installed by `/cwf-init` into target projects
+- Update install.bash to copy rules directory
+
+**Identified in**: Claude Code best practices analysis (2026-04-16) — path-scoped rules are a recommended pattern for context-sensitive guidance
+
+---
+
+## Task: Add PreToolUse Hook for Rule Re-Injection
+
+**Task-Type**: feature
+**Priority**: High
+**Status**: Backlog
+
+Add a Claude Code PreToolUse hook on UserPromptSubmit that re-injects critical CWF rules on every user message, surviving compaction.
+
+**Problem**: CLAUDE.md instructions get compacted away in long sessions. After compaction, the agent loses awareness of critical rules (use skills for wf files, checkpoint after each phase, never merge to main). These are the rules most frequently violated.
+
+**Solution**: Add a PreToolUse hook in `.claude/settings.json` (or project settings) that runs `cat .claude/rules-inject.txt` on every UserPromptSubmit event. The file contains the 3-4 most critical rules that must survive compaction. This pattern is documented in Claude Code best practices (Lakshmi Narasimhan, Jan 2026).
+
+**Scope**:
+- Create `.claude/rules-inject.txt` with critical rules
+- Add PreToolUse hook configuration to settings.json
+- Rules to include: (1) use skills for wf step files, (2) checkpoint commit after each phase, (3) never execute merge to main, (4) always git status before committing
+- Must be installed by `/cwf-init` into target projects
+
+**Identified in**: Claude Code best practices analysis (2026-04-16) — rule re-injection is a proven pattern for surviving compaction
+
+---
+
+## Task: Research Stop Event Hooks for Correctness, Quality, and Efficiency
+
+**Task-Type**: discovery
+**Priority**: High
+**Status**: Backlog
+
+Research and design Claude Code Stop event hooks that validate agent output at task completion boundaries.
+
+**Problem**: When agents complete work, there is no automated validation of correctness, quality, or efficiency. Errors are caught by human review or downstream failures, not at the point of completion.
+
+**Research Questions**:
+1. **Correctness**: What Stop hooks can verify that output matches specification? E.g., `cwf-manage validate` to check hashes, status fields, task numbering consistency
+2. **Quality**: Can Stop hooks assess output quality beyond structural correctness? E.g., checking wf step files have non-placeholder content in required sections
+3. **Efficiency**: Can Stop hooks flag unnecessary work? E.g., detecting files modified but then reverted, or circular edit patterns
+
+**Scope**:
+- Survey what Stop hooks other projects use (Claude Code best practices documents verification hooks)
+- Design candidate hooks for CWF specifically
+- Assess context cost (Stop hooks generate system reminders that consume tokens)
+- Prototype 1-2 hooks and measure impact
+- Document findings and recommendations
+
+**Identified in**: Claude Code best practices analysis (2026-04-16) — Stop event verification hooks are a recommended pattern
+
+---
+
+## Task: Discover Best Gotchas for Skills Based on LMM Memory Analysis
+
+**Task-Type**: discovery
+**Priority**: High
+**Status**: Backlog
+
+Analyse conversation history via LMM memory MCP to identify the most common and impactful failure modes for each CWF skill, then add gotchas sections to skill definitions.
+
+**Problem**: CWF skills lead with scope and workflow steps but don't front-load failure modes. Claude Code best practices recommend a "gotchas-first" strategy — the highest-signal content in a skill is the gotchas section (failure modes, specific verified scenarios, compounding errors).
+
+**Approach**:
+1. Query LMM semantic search for conversations involving each CWF skill
+2. Identify patterns: corrections, rework, user frustration, repeated mistakes
+3. Rank by frequency and impact
+4. Draft gotchas sections for the top 3-5 failure modes per skill
+5. Add to SKILL.md files near the top
+
+**Data Sources**:
+- LMM memory MCP (semantic search for skill names, error patterns, user corrections)
+- MEMORY.md recurring process errors (already documented patterns)
+- gate-to-breakout-tech project history (cross-project validation)
+
+**Identified in**: Claude Code best practices analysis (2026-04-16) — gotchas-first skill strategy
+
+---
+
+## Task: Research Compaction Failure Frequency via LMM Memory Analysis
+
+**Task-Type**: discovery
+**Priority**: Medium
+**Status**: Backlog
+
+Analyse conversation history via LMM memory MCP to determine how often compaction causes loss of critical CWF context, and whether custom compaction instructions in CLAUDE.md would mitigate it.
+
+**Problem**: Best practices recommend adding compaction preservation instructions to CLAUDE.md (e.g., "When compacting, always preserve: current task number, current workflow phase, list of modified files, task branch name"). Before implementing, we need to know whether compaction-related context loss is actually a frequent problem in CWF usage.
+
+**Approach**:
+1. Query LMM for conversations where the agent lost track of task context mid-session
+2. Look for patterns: agent asking "which task are we on?", re-reading files it already read, repeating completed work
+3. Correlate with session length (longer sessions more likely to compact)
+4. Assess frequency and impact
+5. If frequent: recommend specific compaction instructions for CLAUDE.md
+6. If rare: deprioritise
+
+**Identified in**: Claude Code best practices analysis (2026-04-16)
+
+---
+
+## Task: Add Session Hygiene Guidance to CWF Documentation
+
+**Task-Type**: chore
+**Priority**: Medium
+**Status**: Backlog
+
+Add guidance on Claude Code session management to CWF documentation, helping users maintain effective context across workflow phases.
+
+**Problem**: No guidance currently exists on when to clear context, when to continue sessions, or how to manage long-running CWF workflows. Best practices are clear: `/clear` between unrelated tasks, `/clear` after 2 failed corrections on the same issue, continue when deep in one problem or during iterative refinement.
+
+**Scope**:
+- Add session hygiene section to `.cwf/docs/workflow/` or CLAUDE.md
+- Document when to `/clear` (between tasks, after repeated corrections)
+- Document when to continue (mid-phase, iterative refinement)
+- Document `/compact` with CWF-specific preservation instructions
+- Installed documentation only — no code changes
+
+**Identified in**: Claude Code best practices analysis (2026-04-16)
+
+---
+
 ## Task: Replace Backtick Operators with IPC::Open3 in cwf-manage
 
 **Task-Type**: chore
