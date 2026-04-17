@@ -106,20 +106,89 @@ After `/cwf-init`, helper scripts may lack execute permissions — particularly 
 
 ---
 
-## Task: Add Status Update Helper Script
+## Task: Add Status Update Helper Script (`cwf-set-status`)
+
+**Task-Type**: feature
+**Priority**: High
+**Status**: Confirmed highest-priority extraction by Task 100 audit (rank 6.0)
+
+Agents and users naturally write invalid status values (e.g. "Done" instead of "Finished"). The workflow-manager catches this after the fact, but a dedicated status update script could validate at write time and reject invalid values immediately. Task 100 audit confirms this is the most frequently executed deterministic operation in CWF — the agent performs a regex replacement on the `**Status**:` field in every checkpoint commit across all ~10 workflow skills.
+
+**Scope**:
+- Create a helper script `cwf-set-status` that takes `(file-path, new-status)`
+- Validate against the canonical status list before writing
+- Perform regex replacement on `**Status**: <value>` line
+- Reject invalid values with a clear error listing valid options
+- Optionally update the Next Action and Blockers fields at the same time
+
+**Identified in**: Task 60 (external repo installation testing). Priority upgraded by Task 100 audit (rank 6.0 — highest).
+
+---
+
+## Task: Add Checkpoint Commit Helper Script (`cwf-checkpoint-commit`)
+
+**Task-Type**: feature
+**Priority**: High
+
+Bundle the checkpoint commit procedure into a single atomic script. Currently the agent performs 4 deterministic steps manually on every workflow phase: update status field, stage the wf file, format commit message with trailer, commit, then validate. Agents frequently forget to stage, use wrong message format, or skip validation.
+
+**Scope**:
+- Script takes `(task-path, phase-name, why-message)`
+- Calls `cwf-set-status` to update status field
+- Stages the correct wf file
+- Formats commit message: `Task {N}: Complete {phase} phase\n\n{why}\n\nCo-developed-by: ...`
+- Commits and runs `cwf-manage validate`
+
+**Identified in**: Task 100 discovery (rank 3.0, affects all ~10 workflow skills)
+
+---
+
+## Task: Add Slug Generation Helper Script (`cwf-slug`)
+
+**Task-Type**: feature
+**Priority**: Medium
+
+Extract the slug generation algorithm into a helper script. Currently duplicated in prose across cwf-new-task and cwf-subtask — identical algorithm described separately in both skills.
+
+**Scope**:
+- Script takes description string, outputs slug
+- Algorithm: lowercase, spaces→hyphens, remove special chars, truncate 50 chars
+- Replace prose instructions in cwf-new-task and cwf-subtask with script call
+
+**Identified in**: Task 100 discovery (rank 4.0, eliminates duplication)
+
+---
+
+## Task: Add Settings.json Merge Helper Script (`cwf-settings-merge`)
+
+**Task-Type**: feature
+**Priority**: Medium
+
+Extract the JSON settings merge logic from cwf-init into a helper script. Currently the agent reads `.claude/settings.json`, manually manipulates the JSON structure (adding permissions entries, hook configurations), and writes back. This is the most error-prone deterministic operation in the system — JSON escaping, key ordering, and idempotency logic done by hand.
+
+**Scope**:
+- Script takes `(key-path, value)` and performs idempotent merge into `.claude/settings.json`
+- Handles nested keys (e.g. `hooks.PreToolUse`)
+- Checks for existing entries to avoid duplicates
+- Writes back valid JSON
+
+**Identified in**: Task 100 discovery (rank 1.5, highest error-proneness score)
+
+---
+
+## Task: Replace cwf-extract Skill with Helper Script
 
 **Task-Type**: feature
 **Priority**: Low
 
-Agents and users naturally write invalid status values (e.g. "Done" instead of "Finished"). The workflow-manager catches this after the fact, but a dedicated status update script could validate at write time and reject invalid values immediately.
+The entire cwf-extract skill is deterministic end-to-end: input type detection (regex check for "/" or ".md"), section→file lookup (fixed mapping table), and content extraction (awk pattern). Could be replaced by a single helper script, making the skill a one-line wrapper.
 
 **Scope**:
-- Create a helper script (e.g. `cwf-set-status`) that updates a workflow file's Status field
-- Validate against the canonical status list before writing
-- Reject invalid values with a clear error listing valid options
-- Optionally update the Next Action and Blockers fields at the same time
+- Create `cwf-extract` helper script in `.cwf/scripts/command-helpers/`
+- Implement input type detection, section→file mapping, awk extraction
+- Reduce SKILL.md to a wrapper that calls the script
 
-**Identified in**: Task 60 (external repo installation testing — agent used "Done" instead of "Finished")
+**Identified in**: Task 100 discovery (rank 2.0, only fully-deterministic skill)
 
 ---
 

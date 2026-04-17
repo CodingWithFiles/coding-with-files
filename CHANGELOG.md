@@ -2,6 +2,31 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 100: Identify Deterministic Operations Still Handled by Agent
+
+**Status**: Complete (2026-04-17)
+**Duration**: 1 session (estimated: 1 session — on target)
+**Impact**: Discovery — systematic audit of all 18 CWF skills to identify deterministic
+operations the agent performs that should be extracted to helper scripts. Found 24
+candidates across 8 skills (10 skills already well-scripted). Produced 5 ranked backlog
+items for extraction.
+
+### Findings
+- 24 deterministic operations found, 10 skills had zero unique candidates
+- Shared preamble (argument parsing) and checkpoint commit procedure are highest-leverage targets
+- Status field update is the most frequent deterministic operation (rank 6.0)
+- JSON manipulation in cwf-init is the most error-prone (rank 1.5 but highest error score)
+- cwf-extract is the only skill that is entirely deterministic end-to-end
+
+### BACKLOG Items Created
+- cwf-set-status script (feature, High) — confirms existing backlog item priority
+- cwf-checkpoint-commit script (feature, High)
+- cwf-slug script (feature, Medium)
+- cwf-settings-merge script (feature, Medium)
+- cwf-extract replacement script (feature, Low)
+
+---
+
 ## Task 99: Add PreToolUse Hook for Rule Re-Injection
 
 **Status**: Complete (2026-04-17)
