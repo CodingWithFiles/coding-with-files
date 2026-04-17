@@ -74,6 +74,29 @@ allowed-tools:
   ```
 - Verify symlinks resolve: `ls -la .claude/rules/`
 
+### 6c. Configure Rule Re-Injection Hook
+- Read existing `.claude/settings.json`
+- Add hooks configuration if not present:
+  ```json
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "UserPromptSubmit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cat .cwf/rules-inject.txt 2>/dev/null || true"
+          }
+        ]
+      }
+    ]
+  }
+  ```
+- If `hooks.PreToolUse` already exists, check for existing `UserPromptSubmit` matcher
+- If matcher already present, skip (idempotent)
+- If matcher absent, append to the array
+- Write back valid JSON
+
 ### 7. Configure Claude Code Settings (user action required)
 - First, check if PERL5OPT is already configured:
   `grep -q 'PERL5OPT' ~/.claude/settings.json 2>/dev/null`
@@ -111,5 +134,6 @@ allowed-tools:
 - [ ] .gitignore updated
 - [ ] Skill permissions registered in `.claude/settings.json` (with user confirmation)
 - [ ] Rules directory created with symlinks (`.claude/rules/`)
+- [ ] Rule re-injection hook configured in `.claude/settings.json`
 - [ ] PERL5OPT checked and user informed only if not already configured
 - [ ] Init commit created (mandatory — do not begin task work without it)

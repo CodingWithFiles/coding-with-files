@@ -119,52 +119,32 @@ resolve_ref() {
 
 # --- Symlink creation ---------------------------------------------------------
 
-create_skill_symlinks() {
-    mkdir -p .claude/skills
+create_cwf_symlinks() {
+    local source_dir="$1"   # e.g. .cwf-skills or .cwf-rules
+    local target_dir="$2"   # e.g. .claude/skills or .claude/rules
+    local glob="$3"         # e.g. "cwf-*" or "cwf-*.md"
+    local test_flag="$4"    # e.g. "-d" or "-f"
+    local label="$5"        # e.g. "skill" or "rule"
 
-    # Remove stale CWF symlinks (handles skill renames across versions)
-    for link in .claude/skills/cwf-*; do
-        if [[ -L "$link" ]]; then
-            rm "$link"
-        fi
+    mkdir -p "$target_dir"
+
+    # Remove stale CWF symlinks (handles renames across versions)
+    for link in "$target_dir"/$glob; do
+        [[ -L "$link" ]] && rm "$link"
     done
 
-    # Create relative symlinks for each skill dir
+    # Create relative symlinks
     local count=0
-    for skill_dir in .cwf-skills/cwf-*/; do
-        if [[ -d "$skill_dir" ]]; then
+    for item in "$source_dir"/$glob; do
+        if test "$test_flag" "$item"; then
             local name
-            name="$(basename "$skill_dir")"
-            ln -s "../../.cwf-skills/$name" ".claude/skills/$name"
+            name="$(basename "$item")"
+            ln -s "../../$source_dir/$name" "$target_dir/$name"
             count=$((count + 1))
         fi
     done
 
-    log "Created $count skill symlinks in .claude/skills/"
-}
-
-create_rule_symlinks() {
-    mkdir -p .claude/rules
-
-    # Remove stale CWF rule symlinks (handles rule renames across versions)
-    for link in .claude/rules/cwf-*.md; do
-        if [[ -L "$link" ]]; then
-            rm "$link"
-        fi
-    done
-
-    # Create relative symlinks for each rule file
-    local count=0
-    for rule_file in .cwf-rules/*.md; do
-        if [[ -f "$rule_file" ]]; then
-            local name
-            name="$(basename "$rule_file")"
-            ln -s "../../.cwf-rules/$name" ".claude/rules/$name"
-            count=$((count + 1))
-        fi
-    done
-
-    log "Created $count rule symlinks in .claude/rules/"
+    log "Created $count $label symlinks in $target_dir/"
 }
 
 # --- Install methods ----------------------------------------------------------
@@ -186,27 +166,10 @@ install_subtree() {
 
     # Remove existing if force
     if [[ "$CWF_FORCE" == "1" ]]; then
-        if [[ -d ".cwf" ]]; then
-            git rm -rf --quiet .cwf 2>/dev/null || true
-            rm -rf .cwf
-        fi
-        if [[ -d ".cwf-skills" ]]; then
-            git rm -rf --quiet .cwf-skills 2>/dev/null || true
-            rm -rf .cwf-skills
-        fi
-        if [[ -d ".cwf-rules" ]]; then
-            git rm -rf --quiet .cwf-rules 2>/dev/null || true
-            rm -rf .cwf-rules
-        fi
-        # Remove old symlinks
-        for link in .claude/skills/cwf-*; do
-            if [[ -L "$link" ]]; then
-                rm "$link"
-            fi
-        done
-        for link in .claude/rules/cwf-*.md; do
-            if [[ -L "$link" ]]; then
-                rm "$link"
+        for dir in .cwf .cwf-skills .cwf-rules; do
+            if [[ -d "$dir" ]]; then
+                git rm -rf --quiet "$dir" 2>/dev/null || true
+                rm -rf "$dir"
             fi
         done
         # Need a clean state for subtree add
@@ -236,17 +199,6 @@ install_copy() {
     # Remove existing if force
     if [[ "$CWF_FORCE" == "1" ]]; then
         rm -rf .cwf .cwf-skills .cwf-rules
-        # Remove old symlinks
-        for link in .claude/skills/cwf-*; do
-            if [[ -L "$link" ]]; then
-                rm "$link"
-            fi
-        done
-        for link in .claude/rules/cwf-*.md; do
-            if [[ -L "$link" ]]; then
-                rm "$link"
-            fi
-        done
     fi
 
     # Copy core
@@ -275,8 +227,8 @@ post_install() {
     local resolved_sha="$2"
 
     # Create skill and rule symlinks
-    create_skill_symlinks
-    create_rule_symlinks
+    create_cwf_symlinks .cwf-skills .claude/skills "cwf-*"  -d skill
+    create_cwf_symlinks .cwf-rules  .claude/rules  "cwf-*.md" -f rule
 
     # Write version file
     cat > .cwf/version <<VEOF

@@ -2,6 +2,48 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 99: Add PreToolUse Hook for Rule Re-Injection
+
+**Status**: Complete (2026-04-17)
+**Duration**: 1 session (estimated: 1 session — on target)
+**Impact**: Feature — critical CWF rules now survive context compaction via automatic
+re-injection on every user message.
+
+### Changes
+- `.cwf/rules-inject.txt`: 5-line rules file with 4 critical rules (use skills, checkpoint
+  commit, never merge to main, git status before commits)
+- `.claude/skills/cwf-init/SKILL.md`: Step 6c added for PreToolUse hook configuration with
+  idempotent `UserPromptSubmit` matcher setup
+- `.cwf/docs/glossary.md`: "hook" and "rules injection" terms added
+- `scripts/install.bash`: Unified `create_skill_symlinks` and `create_rule_symlinks` into
+  single `create_cwf_symlinks` function (-48 lines), removed redundant cleanup loops,
+  consolidated force-reinstall directory removal into loop
+
+### BACKLOG Items Addressed
+- "Add PreToolUse Hook for Rule Re-Injection" (from Task 97 discovery)
+
+---
+
+## Task 98: Add Path-Scoped Rules for Workflow File Protection
+
+**Status**: Complete (2026-04-17)
+**Duration**: 1 session (estimated: 1 session — on target)
+**Impact**: Feature — wf step files now trigger an advisory rule reminding the agent to
+use the corresponding `/cwf-{step}` skill instead of editing directly.
+
+### Changes
+- `.claude/rules/cwf-workflow-files.md`: Path-scoped rule with glob
+  `implementation-guide/**/{a,b,c,d,e,f,g,h,i,j}-*.md` mapping each prefix to its skill
+- `scripts/install.bash`: Added `create_rule_symlinks()`, third subtree split for
+  `.claude/rules`, force-reinstall cleanup for `.cwf-rules`
+- `.claude/skills/cwf-init/SKILL.md`: Step 6b added for rules directory and symlink creation
+- `.cwf/docs/glossary.md`: "cwf- prefix" and "rule" terms added
+
+### BACKLOG Items Addressed
+- "Add Path-Scoped Rules for Workflow File Protection" (from Task 97 discovery)
+
+---
+
 ## Task 97: Research Claude Code Best Practices for CWF Quality Improvements
 
 **Status**: Complete (2026-04-16)

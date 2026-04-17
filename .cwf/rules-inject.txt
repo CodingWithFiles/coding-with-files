@@ -1,0 +1,5 @@
+CWF RULES (re-injected every turn):
+1. Use /cwf-{step} skills for wf step files — do not edit directly.
+2. Checkpoint commit after each wf phase — write → stage → commit → proceed.
+3. Never execute merge to main — suggest the command, do not run it.
+4. Run git status before every commit — check for untracked files.

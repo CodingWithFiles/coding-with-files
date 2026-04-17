@@ -14,8 +14,10 @@ Terms already defined in other docs are NOT repeated here — see cross-referenc
 - [CWF](#cwf)
 - [cwf- prefix](#cwf--prefix)
 - [checkpoint commit](#checkpoint-commit)
+- [hook](#hook)
 - [checkpoints branch](#checkpoints-branch)
 - [rule](#rule)
+- [rules injection](#rules-injection)
 - [skill](#skill)
 - [slug](#slug)
 - [squash commit](#squash-commit)
@@ -62,6 +64,16 @@ history and is never merged to main — it exists for reference and audit only.
 
 ---
 
+## hook
+
+A Claude Code automation that runs a shell command in response to an agent event
+(PreToolUse, PostToolUse, Stop). Configured in `.claude/settings.json` under the `hooks`
+key. CWF uses a PreToolUse hook on the `UserPromptSubmit` matcher to re-inject critical
+rules on every user message, ensuring they survive context compaction.
+**See**: [rules injection](#rules-injection), [rule](#rule)
+
+---
+
 ## rule
 
 A Claude Code path-scoped instruction file in `.claude/rules/<name>.md`. Rules auto-load
@@ -69,6 +81,16 @@ into the agent's context when it operates on files matching the glob pattern in 
 YAML frontmatter. CWF rules use the `cwf-` prefix (e.g. `cwf-workflow-files.md`) to avoid
 namespace clashes. Rules are advisory — they guide the agent but cannot enforce compliance.
 **See**: [cwf- prefix](#cwf--prefix), [skill](#skill)
+
+---
+
+## rules injection
+
+The mechanism by which critical CWF rules are re-injected into the agent's context on
+every user message. A PreToolUse hook on `UserPromptSubmit` runs
+`cat .cwf/rules-inject.txt`, whose output becomes a system reminder visible to the agent
+but not the user. This ensures rules survive context compaction in long sessions.
+**See**: [hook](#hook), [rule](#rule)
 
 ---
 

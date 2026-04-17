@@ -1512,47 +1512,9 @@ Create quick reference documentation for workflow phase sequences (which files a
 
 ---
 
-## Task: Add Path-Scoped Rules for Workflow File Protection
+<!-- Completed: "Add Path-Scoped Rules for Workflow File Protection" — Task 98 (2026-04-17) -->
 
-**Task-Type**: feature
-**Priority**: High
-**Status**: Backlog
-
-Add `.claude/rules/` with path-scoped rule files that auto-load when the agent touches wf step files, instructing it to use the corresponding skill instead of editing directly.
-
-**Problem**: Agents hyper-optimise locally — they see "I need to update this file" and edit directly, bypassing the skill that encodes the specification. This causes specification escape and quality degradation. External enforcement is impossible (agent has full system access), and commit-message conventions have been proven ineffective (see gate-to-breakout-tech).
-
-**Solution**: Create path-scoped rules using `.claude/rules/` with glob patterns matching `implementation-guide/**/{a,b,c,d,e,f,g,h,i,j}-*.md`. The rule injects a strong instruction to use the corresponding `/cwf-{step}` skill whenever the agent is operating on wf step files. This is advisory not enforcement, but it's injected automatically at the point of action — the agent sees the instruction when it matters most.
-
-**Scope**:
-- Create `.claude/rules/workflow-files.md` with path-scoped frontmatter
-- Rule text should name the specific skill for each step prefix (a→cwf-task-plan, b→cwf-requirements-plan, etc.)
-- Must be installed by `/cwf-init` into target projects
-- Update install.bash to copy rules directory
-
-**Identified in**: Claude Code best practices analysis (2026-04-16) — path-scoped rules are a recommended pattern for context-sensitive guidance
-
----
-
-## Task: Add PreToolUse Hook for Rule Re-Injection
-
-**Task-Type**: feature
-**Priority**: High
-**Status**: Backlog
-
-Add a Claude Code PreToolUse hook on UserPromptSubmit that re-injects critical CWF rules on every user message, surviving compaction.
-
-**Problem**: CLAUDE.md instructions get compacted away in long sessions. After compaction, the agent loses awareness of critical rules (use skills for wf files, checkpoint after each phase, never merge to main). These are the rules most frequently violated.
-
-**Solution**: Add a PreToolUse hook in `.claude/settings.json` (or project settings) that runs `cat .claude/rules-inject.txt` on every UserPromptSubmit event. The file contains the 3-4 most critical rules that must survive compaction. This pattern is documented in Claude Code best practices (Lakshmi Narasimhan, Jan 2026).
-
-**Scope**:
-- Create `.claude/rules-inject.txt` with critical rules
-- Add PreToolUse hook configuration to settings.json
-- Rules to include: (1) use skills for wf step files, (2) checkpoint commit after each phase, (3) never execute merge to main, (4) always git status before committing
-- Must be installed by `/cwf-init` into target projects
-
-**Identified in**: Claude Code best practices analysis (2026-04-16) — rule re-injection is a proven pattern for surviving compaction
+<!-- Completed: "Add PreToolUse Hook for Rule Re-Injection" — Task 99 (2026-04-17) -->
 
 ---
 
