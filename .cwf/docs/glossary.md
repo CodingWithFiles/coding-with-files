@@ -12,8 +12,10 @@ Terms already defined in other docs are NOT repeated here — see cross-referenc
 ## Index
 
 - [CWF](#cwf)
+- [cwf- prefix](#cwf--prefix)
 - [checkpoint commit](#checkpoint-commit)
 - [checkpoints branch](#checkpoints-branch)
+- [rule](#rule)
 - [skill](#skill)
 - [slug](#slug)
 - [squash commit](#squash-commit)
@@ -28,6 +30,16 @@ Terms already defined in other docs are NOT repeated here — see cross-referenc
 The name of this project and documentation system. Pronounced as three letters (C-W-F),
 not as a word. Formerly called CIG (Code Implementation Guide) — CIG references in older
 files are equivalent.
+
+---
+
+## cwf- prefix
+
+A namespace convention applied to all CWF-owned artefacts in `.claude/` to prevent
+clashes with other skills, plugins, or rules in the same project. CWF skills use the
+prefix `cwf-` in their directory name (e.g. `.claude/skills/cwf-task-plan/`), and CWF
+rules use it in their filename (e.g. `.claude/rules/cwf-workflow-files.md`). Third-party
+skills and rules should not use the `cwf-` prefix.
 
 ---
 
@@ -47,6 +59,16 @@ A git branch named `<type>/<num>-<slug>-checkpoints` that preserves the full seq
 checkpoint commits for a task. It is created at retrospective time from the task branch
 history and is never merged to main — it exists for reference and audit only.
 **See**: [task branch](#task-branch), [checkpoint commit](#checkpoint-commit)
+
+---
+
+## rule
+
+A Claude Code path-scoped instruction file in `.claude/rules/<name>.md`. Rules auto-load
+into the agent's context when it operates on files matching the glob pattern in the rule's
+YAML frontmatter. CWF rules use the `cwf-` prefix (e.g. `cwf-workflow-files.md`) to avoid
+namespace clashes. Rules are advisory — they guide the agent but cannot enforce compliance.
+**See**: [cwf- prefix](#cwf--prefix), [skill](#skill)
 
 ---
 

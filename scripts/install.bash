@@ -143,6 +143,30 @@ create_skill_symlinks() {
     log "Created $count skill symlinks in .claude/skills/"
 }
 
+create_rule_symlinks() {
+    mkdir -p .claude/rules
+
+    # Remove stale CWF rule symlinks (handles rule renames across versions)
+    for link in .claude/rules/cwf-*.md; do
+        if [[ -L "$link" ]]; then
+            rm "$link"
+        fi
+    done
+
+    # Create relative symlinks for each rule file
+    local count=0
+    for rule_file in .cwf-rules/*.md; do
+        if [[ -f "$rule_file" ]]; then
+            local name
+            name="$(basename "$rule_file")"
+            ln -s "../../.cwf-rules/$name" ".claude/rules/$name"
+            count=$((count + 1))
+        fi
+    done
+
+    log "Created $count rule symlinks in .claude/rules/"
+}
+
 # --- Install methods ----------------------------------------------------------
 
 install_subtree() {
@@ -158,6 +182,7 @@ install_subtree() {
     log "Creating subtree splits..."
     git -C "$clone_dir" subtree split --prefix=.cwf -b cwf-core >/dev/null
     git -C "$clone_dir" subtree split --prefix=.claude/skills -b cwf-skills >/dev/null
+    git -C "$clone_dir" subtree split --prefix=.claude/rules -b cwf-rules >/dev/null
 
     # Remove existing if force
     if [[ "$CWF_FORCE" == "1" ]]; then
@@ -169,8 +194,17 @@ install_subtree() {
             git rm -rf --quiet .cwf-skills 2>/dev/null || true
             rm -rf .cwf-skills
         fi
+        if [[ -d ".cwf-rules" ]]; then
+            git rm -rf --quiet .cwf-rules 2>/dev/null || true
+            rm -rf .cwf-rules
+        fi
         # Remove old symlinks
         for link in .claude/skills/cwf-*; do
+            if [[ -L "$link" ]]; then
+                rm "$link"
+            fi
+        done
+        for link in .claude/rules/cwf-*.md; do
             if [[ -L "$link" ]]; then
                 rm "$link"
             fi
@@ -179,12 +213,15 @@ install_subtree() {
         git commit --allow-empty -m "CWF: remove existing install for reinstall" --quiet 2>/dev/null || true
     fi
 
-    # Add both subtrees
-    log "Adding .cwf/ (subtree split 1/2)..."
+    # Add all subtrees
+    log "Adding .cwf/ (subtree split 1/3)..."
     git subtree add --prefix=.cwf "$clone_dir" cwf-core --squash -m "Add CWF core ($ref)"
 
-    log "Adding .cwf-skills/ (subtree split 2/2)..."
+    log "Adding .cwf-skills/ (subtree split 2/3)..."
     git subtree add --prefix=.cwf-skills "$clone_dir" cwf-skills --squash -m "Add CWF skills ($ref)"
+
+    log "Adding .cwf-rules/ (subtree split 3/3)..."
+    git subtree add --prefix=.cwf-rules "$clone_dir" cwf-rules --squash -m "Add CWF rules ($ref)"
 }
 
 install_copy() {
@@ -198,9 +235,14 @@ install_copy() {
 
     # Remove existing if force
     if [[ "$CWF_FORCE" == "1" ]]; then
-        rm -rf .cwf .cwf-skills
+        rm -rf .cwf .cwf-skills .cwf-rules
         # Remove old symlinks
         for link in .claude/skills/cwf-*; do
+            if [[ -L "$link" ]]; then
+                rm "$link"
+            fi
+        done
+        for link in .claude/rules/cwf-*.md; do
             if [[ -L "$link" ]]; then
                 rm "$link"
             fi
@@ -215,6 +257,12 @@ install_copy() {
     cp -r "$clone_dir/.claude/skills" .cwf-skills
     log "Copied .cwf-skills/"
 
+    # Copy rules to staging prefix
+    if [[ -d "$clone_dir/.claude/rules" ]]; then
+        cp -r "$clone_dir/.claude/rules" .cwf-rules
+        log "Copied .cwf-rules/"
+    fi
+
     # Fix permissions
     find .cwf/scripts -type f -exec chmod u+rx {} \;
     log "Fixed script permissions"
@@ -226,8 +274,9 @@ post_install() {
     local ref="$1"
     local resolved_sha="$2"
 
-    # Create skill symlinks
+    # Create skill and rule symlinks
     create_skill_symlinks
+    create_rule_symlinks
 
     # Write version file
     cat > .cwf/version <<VEOF

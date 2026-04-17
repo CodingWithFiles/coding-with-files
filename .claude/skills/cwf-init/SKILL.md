@@ -61,6 +61,19 @@ allowed-tools:
 - Write back valid JSON to `.claude/settings.json`
 - **Note**: This is the project-level `.claude/settings.json` (at git root), not the global `~/.claude/settings.json` used for PERL5OPT in step 7
 
+### 6b. Create Rules Directory
+- Create `.claude/rules/` if not present: `mkdir -p .claude/rules`
+- If `.cwf-rules/` exists (installed by install.bash), create symlinks:
+  ```bash
+  for rule_file in .cwf-rules/*.md; do
+      if [[ -f "$rule_file" ]]; then
+          name="$(basename "$rule_file")"
+          [[ -L ".claude/rules/$name" ]] || ln -s "../../.cwf-rules/$name" ".claude/rules/$name"
+      fi
+  done
+  ```
+- Verify symlinks resolve: `ls -la .claude/rules/`
+
 ### 7. Configure Claude Code Settings (user action required)
 - First, check if PERL5OPT is already configured:
   `grep -q 'PERL5OPT' ~/.claude/settings.json 2>/dev/null`
@@ -79,7 +92,7 @@ allowed-tools:
 ### 8. Commit Init Output
 - Stage all files created or modified by init:
   ```bash
-  git add implementation-guide/ .gitignore CLAUDE.md .claude/settings.json
+  git add implementation-guide/ .gitignore CLAUDE.md .claude/settings.json .claude/rules/
   ```
 - Create the init commit now:
   ```bash
@@ -97,5 +110,6 @@ allowed-tools:
 - [ ] Navigation index created
 - [ ] .gitignore updated
 - [ ] Skill permissions registered in `.claude/settings.json` (with user confirmation)
+- [ ] Rules directory created with symlinks (`.claude/rules/`)
 - [ ] PERL5OPT checked and user informed only if not already configured
 - [ ] Init commit created (mandatory — do not begin task work without it)
