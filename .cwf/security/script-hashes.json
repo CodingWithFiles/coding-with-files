@@ -4,12 +4,12 @@
   "scripts": {
     "status-aggregator-v2.0": {
       "path": ".cwf/scripts/command-helpers/status-aggregator-v2.0",
-      "sha256": "4a006ef4fb26009dfce1e0637528beab3ea2f8a6d46daa86b44af9209766c28e",
+      "sha256": "d34c0ffb0e58cf0ab4cbcee26ca854ab2dd8d1abc889433a935c0879cd8917c6",
       "permissions": "0500"
     },
     "status-aggregator-v2.1": {
       "path": ".cwf/scripts/command-helpers/status-aggregator-v2.1",
-      "sha256": "5768ec1d9059ef296e0576e7b065f980c3d0874bb3aa36224f037c38eb1135c8",
+      "sha256": "853cd2fb395c9aec74a371bb6d38990d8caa4489ecf4807ef2f5c45f228d6fe6",
       "permissions": "0700"
     },
     "task-context-inference": {
@@ -71,6 +71,11 @@
       "path": ".cwf/scripts/cwf-manage",
       "sha256": "3ad612511a41889f8dfe7268012e84041426ea0249c1ccb1e7f978c7e0cf8e0b",
       "permissions": "0700"
+    },
+    "cwf-set-status": {
+      "path": ".cwf/scripts/command-helpers/cwf-set-status",
+      "sha256": "a4d87c5019804664b601fb51ab55cb0cfaae9936e8c20ec8664b99c4af9234df",
+      "permissions": "0755"
     }
   },
   "lib": {
@@ -120,7 +125,7 @@
     },
     "CWF::TaskState": {
       "path": ".cwf/lib/CWF/TaskState.pm",
-      "sha256": "17f4fef6776ea394dfccd7cc25ae3d9062f009efbef86eafe1781422b4b9dd2d"
+      "sha256": "3e2cff75b60d4c67c50f1156396319aa567bd984096a565d11f834edcfd64195"
     },
     "CWF::TaskContextInference": {
       "path": ".cwf/lib/CWF/TaskContextInference.pm",

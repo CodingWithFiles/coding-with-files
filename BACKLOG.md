@@ -106,22 +106,7 @@ After `/cwf-init`, helper scripts may lack execute permissions — particularly 
 
 ---
 
-## Task: Add Status Update Helper Script (`cwf-set-status`)
-
-**Task-Type**: feature
-**Priority**: High
-**Status**: Confirmed highest-priority extraction by Task 100 audit (rank 6.0)
-
-Agents and users naturally write invalid status values (e.g. "Done" instead of "Finished"). The workflow-manager catches this after the fact, but a dedicated status update script could validate at write time and reject invalid values immediately. Task 100 audit confirms this is the most frequently executed deterministic operation in CWF — the agent performs a regex replacement on the `**Status**:` field in every checkpoint commit across all ~10 workflow skills.
-
-**Scope**:
-- Create a helper script `cwf-set-status` that takes `(file-path, new-status)`
-- Validate against the canonical status list before writing
-- Perform regex replacement on `**Status**: <value>` line
-- Reject invalid values with a clear error listing valid options
-- Optionally update the Next Action and Blockers fields at the same time
-
-**Identified in**: Task 60 (external repo installation testing). Priority upgraded by Task 100 audit (rank 6.0 — highest).
+<!-- Completed: "Add Status Update Helper Script (cwf-set-status)" — Task 101 (2026-04-18) -->
 
 ---
 

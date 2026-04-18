@@ -12,7 +12,8 @@ our @EXPORT_OK = qw(
     state_done
     state_achievable
     status_percent
-    status_extract
+    status_get
+    status_set
 );
 
 our $VERSION = '1.0.0';
@@ -38,7 +39,7 @@ TaskState - Task state measurements for retrospective and prospective analysis
 
 =head1 SYNOPSIS
 
-    use CWF::TaskState qw(state_done state_achievable status_percent status_extract);
+    use CWF::TaskState qw(state_done state_achievable status_percent status_get status_set);
 
     # Retrospective: How far have we got?
     my $completion = state_done('implementation-guide/32-feature-foo');
@@ -51,8 +52,11 @@ TaskState - Task state measurements for retrospective and prospective analysis
     # Utility: Map status string to percentage
     my $pct = status_percent('In Progress');  # Returns: 25
 
-    # Utility: Extract status from workflow file
-    my $status = status_extract('path/to/a-plan.md');  # Returns: "Finished"
+    # Utility: Get status from workflow file
+    my $status = status_get('path/to/a-plan.md');  # Returns: "Finished"
+
+    # Utility: Set status in workflow file (validates, idempotent)
+    my $changed = status_set('path/to/a-plan.md', 'In Progress');  # Returns: 1
 
 =head1 DESCRIPTION
 
@@ -174,15 +178,7 @@ Default mappings:
 sub status_percent {
     my ($status) = @_;
 
-    # Load status map if not cached
-    unless ($_status_map_cache) {
-        my $config = load_config();
-        if ($config && $config->{workflow} && $config->{workflow}{'status-values'}) {
-            $_status_map_cache = $config->{workflow}{'status-values'};
-        } else {
-            $_status_map_cache = \%DEFAULT_STATUS_MAP;
-        }
-    }
+    _ensure_status_map();
 
     # Look up status (try exact match first, then case-insensitive)
     if (exists $_status_map_cache->{$status}) {
@@ -201,7 +197,7 @@ sub status_percent {
     return 0;
 }
 
-=head2 status_extract($file_path)
+=head2 status_get($file_path)
 
 Extracts status value from workflow markdown file.
 
@@ -212,27 +208,83 @@ Returns: Status string or "Unknown" if not found.
 
 =cut
 
-sub status_extract {
+sub status_get {
+    my ($file_path) = @_;
+
+    my ($line_idx, $value, @lines) = _find_status_line($file_path);
+    return "Unknown" unless defined $line_idx;
+    return $value;
+}
+
+=head2 status_set($file_path, $new_status)
+
+Updates the status value in a workflow markdown file.
+
+Validates C<$new_status> against C<cwf-project.json> status-values.
+Idempotent: returns 1 if changed, 0 if already at target value.
+Dies on invalid status, missing file, or missing status field.
+
+=cut
+
+sub status_set {
+    my ($file_path, $new_status) = @_;
+
+    _ensure_status_map();
+    unless (exists $_status_map_cache->{$new_status}) {
+        my $list = join ', ', sort keys %$_status_map_cache;
+        die "Invalid status \"$new_status\" — valid: $list\n";
+    }
+
+    my ($line_idx, $current, @lines) = _find_status_line($file_path);
+    die "No **Status**: field found in $file_path\n" unless defined $line_idx;
+    return 0 if $current eq $new_status;    # idempotent no-op
+
+    $lines[$line_idx] = "**Status**: $new_status\n";
+
+    open my $wfh, '>', $file_path or die "Cannot write $file_path: $!\n";
+    print $wfh @lines;
+    close $wfh;
+
+    return 1;
+}
+
+=head1 PRIVATE FUNCTIONS
+
+=cut
+
+# Ensure $_status_map_cache is populated from config or defaults
+sub _ensure_status_map {
+    return if $_status_map_cache;
+    my $config = load_config();
+    if ($config && $config->{workflow} && $config->{workflow}{'status-values'}) {
+        $_status_map_cache = $config->{workflow}{'status-values'};
+    } else {
+        $_status_map_cache = \%DEFAULT_STATUS_MAP;
+    }
+}
+
+# Find the **Status**: line in a workflow file, section-scoped and code-block-aware.
+# Returns: ($line_index, $status_value, @all_lines) or () if not found.
+sub _find_status_line {
     my ($file_path) = @_;
 
     my @lines;
-    { open(my $fh, '<', $file_path) or return "Unknown"; @lines = <$fh>; close $fh; }
+    { open(my $fh, '<', $file_path) or return (); @lines = <$fh>; close $fh; }
 
     my $in_code_block = 0;
     my $in_status_section = 0;
     my $status_sections_found = 0;
 
-    for my $line (@lines) {
+    for my $i (0 .. $#lines) {
+        my $line = $lines[$i];
         chomp $line;
 
-        # Track code blocks (triple backticks only)
         if ($line =~ /^```/) {
             $in_code_block = !$in_code_block;
             next;
         }
         next if $in_code_block;
 
-        # Detect status section header (## Status or ## Current Status)
         if ($line =~ /^## (Current )?Status\s*$/i) {
             $status_sections_found++;
             if ($status_sections_found > 1) {
@@ -243,23 +295,15 @@ sub status_extract {
             }
         }
 
-        # Look for **Status**: line in status section
         if ($in_status_section && $line =~ /^\*\*Status\*\*:\s*(.+?)\s*$/) {
-            return $1;
+            return ($i, $1, @lines);
         }
 
-        # Stop if we hit another section header after finding status section
-        if ($in_status_section && $line =~ /^##\s+/) {
-            last;
-        }
+        last if $in_status_section && $line =~ /^##\s+/;
     }
 
-    return "Unknown";
+    return ();
 }
-
-=head1 PRIVATE FUNCTIONS
-
-=cut
 
 # Get all status values from workflow files in task directory
 sub _get_all_statuses {
@@ -291,7 +335,7 @@ sub _get_all_statuses {
         my $file_path = "$task_dir/$file_name";
         next unless -f $file_path;
 
-        my $status = status_extract($file_path);
+        my $status = status_get($file_path);
         push @statuses, $status if $status ne "Unknown";
     }
 

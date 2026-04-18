@@ -18,7 +18,7 @@ use lib "$FindBin::Bin/../.cwf/lib";
 use lib "$FindBin::Bin/lib";
 
 # Load TaskState module
-BEGIN { use_ok('CWF::TaskState', qw(state_done state_achievable status_percent status_extract)) }
+BEGIN { use_ok('CWF::TaskState', qw(state_done state_achievable status_percent status_get)) }
 
 #==============================================================================
 # HELPER FUNCTIONS
@@ -70,8 +70,8 @@ subtest 'status_percent() - status value mapping' => sub {
     is(status_percent('Backlog'), 0, 'Backlog = 0%');
 };
 
-# Test status_extract from file
-subtest 'status_extract() - extract status from file' => sub {
+# Test status_get from file
+subtest 'status_get() - extract status from file' => sub {
     plan tests => 2;
 
     my $tmpdir = tempdir(CLEANUP => 1);
@@ -81,8 +81,8 @@ subtest 'status_extract() - extract status from file' => sub {
     print $fh "# Test\n\n## Status\n**Status**: In Progress\n";
     close $fh;
 
-    is(status_extract($file), 'In Progress', 'Extract status from file');
-    is(status_extract('/nonexistent'), 'Unknown', 'Unknown for missing file');
+    is(status_get($file), 'In Progress', 'Extract status from file');
+    is(status_get('/nonexistent'), 'Unknown', 'Unknown for missing file');
 };
 
 #==============================================================================

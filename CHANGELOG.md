@@ -2,6 +2,27 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 101: Add Status Update Helper Script (cwf-set-status)
+
+**Status**: Complete (2026-04-18)
+**Duration**: 1 day (estimated: 1 day — on target)
+**Impact**: Feature — adds validated status field updates to `CWF::TaskState` and a CLI wrapper, replacing manual regex replacements across all ~10 workflow skills.
+
+### Changes
+- `CWF::TaskState`: Added `status_set`, renamed `status_extract` → `status_get`, extracted shared `_find_status_line` (section-scoped, code-block-aware) and `_ensure_status_map` helpers
+- `.cwf/scripts/command-helpers/cwf-set-status`: 19-line CLI wrapper around `status_set`
+- `status-aggregator-v2.0/v2.1`: Updated imports to `status_get`
+- `t/cwf-set-status.t`: 5 functional + 1 non-functional test case
+- Security hashes updated for all changed files
+
+### BACKLOG Items Completed
+- "Add Status Update Helper Script (`cwf-set-status`)" — confirmed highest priority by Task 100, now delivered
+
+### BACKLOG Items Created
+- Add `status_set` unit tests directly in `t/task-state.t` (currently tested only via CLI wrapper)
+
+---
+
 ## Task 100: Identify Deterministic Operations Still Handled by Agent
 
 **Status**: Complete (2026-04-17)

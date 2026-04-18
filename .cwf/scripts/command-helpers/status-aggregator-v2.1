@@ -18,7 +18,7 @@ use List::Util qw(max);
 
 use CWF::TaskPath qw(normalize validate resolve find_base_dir);
 use CWF::WorkflowFiles::V21;
-use CWF::TaskState qw(state_done status_percent status_extract);
+use CWF::TaskState qw(state_done status_percent status_get);
 use CWF::Options;
 
 # Parse arguments using CWF::Options
@@ -117,7 +117,7 @@ sub calculate_progress {
     my $files = list_v21($dir);
     if ($files && @$files) {
         for my $file (@$files) {
-            my $status = CWF::TaskState::status_extract($file->{path});
+            my $status = CWF::TaskState::status_get($file->{path});
             my $pct = CWF::TaskState::status_percent($status);
 
             if (defined($pct) && $pct == 0 && $status ne "Unknown" && $status !~ /^(Backlog|To-Do|Cancelled|Skipped)$/i) {
@@ -191,7 +191,7 @@ sub get_workflow_status {
     my @workflow_files;
 
     for my $file (@$files) {
-        my $status = CWF::TaskState::status_extract($file->{path});
+        my $status = CWF::TaskState::status_get($file->{path});
         my $percent = CWF::TaskState::status_percent($status);
 
         push @workflow_files, {
