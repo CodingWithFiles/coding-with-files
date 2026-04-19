@@ -23,7 +23,7 @@ use lib "$FindBin::Bin/../../lib";
 
 use CWF::TaskPath qw(normalize validate build_glob resolve get_parent get_depth find_base_dir);
 use CWF::WorkflowFiles qw(list workflow_file_mappings);
-use CWF::MarkdownParser qw(extract_status);
+use CWF::TaskState qw(status_get);
 
 # Parse arguments
 if (@ARGV < 1) {
@@ -146,8 +146,6 @@ sub calculate_boundaries {
     return @sections;
 }
 
-# parse_status is now provided by CWF::MarkdownParser::extract_status
-
 # Function to count lines in file
 sub count_lines {
     my ($file_path) = @_;
@@ -185,7 +183,7 @@ foreach my $parent (@parent_tasks) {
         }
 
         # Extract status using shared library
-        my $status = extract_status($file_path);
+        my $status = status_get($file_path);
 
         # Extract headers
         my @headers = extract_headers($file_path);

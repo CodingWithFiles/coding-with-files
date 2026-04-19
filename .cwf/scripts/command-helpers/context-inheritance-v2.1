@@ -27,7 +27,7 @@ use lib "$FindBin::Bin/../../lib";
 
 use CWF::TaskPath qw(normalize validate build_glob resolve get_parent get_depth find_base_dir);
 use CWF::WorkflowFiles::V21;
-use CWF::MarkdownParser qw(extract_status);
+use CWF::TaskState qw(status_get);
 
 # Parse arguments
 if (@ARGV < 1) {
@@ -188,7 +188,7 @@ foreach my $parent (@parent_tasks) {
         next unless -f $file_path;
 
         # Extract status using shared library
-        my $status = extract_status($file_path);
+        my $status = status_get($file_path);
 
         # Extract headers
         my @headers = extract_headers($file_path);

@@ -13,25 +13,9 @@ package CWF::Validate::Workflow;
 use strict;
 use warnings;
 use Exporter 'import';
-use CWF::MarkdownParser qw(extract_status);
+use CWF::TaskState qw(status_get status_is_valid);
 
 our @EXPORT_OK = qw(validate);
-
-my @ALLOWED_STATUSES = qw(
-    Backlog
-    In\ Progress
-    Implemented
-    Testing
-    Finished
-    Blocked
-    Skipped
-    Cancelled
-);
-
-my %ALLOWED_STATUS_SET = map { $_ => 1 } (
-    'Backlog', 'In Progress', 'Implemented', 'Testing',
-    'Finished', 'Blocked', 'Skipped', 'Cancelled',
-);
 
 # validate($git_root) - scan all workflow files and check status values
 # Returns: list of violation hashrefs
@@ -65,61 +49,22 @@ sub _check_file {
     my ($file) = @_;
     my @violations;
 
-    my @lines;
-    { open my $fh, '<', $file or return (); @lines = <$fh>; close $fh; }
+    my $status_value = status_get($file);
 
-    my $has_status_section = 0;
-    my $status_value       = undef;
-    my $in_status_section  = 0;
-    my $in_code_block      = 0;
-
-    for my $line (@lines) {
-        chomp $line;
-        if ($line =~ /^```/) {
-            $in_code_block = !$in_code_block;
-            next;
-        }
-        next if $in_code_block;
-
-        if ($line =~ /^## (?:Status|Current Status)\s*$/) {
-            $has_status_section = 1;
-            $in_status_section  = 1;
-            next;
-        }
-        if ($line =~ /^## / && $in_status_section) {
-            $in_status_section = 0;
-        }
-        if ($in_status_section && $line =~ /^\*\*Status\*\*:\s*(.+)$/) {
-            $status_value = $1;
-            $status_value =~ s/\s+$//;
-        }
-    }
-
-    unless ($has_status_section) {
+    if ($status_value eq 'Unknown') {
         push @violations, _violation(
             $file,
-            '## Status section',
+            '## Status / **Status**',
             '(missing)',
             'a ## Status section containing **Status**: <value>',
             "Add a ## Status section to $file with a valid status value",
         );
-        return @violations;
-    }
-
-    if (!defined $status_value || $status_value eq '') {
-        push @violations, _violation(
-            $file,
-            '**Status**',
-            '(missing or empty)',
-            'one of: ' . join(', ', sort keys %ALLOWED_STATUS_SET),
-            "Add **Status**: Finished (or appropriate value) in the ## Status section of $file",
-        );
-    } elsif (!$ALLOWED_STATUS_SET{$status_value}) {
+    } elsif (!status_is_valid($status_value)) {
         push @violations, _violation(
             $file,
             '**Status**',
             $status_value,
-            'one of: ' . join(', ', sort keys %ALLOWED_STATUS_SET),
+            'a valid status from cwf-project.json',
             "Change **Status**: $status_value to a valid value in $file",
         );
     }

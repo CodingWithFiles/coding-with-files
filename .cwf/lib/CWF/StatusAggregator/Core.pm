@@ -19,8 +19,7 @@ Accepts a list of workflow files and returns aggregated progress percentage.
 
 use strict;
 use warnings;
-use CWF::MarkdownParser qw(extract_status);
-use CWF::WorkflowFiles qw(status_to_percent);
+use CWF::TaskState qw(status_get status_percent);
 
 =head1 FUNCTIONS
 
@@ -47,8 +46,8 @@ sub aggregate {
 
     my @percentages;
     for my $file (@$workflow_files) {
-        my $status = extract_status($file->{path});
-        my $pct = status_to_percent($status);
+        my $status = status_get($file->{path});
+        my $pct = status_percent($status);
 
         # Warn on unknown status
         if ($pct == 0 && $status ne "Unknown" && $status !~ /^(Backlog|To-Do)$/i) {
@@ -95,8 +94,8 @@ sub get_workflow_status {
     my @workflow_status;
 
     for my $file (@$workflow_files) {
-        my $status = extract_status($file->{path});
-        my $percent = status_to_percent($status);
+        my $status = status_get($file->{path});
+        my $percent = status_percent($status);
 
         push @workflow_status, {
             name => $file->{name},

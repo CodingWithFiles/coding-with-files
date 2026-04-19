@@ -13,6 +13,8 @@ package CWF::Validate::Consistency;
 use strict;
 use warnings;
 use Exporter 'import';
+use CWF::MarkdownParser qw(extract_field);
+use CWF::TaskState qw(status_get);
 
 our @EXPORT_OK = qw(validate);
 
@@ -84,40 +86,20 @@ sub validate {
     return @violations;
 }
 
+my $TASK_REF_SECTION_RE = qr/^## Task Reference/;
+
 sub _extract_fields {
     my ($file) = @_;
-    my ($task_num, $branch, $status);
 
-    my @lines;
-    { open my $fh, '<', $file or return (undef, undef, undef); @lines = <$fh>; close $fh; }
+    my $task_num = extract_field($file, $TASK_REF_SECTION_RE, qr/^-?\s*\*\*Task\*\*:\s*(\S+)/);
+    my $branch   = extract_field($file, $TASK_REF_SECTION_RE, qr/^-?\s*\*\*Branch\*\*:\s*(\S+)/);
+    my $status   = status_get($file);
 
-    my $in_task_ref     = 0;
-    my $in_status_sec   = 0;
-    my $in_code_block   = 0;
-    my $lines_read      = 0;
-
-    for my $line (@lines) {
-        chomp $line;
-        last if $lines_read++ > 200;  # Only scan header/status sections
-
-        if ($line =~ /^```/) { $in_code_block = !$in_code_block; next }
-        next if $in_code_block;
-
-        if ($line =~ /^## Task Reference/) { $in_task_ref = 1; next }
-        if ($line =~ /^## / && $in_task_ref && $line !~ /^## Task Reference/) { $in_task_ref = 0 }
-
-        if ($in_task_ref) {
-            $task_num = $1 if $line =~ /^\*\*Task\*\*:\s*(\S+)/;
-            $branch   = $1 if $line =~ /^\*\*Branch\*\*:\s*(\S+)/;
-        }
-
-        if ($line =~ /^## (?:Status|Current Status)\s*$/) { $in_status_sec = 1; next }
-        if ($line =~ /^## / && $in_status_sec) { $in_status_sec = 0 }
-        if ($in_status_sec && $line =~ /^\*\*Status\*\*:\s*(.+)$/) {
-            ($status = $1) =~ s/\s+$//;
-        }
-    }
-    return ($task_num, $branch, $status);
+    return (
+        ($task_num ne 'Unknown' ? $task_num : undef),
+        ($branch   ne 'Unknown' ? $branch   : undef),
+        ($status   ne 'Unknown' ? $status   : undef),
+    );
 }
 
 sub _current_branch {

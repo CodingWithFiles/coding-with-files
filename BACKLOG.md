@@ -1560,29 +1560,7 @@ Create quick reference documentation for workflow phase sequences (which files a
 
 <!-- Completed: "Research Stop Event Hooks for Correctness, Quality, and Efficiency" — Task 103 (2026-04-19) -->
 
-## Task: Consolidate Status Extraction to Single Canonical Module (CWF::TaskState)
-
-**Task-Type**: chore
-**Priority**: Very High
-**Status**: Backlog
-
-Status extraction from wf files is implemented 3 times independently — all with identical section-scoped, code-block-aware logic but maintained separately:
-
-1. **`CWF::MarkdownParser::extract_status()`** (lines 22-68) — used by StatusAggregator::Core and ContextInheritance::Core
-2. **`CWF::TaskState::status_get()` / `_find_status_line()`** (lines 211-306) — the canonical get/set pair, used by status-aggregator scripts, cwf-set-status, cwf-checkpoint-commit
-3. **`CWF::Validate::Workflow::_check_file()`** (lines 64-128) — inline copy with a **hardcoded** `%ALLOWED_STATUS_SET` instead of reading from cwf-project.json (bug)
-
-Three copies means three chances for drift. The Validate module already has a bug (hardcoded status list vs config-driven). Any change to extraction logic must be made in 3 places or correctness diverges.
-
-**Scope**:
-- Migrate StatusAggregator::Core and ContextInheritance::Core from `MarkdownParser::extract_status()` to `TaskState::status_get()`
-- Delete `CWF::MarkdownParser` (only function is `extract_status`, now replaced)
-- Remove unused `extract_status` import from Validate::Workflow
-- Fix Validate::Workflow to read allowed statuses from cwf-project.json (via TaskState or config module) instead of hardcoded `%ALLOWED_STATUS_SET`
-- Update tests (t/markdownparser.t → t/task-state.t or equivalent)
-- Verify `cwf-manage validate` still passes after changes
-
-**Identified in**: Task 104 — `/simplify` review found the hook script would be a 4th independent implementation; user directed consolidation to a single canonical module
+<!-- Completed: "Consolidate Status Extraction to Single Canonical Module" — Task 105 (2026-04-19) -->
 
 ---
 

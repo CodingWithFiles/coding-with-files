@@ -20,7 +20,7 @@ Generates structural maps of parent task content with headers and line ranges.
 use strict;
 use warnings;
 use File::Basename;
-use CWF::MarkdownParser qw(extract_status);
+use CWF::TaskState qw(status_get);
 
 =head1 FUNCTIONS
 
@@ -171,7 +171,7 @@ sub generate_context {
             }
 
             # Extract status using shared library
-            my $status = extract_status($file_path);
+            my $status = status_get($file_path);
 
             # Extract headers
             my @headers = extract_headers($file_path);

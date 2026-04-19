@@ -2,6 +2,27 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 105: Consolidate Status Extraction to CWF::TaskState
+
+**Status**: Complete (2026-04-19)
+**Duration**: 1 session (estimated: 1 day — on target)
+**Impact**: Chore — consolidated 4 independent section-scoped, code-block-aware parsing loops into a single general-purpose `CWF::MarkdownParser::extract_field()` API. Net -91 LOC in production code. Fixed bug in `Validate::Workflow` (hardcoded status list diverged from `cwf-project.json`).
+
+### Changes
+- `.cwf/lib/CWF/MarkdownParser.pm`: Generalised with `extract_field()` and `find_field_line()`, deleted `extract_status()`
+- `.cwf/lib/CWF/TaskState.pm`: `_find_status_line` delegates to MarkdownParser, added `status_is_valid()` predicate
+- `.cwf/lib/CWF/StatusAggregator/Core.pm`: Migrated from MarkdownParser + WorkflowFiles to TaskState (`status_get` + `status_percent`)
+- `.cwf/lib/CWF/ContextInheritance/Core.pm`: Migrated from MarkdownParser to TaskState
+- `.cwf/lib/CWF/Validate/Workflow.pm`: Replaced inline parsing + hardcoded status list with `TaskState::status_get` + `status_is_valid`. `_check_file` reduced from 40 to 15 lines.
+- `.cwf/lib/CWF/Validate/Consistency.pm`: Replaced `_extract_fields` inline parsing with `MarkdownParser::extract_field()` calls. Reduced from 25 to 8 lines.
+- `.cwf/scripts/command-helpers/workflow-manager.d/control`, `context-inheritance-v2.0`, `context-inheritance-v2.1`: Migrated from MarkdownParser to TaskState
+- `t/markdownparser.t`: Extended from 7 to 12 tests (added non-status field and find_field_line tests)
+
+### Bug Fixed
+- `Validate::Workflow` had hardcoded `%ALLOWED_STATUS_SET` containing `Implemented` (not in config) and missing `To-Do` (in config). Now reads from `cwf-project.json` via `TaskState::status_is_valid()`.
+
+---
+
 ## Task 104: Build Stale Status Detector Stop Hook
 
 **Status**: Complete (2026-04-19)

@@ -7,6 +7,7 @@ use File::Basename;
 use CWF::WorkflowFiles qw(load_config);
 use CWF::WorkflowFiles::V20;
 use CWF::WorkflowFiles::V21;
+use CWF::MarkdownParser qw(find_field_line);
 
 our @EXPORT_OK = qw(
     state_done
@@ -14,6 +15,7 @@ our @EXPORT_OK = qw(
     status_percent
     status_get
     status_set
+    status_is_valid
 );
 
 our $VERSION = '1.0.0';
@@ -248,6 +250,18 @@ sub status_set {
     return 1;
 }
 
+=head2 status_is_valid($status)
+
+Returns true if C<$status> is a recognised status value in C<cwf-project.json>.
+
+=cut
+
+sub status_is_valid {
+    my ($status) = @_;
+    _ensure_status_map();
+    return exists $_status_map_cache->{$status};
+}
+
 =head1 PRIVATE FUNCTIONS
 
 =cut
@@ -263,46 +277,15 @@ sub _ensure_status_map {
     }
 }
 
-# Find the **Status**: line in a workflow file, section-scoped and code-block-aware.
+# Status-specific regexes for MarkdownParser delegation
+my $STATUS_SECTION_RE = qr/^## (?:Current )?Status\s*$/i;
+my $STATUS_KEY_RE     = qr/^\*\*Status\*\*:\s*(.+?)\s*$/;
+
+# Find the **Status**: line — delegates to MarkdownParser::find_field_line.
 # Returns: ($line_index, $status_value, @all_lines) or () if not found.
 sub _find_status_line {
     my ($file_path) = @_;
-
-    my @lines;
-    { open(my $fh, '<', $file_path) or return (); @lines = <$fh>; close $fh; }
-
-    my $in_code_block = 0;
-    my $in_status_section = 0;
-    my $status_sections_found = 0;
-
-    for my $i (0 .. $#lines) {
-        my $line = $lines[$i];
-        chomp $line;
-
-        if ($line =~ /^```/) {
-            $in_code_block = !$in_code_block;
-            next;
-        }
-        next if $in_code_block;
-
-        if ($line =~ /^## (Current )?Status\s*$/i) {
-            $status_sections_found++;
-            if ($status_sections_found > 1) {
-                warn "Warning: Multiple '## Status' sections found in $file_path, using first occurrence\n";
-            } elsif ($status_sections_found == 1) {
-                $in_status_section = 1;
-                next;
-            }
-        }
-
-        if ($in_status_section && $line =~ /^\*\*Status\*\*:\s*(.+?)\s*$/) {
-            return ($i, $1, @lines);
-        }
-
-        last if $in_status_section && $line =~ /^##\s+/;
-    }
-
-    return ();
+    return find_field_line($file_path, $STATUS_SECTION_RE, $STATUS_KEY_RE);
 }
 
 # Get all status values from workflow files in task directory
@@ -428,6 +411,6 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 
 =head1 SEE ALSO
 
-L<CWF::WorkflowFiles>, L<CWF::MarkdownParser>, L<TaskContextInference>
+L<CWF::MarkdownParser>, L<CWF::WorkflowFiles>, L<TaskContextInference>
 
 =cut

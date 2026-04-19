@@ -29,7 +29,7 @@ check_perl5opt();
 
 use CWF::Options qw(parse);
 use CWF::TaskPath qw(validate resolve);
-use CWF::MarkdownParser qw(extract_status);
+use CWF::TaskState qw(status_get);
 
 # Parse arguments
 my $spec = {
@@ -79,7 +79,7 @@ unless (-f $workflow_file) {
 }
 
 # Extract status using structure-aware parser
-my $status = extract_status($workflow_file);
+my $status = status_get($workflow_file);
 
 if ($status eq 'Unknown') {
     print STDERR "Error: Status field not found in workflow file: $workflow_file\n";

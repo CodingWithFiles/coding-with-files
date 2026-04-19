@@ -29,12 +29,12 @@
     },
     "context-inheritance-v2.0": {
       "path": ".cwf/scripts/command-helpers/context-inheritance-v2.0",
-      "sha256": "96a67f3f74078dedf1c4f37d4ca2a0aa02f39d2b146ddc7c1f693bbc356e8958",
+      "sha256": "94e38c1707146ec9ede89dd7b940d38045a0c7ec8983c9d202bbd57741ceb2e2",
       "permissions": "0500"
     },
     "context-inheritance-v2.1": {
       "path": ".cwf/scripts/command-helpers/context-inheritance-v2.1",
-      "sha256": "dede39331c531c506b901ba077c1a23bcae12d9d5bf52fad4a92d1bae712202c",
+      "sha256": "7c4c99462d8d6eb96849625018e4df211010e0a1f31c21e03f88ecb50cc24d56",
       "permissions": "0700"
     },
     "template-copier-v2.0": {
@@ -86,7 +86,7 @@
   "lib": {
     "CWF::MarkdownParser": {
       "path": ".cwf/lib/CWF/MarkdownParser.pm",
-      "sha256": "a6fe03e6f2fe47985fcde9e2bb98948ed774fc27affa8ee65e17f95db765ead3"
+      "sha256": "36232271b3ce6149c24b92aed59364e097e351227a3e035beb58831026b09826"
     },
     "CWF::TaskPath": {
       "path": ".cwf/lib/CWF/TaskPath.pm",
@@ -102,7 +102,7 @@
     },
     "CWF::StatusAggregator::Core": {
       "path": ".cwf/lib/CWF/StatusAggregator/Core.pm",
-      "sha256": "f9d5bb66232df904fb05d4d47da18cc864cfffd96de922f582f37a060360ffd0"
+      "sha256": "f08b9b2116d94ffd657775cd6c22ae6360de5ce7f7ab1edc67ea94cac1395cb4"
     },
     "CWF::TemplateCopier::Core": {
       "path": ".cwf/lib/CWF/TemplateCopier/Core.pm",
@@ -110,7 +110,7 @@
     },
     "CWF::ContextInheritance::Core": {
       "path": ".cwf/lib/CWF/ContextInheritance/Core.pm",
-      "sha256": "661e31842657db50ed192b90a44d33101de5f844ce3b70ce8e14364e3fb3ef80"
+      "sha256": "514d6b57a294b0742287bc8e295c63dd7b5f68ab6851d2a96dd64e4125da9766"
     },
     "CWF::WorkflowFiles::V20": {
       "path": ".cwf/lib/CWF/WorkflowFiles/V20.pm",
@@ -130,7 +130,7 @@
     },
     "CWF::TaskState": {
       "path": ".cwf/lib/CWF/TaskState.pm",
-      "sha256": "3e2cff75b60d4c67c50f1156396319aa567bd984096a565d11f834edcfd64195"
+      "sha256": "aa727b13c0b82a908b1905899a71415301362208636abb9e46a64ceab1f0d73f"
     },
     "CWF::TaskContextInference": {
       "path": ".cwf/lib/CWF/TaskContextInference.pm",
@@ -142,11 +142,11 @@
     },
     "CWF::Validate::Workflow": {
       "path": ".cwf/lib/CWF/Validate/Workflow.pm",
-      "sha256": "3101cc901ea9beb57e5e374bbf5a4a9d7230072be0937bb890dbd6ad51cfb035"
+      "sha256": "5c8ea77b119264f2b350733cc68ad64ece6877d301be500bfe85aa9f56daa162"
     },
     "CWF::Validate::Consistency": {
       "path": ".cwf/lib/CWF/Validate/Consistency.pm",
-      "sha256": "dae53992f52263622d186f9e6ee1eeff9b0bb28cf0c8dc12fbd601e1228cd1e1"
+      "sha256": "0149c4d195fd7ef238faf466cbe3d0522a682ca8d5c77425222599b0fd0a4524"
     },
     "CWF::Validate::Security": {
       "path": ".cwf/lib/CWF/Validate/Security.pm",
