@@ -1,0 +1,56 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use File::Basename;
+use CWF::TaskPath qw(resolve);
+use CWF::TaskState qw(status_set);
+
+my $PROG = 'cwf-checkpoint-commit';
+
+unless (@ARGV == 3) {
+    warn "Usage: $PROG <task-path> <phase-letter> <why-message>\n";
+    exit 1;
+}
+
+my ($task_path, $letter, $why) = @ARGV;
+
+unless ($task_path =~ /^\d+(\.\d+)*$/) {
+    warn "$PROG: invalid task path: $task_path\n";
+    exit 1;
+}
+unless ($letter =~ /^[a-j]$/) {
+    warn "$PROG: invalid phase letter: $letter (expected a-j)\n";
+    exit 1;
+}
+
+my $task = resolve($task_path)
+    or do { warn "$PROG: task not found: $task_path\n"; exit 1 };
+
+my @matches = glob("$task->{full_path}/$letter-*.md");
+unless (@matches == 1) {
+    warn "$PROG: expected 1 wf file for phase '$letter', found @{[scalar @matches]} in $task->{full_path}\n";
+    exit 1;
+}
+my $wf_file = $matches[0];
+
+eval { status_set($wf_file, 'Finished') };
+if ($@) {
+    warn "$PROG: status update failed: $@";
+    exit 1;
+}
+
+system('git', 'add', $wf_file) == 0
+    or do { warn "$PROG: git add failed\n"; exit 1 };
+
+my $phase_name = basename($wf_file) =~ s/^[a-j]-//r =~ s/\.md$//r =~ s/-/ /gr;
+my $msg = "Task $task->{num}: Complete $phase_name phase\n\n$why\n\nCo-developed-by: Claude Opus 4.6 <noreply\@anthropic.com>";
+
+system('git', 'commit', '-m', $msg) == 0
+    or do { warn "$PROG: git commit failed\n"; exit 1 };
+
+my $validate_exit = system("$FindBin::Bin/../cwf-manage", 'validate');
+if ($validate_exit != 0) {
+    warn "$PROG: cwf-manage validate reported issues (non-fatal)\n";
+}

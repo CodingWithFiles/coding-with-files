@@ -2,6 +2,28 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 102: Add Checkpoint Commit Helper Script (cwf-checkpoint-commit)
+
+**Status**: Complete (2026-04-18)
+**Duration**: 1 session (estimated: 1 day — on target)
+**Impact**: Feature — bundles the 5-step checkpoint commit procedure into a single atomic script call, eliminating the most common agent errors during workflow phase transitions.
+
+### Changes
+- `.cwf/scripts/command-helpers/cwf-checkpoint-commit`: 56-line Perl script — validates args, resolves task, globs wf file, sets status to Finished, stages, commits with formatted message, runs `cwf-manage validate`
+- `.cwf/docs/skills/checkpoint-commit.md`: Updated to document script as primary method, manual steps preserved as reference
+- `.cwf/security/script-hashes.json`: SHA256 hash registered
+
+### Key Design Decisions
+- List-form `system('git', 'commit', '-m', $msg)` instead of `File::Temp` — bypasses shell entirely
+- Glob `{letter}-*.md` for version-agnostic wf file resolution (works for v2.0 and v2.1)
+- `cwf-manage validate` baked into script — agents skip optional work
+- No SKILL.md edits — skills already reference `checkpoint-commit.md`
+
+### BACKLOG Items Completed
+- "Add Checkpoint Commit Helper Script (`cwf-checkpoint-commit`)" — from Task 100 discovery (rank 3.0)
+
+---
+
 ## Task 101: Add Status Update Helper Script (cwf-set-status)
 
 **Status**: Complete (2026-04-18)

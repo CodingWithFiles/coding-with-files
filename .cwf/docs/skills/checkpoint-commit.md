@@ -2,7 +2,25 @@
 
 After completing a workflow phase, create a checkpoint commit to preserve progress.
 
-## Procedure
+## Script (primary method)
+
+Stage any non-wf files changed in this phase first, then run:
+
+```bash
+.cwf/scripts/command-helpers/cwf-checkpoint-commit {task-path} {phase-letter} "{why-message}"
+```
+
+The script handles: status update → stage wf file → formatted commit → `cwf-manage validate`.
+
+Example:
+```bash
+git add .cwf/scripts/command-helpers/new-script   # stage non-wf files first
+.cwf/scripts/command-helpers/cwf-checkpoint-commit 102 f "Implement the checkpoint commit helper script"
+```
+
+## Manual Procedure (reference)
+
+If the script is unavailable or you need finer control:
 
 1. **Update status** in the current phase's workflow file:
    Set `**Status**: Finished` (and update `**Next Action**` if needed) before staging —
@@ -22,12 +40,14 @@ After completing a workflow phase, create a checkpoint commit to preserve progre
    Co-developed-by: Claude Opus 4.6 <noreply@anthropic.com>"
    ```
 
-4. **Rationale**: Checkpoint commits preserve incremental progress and enable retrospective squashing workflow (Step 10 in cig-retrospective).
-
-5. **Validate** (post-commit guard):
+4. **Validate** (post-commit guard):
    ```bash
    .cwf/scripts/cwf-manage validate
    ```
    If violations are reported, fix them before proceeding to the next skill.
+
+## Rationale
+
+Checkpoint commits preserve incremental progress and enable retrospective squashing workflow (Step 10 in retrospective).
 
 See `.cwf/docs/workflow/workflow-steps.md` for phase-specific commit guidance.

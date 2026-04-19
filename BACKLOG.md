@@ -110,21 +110,7 @@ After `/cwf-init`, helper scripts may lack execute permissions — particularly 
 
 ---
 
-## Task: Add Checkpoint Commit Helper Script (`cwf-checkpoint-commit`)
-
-**Task-Type**: feature
-**Priority**: High
-
-Bundle the checkpoint commit procedure into a single atomic script. Currently the agent performs 4 deterministic steps manually on every workflow phase: update status field, stage the wf file, format commit message with trailer, commit, then validate. Agents frequently forget to stage, use wrong message format, or skip validation.
-
-**Scope**:
-- Script takes `(task-path, phase-name, why-message)`
-- Calls `cwf-set-status` to update status field
-- Stages the correct wf file
-- Formats commit message: `Task {N}: Complete {phase} phase\n\n{why}\n\nCo-developed-by: ...`
-- Commits and runs `cwf-manage validate`
-
-**Identified in**: Task 100 discovery (rank 3.0, affects all ~10 workflow skills)
+<!-- Completed: "Add Checkpoint Commit Helper Script (cwf-checkpoint-commit)" — Task 102 (2026-04-18) -->
 
 ---
 

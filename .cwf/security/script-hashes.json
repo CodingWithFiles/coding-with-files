@@ -76,6 +76,11 @@
       "path": ".cwf/scripts/command-helpers/cwf-set-status",
       "sha256": "a4d87c5019804664b601fb51ab55cb0cfaae9936e8c20ec8664b99c4af9234df",
       "permissions": "0755"
+    },
+    "cwf-checkpoint-commit": {
+      "path": ".cwf/scripts/command-helpers/cwf-checkpoint-commit",
+      "sha256": "94fbd8e40c0e2b3d27b3b61a67bf0b3407b5097381a2b906666a287d27a6d0f3",
+      "permissions": "0700"
     }
   },
   "lib": {
