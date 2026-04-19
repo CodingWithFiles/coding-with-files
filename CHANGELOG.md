@@ -2,6 +2,27 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 104: Build Stale Status Detector Stop Hook
+
+**Status**: Complete (2026-04-19)
+**Duration**: 1 session (estimated: 1 session — on target)
+**Impact**: Feature — Stop event hook that detects wf files modified during the session whose status is still "Backlog". First hook in the CWF system.
+
+### Changes
+- `.cwf/scripts/hooks/stop-stale-status-detector`: New 42-line Perl script using `CWF::TaskState::status_get()` for canonical status extraction
+- `.claude/settings.local.json`: Added `hooks.Stop` registration (developer-local, not committed)
+
+### Key Decisions
+- Rewrote from planned bash/grep to Perl — avoids creating a 4th independent status extraction implementation
+- `set -u` only, no `set -e` — `set -e` kills scripts when grep finds no matches, which is the common clean-stop case
+- Git pathspec filtering (`-- 'implementation-guide/*/[a-j]-*.md'`) instead of separate grep fork
+
+### BACKLOG Items Created
+- "Consolidate Status Extraction to Single Canonical Module (CWF::TaskState)" — Very High priority, 3 duplicate implementations discovered
+- "Progress Signal Scores Completed Tasks Highest in Task Context Inference" — Medium priority bugfix
+
+---
+
 ## Task 103: Research Stop Event Hooks for CWF Quality Improvement
 
 **Status**: Complete (2026-04-19)

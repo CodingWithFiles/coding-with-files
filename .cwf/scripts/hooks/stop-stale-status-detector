@@ -1,0 +1,42 @@
+#!/usr/bin/env perl
+#
+# stop-stale-status-detector — Stop event hook for CWF
+#
+# Detects wf files modified since last commit whose Status field
+# is still "Backlog" (template default). Emits a systemMessage warning.
+#
+# Fires on every agent stop (including /clear, resume, compact).
+# Must always exit 0 — non-zero causes error display to user.
+
+use strict;
+use warnings;
+use FindBin;
+use lib "$FindBin::Bin/../../lib";
+
+use CWF::TaskState qw(status_get);
+
+# Always exit 0 — wrap everything in eval
+eval {
+    my @changed = `git diff HEAD --name-only -- 'implementation-guide/*/[a-j]-*.md' 2>/dev/null`;
+    chomp @changed;
+    @changed = grep { -f $_ } @changed;
+
+    exit 0 unless @changed;
+
+    my @stale;
+    for my $file (@changed) {
+        my $status = status_get($file);
+        push @stale, $file if $status eq 'Backlog';
+    }
+
+    exit 0 unless @stale;
+
+    # Cap at 3 files reported
+    my @display = map { m{([^/]+)$} ? $1 : $_ } @stale[0 .. ($#stale > 2 ? 2 : $#stale)];
+    my $msg = join(', ', @display);
+    $msg .= " +@{[$#stale - 2]} more" if @stale > 3;
+
+    print qq({"systemMessage":"\\u26a0 Stale status: $msg still Backlog"}\n);
+};
+
+exit 0;

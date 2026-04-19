@@ -1560,25 +1560,55 @@ Create quick reference documentation for workflow phase sequences (which files a
 
 <!-- Completed: "Research Stop Event Hooks for Correctness, Quality, and Efficiency" — Task 103 (2026-04-19) -->
 
-## Task: Build Stale Status Detector Stop Hook
+## Task: Consolidate Status Extraction to Single Canonical Module (CWF::TaskState)
 
-**Task-Type**: feature
-**Priority**: High
-**Status**: Follow-up from Task 103
+**Task-Type**: chore
+**Priority**: Very High
+**Status**: Backlog
 
-Build a Stop event hook that detects wf files modified during the session but whose `**Status**:` field is still "Backlog" or unchanged from template default. Emit a one-line warning per stale file as a system reminder.
+Status extraction from wf files is implemented 3 times independently — all with identical section-scoped, code-block-aware logic but maintained separately:
 
-**Problem**: Stale status fields are the most frequently recurring error in CWF history — 6+ occurrences across Tasks 46-49 (fixed in Tasks 65, 67), Task 102 (d/e phases), and Task 84. The root cause is that status updates are optional work that agents skip.
+1. **`CWF::MarkdownParser::extract_status()`** (lines 22-68) — used by StatusAggregator::Core and ContextInheritance::Core
+2. **`CWF::TaskState::status_get()` / `_find_status_line()`** (lines 211-306) — the canonical get/set pair, used by status-aggregator scripts, cwf-set-status, cwf-checkpoint-commit
+3. **`CWF::Validate::Workflow::_check_file()`** (lines 64-128) — inline copy with a **hardcoded** `%ALLOWED_STATUS_SET` instead of reading from cwf-project.json (bug)
+
+Three copies means three chances for drift. The Validate module already has a bug (hardcoded status list vs config-driven). Any change to extraction logic must be made in 3 places or correctness diverges.
 
 **Scope**:
-- Shell script triggered by Stop event hook
-- Run `git diff --name-only` filtered to `implementation-guide/*/[a-j]-*.md`
-- For each changed file, extract `**Status**:` field
-- Warn if status is "Backlog" on a file with non-template content
-- Target: ~40-60 tokens output per stop event
-- Framework reference: `.cwf/docs/workflow/stop-hooks-framework.md` Candidate A
+- Migrate StatusAggregator::Core and ContextInheritance::Core from `MarkdownParser::extract_status()` to `TaskState::status_get()`
+- Delete `CWF::MarkdownParser` (only function is `extract_status`, now replaced)
+- Remove unused `extract_status` import from Validate::Workflow
+- Fix Validate::Workflow to read allowed statuses from cwf-project.json (via TaskState or config module) instead of hardcoded `%ALLOWED_STATUS_SET`
+- Update tests (t/markdownparser.t → t/task-state.t or equivalent)
+- Verify `cwf-manage validate` still passes after changes
 
-**Identified in**: Task 103 retrospective (j-retrospective.md) — ranked #1 by evaluation checklist
+**Identified in**: Task 104 — `/simplify` review found the hook script would be a 4th independent implementation; user directed consolidation to a single canonical module
+
+---
+
+<!-- Completed: "Build Stale Status Detector Stop Hook" — Task 104 (2026-04-19) -->
+
+---
+
+## Bug: Progress Signal Scores Completed Tasks Highest in Task Context Inference
+
+**Task-Type**: bugfix
+**Priority**: Medium
+**Status**: Backlog
+
+The `_score_progress` function in `TaskContextInference.pm` uses a linear ramp (line 452: `int(($percentage / 100) * WEIGHT_PROGRESS_MAX)`) — a task at 100% gets score 60 (maximum), while a task at 10% gets score 6. This means **finished tasks dominate the progress signal**, which is backwards: a 100% task has no remaining work and shouldn't be a candidate for "current task."
+
+**Observed**: After completing Task 103 and creating Task 104, `task-context-inference` returned "inconclusive" with both 103 and 104 as candidates. Task 103 (100%/Finished) scored higher on the progress signal than Task 104 (~10%/Backlog). The branch signal (weight 100) overrode it in the final result, but the progress signal contributed noise.
+
+**Root cause**: Comment on line 409 says "bell curve, peak at 50%" but implementation is linear ramp. The scoring should either: (a) filter out 100% tasks entirely, (b) use a bell curve peaking at ~50% (actively being worked on), or (c) use an inverted ramp where low-progress tasks score higher (more work remaining = more likely current).
+
+**Scope**:
+- Fix `_score_progress` in `.cwf/lib/CWF/TaskContextInference.pm`
+- Either filter out 100% tasks or use bell-curve scoring
+- Update comment to match implementation
+- Verify with mixed completed/in-progress task states
+
+**Identified in**: Task 104 session — inference returned inconclusive when only one task had remaining work
 
 ---
 
