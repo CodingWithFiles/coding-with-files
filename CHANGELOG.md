@@ -2,6 +2,30 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 103: Research Stop Event Hooks for CWF Quality Improvement
+
+**Status**: Complete (2026-04-19)
+**Duration**: 1 session (estimated: 1 session — on target)
+**Impact**: Discovery — produced a reusable framework for evaluating Stop event hooks, with taxonomy, evaluation checklist, and ranked candidates grounded in observed CWF errors.
+
+### Changes
+- `.cwf/docs/workflow/stop-hooks-framework.md`: New 101-line framework document with 4-category taxonomy, 6-question evaluation checklist, and 3 candidates ranked build/defer/skip
+
+### Key Findings
+- **Stale Status Detector** (Candidate A): Build — 6+ occurrences of stale status fields, ~50 tokens per stop, no existing coverage
+- **Uncommitted Changes Warning** (Candidate B): Build — 2-3 occurrences, ~25 tokens per stop
+- **Validate-on-Stop** (Candidate C): Skip — duplicates checkpoint commit's built-in `cwf-manage validate`
+- Category 4 (Waste detection) had insufficient evidence to justify a hook
+
+### BACKLOG Items Completed
+- "Research Stop Event Hooks for Correctness, Quality, and Efficiency" — original discovery task
+
+### BACKLOG Items Created
+- "Build Stale Status Detector Stop Hook" — Candidate A from framework
+- "Build Uncommitted Changes Warning Stop Hook" — Candidate B from framework
+
+---
+
 ## Task 102: Add Checkpoint Commit Helper Script (cwf-checkpoint-commit)
 
 **Status**: Complete (2026-04-18)

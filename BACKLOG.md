@@ -1558,29 +1558,48 @@ Create quick reference documentation for workflow phase sequences (which files a
 
 ---
 
-## Task: Research Stop Event Hooks for Correctness, Quality, and Efficiency
+<!-- Completed: "Research Stop Event Hooks for Correctness, Quality, and Efficiency" — Task 103 (2026-04-19) -->
 
-**Task-Type**: discovery
+## Task: Build Stale Status Detector Stop Hook
+
+**Task-Type**: feature
 **Priority**: High
-**Status**: Backlog
+**Status**: Follow-up from Task 103
 
-Research and design Claude Code Stop event hooks that validate agent output at task completion boundaries.
+Build a Stop event hook that detects wf files modified during the session but whose `**Status**:` field is still "Backlog" or unchanged from template default. Emit a one-line warning per stale file as a system reminder.
 
-**Problem**: When agents complete work, there is no automated validation of correctness, quality, or efficiency. Errors are caught by human review or downstream failures, not at the point of completion.
-
-**Research Questions**:
-1. **Correctness**: What Stop hooks can verify that output matches specification? E.g., `cwf-manage validate` to check hashes, status fields, task numbering consistency
-2. **Quality**: Can Stop hooks assess output quality beyond structural correctness? E.g., checking wf step files have non-placeholder content in required sections
-3. **Efficiency**: Can Stop hooks flag unnecessary work? E.g., detecting files modified but then reverted, or circular edit patterns
+**Problem**: Stale status fields are the most frequently recurring error in CWF history — 6+ occurrences across Tasks 46-49 (fixed in Tasks 65, 67), Task 102 (d/e phases), and Task 84. The root cause is that status updates are optional work that agents skip.
 
 **Scope**:
-- Survey what Stop hooks other projects use (Claude Code best practices documents verification hooks)
-- Design candidate hooks for CWF specifically
-- Assess context cost (Stop hooks generate system reminders that consume tokens)
-- Prototype 1-2 hooks and measure impact
-- Document findings and recommendations
+- Shell script triggered by Stop event hook
+- Run `git diff --name-only` filtered to `implementation-guide/*/[a-j]-*.md`
+- For each changed file, extract `**Status**:` field
+- Warn if status is "Backlog" on a file with non-template content
+- Target: ~40-60 tokens output per stop event
+- Framework reference: `.cwf/docs/workflow/stop-hooks-framework.md` Candidate A
 
-**Identified in**: Claude Code best practices analysis (2026-04-16) — Stop event verification hooks are a recommended pattern
+**Identified in**: Task 103 retrospective (j-retrospective.md) — ranked #1 by evaluation checklist
+
+---
+
+## Task: Build Uncommitted Changes Warning Stop Hook
+
+**Task-Type**: feature
+**Priority**: Medium
+**Status**: Follow-up from Task 103
+
+Build a Stop event hook that warns when the agent stops with uncommitted changes to wf files in `implementation-guide/`.
+
+**Problem**: Agent occasionally stops with staged or unstaged changes to wf files that were never committed. Task 81 missed staging c-design-plan.md; Task 85 retrospective didn't stage all files. The "always `git status` before committing" instruction in MEMORY.md is optional work that agents skip.
+
+**Scope**:
+- Shell script triggered by Stop event hook
+- Run `git status --porcelain` filtered to `implementation-guide/`
+- Emit warning if dirty wf files found
+- Target: ~20-30 tokens output per stop event
+- Framework reference: `.cwf/docs/workflow/stop-hooks-framework.md` Candidate B
+
+**Identified in**: Task 103 retrospective (j-retrospective.md) — ranked #2 by evaluation checklist
 
 ---
 
