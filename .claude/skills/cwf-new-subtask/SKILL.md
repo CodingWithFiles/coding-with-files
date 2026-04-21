@@ -1,5 +1,5 @@
 ---
-name: cwf-subtask
+name: cwf-new-subtask
 description: Create sub-implementation task within existing task (v2.0)
 user-invocable: true
 allowed-tools:

@@ -64,13 +64,13 @@ Avoid decomposition when:
 
 ## Creating Subtasks
 
-Use `/cwf-subtask <parent-path> <num> <type> "description"`:
+Use `/cwf-new-subtask <parent-path> <num> <type> "description"`:
 ```bash
 # Create subtask 1.1 under parent task 1
-/cwf-subtask 1 1.1 chore "Database schema setup"
+/cwf-new-subtask 1 1.1 chore "Database schema setup"
 
 # Create subtask 1.1.1 under parent task 1.1
-/cwf-subtask 1.1 1.1.1 feature "User model"
+/cwf-new-subtask 1.1 1.1.1 feature "User model"
 ```
 
 Each subtask gets appropriate workflow files based on task type (feature: 10 files, bugfix: 7 files, hotfix: 7 files, chore: 6 files, discovery: 8 files) with explicit parent reference for context inheritance.

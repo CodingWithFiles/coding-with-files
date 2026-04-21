@@ -75,7 +75,7 @@ Add a `/cwf-delete-task <num>` skill that cleanly removes a task: deletes the ta
 **Task-Type**: feature
 **Priority**: Medium
 
-When `/cwf-new-task` or `/cwf-subtask` is invoked without a task type, the agent should infer the appropriate type based on the task description and complexity rather than failing with a validation error. If the inference is ambiguous, ask the user to choose. This prevents misclassification — e.g., a task with unclear requirements being created as a chore (no design phase) when it should be a feature.
+When `/cwf-new-task` or `/cwf-new-subtask` is invoked without a task type, the agent should infer the appropriate type based on the task description and complexity rather than failing with a validation error. If the inference is ambiguous, ask the user to choose. This prevents misclassification — e.g., a task with unclear requirements being created as a chore (no design phase) when it should be a feature.
 
 **Inference guidance**: Consider whether requirements/design phases are needed (feature), whether this fixes a defect (bugfix/hotfix), whether it's mechanical with no ambiguity (chore), or whether it's exploratory (discovery).
 
@@ -119,12 +119,12 @@ After `/cwf-init`, helper scripts may lack execute permissions — particularly 
 **Task-Type**: feature
 **Priority**: Medium
 
-Extract the slug generation algorithm into a helper script. Currently duplicated in prose across cwf-new-task and cwf-subtask — identical algorithm described separately in both skills.
+Extract the slug generation algorithm into a helper script. Currently duplicated in prose across cwf-new-task and cwf-new-subtask — identical algorithm described separately in both skills.
 
 **Scope**:
 - Script takes description string, outputs slug
 - Algorithm: lowercase, spaces→hyphens, remove special chars, truncate 50 chars
-- Replace prose instructions in cwf-new-task and cwf-subtask with script call
+- Replace prose instructions in cwf-new-task and cwf-new-subtask with script call
 
 **Identified in**: Task 100 discovery (rank 4.0, eliminates duplication)
 
@@ -487,7 +487,7 @@ Add explicit baseline verification step to implementation planning phase for tas
 **Priority**: Medium
 **Status**: Partial completion (Task 35 fixed command references, conventions doc remains)
 
-**Context**: Task 35 fixed the 2 incorrect command references (`.claude/commands/cwf-new-task.md` and `.claude/commands/cwf-subtask.md`). The remaining work is to create conventions documentation to prevent future inconsistencies.
+**Context**: Task 35 fixed the 2 incorrect command references (`.claude/commands/cwf-new-task.md` and `.claude/commands/cwf-new-subtask.md`). The remaining work is to create conventions documentation to prevent future inconsistencies.
 
 **Scope**:
 

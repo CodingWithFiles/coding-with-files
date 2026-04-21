@@ -40,7 +40,7 @@ allowed-tools:
 
 **Step 9 (Next Steps)**:
 - **Primary**: Move to requirements → `/cwf-requirements-plan <task-path>`
-- **Alt**: Create subtasks if decomposition triggered → `/cwf-subtask`
+- **Alt**: Create subtasks if decomposition triggered → `/cwf-new-subtask`
 - **Alt**: Request clarification if planning reveals missing context
 - **Alt**: Recommend spike if risks too high
 

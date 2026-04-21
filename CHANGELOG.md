@@ -2,6 +2,24 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 106: Rename cwf-subtask Skill to cwf-new-subtask
+
+**Status**: Complete (2026-04-21)
+**Duration**: 1 session (estimated: <1 day — on target)
+**Impact**: Chore — renamed `/cwf-subtask` to `/cwf-new-subtask` to mirror `/cwf-new-task` naming and reduce agent confusion.
+
+### Changes
+- `.claude/skills/cwf-subtask/` → `.claude/skills/cwf-new-subtask/` (directory rename + `name:` field update)
+- `CLAUDE.md`, `README.md`: Updated skill reference
+- `.cwf/docs/workflow/decomposition-guide.md`: Updated 3 references (usage line + 2 examples)
+- `.claude/skills/cwf-task-plan/SKILL.md`: Updated subtask suggestion reference
+- `BACKLOG.md`: Updated 4 active item references
+
+### Testing
+- 5/5 test cases passed: directory exists, old dir gone, zero stale live refs, new name in expected files, historical files untouched
+
+---
+
 ## Task 105: Consolidate Status Extraction to CWF::TaskState
 
 **Status**: Complete (2026-04-19)

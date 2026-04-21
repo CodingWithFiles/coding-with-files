@@ -24,7 +24,7 @@ The Coding with Files (CWF) system v2.0 is **implemented and operational**. Core
 **Core Skills**:
 - `/cwf-init` - Initialize CWF system
 - `/cwf-new-task <num> <type> "description"` - Create hierarchical implementation guide (breaking change from v1.0)
-- `/cwf-subtask <parent-path> <num> <type> "description"` - Create subtask with context inheritance (breaking change)
+- `/cwf-new-subtask <parent-path> <num> <type> "description"` - Create subtask with context inheritance (breaking change)
 - `/cwf-status [task-path]` - Show hierarchical progress
 - `/cwf-extract <task-path> <section-name>` - Extract sections (task-based, backward compatible)
 

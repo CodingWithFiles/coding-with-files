@@ -107,7 +107,7 @@ See **[INSTALL.md](INSTALL.md)** for complete instructions, post-install setup, 
 
 - `/cwf-init` - Initialise CWF system with project configuration
 - `/cwf-new-task <num> <type> "description"` - Create hierarchical implementation guide
-- `/cwf-subtask <parent-path> <num> <type> "description"` - Create subtask with context inheritance
+- `/cwf-new-subtask <parent-path> <num> <type> "description"` - Create subtask with context inheritance
 - `/cwf-status [task-path]` - Show progress across implementation guide hierarchy
 - `/cwf-extract <task-path> <section-name>` - Extract section from implementation guide
 
