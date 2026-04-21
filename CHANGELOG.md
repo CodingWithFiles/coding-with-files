@@ -2,6 +2,22 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 109: Add Gotchas to cwf-retrospective Skill
+
+**Status**: Complete (2026-04-21)
+**Duration**: 1 session (estimated: <1 session — on target)
+**Impact**: Chore — added 3 gotcha warnings to cwf-retrospective SKILL.md targeting the most recurring CWF errors: stale status fields (6+ tasks), executing merge to main (2 tasks), and skipping the retrospective (2 tasks). Also reworded Step 10 from "Merge to main" to "Suggest merge to user (do not execute)".
+
+### Changes
+- Modified: `.claude/skills/cwf-retrospective/SKILL.md` — new `## Gotchas` section + Step 10 rewording
+- BACKLOG: Completed "Add Gotchas to cwf-retrospective Skill" item
+
+### Notable
+- Plan review subagents (Task 108) caught a real error: Gotcha 3 originally said "proceed to retrospective (j)" which skips h/i for feature tasks. Corrected to "complete all remaining phases."
+- Gotcha 1 was immediately validated during this task's own retrospective — d and e were still "In Progress."
+
+---
+
 ## Task 108: Add Map/Reduce Plan Review to Planning Skills
 
 **Status**: Complete (2026-04-21)

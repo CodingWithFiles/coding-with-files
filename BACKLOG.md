@@ -1614,18 +1614,7 @@ Build a Stop event hook that warns when the agent stops with uncommitted changes
 <!-- Completed: "Discover Best Gotchas for Skills Based on LMM Memory Analysis" — Task 107 (2026-04-21) -->
 <!-- Produced 4 follow-up backlog items below -->
 
-## Task: Add Gotchas to cwf-retrospective Skill
-
-**Task-Type**: chore
-**Priority**: High
-**Status**: Follow-up from Task 107
-
-Gotchas to add near top of SKILL.md:
-1. **Stale status fields**: Before writing j-retrospective.md, run `workflow-manager status {task_num} --workflow` and fix any non-terminal statuses. Most recurring error in CWF history (6+ occurrences: Tasks 65, 67, 81, 84, 98, 103).
-2. **Never execute merge to main**: The skill says "Suggest Merge" — output the command, never run it. Caused problems at Tasks 81 and 84.
-3. **Don't skip the retrospective**: After testing-exec (g), always proceed to retrospective (j). Task 98 jumped to creating a new task; Task 84 backfilled wf files retrospectively.
-
-**Identified in**: Task 107 (LMM memory analysis)
+<!-- Completed: "Add Gotchas to cwf-retrospective Skill" — Task 109 (2026-04-21) -->
 
 ---
 

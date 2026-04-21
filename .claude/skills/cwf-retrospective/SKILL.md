@@ -9,6 +9,12 @@ allowed-tools:
   - Bash
 ---
 
+## Gotchas
+
+1. **Stale status fields**: Before writing j-retrospective.md, run `workflow-manager status {task_num} --workflow` and fix any non-terminal statuses. The stop-stale-status-detector hook catches Backlog only; this manual sweep catches In Progress too. (6+ occurrences: Tasks 65, 67, 81, 84, 98, 103.)
+2. **Never execute merge to main**: Step 10 says "Suggest Merge" — output the merge command for the user to run, never execute it yourself. (Caused problems at Tasks 81, 84.)
+3. **Don't skip the retrospective**: After testing-exec (g), complete all remaining workflow phases before starting new work. (Task 98 jumped to creating Task 99; Task 84 backfilled wf files retrospectively.)
+
 ## Scope & Boundaries
 
 **This step**: Complete j-retrospective.md with learnings, metrics analysis, and process improvements.
@@ -43,7 +49,7 @@ allowed-tools:
 **Step 9**: Create checkpoints branch and squash. Read `.cwf/docs/skills/retrospective-extras.md#checkpoints-branch-and-squash` for the full workflow.
 
 **Step 10 (Next Steps)**:
-- **Primary**: Merge to main → `git checkout main && git merge --ff-only <task-branch>`
+- **Primary**: Suggest merge to user (do not execute): `git checkout main && git merge --ff-only <task-branch>`
 - **Alt**: Create follow-up tasks, share learnings
 
 ## Success Criteria
