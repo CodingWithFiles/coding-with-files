@@ -2,6 +2,22 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 108: Add Map/Reduce Plan Review to Planning Skills
+
+**Status**: Complete (2026-04-21)
+**Duration**: 1 session (~1 hour, estimated: 1 day — under estimate)
+**Impact**: Feature — 3 planning skills (cwf-requirements-plan, cwf-design-plan, cwf-implementation-plan) now automatically review plan files before checkpoint commit using 3 parallel subagents focused on improvements, misalignment, and robustness.
+
+### Changes
+- New: `.cwf/docs/skills/plan-review.md` — shared doc with parameterised prompt template, 3×3 criteria lookup table, reduce/synthesis instructions
+- Modified: 3 SKILL.md files — added `Agent` to allowed-tools, inserted Step 8 (plan review), renumbered Steps 9-10
+- First CWF skill to use the Agent tool
+
+### Notable
+- /simplify was run on the plan files before implementation, effectively dogfooding the feature. It identified 8 must-fix items that collapsed 9 prompt templates to 1, removed unnecessary ceremony, and simplified the implementation from ~200 lines to ~50 lines.
+
+---
+
 ## Task 107: Discover Best Gotchas for Skills via LMM Memory Analysis
 
 **Status**: Complete (2026-04-21)

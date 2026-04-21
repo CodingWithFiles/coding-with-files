@@ -7,6 +7,7 @@ allowed-tools:
   - Write
   - Edit
   - Bash
+  - Agent
 ---
 
 ## Scope & Boundaries
@@ -36,9 +37,11 @@ allowed-tools:
 
 **Step 7**: Check decomposition signals. See `.cwf/docs/workflow/decomposition-guide.md`.
 
-**Step 8**: Checkpoint commit. See `.cwf/docs/skills/checkpoint-commit.md`. Stage: `c-design-plan.md`
+**Step 8**: Plan review. Read `.cwf/docs/skills/plan-review.md` and follow the plan review procedure for plan type `design`.
 
-**Step 9 (Next Steps)**:
+**Step 9**: Checkpoint commit. See `.cwf/docs/skills/checkpoint-commit.md`. Stage: `c-design-plan.md`
+
+**Step 10 (Next Steps)**:
 - **Primary**: Move to implementation → `/cwf-implementation-plan <task-path>`
 - **Alt**: Return to requirements if design reveals gaps
 - **Alt**: Create spike/prototype if uncertainty is high
