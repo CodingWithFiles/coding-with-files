@@ -2,6 +2,27 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 107: Discover Best Gotchas for Skills via LMM Memory Analysis
+
+**Status**: Complete (2026-04-21)
+**Duration**: 1 session (estimated: 1 session — on target)
+**Impact**: Discovery — analysed all 19 CWF skills via LMM semantic search and retrospective file analysis to identify recurring failure modes. Produced 4 backlog items with 8 evidence-backed gotchas.
+
+### Findings
+- **cwf-retrospective** (High, 3 gotchas): Stale status fields (6+ tasks), executing merge to main (2 tasks), skipping retrospective (2 tasks)
+- **cwf-implementation-exec** (High, 2 gotchas): Missing `git status` before commits, stale refs after renames (5 tasks)
+- **cwf-implementation-plan** (Medium, 2 gotchas): Planning without codebase investigation (5 tasks), not checking for reusable code (2 tasks)
+- **cwf-design-plan** (Medium, 1 gotcha): Choosing approach without verifying codebase (2 tasks)
+- 15 skills had no recurring failure patterns
+
+### BACKLOG Items Created
+- "Add Gotchas to cwf-retrospective" (High)
+- "Add Gotchas to cwf-implementation-exec" (High)
+- "Add Gotchas to cwf-implementation-plan" (Medium)
+- "Add Gotchas to cwf-design-plan" (Medium)
+
+---
+
 ## Task 106: Rename cwf-subtask Skill to cwf-new-subtask
 
 **Status**: Complete (2026-04-21)

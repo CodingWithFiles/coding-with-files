@@ -1611,29 +1611,62 @@ Build a Stop event hook that warns when the agent stops with uncommitted changes
 
 ---
 
-## Task: Discover Best Gotchas for Skills Based on LMM Memory Analysis
+<!-- Completed: "Discover Best Gotchas for Skills Based on LMM Memory Analysis" — Task 107 (2026-04-21) -->
+<!-- Produced 4 follow-up backlog items below -->
 
-**Task-Type**: discovery
+## Task: Add Gotchas to cwf-retrospective Skill
+
+**Task-Type**: chore
 **Priority**: High
-**Status**: Backlog
+**Status**: Follow-up from Task 107
 
-Analyse conversation history via LMM memory MCP to identify the most common and impactful failure modes for each CWF skill, then add gotchas sections to skill definitions.
+Gotchas to add near top of SKILL.md:
+1. **Stale status fields**: Before writing j-retrospective.md, run `workflow-manager status {task_num} --workflow` and fix any non-terminal statuses. Most recurring error in CWF history (6+ occurrences: Tasks 65, 67, 81, 84, 98, 103).
+2. **Never execute merge to main**: The skill says "Suggest Merge" — output the command, never run it. Caused problems at Tasks 81 and 84.
+3. **Don't skip the retrospective**: After testing-exec (g), always proceed to retrospective (j). Task 98 jumped to creating a new task; Task 84 backfilled wf files retrospectively.
 
-**Problem**: CWF skills lead with scope and workflow steps but don't front-load failure modes. Claude Code best practices recommend a "gotchas-first" strategy — the highest-signal content in a skill is the gotchas section (failure modes, specific verified scenarios, compounding errors).
+**Identified in**: Task 107 (LMM memory analysis)
 
-**Approach**:
-1. Query LMM semantic search for conversations involving each CWF skill
-2. Identify patterns: corrections, rework, user frustration, repeated mistakes
-3. Rank by frequency and impact
-4. Draft gotchas sections for the top 3-5 failure modes per skill
-5. Add to SKILL.md files near the top
+---
 
-**Data Sources**:
-- LMM memory MCP (semantic search for skill names, error patterns, user corrections)
-- MEMORY.md recurring process errors (already documented patterns)
-- gate-to-breakout-tech project history (cross-project validation)
+## Task: Add Gotchas to cwf-implementation-exec Skill
 
-**Identified in**: Claude Code best practices analysis (2026-04-16) — gotchas-first skill strategy
+**Task-Type**: chore
+**Priority**: High
+**Status**: Follow-up from Task 107
+
+Gotchas to add near top of SKILL.md:
+1. **Run `git status` before every commit**: Check for untracked or unstaged files. Task 81 missed c-design-plan.md.
+2. **After any rename/rebrand, grep the entire codebase AND generate a sample output artefact**: Source-level grep misses stale strings in generated output. Recurred from Task 59 through Tasks 90, 91, 92, 94.
+
+**Identified in**: Task 107 (LMM memory analysis)
+
+---
+
+## Task: Add Gotchas to cwf-implementation-plan Skill
+
+**Task-Type**: chore
+**Priority**: Medium
+**Status**: Follow-up from Task 107
+
+Gotchas to add near top of SKILL.md:
+1. **Grep the codebase before writing the plan**: 5 tasks (88, 101, 102, 104, 105) had plans that assumed wrong paths or missed existing utilities because no one checked the code first.
+2. **Check for existing reusable code before proposing new scripts**: Tasks 101 and 104 designed standalone scripts when existing library modules could be extended.
+
+**Identified in**: Task 107 (LMM memory analysis)
+
+---
+
+## Task: Add Gotchas to cwf-design-plan Skill
+
+**Task-Type**: chore
+**Priority**: Medium
+**Status**: Follow-up from Task 107
+
+Gotchas to add near top of SKILL.md:
+1. **Verify assumptions against the codebase before committing to an approach**: Tasks 104 and 105 chose implementation approaches without checking what existing code could be leveraged. Read 3 similar implementations before proposing a new one.
+
+**Identified in**: Task 107 (LMM memory analysis)
 
 ---
 
