@@ -2,6 +2,27 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 110: Add Gotchas to Plan Skills to Prevent Step-Skipping
+
+**Status**: Complete (2026-04-22)
+**Duration**: 1 session (estimated: <1 session — on target)
+**Impact**: Bugfix — addresses recurring step-skipping behaviour in cwf-requirements-plan, cwf-design-plan, and cwf-implementation-plan SKILL.md files. Also project-neutralises gotchas in cwf-retrospective SKILL.md (added in Task 109) that referenced specific internal task numbers — skill files are installed into downstream projects where those references are meaningless.
+
+### Changes
+- Modified: `.claude/skills/cwf-requirements-plan/SKILL.md` — new `## Gotchas` section (2 gotchas)
+- Modified: `.claude/skills/cwf-design-plan/SKILL.md` — new `## Gotchas` section (2 gotchas)
+- Modified: `.claude/skills/cwf-implementation-plan/SKILL.md` — new `## Gotchas` section (2 gotchas)
+- Modified: `.claude/skills/cwf-retrospective/SKILL.md` — project-neutralised existing 3 gotchas
+
+Note: The existing "Add Gotchas to cwf-implementation-plan" and "Add Gotchas to cwf-design-plan" BACKLOG items cover skill-specific concerns (codebase investigation, assumption verification) that are distinct from Task 110's generic step-skipping gotchas. They remain open.
+
+### Notable
+- Plan review subagents caught the "Gotcha 3" ambiguity that would have shipped.
+- /simplify review caught project-specific task-number references in both the plan-skills (Task 108, 109) and cwf-retrospective (Tasks 65, 67, 81, 84, 98, 103) — a whole class of bugs for installable skill files. Task 109's work had to be retroactively fixed within Task 110's scope.
+- Gotcha 1 from Task 109 (status sweep) caught stale statuses during this task's own retrospective, on its second use. Working as designed.
+
+---
+
 ## Task 109: Add Gotchas to cwf-retrospective Skill
 
 **Status**: Complete (2026-04-21)

@@ -11,9 +11,9 @@ allowed-tools:
 
 ## Gotchas
 
-1. **Stale status fields**: Before writing j-retrospective.md, run `workflow-manager status {task_num} --workflow` and fix any non-terminal statuses. The stop-stale-status-detector hook catches Backlog only; this manual sweep catches In Progress too. (6+ occurrences: Tasks 65, 67, 81, 84, 98, 103.)
-2. **Never execute merge to main**: Step 10 says "Suggest Merge" — output the merge command for the user to run, never execute it yourself. (Caused problems at Tasks 81, 84.)
-3. **Don't skip the retrospective**: After testing-exec (g), complete all remaining workflow phases before starting new work. (Task 98 jumped to creating Task 99; Task 84 backfilled wf files retrospectively.)
+1. **Stale status fields**: Before writing j-retrospective.md, run `workflow-manager status {task_num} --workflow` and fix any non-terminal statuses. The stop-stale-status-detector hook catches Backlog only; this manual sweep catches In Progress too. This is the most recurring workflow error.
+2. **Never execute merge to main**: Step 10 says "Suggest Merge" — output the merge command for the user to run, never execute it yourself. Merges are a human decision.
+3. **Don't skip the retrospective**: After testing-exec (g), complete all remaining workflow phases before starting new work. Jumping to new tasks or backfilling phases after the fact leaves the current task incomplete and workflow docs inaccurate.
 
 ## Scope & Boundaries
 

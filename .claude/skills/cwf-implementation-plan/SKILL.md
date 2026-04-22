@@ -10,6 +10,11 @@ allowed-tools:
   - Agent
 ---
 
+## Gotchas
+
+1. **Execute every numbered step — do not skip**: Every step in the Workflow section is mandatory, including plan review via subagents. Agents tend to skip steps they judge as low-value (especially ones buried mid-list). Skipping creates rework, which is a form of task failure. If a step genuinely doesn't apply, explain why before skipping.
+2. **Do not skip the plan review subagents (Step 8)**: The map/reduce review via 3 parallel Explore subagents catches phase-sequence errors, unchecked assumptions, and other plan defects before implementation. Skipping it has allowed these errors to ship. It is not optional.
+
 ## Scope & Boundaries
 
 **This step**: Complete d-implementation-plan.md with files to modify, implementation steps, and validation criteria.
