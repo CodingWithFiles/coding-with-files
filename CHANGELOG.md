@@ -2,6 +2,23 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 111: Add Measure-Twice-Cut-Once Gotchas to Plan Skills
+
+**Status**: Complete (2026-04-22)
+**Duration**: 1 session (estimated: <1 session — on target)
+**Impact**: Chore — unified two open BACKLOG items (cwf-design-plan assumption verification, cwf-implementation-plan codebase checking) into a single shared gotcha under the "measure twice, cut once" theme. Gotcha 3 is byte-identical across both SKILL.md files and includes a reminder to check memories alongside grep and file reading.
+
+### Changes
+- Modified: `.claude/skills/cwf-design-plan/SKILL.md` — gotcha 3 appended
+- Modified: `.claude/skills/cwf-implementation-plan/SKILL.md` — gotcha 3 appended (byte-identical to above)
+
+### Notable
+- Plan review caught a format inconsistency (multi-line proposed vs single-line existing gotchas); fixed pre-implementation.
+- User caught two wording weaknesses plan review did not: a weak enumeration of artefact types (dropped) and a missing "check memories" clause (added). Plan review agents assess structure and reuse, not prose quality — wording review is a distinct check for text-heavy tasks.
+- Status sweep found nothing to fix for the first time in 3 tasks — Gotcha 1 is paying off.
+
+---
+
 ## Task 110: Add Gotchas to Plan Skills to Prevent Step-Skipping
 
 **Status**: Complete (2026-04-22)

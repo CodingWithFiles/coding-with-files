@@ -14,6 +14,7 @@ allowed-tools:
 
 1. **Execute every numbered step — do not skip**: Every step in the Workflow section is mandatory, including plan review via subagents. Agents tend to skip steps they judge as low-value (especially ones buried mid-list). Skipping creates rework, which is a form of task failure. If a step genuinely doesn't apply, explain why before skipping.
 2. **Do not skip the plan review subagents (Step 8)**: The map/reduce review via 3 parallel Explore subagents catches phase-sequence errors, unchecked assumptions, and other plan defects before implementation. Skipping it has allowed these errors to ship. It is not optional.
+3. **Measure twice, cut once — verify assumptions against the codebase**: Before committing to a plan, grep the codebase, read related files, and check memories for relevant prior context. Plans that assume a function, path, or pattern exists without checking tend to propose duplicate code, wrong imports, or non-existent dependencies. Read 2-3 similar existing implementations before designing a new one.
 
 ## Scope & Boundaries
 

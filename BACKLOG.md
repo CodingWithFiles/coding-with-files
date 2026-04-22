@@ -1632,30 +1632,7 @@ Gotchas to add near top of SKILL.md:
 
 ---
 
-## Task: Add Gotchas to cwf-implementation-plan Skill
-
-**Task-Type**: chore
-**Priority**: Medium
-**Status**: Follow-up from Task 107
-
-Gotchas to add near top of SKILL.md:
-1. **Grep the codebase before writing the plan**: 5 tasks (88, 101, 102, 104, 105) had plans that assumed wrong paths or missed existing utilities because no one checked the code first.
-2. **Check for existing reusable code before proposing new scripts**: Tasks 101 and 104 designed standalone scripts when existing library modules could be extended.
-
-**Identified in**: Task 107 (LMM memory analysis)
-
----
-
-## Task: Add Gotchas to cwf-design-plan Skill
-
-**Task-Type**: chore
-**Priority**: Medium
-**Status**: Follow-up from Task 107
-
-Gotchas to add near top of SKILL.md:
-1. **Verify assumptions against the codebase before committing to an approach**: Tasks 104 and 105 chose implementation approaches without checking what existing code could be leveraged. Read 3 similar implementations before proposing a new one.
-
-**Identified in**: Task 107 (LMM memory analysis)
+<!-- Completed: "Add Gotchas to cwf-implementation-plan Skill" and "Add Gotchas to cwf-design-plan Skill" — Task 111 (2026-04-22), unified into shared "measure twice, cut once" gotcha -->
 
 ---
 
