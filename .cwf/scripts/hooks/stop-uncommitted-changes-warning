@@ -1,0 +1,31 @@
+#!/usr/bin/perl -CDSL
+#
+# stop-uncommitted-changes-warning — Stop event hook for CWF
+#
+# Detects uncommitted wf files (staged, unstaged, untracked, conflict)
+# under implementation-guide/ at stop time. Emits a systemMessage warning.
+#
+# Fires on every agent stop (including /clear, resume, compact).
+# Must always exit 0 — non-zero causes error display to user.
+
+use strict;
+use warnings;
+use utf8;
+
+eval {
+    my $output = `git status --porcelain -z --untracked-files=all -- 'implementation-guide/*/[a-j]-*.md' 2>/dev/null`;
+    my @records = grep { length } split /\0/, $output;
+
+    return unless @records;
+
+    my @dirty = map { m{([^/]+)$} ? $1 : $_ }
+                map { substr($_, 3) } @records;
+
+    my @display = @dirty[0 .. ($#dirty > 2 ? 2 : $#dirty)];
+    my $msg = join(', ', @display);
+    $msg .= " +@{[$#dirty - 2]} more" if @dirty > 3;
+
+    print qq({"systemMessage":"⚠ Uncommitted: $msg"}\n);
+};
+
+exit 0;

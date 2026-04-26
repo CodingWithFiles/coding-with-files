@@ -1590,26 +1590,7 @@ The `_score_progress` function in `TaskContextInference.pm` uses a linear ramp (
 
 ---
 
-## Task: Build Uncommitted Changes Warning Stop Hook
-
-**Task-Type**: feature
-**Priority**: Medium
-**Status**: Follow-up from Task 103
-
-Build a Stop event hook that warns when the agent stops with uncommitted changes to wf files in `implementation-guide/`.
-
-**Problem**: Agent occasionally stops with staged or unstaged changes to wf files that were never committed. Task 81 missed staging c-design-plan.md; Task 85 retrospective didn't stage all files. The "always `git status` before committing" instruction in MEMORY.md is optional work that agents skip.
-
-**Scope**:
-- Shell script triggered by Stop event hook
-- Run `git status --porcelain` filtered to `implementation-guide/`
-- Emit warning if dirty wf files found
-- Target: ~20-30 tokens output per stop event
-- Framework reference: `.cwf/docs/workflow/stop-hooks-framework.md` Candidate B
-
-**Identified in**: Task 103 retrospective (j-retrospective.md) — ranked #2 by evaluation checklist
-
----
+<!-- Completed: "Build Uncommitted Changes Warning Stop Hook" — Task 113 (2026-04-25) -->
 
 <!-- Completed: "Discover Best Gotchas for Skills Based on LMM Memory Analysis" — Task 107 (2026-04-21) -->
 <!-- Produced 4 follow-up backlog items below -->
@@ -1691,3 +1672,22 @@ Replace backtick operators in `.cwf/scripts/cwf-manage` with `IPC::Open3` calls 
 - Consider also adding `/x` flag to simple regexes (8 hits) and converting the if-elsif dispatch to a hash table (1 hit) for full level 3 compliance
 
 **Identified in**: Task 61 (perlcritic --harsh on cwf-manage)
+
+---
+
+## Task: Add Conflict-State Regression Test for stop-uncommitted-changes-warning
+
+**Task-Type**: chore
+**Priority**: Low
+**Status**: Follow-up from Task 113
+
+Add a small regression test that exercises the `stop-uncommitted-changes-warning` hook against synthetic git porcelain output containing conflict-state records (`UU`, `AA`, `DD`). Currently the parser is verified by code inspection only — the live TC-8 test was deferred during Task 113 because reproducing a real merge conflict on a wf file is brittle.
+
+**Problem**: The hook's parsing path (`substr($_, 3)`) is identical for every porcelain status code, so conflict records *should* parse correctly. But this is unverified end-to-end. If git ever changes the porcelain format for conflicts (e.g. emits two paths separated by NUL, like renames), the hook would silently misreport.
+
+**Scope**:
+- Add a test that feeds synthetic porcelain output into a parsing helper, or stages a real `UU` record via `git update-index --cacheinfo` against a stub blob
+- Cover `UU`, `AA`, `DD`, and at least one rename (`R`) to round out porcelain-class coverage
+- Wire into `prove` if there's an existing test harness, otherwise document as a manual one-liner
+
+**Identified in**: Task 113 g-testing-exec (TC-8 deferred as stretch)

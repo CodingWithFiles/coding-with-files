@@ -2,6 +2,26 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 113: Build Uncommitted Changes Warning Stop Hook
+
+**Status**: Complete (2026-04-25)
+**Duration**: 1 session (estimated: 1 session — on target)
+**Impact**: Feature — second Stop hook (Candidate B from Task 103's framework) deployed alongside Task 104's stale-status detector. Warns when the agent stops with uncommitted (staged, unstaged, untracked, or conflict-state) wf files in `implementation-guide/`. Output bounded to ~25 tokens with a 3-file cap; silent on clean stops.
+
+### Changes
+- Added: `.cwf/scripts/hooks/stop-uncommitted-changes-warning` — 31-line Perl hook (`-CDSL` shebang, `use utf8;`, `eval`-wrapped, exits 0 always)
+- Modified: `.claude/settings.local.json` — appended hook command to `hooks.Stop[0].hooks`; permission allow entry for the hook path (developer-local, not tracked)
+- Added: `docs/conventions/perl-git-paths.md` — new project convention doc capturing `-CDSL` + `-z` + `use utf8;` for Perl helpers consuming git path output
+- BACKLOG: Completed "Build Uncommitted Changes Warning Stop Hook" item; added "Add Conflict-State Regression Test for stop-uncommitted-changes-warning" follow-up
+
+### Notable
+- Plan review subagents earned their cost: caught wrong settings-file reference (b), missed `core.quotepath` gap and dead rename-handling code (c), and ambiguous `substr` notation (d).
+- User correction during design steered the implementation from `core.quotepath=false` (partial) to `-z` (canonical) — git's documented mechanism for verbatim path output. Codified as project convention.
+- Smoke testing caught a real bug before deployment: `-CDSL` does not cover source-file encoding, only I/O streams. Without `use utf8;`, the literal `⚠` in source bytes was double-UTF-8-encoded on output (`â  `). Fix added to script and gotcha documented in conventions doc.
+- /simplify review confirmed the script is idiomatic — no premature abstraction (Rule of Three not met for two callers); intentional consistency with Task 104 patterns.
+
+---
+
 ## Task 111: Add Measure-Twice-Cut-Once Gotchas to Plan Skills
 
 **Status**: Complete (2026-04-22)
