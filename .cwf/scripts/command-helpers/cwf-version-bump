@@ -1,0 +1,38 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use CWF::Versioning qw(read_config next_version bump_to);
+
+my $PROG = 'cwf-version-bump';
+
+sub usage {
+    "Usage: $PROG --task-num=N\n"
+  . "  Writes versioning.last_released to v{major}.{minor}.N in cwf-project.json,\n"
+  . "  iff wf_step_config.retrospective.bump_version is true (default: true).\n"
+  . "  Idempotent. See .cwf/docs/workflow/versioning-standard.md.\n";
+}
+
+my $task_num;
+for (@ARGV) {
+    if (/^--task-num=(\d+)$/) { $task_num = $1 + 0; next }
+    if ($_ eq '--help' || $_ eq '-h') { print usage(); exit 0 }
+    warn "$PROG: unknown argument: $_\n", usage();
+    exit 1;
+}
+
+unless (defined $task_num && $task_num > 0) {
+    warn usage();
+    exit 1;
+}
+
+my $r = eval {
+    my $cfg     = read_config();
+    my $version = next_version(task_num => $task_num, cfg => $cfg);
+    bump_to($version, cfg => $cfg);
+};
+if ($@) { warn "$PROG: $@"; exit 1 }
+
+print "$r->{message}\n";
+exit 0;

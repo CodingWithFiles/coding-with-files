@@ -9,7 +9,7 @@ use FindBin;
 use lib "$FindBin::Bin/../.cwf/lib";
 use lib "$FindBin::Bin/lib";
 
-BEGIN { use_ok('CWF::Common', qw(check_perl5opt format_error)) }
+BEGIN { use_ok('CWF::Common', qw(check_perl5opt format_error parse_semver version_cmp)) }
 
 #==============================================================================
 # check_perl5opt()
@@ -72,6 +72,63 @@ subtest 'format_error() - type parameter is not in output' => sub {
     # $type is accepted but not currently surfaced in the formatted string
     my $out = format_error('security', 'Hash mismatch');
     like($out, qr/Hash mismatch/, 'error message appears in output');
+};
+
+#==============================================================================
+# parse_semver()
+#==============================================================================
+
+subtest 'parse_semver() - valid input returns numeric triple' => sub {
+    plan tests => 4;
+
+    my @p = parse_semver('v1.0.113');
+    is_deeply(\@p, [1, 0, 113], 'v1.0.113 → (1,0,113)');
+
+    # Verify numeric coercion (regression guard for cwf-manage's filter_releases)
+    use Scalar::Util qw(looks_like_number);
+    ok(looks_like_number($p[0]), 'major is numeric');
+    ok(looks_like_number($p[1]), 'minor is numeric');
+    ok(looks_like_number($p[2]), 'patch is numeric');
+};
+
+subtest 'parse_semver() - invalid inputs return empty list' => sub {
+    plan tests => 6;
+
+    is_deeply([parse_semver('')],          [], 'empty string → ()');
+    is_deeply([parse_semver(undef)],       [], 'undef → ()');
+    is_deeply([parse_semver('1.0.113')],   [], 'no v-prefix → ()');
+    is_deeply([parse_semver('v1.0')],      [], 'missing patch → ()');
+    is_deeply([parse_semver('vfoo')],      [], 'non-numeric → ()');
+    is_deeply([parse_semver('v1.0.0-rc1')],[], 'pre-release suffix → ()');
+};
+
+#==============================================================================
+# version_cmp()
+#==============================================================================
+
+subtest 'version_cmp() - ordering' => sub {
+    plan tests => 5;
+
+    is(version_cmp('v1.0.113', 'v1.0.97'),  1, 'v1.0.113 > v1.0.97 (numeric, not lexical)');
+    is(version_cmp('v1.0.113', 'v1.0.113'), 0, 'equal');
+    is(version_cmp('v1.0.97',  'v1.0.113'),-1, 'v1.0.97 < v1.0.113');
+    is(version_cmp('v1.0.5',   'v1.0.50'), -1, 'v1.0.5 < v1.0.50 (numeric, not lexical)');
+    is(version_cmp('v0.2.1',   'v1.0.0'),  -1, 'v0.2.1 < v1.0.0');
+};
+
+subtest 'version_cmp() - mixed lengths default missing components to 0' => sub {
+    plan tests => 3;
+
+    is(version_cmp('v1.0.0', 'v1.0'),   0, 'v1.0.0 == v1.0');
+    is(version_cmp('v1.0',   'v1.0.0'), 0, 'v1.0 == v1.0.0');
+    is(version_cmp('v1.0.1', 'v1.0'),   1, 'v1.0.1 > v1.0');
+};
+
+subtest 'version_cmp() - works without v-prefix' => sub {
+    plan tests => 2;
+
+    is(version_cmp('1.0.113', '1.0.97'), 1, 'works on bare semver');
+    is(version_cmp('v1.0.0',  '1.0.0'),  0, 'mixed prefix and bare');
 };
 
 done_testing();

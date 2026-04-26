@@ -1,10 +1,20 @@
-# CIG Version Information
-# Machine-readable version data for the Code Implementation Guide system
+# CwF Version Information
+# Machine-readable version data for the Coding with Files (CwF) system.
 
-# Git-based versioning - use `git describe --tags --always` for current version
-# Format: {tag}-{commits-since-tag}-g{commit-hash}
-# Example: v0.1.1-5-gcea1c19
-git-based-versioning: true
+# Source of truth
+# ---------------
+# The current major.minor lives in implementation-guide/cwf-project.json under
+#   versioning.major_minor          (e.g. "v1.0")
+# The most recently bumped version lives in the same file under
+#   versioning.last_released        (e.g. "v1.0.113")
+#
+# `cwf-version-next --task-num=N` composes "{major_minor}.N".
+# `cwf-version-bump --task-num=N` writes last_released; honours
+#   wf_step_config.retrospective.bump_version.
+# `cwf-version-tag  --task-num=N` creates an annotated tag; honours
+#   wf_step_config.retrospective.tag_version.
+#
+# See .cwf/docs/workflow/versioning-standard.md for the full standard.
 
-# CIG project schema matches git version for consistency
-schema-version: "matches-git"
+scheme: semver
+source-of-truth: implementation-guide/cwf-project.json

@@ -1691,3 +1691,36 @@ Add a small regression test that exercises the `stop-uncommitted-changes-warning
 - Wire into `prove` if there's an existing test harness, otherwise document as a manual one-liner
 
 **Identified in**: Task 113 g-testing-exec (TC-8 deferred as stretch)
+
+## Task: Skill Cross-Reference Linter for SKILL.md / *-extras.md Step Numbers
+
+**Task-Type**: chore
+**Priority**: Low
+**Status**: Follow-up from Task 114
+
+`*/SKILL.md` files numbered step lists (Step 1, Step 2, ...). Their companion `.cwf/docs/skills/*-extras.md` files mirror those numbers in section headings (e.g. "## CHANGELOG.md and BACKLOG.md Update (Step 8)"). When a SKILL.md is renumbered, the extras file silently drifts. Task 114 introduced two new steps in `cwf-retrospective/SKILL.md` (Step 9 bump, Step 11 tag), bumping squash from 9→10 and merge-suggestion from 10→12. The drift in `retrospective-extras.md` was only caught by actually running the retrospective skill in Task 114's own j-phase — and fixed in-task.
+
+**Problem**: There's no static check that SKILL.md step numbers match their extras-file labels. The d-implementation-plan Step 9 grep audit only looks for cross-references *to* the skill from outside; it doesn't catch internal docs that mirror the numbering.
+
+**Scope**:
+- Small Perl helper, e.g. `.cwf/scripts/command-helpers/cwf-validate-skill-refs`
+- Given each SKILL.md, parse out its `**Step N**:` headings; given the corresponding extras file, parse `## ... (Step N)` and `### N.X` labels; warn on any mismatch
+- Wire into `cwf-manage validate` as a soft check (warn, not fail) initially
+- One subtest per SKILL/extras pair in a new `t/skill-refs.t`
+
+**Rationale**: Caught by dog-fooding in Task 114. The fix is mechanical; the linter prevents recurrence and surfaces the issue before the next renumbering.
+
+**Identified in**: Task 114 j-retrospective.md
+
+## Task: Lighter-Weight Rollout/Maintenance Templates for Internal/Developer-Tool Tasks
+
+**Task-Type**: chore
+**Priority**: Medium
+**Status**: Follow-up from Task 114 (and reinforces existing backlog item)
+
+Both `h-rollout.md` and `i-maintenance.md` ship with full enterprise templates (blue-green/canary, SLAs, monitoring, alerting, scaling). For developer-tool changes (which is most CwF self-development), these templates are 80% boilerplate that gets manually marked "not applicable". Task 114 wrote both phases as essentially custom freeform documents because the template didn't fit.
+
+**Note**: An existing BACKLOG item ("Lightweight Rollout/Maintenance Templates for Internal Tasks") covers this. Task 114 is corroborating evidence — bumping its priority would be reasonable.
+
+**Identified in**: Task 114 h-rollout.md and i-maintenance.md (both Lessons Learned sections)
+

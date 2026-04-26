@@ -1,0 +1,40 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use CWF::Versioning qw(read_config next_version tag_at);
+
+my $PROG = 'cwf-version-tag';
+
+sub usage {
+    "Usage: $PROG --task-num=N [--message=STR]\n"
+  . "  Creates an annotated git tag at v{major}.{minor}.N on the main branch,\n"
+  . "  iff wf_step_config.retrospective.tag_version is true (default: false).\n"
+  . "  Refuses if tag exists or HEAD is not on the main branch.\n"
+  . "  See .cwf/docs/workflow/versioning-standard.md.\n";
+}
+
+my ($task_num, $message);
+for (@ARGV) {
+    if (/^--task-num=(\d+)$/)   { $task_num = $1 + 0; next }
+    if (/^--message=(.+)$/s)    { $message  = $1;     next }
+    if ($_ eq '--help' || $_ eq '-h') { print usage(); exit 0 }
+    warn "$PROG: unknown argument: $_\n", usage();
+    exit 1;
+}
+
+unless (defined $task_num && $task_num > 0) {
+    warn usage();
+    exit 1;
+}
+
+my $r = eval {
+    my $cfg     = read_config();
+    my $version = next_version(task_num => $task_num, cfg => $cfg);
+    tag_at($version, message => ($message // "Task $task_num"), cfg => $cfg);
+};
+if ($@) { warn "$PROG: $@"; exit 1 }
+
+print "$r->{message}\n";
+exit ($r->{status} eq 'error' ? 1 : 0);

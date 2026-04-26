@@ -1,0 +1,33 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use CWF::Versioning qw(next_version);
+
+my $PROG = 'cwf-version-next';
+
+sub usage {
+    "Usage: $PROG --task-num=N\n"
+  . "  Prints the next version computed from versioning.major_minor + N.\n"
+  . "  See .cwf/docs/workflow/versioning-standard.md for details.\n";
+}
+
+my $task_num;
+for (@ARGV) {
+    if (/^--task-num=(\d+)$/) { $task_num = $1 + 0; next }
+    if ($_ eq '--help' || $_ eq '-h') { print usage(); exit 0 }
+    warn "$PROG: unknown argument: $_\n", usage();
+    exit 1;
+}
+
+unless (defined $task_num && $task_num > 0) {
+    warn usage();
+    exit 1;
+}
+
+my $next = eval { next_version(task_num => $task_num) };
+if ($@) { warn "$PROG: $@"; exit 1 }
+
+print "$next\n";
+exit 0;

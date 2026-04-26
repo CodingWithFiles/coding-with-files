@@ -125,7 +125,96 @@ sub validate_config_hash {
         }
     }
 
+    push @violations, _validate_versioning_block($config, $file);
+    push @violations, _validate_wf_step_config_block($config, $file);
+
     return @violations;
+}
+
+sub _is_bool {
+    my ($v) = @_;
+    return ref($v) =~ /^JSON::PP::Boolean$/
+        || (defined $v && !ref($v) && $v =~ /^[01]$/);
+}
+
+sub _scalar_repr {
+    my ($v) = @_;
+    return '(undef)'      unless defined $v;
+    return ref($v)        if     ref($v);
+    return qq("$v");
+}
+
+sub _validate_versioning_block {
+    my ($config, $file) = @_;
+    return () unless exists $config->{versioning};
+
+    my $v = $config->{versioning};
+    if (ref $v ne 'HASH') {
+        return _violation(
+            $file, 'versioning',
+            ref($v) || 'scalar',
+            'object (JSON object)',
+            'Change versioning to a JSON object',
+        );
+    }
+
+    my @viol;
+    if (exists $v->{major_minor} && (!defined $v->{major_minor} || ref $v->{major_minor} || $v->{major_minor} !~ /^v\d+\.\d+$/)) {
+        push @viol, _violation(
+            $file, 'versioning.major_minor',
+            _scalar_repr($v->{major_minor}),
+            'string matching /^v\d+\.\d+$/ (e.g. "v1.0")',
+            'Set versioning.major_minor to a value like "v1.0" in ' . $file,
+        );
+    }
+    if (exists $v->{last_released} && (!defined $v->{last_released} || ref $v->{last_released} || $v->{last_released} !~ /^v\d+\.\d+\.\d+$/)) {
+        push @viol, _violation(
+            $file, 'versioning.last_released',
+            _scalar_repr($v->{last_released}),
+            'string matching /^v\d+\.\d+\.\d+$/ (e.g. "v1.0.113")',
+            'Set versioning.last_released to a value like "v1.0.113" in ' . $file,
+        );
+    }
+    return @viol;
+}
+
+sub _validate_wf_step_config_block {
+    my ($config, $file) = @_;
+    return () unless exists $config->{wf_step_config};
+
+    my $wsc = $config->{wf_step_config};
+    if (ref $wsc ne 'HASH') {
+        return _violation(
+            $file, 'wf_step_config',
+            ref($wsc) || 'scalar',
+            'object (JSON object)',
+            'Change wf_step_config to a JSON object',
+        );
+    }
+
+    my @viol;
+    for my $step (sort keys %$wsc) {
+        my $step_block = $wsc->{$step};
+        if (ref $step_block ne 'HASH') {
+            push @viol, _violation(
+                $file, "wf_step_config.$step",
+                ref($step_block) || 'scalar',
+                'object (JSON object)',
+                "Change wf_step_config.$step to a JSON object",
+            );
+            next;
+        }
+        for my $k (sort keys %$step_block) {
+            next if _is_bool($step_block->{$k});
+            push @viol, _violation(
+                $file, "wf_step_config.$step.$k",
+                _scalar_repr($step_block->{$k}),
+                'boolean (true or false)',
+                "Change wf_step_config.$step.$k to true or false in " . $file,
+            );
+        }
+    }
+    return @viol;
 }
 
 sub _violation {

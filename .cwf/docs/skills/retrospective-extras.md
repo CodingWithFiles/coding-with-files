@@ -45,9 +45,9 @@ Then validate:
 .cwf/scripts/cwf-manage validate
 ```
 
-## CHANGELOG.md and BACKLOG.md Update (Step 9)
+## CHANGELOG.md and BACKLOG.md Update (Step 8)
 
-### 9.1 Update CHANGELOG.md
+### 8.1 Update CHANGELOG.md
 
 - Read CHANGELOG.md (first ~100 lines) to understand format pattern
 - Create new entry at top for current task:
@@ -57,14 +57,14 @@ Then validate:
   - BACKLOG items completed (if any)
 - Follow existing entry style
 
-### 9.2 Remove Completed BACKLOG Items
+### 8.2 Remove Completed BACKLOG Items
 
 - Use Grep to find all task headers: `^## Task:`
 - Use Read with offset/limit to confirm completion
 - Use Edit to remove completed items
 - Note in CHANGELOG which items were addressed
 
-### 9.3 Add New BACKLOG Items
+### 8.3 Add New BACKLOG Items
 
 - Read j-retrospective.md Recommendations/Future Work sections
 - Add items with standard format:
@@ -75,13 +75,15 @@ Then validate:
   - Description, scope, rationale
   - `**Identified in**: Task X retrospective (j-retrospective.md)`
 
-### 9.4 Stage Changes
+### 8.4 Stage Changes
 
 ```bash
 git add CHANGELOG.md BACKLOG.md
 ```
 
 ## Checkpoints Branch and Squash (Step 10)
+
+(Step 9 — `cwf-version-bump` — runs before this; see SKILL.md)
 
 ### 10.1 Create Checkpoints Branch
 
@@ -111,7 +113,9 @@ checkpoints-branch-manager verify
 
 Confirm all checkpoint commits preserved on checkpoints branch.
 
-## Suggest Merge (Step 11)
+## Suggest Merge (Step 12)
+
+(Step 11 — `cwf-version-tag` — runs after the squash; see SKILL.md)
 
 ```bash
 git checkout main

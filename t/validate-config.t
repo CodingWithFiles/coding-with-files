@@ -6,11 +6,22 @@ use strict;
 use warnings;
 use Test::More;
 use File::Temp qw(tempdir);
+use JSON::PP;
 use FindBin;
 use lib "$FindBin::Bin/../.cwf/lib";
 use lib "$FindBin::Bin/lib";
 
 BEGIN { use_ok('CWF::Validate::Config', qw(validate validate_config_hash)) }
+
+# Base valid config — used as a starting point for the new schema-extension tests
+sub base_cfg {
+    return {
+        'supported-task-types' => ['feature', 'bugfix', 'hotfix', 'chore', 'discovery'],
+        'source-management' => {
+            'branch-naming-convention' => '{task-type}/{task-id}-{description-slug}',
+        },
+    };
+}
 
 #==============================================================================
 # validate_config_hash()
@@ -129,6 +140,101 @@ subtest 'validate_config_hash() - missing canonical type is a violation' => sub 
     my @v = validate_config_hash($config, '/fake/cwf-project.json');
     ok(@v > 0, 'returns violation');
     ok((grep { $_->{actual} =~ /missing.*discovery/ } @v), 'violation mentions missing discovery');
+};
+
+#==============================================================================
+# Schema extension: versioning and wf_step_config (TC-X1..X8)
+#==============================================================================
+
+subtest 'TC-X1 both new blocks absent → no violations (back-compat)' => sub {
+    plan tests => 1;
+    my @v = validate_config_hash(base_cfg(), '/fake/cwf-project.json');
+    is(scalar @v, 0, 'absent versioning + wf_step_config still valid');
+};
+
+subtest 'TC-X2 versioning.major_minor valid → no violations' => sub {
+    plan tests => 2;
+    for my $val (qw(v1.0 v2.5)) {
+        my $cfg = base_cfg();
+        $cfg->{versioning} = { major_minor => $val };
+        my @v = validate_config_hash($cfg, '/fake/cwf-project.json');
+        is(scalar @v, 0, "$val accepted");
+    }
+};
+
+subtest 'TC-X3 versioning.major_minor malformed → violation' => sub {
+    plan tests => 4;
+    for my $val ('1.0', 'v1', 'v1.0.0', '') {
+        my $cfg = base_cfg();
+        $cfg->{versioning} = { major_minor => $val };
+        my @v = validate_config_hash($cfg, '/fake/cwf-project.json');
+        ok((grep { $_->{field} eq 'versioning.major_minor' } @v),
+           qq{"$val" produces violation});
+    }
+};
+
+subtest 'TC-X4 versioning.last_released valid vs malformed' => sub {
+    plan tests => 3;
+    my $cfg = base_cfg();
+    $cfg->{versioning} = { major_minor => 'v1.0', last_released => 'v1.0.113' };
+    my @v = validate_config_hash($cfg, '/fake/cwf-project.json');
+    is(scalar @v, 0, 'v1.0.113 accepted');
+
+    $cfg->{versioning}{last_released} = '1.0.113';
+    @v = validate_config_hash($cfg, '/fake/cwf-project.json');
+    ok((grep { $_->{field} eq 'versioning.last_released' } @v), '1.0.113 (no v) → violation');
+
+    $cfg->{versioning}{last_released} = 'v1.0';
+    @v = validate_config_hash($cfg, '/fake/cwf-project.json');
+    ok((grep { $_->{field} eq 'versioning.last_released' } @v), 'v1.0 (no patch) → violation');
+};
+
+subtest 'TC-X5 wf_step_config not an object → violation' => sub {
+    plan tests => 1;
+    my $cfg = base_cfg();
+    $cfg->{wf_step_config} = 'not-an-object';
+    my @v = validate_config_hash($cfg, '/fake/cwf-project.json');
+    ok((grep { $_->{field} eq 'wf_step_config' } @v), 'violation on wf_step_config');
+};
+
+subtest 'TC-X6 wf_step_config.<step> not an object → violation' => sub {
+    plan tests => 1;
+    my $cfg = base_cfg();
+    $cfg->{wf_step_config} = { retrospective => 'not-an-object' };
+    my @v = validate_config_hash($cfg, '/fake/cwf-project.json');
+    ok((grep { $_->{field} eq 'wf_step_config.retrospective' } @v),
+       'violation on wf_step_config.retrospective');
+};
+
+subtest 'TC-X7 wf_step_config.<step>.<key> non-boolean → violation' => sub {
+    plan tests => 2;
+    my $cfg = base_cfg();
+    $cfg->{wf_step_config} = { retrospective => { bump_version => 'true' } };  # string
+    my @v = validate_config_hash($cfg, '/fake/cwf-project.json');
+    ok((grep { $_->{field} eq 'wf_step_config.retrospective.bump_version' } @v),
+       'string "true" → violation (must be JSON boolean)');
+
+    $cfg->{wf_step_config} = { retrospective => { bump_version => 2 } };
+    @v = validate_config_hash($cfg, '/fake/cwf-project.json');
+    ok((grep { $_->{field} eq 'wf_step_config.retrospective.bump_version' } @v),
+       'integer 2 → violation (only 0/1 accepted)');
+};
+
+subtest 'TC-X8 full valid config (CwF actual settings) → no violations' => sub {
+    plan tests => 1;
+    my $cfg = base_cfg();
+    $cfg->{versioning} = {
+        major_minor   => 'v1.0',
+        last_released => 'v1.0.113',
+    };
+    $cfg->{wf_step_config} = {
+        retrospective => {
+            bump_version => JSON::PP::true,
+            tag_version  => JSON::PP::false,
+        },
+    };
+    my @v = validate_config_hash($cfg, '/fake/cwf-project.json');
+    is(scalar @v, 0, 'CwF-style config validates clean');
 };
 
 done_testing();

@@ -2,6 +2,36 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 114: Add Retrospective Version Bump and Tag Settings with Versioning Helper Script
+
+**Status**: Complete (2026-04-26)
+**Duration**: 1 session (estimated: 1-2 days — well under)
+**Impact**: Feature — deterministic semver versioning subsystem invoked from the retrospective phase. CwF projects gain `versioning.major_minor` (HITL) and `versioning.last_released` (script-owned) fields in `cwf-project.json`, plus per-project `wf_step_config.retrospective.{bump_version,tag_version}` flags. Three new helper scripts (`cwf-version-{next,bump,tag}`) implement the workflow; the `cwf-retrospective` skill calls them. CwF itself is configured `bump_version: true`, `tag_version: false` (tagging stays human-only per CLAUDE.md); external adopters can flip either flag.
+
+### Changes
+- Added: `.cwf/lib/CWF/Versioning.pm` — version-with-config logic (`read_config`, `wf_step_setting`, `next_version`, `current_version`, `bump_to`, `tag_at`)
+- Added: `.cwf/scripts/command-helpers/cwf-version-next` — read-only "what's the next version" printer
+- Added: `.cwf/scripts/command-helpers/cwf-version-bump` — atomic same-dir tmp+rename writer for `versioning.last_released`; respects `bump_version` flag; idempotent
+- Added: `.cwf/scripts/command-helpers/cwf-version-tag` — annotated git tag at the next version; on-main-only; refuses on existing tag; respects `tag_version` flag
+- Added: `.cwf/docs/workflow/versioning-standard.md` — user-facing standard (ownership, configuration, helper-script index, retrospective sequence, idempotency caveat)
+- Modified: `.cwf/lib/CWF/Common.pm` — added `parse_semver`, `version_cmp` (extracted from `cwf-manage`), and `find_git_root` (extracted from the `git rev-parse --show-toplevel` idiom that lived in three places)
+- Modified: `.cwf/scripts/cwf-manage` — imports the two semver utilities from `CWF::Common`; behaviour-preserving (regression covered by `t/cwf-manage-list-releases.t`)
+- Modified: `.cwf/lib/CWF/Validate/Config.pm` — schema rules for the new `versioning` and `wf_step_config` blocks, factored into `_validate_versioning_block`, `_validate_wf_step_config_block`, `_is_bool`, `_scalar_repr` helpers
+- Modified: `implementation-guide/cwf-project.json` — added `versioning: { major_minor: "v1.0", last_released: "v1.0.114" }` and `wf_step_config: { retrospective: { bump_version: true, tag_version: false } }`. The first `cwf-version-bump` invocation also normalised the file to canonical pretty-print (one-time formatting noise)
+- Modified: `version.yml` — rebranded CIG → CwF; reduced to a brief descriptor pointing at `cwf-project.json` as the source of truth
+- Modified: `.claude/skills/cwf-retrospective/SKILL.md` — inserted Step 9 (bump) and Step 11 (tag); renumbered the squash and merge-suggestion steps to 10 and 12
+- Modified: `.cwf/docs/skills/retrospective-extras.md` — section labels updated to match the new SKILL.md numbering
+- Modified: `.cwf/security/script-hashes.json` — registered the three new scripts (0500); refreshed hashes for the four touched files
+- Tests: new `t/versioning.t` (19 subtests), new `t/cwf-version-{next,bump,tag}.t` (15 subtests total), TC-X1..X8 added to `t/validate-config.t` (8 subtests), TC-C1..C4 added to `t/common.t` (4 subtests). Suite: 196 → 229 passing (`Files=23`)
+
+### Notable
+- Plan-review subagents earned their cost again at every phase: requirements review caught the human-only-tag externalisation (CwF-internal rule, not externally imposed); design review caught the existing semver parsing in `cwf-manage` that justified the module extraction and flagged the optional `--task-num` as a silent-failure trap (made required); implementation review caught Getopt::Long as out-of-codebase-style.
+- `/simplify` post-implementation review found four real cleanups even after the three plan reviews: extract `find_git_root` to `CWF::Common`, thread `$cfg` through `bump_to`/`tag_at` to cut N+1 reads, flatten the new validation into helpers, drop two restating comments. Layered review (plan + post-impl) is paying for itself.
+- Eating own dog food caught a fresh issue: `retrospective-extras.md` had section labels ("Step 9", "Step 10", "Step 11") tied to the SKILL.md numbering; the renumber silently rotted them. Caught only by actually running the retrospective skill on this very task. Fixed in-task. Added to BACKLOG as "Skill cross-reference linter" follow-up.
+- KD8 (bump pre-squash, tag post-squash) was the right call — without explicit ordering, putting both before the squash would have left tags pointing at commits that the squash workflow rewrote.
+
+---
+
 ## Task 113: Build Uncommitted Changes Warning Stop Hook
 
 **Status**: Complete (2026-04-25)

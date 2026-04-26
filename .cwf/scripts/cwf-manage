@@ -21,6 +21,7 @@ use Cwd qw(getcwd);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use List::Util qw(first);
+use CWF::Common qw(parse_semver version_cmp);
 use CWF::Validate::Config      ();
 use CWF::Validate::Workflow    ();
 use CWF::Validate::Consistency ();
@@ -161,31 +162,6 @@ sub cmd_list_releases {
                scalar @sorted;
     }
     return;
-}
-
-sub version_cmp {
-    my ($a, $b) = @_;
-    # Strip leading 'v'
-    (my $va = $a) =~ s/^v//;
-    (my $vb = $b) =~ s/^v//;
-
-    my @pa = split /\./, $va;
-    my @pb = split /\./, $vb;
-
-    my $len = @pa > @pb ? scalar @pa : scalar @pb;
-    for my $i (0 .. $len - 1) {
-        my $na = $pa[$i] // 0;
-        my $nb = $pb[$i] // 0;
-        my $cmp = $na <=> $nb;
-        return $cmp if $cmp;
-    }
-    return 0;
-}
-
-sub parse_semver {
-    my ($tag) = @_;
-    my @p = ($tag =~ /^v(\d+)\.(\d+)\.(\d+)$/);
-    return @p ? ($p[0]+0, $p[1]+0, $p[2]+0) : ();
 }
 
 sub filter_releases {

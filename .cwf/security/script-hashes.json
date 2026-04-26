@@ -69,7 +69,7 @@
     },
     "cwf-manage": {
       "path": ".cwf/scripts/cwf-manage",
-      "sha256": "3ad612511a41889f8dfe7268012e84041426ea0249c1ccb1e7f978c7e0cf8e0b",
+      "sha256": "ebb1494d7b6509b12b202101959d7c09eb96548a7bd9de107aa069a07ba81736",
       "permissions": "0700"
     },
     "cwf-set-status": {
@@ -81,6 +81,21 @@
       "path": ".cwf/scripts/command-helpers/cwf-checkpoint-commit",
       "sha256": "94fbd8e40c0e2b3d27b3b61a67bf0b3407b5097381a2b906666a287d27a6d0f3",
       "permissions": "0700"
+    },
+    "cwf-version-next": {
+      "path": ".cwf/scripts/command-helpers/cwf-version-next",
+      "sha256": "a9c0d39d08cda5ce2e1a645db582299d916e80e810b36cd9381312b198dc3971",
+      "permissions": "0500"
+    },
+    "cwf-version-bump": {
+      "path": ".cwf/scripts/command-helpers/cwf-version-bump",
+      "sha256": "c6073f96b619b2ef1a4a151918772fc6329208393faab418a4ad00de0ae82764",
+      "permissions": "0500"
+    },
+    "cwf-version-tag": {
+      "path": ".cwf/scripts/command-helpers/cwf-version-tag",
+      "sha256": "7275f8b9668f9ab07bd949e9aaaf8d560ceb9326f31600b16850b9f4e80f84ac",
+      "permissions": "0500"
     }
   },
   "lib": {
@@ -122,7 +137,11 @@
     },
     "CWF::Common": {
       "path": ".cwf/lib/CWF/Common.pm",
-      "sha256": "96e6714b26afdf222963c0fe785005494d41600541456691bec08f3b25a3e80f"
+      "sha256": "0479461ad6861cfd08dbf7052f8a262b797b4bd701ed4f170651567224499a21"
+    },
+    "CWF::Versioning": {
+      "path": ".cwf/lib/CWF/Versioning.pm",
+      "sha256": "c4ca78778a6839269d8db38585e0bcf0329ef72b04eccf365516559d8da15451"
     },
     "CWF::VersionRouter": {
       "path": ".cwf/lib/CWF/VersionRouter.pm",
@@ -138,7 +157,7 @@
     },
     "CWF::Validate::Config": {
       "path": ".cwf/lib/CWF/Validate/Config.pm",
-      "sha256": "6496ced7be778945368182f41e6ed0aa884abf3fd16929e34935f3dcd3726985"
+      "sha256": "5b3e6b4aa3d5cb53e96b7d66e0b99ae2760e7d3d6d45fe42c04a54544419d262"
     },
     "CWF::Validate::Workflow": {
       "path": ".cwf/lib/CWF/Validate/Workflow.pm",

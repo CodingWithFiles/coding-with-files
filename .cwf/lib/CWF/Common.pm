@@ -10,7 +10,7 @@ use strict;
 use warnings;
 use Exporter 'import';
 
-our @EXPORT_OK = qw(check_perl5opt format_error);
+our @EXPORT_OK = qw(check_perl5opt format_error parse_semver version_cmp find_git_root);
 
 # Check PERL5OPT environment configuration
 # Args: none
@@ -31,6 +31,45 @@ sub format_error {
     my $output = "Error: $message\n";
     $output .= "\nUsage: $usage\n" if $usage;
     return $output;
+}
+
+# Parse a semver tag of the form vX.Y.Z
+# Args: $tag (string, e.g. "v1.0.113")
+# Returns: list (major, minor, patch) as numeric scalars; empty list on parse failure
+sub parse_semver {
+    my ($tag) = @_;
+    return () unless defined $tag;
+    my @p = ($tag =~ /^v(\d+)\.(\d+)\.(\d+)$/);
+    return @p ? ($p[0]+0, $p[1]+0, $p[2]+0) : ();
+}
+
+# Resolve the current git repository root.
+# Returns: absolute path string, or undef if not inside a git repo.
+sub find_git_root {
+    my $root = `git rev-parse --show-toplevel 2>/dev/null`;
+    chomp $root;
+    return length $root ? $root : undef;
+}
+
+# Compare two version strings numerically component-by-component
+# Args: $a, $b (version strings; leading 'v' stripped if present)
+# Returns: -1 / 0 / +1 (suitable for sort)
+sub version_cmp {
+    my ($a, $b) = @_;
+    (my $va = $a) =~ s/^v//;
+    (my $vb = $b) =~ s/^v//;
+
+    my @pa = split /\./, $va;
+    my @pb = split /\./, $vb;
+
+    my $len = @pa > @pb ? scalar @pa : scalar @pb;
+    for my $i (0 .. $len - 1) {
+        my $na = $pa[$i] // 0;
+        my $nb = $pb[$i] // 0;
+        my $cmp = $na <=> $nb;
+        return $cmp if $cmp;
+    }
+    return 0;
 }
 
 1;

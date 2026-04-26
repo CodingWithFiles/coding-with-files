@@ -46,9 +46,13 @@ allowed-tools:
 
 **Step 8**: Update CHANGELOG.md and BACKLOG.md. Read `.cwf/docs/skills/retrospective-extras.md#changelogmd-and-backlogmd-update` for the full workflow.
 
-**Step 9**: Create checkpoints branch and squash. Read `.cwf/docs/skills/retrospective-extras.md#checkpoints-branch-and-squash` for the full workflow.
+**Step 9**: Bump version. Run `.cwf/scripts/command-helpers/cwf-version-bump --task-num={current_task_num}`. Honours `wf_step_config.retrospective.bump_version` in `cwf-project.json` (default: true). On `bumped: v{X}`, the resulting `cwf-project.json` change is staged together with `j-retrospective.md` for the j-phase checkpoint. On `skipped` or `already at v{X}`, nothing further to stage. See `.cwf/docs/workflow/versioning-standard.md`.
 
-**Step 10 (Next Steps)**:
+**Step 10**: Create checkpoints branch and squash. Read `.cwf/docs/skills/retrospective-extras.md#checkpoints-branch-and-squash` for the full workflow.
+
+**Step 11**: Tag version. Run `.cwf/scripts/command-helpers/cwf-version-tag --task-num={current_task_num} --message="Task {current_task_num}"` after the squash so any tag points at the final commit. Honours `wf_step_config.retrospective.tag_version` (default: false — CwF itself never tags from the script; tagging is human-only per `CLAUDE.md`). External adopters with `tag_version: true` get the annotated tag.
+
+**Step 12 (Next Steps)**:
 - **Primary**: Suggest merge to user (do not execute): `git checkout main && git merge --ff-only <task-branch>`
 - **Alt**: Create follow-up tasks, share learnings
 
@@ -58,4 +62,6 @@ allowed-tools:
 - [ ] All workflow file statuses "Finished"
 - [ ] Task verified at 100% via `/cwf-status`
 - [ ] CHANGELOG.md and BACKLOG.md updated
+- [ ] `cwf-version-bump` invoked (Step 9); outcome reported
 - [ ] Checkpoints branch created, commits squashed
+- [ ] `cwf-version-tag` invoked (Step 11); outcome reported

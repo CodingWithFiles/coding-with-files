@@ -1,104 +1,114 @@
 {
-  "project-name": "Coding with Files (CWF)",
-  "description": "Structured task management system for software development using Claude Code integration",
-  "version": "v0.2.1",
-  "supported-task-types": [
+  "description" : "Structured task management system for software development using Claude Code integration",
+  "directory-structure" : {
+    "base-path" : "implementation-guide",
+    "max-depth" : 5,
+    "pattern" : "{{task-type}}/{{task-number}}-{{description-slug}}"
+  },
+  "integration" : {
+    "claude-code" : {
+      "autoload-config" : ".cwf/autoload.yaml",
+      "commands-path" : ".claude/commands",
+      "templates-path" : ".cwf/templates",
+      "utils-path" : ".cwf/utils"
+    }
+  },
+  "project-name" : "Coding with Files (CWF)",
+  "security" : {
+    "canonical-source" : {
+      "base-url" : "https://api.github.com/repos/OWNER/REPO/contents",
+      "repository" : "OWNER/REPO",
+      "type" : "github",
+      "verification-ref" : "main"
+    },
+    "file-integrity" : {
+      "commands" : ".claude/commands/cwf-*.md",
+      "hash-algorithm" : "sha256",
+      "scripts" : ".cwf/scripts/command-helpers/cwf-*"
+    },
+    "version-tracking" : "v0.2.1"
+  },
+  "source-management" : {
+    "branch-naming-convention" : "{task-type}/{task-id}-{description-slug}"
+  },
+  "supported-task-types" : [
     "feature",
     "bugfix",
     "hotfix",
     "chore",
     "discovery"
   ],
-  "source-management": {
-    "branch-naming-convention": "{task-type}/{task-id}-{description-slug}"
+  "task-tracking" : {
+    "base-url" : "https://github.com/anthropics/claude-code/issues",
+    "fallback" : {
+      "description" : "For tasks without GitHub issues yet",
+      "id-format" : "internal-{{number}}",
+      "migration-notes" : "Replace internal-N with issues-N when GitHub issue created"
+    },
+    "id-format" : "issues-{{number}}",
+    "system" : "github-issues"
   },
-  "task-tracking": {
-    "system": "github-issues",
-    "base-url": "https://github.com/anthropics/claude-code/issues",
-    "id-format": "issues-{{number}}",
-    "fallback": {
-      "description": "For tasks without GitHub issues yet",
-      "id-format": "internal-{{number}}",
-      "migration-notes": "Replace internal-N with issues-N when GitHub issue created"
-    }
-  },
-  "directory-structure": {
-    "base-path": "implementation-guide",
-    "pattern": "{{task-type}}/{{task-number}}-{{description-slug}}",
-    "max-depth": 5
-  },
-  "templates": {
-    "feature": [
+  "templates" : {
+    "bugfix" : [
       "plan.md",
-      "requirements.md", 
-      "design.md",
+      "implementation.md",
       "testing.md",
-      "rollout.md",
-      "maintenance.md"
-    ],
-    "bugfix": [
-      "plan.md",
-      "implementation.md",
-      "testing.md", 
       "rollout.md"
     ],
-    "hotfix": [
-      "plan.md",
-      "implementation.md",
-      "rollout.md"
-    ],
-    "chore": [
+    "chore" : [
       "plan.md",
       "implementation.md",
       "validation.md",
       "maintenance.md"
     ],
-    "discovery": [
+    "discovery" : [
       "plan.md",
       "requirements.md",
       "design.md",
       "implementation.md",
       "testing.md",
       "retrospective.md"
+    ],
+    "feature" : [
+      "plan.md",
+      "requirements.md",
+      "design.md",
+      "testing.md",
+      "rollout.md",
+      "maintenance.md"
+    ],
+    "hotfix" : [
+      "plan.md",
+      "implementation.md",
+      "rollout.md"
     ]
   },
-  "workflow": {
-    "required-sections": [
+  "version" : "v0.2.1",
+  "versioning" : {
+    "last_released" : "v1.0.114",
+    "major_minor" : "v1.0"
+  },
+  "wf_step_config" : {
+    "retrospective" : {
+      "bump_version" : true,
+      "tag_version" : false
+    }
+  },
+  "workflow" : {
+    "required-sections" : [
       "Task Reference",
       "Goal",
       "Current Status"
     ],
-    "status-values": {
-      "Backlog": 0,
-      "Blocked": 15,
-      "To-Do": 0,
-      "In Progress": 25,
-      "Testing": 75,
-      "Finished": 100,
-      "Cancelled": 0,
-      "Skipped": 100
-    }
-  },
-  "integration": {
-    "claude-code": {
-      "commands-path": ".claude/commands",
-      "autoload-config": ".cwf/autoload.yaml",
-      "utils-path": ".cwf/utils",
-      "templates-path": ".cwf/templates"
-    }
-  },
-  "security": {
-    "version-tracking": "v0.2.1",
-    "canonical-source": {
-      "type": "github",
-      "repository": "OWNER/REPO",
-      "base-url": "https://api.github.com/repos/OWNER/REPO/contents",
-      "verification-ref": "main"
-    },
-    "file-integrity": {
-      "commands": ".claude/commands/cwf-*.md",
-      "scripts": ".cwf/scripts/command-helpers/cwf-*",
-      "hash-algorithm": "sha256"
+    "status-values" : {
+      "Backlog" : 0,
+      "Blocked" : 15,
+      "Cancelled" : 0,
+      "Finished" : 100,
+      "In Progress" : 25,
+      "Skipped" : 100,
+      "Testing" : 75,
+      "To-Do" : 0
     }
   }
 }
