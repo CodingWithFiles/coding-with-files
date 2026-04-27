@@ -1724,3 +1724,61 @@ Both `h-rollout.md` and `i-maintenance.md` ship with full enterprise templates (
 
 **Identified in**: Task 114 h-rollout.md and i-maintenance.md (both Lessons Learned sections)
 
+## Task: Make cwf-manage update handle a dirty working tree
+
+**Task-Type**: bugfix
+**Priority**: High
+**Status**: Follow-up from external user upgrade (v1.0.95 → v1.0.114)
+
+`cwf-manage update` runs `git subtree pull` under the hood, which requires a clean working tree. When the user has uncommitted changes the failure mode is opaque — a raw `git subtree` error rather than a CWF-aware message. The external user had to hand-roll a stash dance (`git stash` → `cwf-manage update` → `git stash pop`) to get past it.
+
+**Problem**: First-time external users hit this failure with no guidance. The natural next action (stash, update, unstash) is mechanical and could be done by `cwf-manage update` itself, or — at minimum — surfaced as a clear error with the recommended command.
+
+**Scope**:
+- Detect dirty working tree before invoking `git subtree pull`
+- Either: auto-stash with a labelled stash entry (`cwf-manage-update-<timestamp>`), run the update, restore on success, leave the stash on failure with a pointer for the user; or fail fast with a clear message ("working tree has uncommitted changes — stash or commit them, then re-run `cwf-manage update`")
+- Decide between the two based on principle of least surprise; auto-stash is friendlier but may surprise users who expect git operations to leave their tree alone — surface the chosen behaviour in `--help`
+- Add a regression test that runs `cwf-manage update` against a dirty tree fixture and asserts the chosen behaviour
+
+**Rationale**: External users are the canary for install/update UX. This was the second-biggest friction point in the v1.0.95 → v1.0.114 upgrade (after the CWF_SOURCE bug, Task 115).
+
+**Identified in**: External user upgrade report, 2026-04-26
+
+## Task: Audit Perl helpers against perl-git-paths.md conventions
+
+**Task-Type**: chore
+**Priority**: Medium
+**Status**: Follow-up from Task 115 retrospective (and Task 113 retrospective recommendation)
+
+`docs/conventions/perl-git-paths.md` (added in Task 113) prescribes `#!/usr/bin/perl -CDSL` shebang, `use utf8;` for any source with non-ASCII literals, and `git ... -z` for git path output. Several CwF Perl scripts predate the convention and have not been audited against it. Task 113's retrospective recommended this audit; Task 115 hit the gap directly when `cwf-manage`'s missing `use utf8;` produced double-encoded em-dash mojibake under `PERL5OPT=-CDSL`. Task 115 boy-scouted `cwf-manage`; the rest of `.cwf/scripts/` and `.cwf/lib/` remain unaudited.
+
+**Scope**:
+- Walk `.cwf/scripts/`, `.cwf/lib/CWF/`, and `.cwf/scripts/hooks/` for Perl files
+- For each: check shebang (should be `#!/usr/bin/perl -CDSL` for executables, libraries are exempt), grep for non-ASCII literals (must have `use utf8;` if any), grep for `git status|diff|ls-files` calls without `-z`
+- Fix non-conformant scripts in a single pass (or batched by area) — script changes will cascade to `.cwf/security/script-hashes.json`
+- Add a one-time `cwf-manage validate` soft check or a `prove t/perl-conventions.t` style test that fails if a registered script breaks the convention, so future regressions are caught at commit time
+
+**Identified in**: Task 113 j-retrospective.md (recommendation); Task 115 j-retrospective.md (boy-scouted one script, audit still owed)
+
+## Task: Resolve cwf-project.json version drift vs .cwf/version
+
+**Task-Type**: discovery
+**Priority**: Medium
+**Status**: Follow-up from external user upgrade (v1.0.95 → v1.0.114)
+
+After `cwf-manage update`, `.cwf/version` was bumped to `v1.0.114` but `cwf-project.json` still recorded `"version": "v1.0.95"`. The external user deferred reconciling this on the basis that "`.cwf/version` is authoritative" — but it's unclear whether that's the design or just current behaviour.
+
+**Problem**: Two files claim to record the installed CWF version. Either one is authoritative and the other is vestigial, or both are intentional and should stay in sync. Either way, `cwf-manage update` shouldn't leave them inconsistent.
+
+**Discovery questions**:
+- What is `cwf-project.json`'s `version` field meant to record? (installed CWF version, project schema version, last-init version, something else?)
+- Is `.cwf/version` the authoritative installed-version source? If yes, why does `cwf-project.json` also carry a version?
+- What reads each field today? (grep callers; any drift may already be silently broken)
+
+**Resolution paths** (pick one in design phase):
+- **A**: `.cwf/version` is sole authority — drop `version` from `cwf-project.json`, migrate any callers
+- **B**: Both fields are intentional — `cwf-manage update` writes both; add a validate check for drift
+- **C**: `cwf-project.json` records something distinct (e.g. project-schema version, init version) — rename the field to remove ambiguity
+
+**Identified in**: External user upgrade report, 2026-04-26
+

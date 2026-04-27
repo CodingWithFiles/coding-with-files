@@ -2,6 +2,28 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 115: Honour CWF_SOURCE Env Var in cwf-manage Update
+
+**Status**: Complete (2026-04-27)
+**Duration**: 1 session (estimated: 0.5 day — on target)
+**Impact**: Bugfix — `cwf-manage update` and `cwf-manage list-releases` now honour `$ENV{CWF_SOURCE}` for this-invocation-only override of `cwf_source` from `.cwf/version`, matching the convention `install.bash` already established. Lets external developers point a single update or release-list at a `file:///` source without editing the installed `.cwf/version` (and without it sticking). Also boy-scouts a pre-existing UTF-8 source-encoding bug in `cwf-manage` that surfaced double-encoded em-dashes under `PERL5OPT=-CDSL`.
+
+### Changes
+- Added: `resolve_source(\%v)` helper in `.cwf/scripts/cwf-manage` — pure function returning `($source, $origin)` two-element list with env > file precedence and `defined && ne ''` checks on both
+- Modified: `.cwf/scripts/cwf-manage` — `cmd_update` and `cmd_list_releases` read effective source via `resolve_source` instead of `$v{cwf_source}` directly; log lines now include `(from: <origin>)` suffix in both modes; `Environment:` block added to file-header comment and `cmd_help` heredoc
+- Boy-scout: `.cwf/scripts/cwf-manage` shebang changed `#!/usr/bin/env perl` → `#!/usr/bin/perl -CDSL` and `use utf8;` added, bringing it into compliance with `docs/conventions/perl-git-paths.md`. Pre-existing em-dashes in error messages now emit clean UTF-8 instead of double-encoded mojibake under `PERL5OPT=-CDSL`
+- Modified: `.cwf/security/script-hashes.json` — refreshed `cwf-manage` sha256
+- Added: `t/cwf-manage-resolve-source.t` — six unit subtests covering the env × file matrix (set/empty/unset × present/empty/missing); uses `*main::die_msg` symbol-table override to make `exit 1` paths catchable via `eval`
+- BACKLOG: added "Make cwf-manage update handle a dirty working tree" (bugfix, High) and "Resolve cwf-project.json version drift vs .cwf/version" (discovery, Medium) — sibling pain points from the same external-user upgrade report. Added "Audit Perl helpers against perl-git-paths.md conventions" as a retrospective follow-up.
+
+### Notable
+- Decision 2 (transient override, no persistence) was the load-bearing design call — and TC-10 validated it empirically: `CWF_SOURCE=file:///… cwf-manage update v1.0.114` against a fixture with `cwf_source=https://example.com/SENTINEL` updated `cwf_version`/`cwf_ref`/`cwf_sha`/`cwf_installed` correctly while leaving `cwf_source=https://example.com/SENTINEL` untouched. Avoids the "one-shot env var silently re-pins the installation" surprise mode.
+- Plan-review subagents earned their cost: design review caught the empty-string env-var trap (`||` vs `defined && ne ''`) and pulled an asymmetric two-line logging proposal into a single line with origin suffix (no branching at call sites). /simplify post-plan caught a fabricated `t/versioning.t` cite in the d-impl plan-review summary that the original Misalignment subagent emitted — small, but exactly the kind of drift that becomes load-bearing later.
+- The boy-scout fix was raised early but I initially proposed deferring to a separate task — user pushed back ("why are we doing a massive ceremony to do a very minor totally obvious fix while we're doing this work?"); fix landed in this task. Reinforces the principle that co-located one-line fixes don't earn the full task ceremony.
+- Suite: 229 → 235 passing (24 files). `cwf-manage validate` OK after both hash bumps.
+
+---
+
 ## Task 114: Add Retrospective Version Bump and Tag Settings with Versioning Helper Script
 
 **Status**: Complete (2026-04-26)

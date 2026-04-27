@@ -1,4 +1,4 @@
-#!/usr/bin/env perl
+#!/usr/bin/perl -CDSL
 #
 # CWF Management Script
 # Manage an installed CWF instance: status, list-releases, update, rollback.
@@ -10,8 +10,12 @@
 #   cwf-manage rollback <ref>  Revert to a previous version
 #   cwf-manage help            Show this help
 #
+# Environment:
+#   CWF_SOURCE   Override CWF source repo URL (default: cwf_source from .cwf/version)
+#
 use strict;
 use warnings;
+use utf8;
 use File::Basename;
 use File::Temp qw(tempdir);
 use File::Path qw(rmtree make_path);
@@ -74,6 +78,17 @@ sub write_version_file {
     return;
 }
 
+# --- Source resolution --------------------------------------------------------
+
+sub resolve_source {
+    my ($v) = @_;
+    my $env  = $ENV{CWF_SOURCE};
+    my $file = $v->{cwf_source};
+    return ($env,  'CWF_SOURCE env var') if defined $env  && $env  ne '';
+    return ($file, '.cwf/version')        if defined $file && $file ne '';
+    die_msg("No CWF source: CWF_SOURCE unset and cwf_source missing/empty in .cwf/version");
+}
+
 # --- Ref resolution -----------------------------------------------------------
 
 sub resolve_ref {
@@ -121,10 +136,10 @@ sub cmd_status {
 sub cmd_list_releases {
     my ($git_root, $show_all) = @_;
     my %v = read_version_file($git_root);
-    my $source  = $v{cwf_source}  or die_msg("No cwf_source in .cwf/version");
+    my ($source, $origin) = resolve_source(\%v);
     my $current = $v{cwf_version} // '';
 
-    log_msg("Available releases from $source");
+    log_msg("Available releases from $source (from: $origin)");
 
     my @lines = `git ls-remote --tags "$source" 'v*' 2>/dev/null`;
     die_msg("Failed to query remote tags from $source") if $?;
@@ -198,14 +213,14 @@ sub cmd_update {
 
     my %v = read_version_file($git_root);
     my $method = $v{cwf_method} or die_msg("No cwf_method in .cwf/version");
-    my $source = $v{cwf_source} or die_msg("No cwf_source in .cwf/version");
+    my ($source, $origin) = resolve_source(\%v);
 
     log_msg("Updating CWF (method: $method, ref: $ref)");
 
     # Clone source to temp dir
     my $tmpdir = tempdir(CLEANUP => 1);
     my $clone_dir = "$tmpdir/cwf-source";
-    log_msg("Cloning CWF source...");
+    log_msg("Cloning CWF source from $source (from: $origin)...");
     system("git", "clone", "--quiet", $source, $clone_dir) == 0
         or die_msg("Failed to clone $source");
 
@@ -383,6 +398,10 @@ Commands:
   rollback <ref>   Revert to a previous version
   validate         Validate config and workflow files; exit non-zero on violations
   help             Show this help message
+
+Environment:
+  CWF_SOURCE       Override CWF source repo URL for this invocation
+                   (default: cwf_source from .cwf/version)
 
 Examples:
   cwf-manage status
