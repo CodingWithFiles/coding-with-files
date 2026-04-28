@@ -89,6 +89,35 @@ sub resolve_source {
     die_msg("No CWF source: CWF_SOURCE unset and cwf_source missing/empty in .cwf/version");
 }
 
+# --- Working-tree safety -----------------------------------------------------
+
+sub check_clean_tree {
+    my ($git_root) = @_;
+
+    open(my $fh, '-|', 'git', '-C', $git_root,
+         'status', '--porcelain', '-z', '--untracked-files=all',
+         '--', '.cwf', '.cwf-skills')
+        or die_msg("Failed to spawn git status: $!");
+    local $/;
+    my $output = <$fh> // '';
+    close $fh;
+    die_msg("Failed to check working tree status (git status exited non-zero)")
+        if $? != 0;
+
+    my @records = grep { length } split /\0/, $output;
+    return unless @records;
+
+    my $list = join("\n", map { "  $_" } @records);
+    die_msg(<<"END");
+Working tree has uncommitted changes under .cwf, .cwf-skills:
+$list
+Stash or commit them, then re-run:
+  git stash
+  cwf-manage update [ref]
+  git stash pop
+END
+}
+
 # --- Ref resolution -----------------------------------------------------------
 
 sub resolve_ref {
@@ -214,6 +243,8 @@ sub cmd_update {
     my %v = read_version_file($git_root);
     my $method = $v{cwf_method} or die_msg("No cwf_method in .cwf/version");
     my ($source, $origin) = resolve_source(\%v);
+
+    check_clean_tree($git_root);
 
     log_msg("Updating CWF (method: $method, ref: $ref)");
 
@@ -402,6 +433,10 @@ Commands:
 Environment:
   CWF_SOURCE       Override CWF source repo URL for this invocation
                    (default: cwf_source from .cwf/version)
+
+Notes:
+  update and rollback refuse to run if the working tree has uncommitted
+  changes under .cwf/ or .cwf-skills/. Stash or commit them first.
 
 Examples:
   cwf-manage status

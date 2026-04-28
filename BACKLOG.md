@@ -1724,26 +1724,6 @@ Both `h-rollout.md` and `i-maintenance.md` ship with full enterprise templates (
 
 **Identified in**: Task 114 h-rollout.md and i-maintenance.md (both Lessons Learned sections)
 
-## Task: Make cwf-manage update handle a dirty working tree
-
-**Task-Type**: bugfix
-**Priority**: High
-**Status**: Follow-up from external user upgrade (v1.0.95 → v1.0.114)
-
-`cwf-manage update` runs `git subtree pull` under the hood, which requires a clean working tree. When the user has uncommitted changes the failure mode is opaque — a raw `git subtree` error rather than a CWF-aware message. The external user had to hand-roll a stash dance (`git stash` → `cwf-manage update` → `git stash pop`) to get past it.
-
-**Problem**: First-time external users hit this failure with no guidance. The natural next action (stash, update, unstash) is mechanical and could be done by `cwf-manage update` itself, or — at minimum — surfaced as a clear error with the recommended command.
-
-**Scope**:
-- Detect dirty working tree before invoking `git subtree pull`
-- Either: auto-stash with a labelled stash entry (`cwf-manage-update-<timestamp>`), run the update, restore on success, leave the stash on failure with a pointer for the user; or fail fast with a clear message ("working tree has uncommitted changes — stash or commit them, then re-run `cwf-manage update`")
-- Decide between the two based on principle of least surprise; auto-stash is friendlier but may surprise users who expect git operations to leave their tree alone — surface the chosen behaviour in `--help`
-- Add a regression test that runs `cwf-manage update` against a dirty tree fixture and asserts the chosen behaviour
-
-**Rationale**: External users are the canary for install/update UX. This was the second-biggest friction point in the v1.0.95 → v1.0.114 upgrade (after the CWF_SOURCE bug, Task 115).
-
-**Identified in**: External user upgrade report, 2026-04-26
-
 ## Task: Audit Perl helpers against perl-git-paths.md conventions
 
 **Task-Type**: chore

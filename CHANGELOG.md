@@ -2,6 +2,28 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 116: Make cwf-manage Update Handle a Dirty Working Tree
+
+**Status**: Complete (2026-04-28)
+**Duration**: 1 session (estimated: 0.5–1 day — well under)
+**Impact**: Bugfix — `cwf-manage update` (and via delegation, `cwf-manage rollback`) now refuse to run if `.cwf/` or `.cwf-skills/` has uncommitted changes (tracked-modified or untracked, via `--untracked-files=all`). Replaces the previous opaque `git subtree pull` failure (subtree method) and silent `rmtree`-then-overwrite (copy method) with a single CWF-prefixed error listing the dirty paths and the recovery recipe (`git stash` / `cwf-manage update [ref]` / `git stash pop`). Closes the second of two pain points filed during the same external-user upgrade report (v1.0.95 → v1.0.114).
+
+### Changes
+- Added: `check_clean_tree($git_root)` helper in `.cwf/scripts/cwf-manage` — list-form `open '-|', 'git', '-C', $git_root, 'status', '--porcelain', '-z', '--untracked-files=all', '--', '.cwf', '.cwf-skills'`; defensive `$? != 0` exit-code check; calls `die_msg` with one heredoc containing header + dirty-file list + recipe
+- Modified: `.cwf/scripts/cwf-manage` — `cmd_update` calls `check_clean_tree($git_root)` between `resolve_source` and `log_msg("Updating CWF...")`. `cmd_rollback` (unchanged) inherits the check via delegation
+- Modified: `.cwf/scripts/cwf-manage` `cmd_help` heredoc — `Notes:` section between `Environment:` and `Examples:` documents the precondition. No file-header duplicate (single source of truth)
+- Modified: `.cwf/security/script-hashes.json` — refreshed `cwf-manage` sha256
+- Added: `t/cwf-manage-check-clean-tree.t` — three unit subtests: clean tree, dirty (tracked + untracked combined), git-status-failure. Reuses Task 115's `*main::die_msg` symbol-table override pattern
+
+### Notable
+- Intentionally **out of scope** by design: `.claude/skills/cwf-*` symlinks (CWF-managed; over-blocking unrelated user skills outweighs the marginal symlink-overwrite risk). Documented in c-design Decision 2.
+- Branched from Task 115's tip (linear-history convention); 115 will ff-merge first, 116 ff-merges immediately after with no rebase work.
+- `/simplify` between testing-plan and implementation-exec removed ~66 lines of plan text and translated 1:1 into removing the `eval`-wrapper, the `@paths` parameter, the cap-overflow logic, and one-and-a-half tests. The originally-planned "helper terse / recipe at call site" split was speculative future-proofing for a hypothetical `rollback --safe` mode that doesn't exist; collapsing back to "helper does one thing, dies via `die_msg`" eliminated several edge-case-defending code comments at the same time.
+- TC-6 fixture footnote: first attempt for "dirty file outside scope" carried over the untracked `.cwf/foo.txt` from TC-5 (because `git stash` doesn't include untracked files without `-u`); re-ran with a fresh `mktemp -d` fixture and it passed. Lesson noted: prefer per-scenario fixtures over cleanup when the thing under test is "dirtiness detection".
+- Suite: 235 → 238 passing (25 files). `cwf-manage validate` OK after the hash bump.
+
+---
+
 ## Task 115: Honour CWF_SOURCE Env Var in cwf-manage Update
 
 **Status**: Complete (2026-04-27)

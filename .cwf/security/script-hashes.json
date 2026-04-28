@@ -69,7 +69,7 @@
     },
     "cwf-manage": {
       "path": ".cwf/scripts/cwf-manage",
-      "sha256": "97d4bfe15d83c1dfb2dfeda9e53bc1e832526a2edea40ea5636e382688bba967",
+      "sha256": "e3b5628d98762803a8511b10ae086a838e43dde2bbfb5d1332ec0e2be90f8638",
       "permissions": "0700"
     },
     "cwf-set-status": {
