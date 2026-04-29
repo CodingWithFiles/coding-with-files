@@ -36,7 +36,7 @@ allowed-tools:
 - Verify `description` is provided
 
 ### 2. Generate Slug and Directory Path
-- Slug: lowercase, spaces to hyphens, remove special chars, truncate 50 chars
+- Slug: pass `--description` raw to the script; the script slugifies (lowercase, spaces to hyphens, remove special chars) and rejects overlong descriptions (>50 chars) with `[CWF] ERROR:`. Do not pre-truncate.
 - Top-level: `implementation-guide/<num>-<type>-<slug>/`
 - Subtask: nested inside parent directory (e.g. task 48.1 → `implementation-guide/48-feature-parent/48.1-bugfix-slug/`)
 

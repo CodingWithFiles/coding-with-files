@@ -37,6 +37,13 @@ use Cwd qw(abs_path);
 use CWF::TaskPath qw(validate get_parent resolve_num);
 use CWF::WorkflowFiles qw(load_config);
 
+sub die_msg {
+    print STDERR "[CWF] ERROR: @_\n";
+    exit 1;
+}
+
+use constant SLUG_MAX_LEN => 50;
+
 # Parse command-line parameters
 sub parse_parameters {
     my @args = @_;
@@ -80,9 +87,22 @@ sub parse_parameters {
         }
     }
 
-    # Construct destination if not provided
+    # Validate slug length before any filesystem work, so rejection is atomic.
+    my $slug = generate_slug($params{description});
+    my $slug_len = length($slug);
+    if ($slug_len == 0) {
+        die_msg("Task description '$params{description}' produces an empty slug after normalising. "
+              . "Use a description that contains at least one alphanumeric character.");
+    }
+    if ($slug_len > SLUG_MAX_LEN) {
+        die_msg("Task slug '$slug' is $slug_len characters; limit is " . SLUG_MAX_LEN . ". "
+              . "Use a briefer task description (try fewer or shorter words).");
+    }
+
+    # Construct destination if not provided. Reuse the slug we just computed
+    # rather than slugifying the description a second time.
     unless (exists $params{destination}) {
-        $params{destination} = construct_destination(\%params);
+        $params{destination} = construct_destination(\%params, $slug);
     }
 
     # Validate format parameter
@@ -164,14 +184,17 @@ sub generate_slug {
     # Collapse consecutive hyphens
     $description =~ s/-+/-/g;
 
-    # Truncate to 50 characters
-    return substr($description, 0, 50);
+    # Strip leading/trailing hyphens so "---foo---" becomes "foo".
+    $description =~ s/^-+//;
+    $description =~ s/-+$//;
+
+    return $description;
 }
 
 # Construct destination path from config pattern if not provided
 # Subtasks (dotted numbers) are nested inside their parent directory
 sub construct_destination {
-    my ($params) = @_;
+    my ($params, $slug) = @_;
 
     my $config = load_config();
     unless ($config) {
@@ -180,7 +203,7 @@ sub construct_destination {
     }
 
     my $base_path = $config->{directory_structure}{base_path} || 'implementation-guide';
-    my $slug = generate_slug($params->{description});
+    $slug //= generate_slug($params->{description});
     my $task_dir = "$params->{task_num}-$params->{task_type}-$slug";
 
     # If subtask (has dots), nest inside parent directory
@@ -541,12 +564,15 @@ sub output_results {
 }
 
 # Main execution
-my %params = parse_parameters(@ARGV);
-my $templates_dir = find_templates_directory();
-my $config = validate_task_type($params{task_type});
-my @templates = discover_templates($templates_dir, $params{task_type});
-my %variables = compute_variables(\%params);
-my ($created, $overwritten) = copy_templates(\@templates, $params{destination}, \%variables, $templates_dir, $params{task_type});
-output_results(\%params, $created, $overwritten);
+sub main {
+    my %params = parse_parameters(@ARGV);
+    my $templates_dir = find_templates_directory();
+    my $config = validate_task_type($params{task_type});
+    my @templates = discover_templates($templates_dir, $params{task_type});
+    my %variables = compute_variables(\%params);
+    my ($created, $overwritten) = copy_templates(\@templates, $params{destination}, \%variables, $templates_dir, $params{task_type});
+    output_results(\%params, $created, $overwritten);
+    return;
+}
 
-exit 0;
+main() unless caller();

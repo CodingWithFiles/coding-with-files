@@ -44,7 +44,7 @@
     },
     "template-copier-v2.1": {
       "path": ".cwf/scripts/command-helpers/template-copier-v2.1",
-      "sha256": "c4e37c5ea2442fd695d6d7f0b324ef592247b9a217f215aaec01853e75b5a498",
+      "sha256": "422969cf5fff5977641458f825f300660b71bd9d0c243676cf582fea0ecbd205",
       "permissions": "0700"
     },
     "migrate-v1-to-v2.sh": {

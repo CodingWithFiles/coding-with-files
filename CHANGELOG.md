@@ -2,6 +2,32 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 119: Reject Overlong Task Slugs
+
+**Status**: Complete (2026-04-29)
+**Duration**: 1 session (estimated: ~2–3 hours — on the lower end)
+**Impact**: Feature (breaking) — `/cwf-new-task` and `/cwf-new-subtask` now reject descriptions whose slug exceeds 50 characters, instead of silently truncating to fit. Previously a description like `"error on overlong slugs instead of silent truncation"` would slugify to `"error-on-overlong-slugs-instead-of-silent-truncati"` (mid-word stub); now it exits 1 with `[CWF] ERROR: Task slug '…' is N characters; limit is 50. Use a briefer task description (try fewer or shorter words).` on STDERR. Validation lives in `.cwf/scripts/command-helpers/template-copier-v2.1` (single source of truth via `use constant SLUG_MAX_LEN => 50`) and runs before any filesystem write, so rejection is atomic — no partial directory or branch left behind. Empty slugs (e.g. description = `"!!!"` → slugifies to `""`) get a separate rejection with a distinct recovery message. Existing on-disk tasks with previously-truncated slugs are unaffected (FR5 / AC5.2).
+
+**Migration**: Users with descriptions whose slug exceeds 50 chars must shorten the description and rerun. No on-disk migration needed — pre-existing tasks remain operational.
+
+### Changes
+- Modified: `.cwf/scripts/command-helpers/template-copier-v2.1` — added `die_msg` helper (mirrors `cwf-manage`'s) and `use constant SLUG_MAX_LEN => 50` near the top; new validation block in `parse_parameters` after the required-param loop and before destination construction (rejects empty slug or `length($slug) > SLUG_MAX_LEN`); `generate_slug` no longer truncates and now strips leading/trailing hyphens (so `"---foo---"` → `"foo"`); top-level execution wrapped in `sub main { ... } main() unless caller();` so the script is `do`-loadable from tests without firing required-param checks. The /simplify pass post-impl inlined `SLUG_MAX_LEN` directly into the error message and threaded the slug computed in `parse_parameters` into `construct_destination` as an optional 2nd arg, eliminating one redundant `generate_slug` call per invocation.
+- Modified: `.claude/skills/cwf-new-task/SKILL.md` — Step 2 line replaced. Was "Slug: lowercase, spaces to hyphens, remove special chars, truncate 50 chars". Now: "Slug: pass --description raw to the script; the script slugifies (…) and rejects overlong descriptions (>50 chars) with `[CWF] ERROR:`. Do not pre-truncate." LLM is no longer instructed to truncate.
+- Modified: `.claude/skills/cwf-new-subtask/SKILL.md` — corresponding line aligned with cwf-new-task.
+- Modified: `.cwf/security/script-hashes.json` — refreshed `template-copier-v2.1` sha256.
+- Added: `t/template-copier-slug-validation.t` — 8 unit tests using the `*main::die_msg` symbol-table override pattern from Tasks 115/116. Cases: under-limit accepted, at-limit accepted, just-over rejected, well-over rejected with length in message, empty-after-normalising rejected, leading/trailing hyphens stripped, error message contents (length / limit / recovery hint / `[CWF] ERROR:` prefix), atomicity (tempdir unchanged after rejection).
+- BACKLOG: removed "Reject overlong task slugs" entry (completed by this task); added 3 follow-up entries — boy-scout migration of remaining `print STDERR "Error: ..." + exit N` blocks in `template-copier-v2.1` to `die_msg`; lift `die_msg` to a shared `CWF::Common` module (currently duplicated between `cwf-manage` and `template-copier-v2.1`); codify the `main() unless caller();` testability convention in `docs/conventions/`.
+
+### Notable
+- Plan review (3 parallel Explore subagents) at d-implementation-plan caught the load-bearing testability defect: the original script's bare top-level execution (`my %params = parse_parameters(@ARGV); ... exit 0;`) would die on `do`-load with empty `@ARGV` before any test could override `*main::die_msg`. Solution adopted: wrap in `sub main { ... } main() unless caller();`. Without this catch the test file would have failed during implementation-exec for an opaque-looking reason and prompted a panicked round-trip. Caught in planning, fixed in design.
+- Plan review also surfaced two design refinements: drop the dual-validation (description + destination basename) defensive duplication (Improvements F1 — description-derived slug is checked first and `--description` is required, so destination is never reached when description fails); add empty-slug rejection (Robustness F2 — description = `"!!!"` slugifies to `""`, passes the `>50` guard, creates absurd `1-feature-` paths). Both refinements bundled in.
+- TDD inverted the validation cleanly: test written first, watched fail for the *expected* reason (top-level execution dying on `do`-load — exactly what the plan anticipated), implementation written, watched pass. Single-pass cycle, no rework.
+- /simplify post-impl produced two real findings on a 60-line diff: redundant `my $limit = SLUG_MAX_LEN` local (came from design-doc pseudocode, never inlined); redundant `generate_slug` call between `parse_parameters` and `construct_destination`. Both fixed in commit 78a16a5 without regressing any test. Two adjacent refactors — boy-scout `print STDERR + exit` → `die_msg` migration; lifting `die_msg` into `CWF::Common` — were explicitly deferred per c-design Decision 3 and tracked as backlog items.
+- Dogfooding: the task's own slug (`reject-overlong-task-slugs`, 26 chars) was deliberately short. The first attempt picked an overlong description and got correctly truncated (the very behaviour this task fixes); user caught it and the slug was redone. The fix this task ships would have surfaced the overrun immediately on creation.
+- 17/17 test cases pass: 8 unit, 2 integration (direct script invocation), 2 system (via `task-workflow create`), 3 source-of-truth grep checks, 2 regression (`prove t/` 246 passing = 238 baseline + 8 new; `cwf-manage validate` OK).
+
+---
+
 ## Task 118: Add Tool Selection and Composition Guidance to Subagent Instructions
 
 **Status**: Complete (2026-04-29)

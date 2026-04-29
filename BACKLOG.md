@@ -117,16 +117,66 @@ After `/cwf-init`, helper scripts may lack execute permissions — particularly 
 ## Task: Add Slug Generation Helper Script (`cwf-slug`)
 
 **Task-Type**: feature
-**Priority**: Medium
+**Priority**: Low (downgraded post-Task-119)
 
-Extract the slug generation algorithm into a helper script. Currently duplicated in prose across cwf-new-task and cwf-new-subtask — identical algorithm described separately in both skills.
+Expose `generate_slug` from `template-copier-v2.1` as a standalone helper so callers can preview the slug a description will produce before invoking task creation.
 
 **Scope**:
-- Script takes description string, outputs slug
-- Algorithm: lowercase, spaces→hyphens, remove special chars, truncate 50 chars
-- Replace prose instructions in cwf-new-task and cwf-new-subtask with script call
+- Script wraps `template-copier-v2.1`'s `generate_slug` (or extracts it to a shared module)
+- Returns the slug for a given description; exits non-zero with the same `[CWF] ERROR:` message if the slug is empty or exceeds `SLUG_MAX_LEN` (consistent with task-creation behaviour)
+- Useful for skills/scripts that want to compute the slug for display or branch-name construction without committing to task creation
 
-**Identified in**: Task 100 discovery (rank 4.0, eliminates duplication)
+**Identified in**: Task 100 discovery (originally framed as deduplication of prose-described algorithm). Task 119 already collapsed the prose duplication and centralised the algorithm in `template-copier-v2.1`. Remaining motivation is preview-without-side-effect; lower priority than originally scoped.
+
+---
+
+## Task: Migrate Remaining `print STDERR + exit` Blocks in `template-copier-v2.1` to `die_msg`
+
+**Task-Type**: chore
+**Priority**: Low
+**Status**: Follow-up from Task 119
+
+Task 119 added a `die_msg` helper to `template-copier-v2.1` and used it for the new slug-length validation. The script's existing error paths (unknown args, missing required params, invalid format, config load failure, template-dir-not-found, broken symlinks, copy failures) still use the older `print STDERR "Error: ..."` + `exit N` pattern. Migrating these to `die_msg` would unify the error-prefix convention (`[CWF] ERROR:`) across the whole script.
+
+**Scope**:
+- Replace each `print STDERR "Error: ..." + exit N` block with `die_msg("...")`, preserving exit codes via a 2-arg form if needed
+- Update tests if any assertion strings depend on the old format
+- Refresh script hash
+
+**Deferred from**: Task 119 (c-design-plan.md Decision 3 — boy-scout would have ballooned the diff)
+
+---
+
+## Task: Lift `die_msg` to a Shared `CWF::Common` Module
+
+**Task-Type**: chore
+**Priority**: Low
+**Status**: Follow-up from Task 119
+
+Both `cwf-manage` and `template-copier-v2.1` define identical `sub die_msg { print STDERR "[CWF] ERROR: @_\n"; exit 1; }` helpers. `CWF::Common` already exists (exports `parse_semver`, `version_cmp`) and is a natural home. Lifting `die_msg` deduplicates the helper and makes the `[CWF] ERROR:` prefix the single canonical convention.
+
+**Scope**:
+- Add `die_msg` (and matching unit tests) to `.cwf/lib/CWF/Common.pm`
+- Update `cwf-manage` and `template-copier-v2.1` to `use CWF::Common qw(die_msg)` and remove their inline copies
+- Refresh script hashes
+
+**Deferred from**: Task 119 (out of scope per c-design-plan.md Decision 3; surfaced again in /simplify Code Reuse review)
+
+---
+
+## Task: Codify the `main() unless caller();` Testability Convention
+
+**Task-Type**: chore
+**Priority**: Low
+**Status**: Follow-up from Task 119
+
+Task 119's plan-review caught that `template-copier-v2.1`'s top-level execution dies on `do`-load (empty `@ARGV` hits the required-param check before tests can override `die_msg`). Solution: wrap top-level in `sub main { ... } main() unless caller();`. This is a recurring testability requirement for any helper script with bare top-level execution; should be documented as a CwF convention so future scripts adopt it from the start.
+
+**Scope**:
+- Document the convention in `docs/conventions/` (or similar) — explain the `do`-load failure mode, the `main() unless caller();` fix, and the `*main::die_msg` test-override pattern that depends on it
+- Reference from the existing Tasks 115/116 test patterns
+
+**Identified in**: Task 119 retrospective (Process Learning)
 
 ---
 

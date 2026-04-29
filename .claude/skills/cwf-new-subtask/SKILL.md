@@ -42,7 +42,7 @@ allowed-tools:
 ### 3. Validate and Create Subtask
 - Verify `num` follows hierarchical pattern from parent
 - Check subtask doesn't already exist
-- Generate slug (same algorithm as `/cwf-new-task`)
+- Slug: pass `--description` raw to the script (same handling as `/cwf-new-task` — script slugifies and rejects descriptions whose slug exceeds 50 chars with `[CWF] ERROR:`)
 - Subtask directory is nested inside parent (e.g. task 48.1 → `implementation-guide/48-feature-parent/48.1-bugfix-slug/`)
 - Copy templates via `task-workflow create` with `--destination` pointing inside parent dir
 - Set `{{parentTask}}` to parent task number
