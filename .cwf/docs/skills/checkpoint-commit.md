@@ -4,7 +4,10 @@ After completing a workflow phase, create a checkpoint commit to preserve progre
 
 ## Script (primary method)
 
-Stage any non-wf files changed in this phase first, then run:
+Run `git status --untracked-files=all` first to see every untracked or unstaged
+path — `git diff` alone misses untracked files and tracked-but-unstaged changes
+that the commit will silently exclude. Stage any non-wf files changed in this
+phase, then run:
 
 ```bash
 .cwf/scripts/command-helpers/cwf-checkpoint-commit {task-path} {phase-letter} "{why-message}"

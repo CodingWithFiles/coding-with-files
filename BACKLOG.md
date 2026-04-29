@@ -1597,21 +1597,7 @@ The `_score_progress` function in `TaskContextInference.pm` uses a linear ramp (
 
 <!-- Completed: "Add Gotchas to cwf-retrospective Skill" — Task 109 (2026-04-21) -->
 
----
-
-## Task: Add Gotchas to cwf-implementation-exec Skill
-
-**Task-Type**: chore
-**Priority**: High
-**Status**: Follow-up from Task 107
-
-Gotchas to add near top of SKILL.md:
-1. **Run `git status` before every commit**: Check for untracked or unstaged files. Task 81 missed c-design-plan.md.
-2. **After any rename/rebrand, grep the entire codebase AND generate a sample output artefact**: Source-level grep misses stale strings in generated output. Recurred from Task 59 through Tasks 90, 91, 92, 94.
-
-**Identified in**: Task 107 (LMM memory analysis)
-
----
+<!-- Completed: "Add Gotchas to cwf-implementation-exec Skill" — Task 117 (2026-04-29), with "rebrand" replaced by "rename or string substitution" after user prose review -->
 
 <!-- Completed: "Add Gotchas to cwf-implementation-plan Skill" and "Add Gotchas to cwf-design-plan Skill" — Task 111 (2026-04-22), unified into shared "measure twice, cut once" gotcha -->
 

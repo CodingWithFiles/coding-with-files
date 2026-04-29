@@ -2,6 +2,26 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 117: Add Gotchas to cwf-implementation-exec Skill
+
+**Status**: Complete (2026-04-29)
+**Duration**: 1 session (estimated: <1 session — on target)
+**Impact**: Chore — adds a `## Gotchas` section to `.claude/skills/cwf-implementation-exec/SKILL.md` containing the two execution-phase gotchas filed from Task 107's LMM memory analysis: (1) run `git status` before every checkpoint commit (covers untracked AND unstaged); (2) after any rename or string substitution, verify both source and generated output (source-grep and output-grep both required, neither sufficient alone). Project-neutral wording — installable into any downstream CWF-using project. The `## Gotchas` convention is now consistent across 4 SKILL.md files (cwf-design-plan, cwf-implementation-plan, cwf-retrospective, cwf-implementation-exec).
+
+### Changes
+- Modified: `.claude/skills/cwf-implementation-exec/SKILL.md` — inserted new `## Gotchas` section between the front-matter terminator and `## Scope & Boundaries`, matching the placement and single-line item formatting used by sibling skills. Diff is +5 lines (header, blank, item 1, item 2, blank); zero changes outside the inserted block
+- Boy-scout: `.cwf/docs/skills/checkpoint-commit.md` — added one-line "run `git status --untracked-files=all` first" instruction in the "Script (primary method)" section, mirroring gotcha 1 at the doc all phases reference
+- BACKLOG: removed "Add Gotchas to cwf-implementation-exec Skill" entry (completed by this task)
+
+### Notable
+- Plan review (3 parallel Explore subagents) caught two valid content gaps that would have shipped wrong gotchas: gotcha 1 had lost the BACKLOG's "or unstaged" qualifier in the rationale; gotcha 2 had made the "grep source first, then grep output" ordering implicit. Both fixed pre-implementation. Same shape as Task 111's plan-review return.
+- User wording review caught what plan review didn't: "rebrand" was used loosely as a synonym for "rename" but conflates with marketing/product-name changes. Replaced with "rename or string substitution" before exec. Second consecutive gotcha-rollout task where user prose review found the highest-value fix after plan review passed.
+- Self-validating: gotcha 1 (`git status` before commit) was used during the f-phase commit of this task — the agent ran `git status --short` before staging and confirmed both the SKILL.md change and the workflow file were captured. Eats its own dog food at the earliest possible point.
+- 8/8 manual test cases pass (2 structural, 2 content, 2 project-neutrality, 2 regression). `cwf-manage validate` OK after each checkpoint.
+- Boy-scout: added a one-line `git status --untracked-files=all` instruction to `.cwf/docs/skills/checkpoint-commit.md` (the doc referenced from every phase's checkpoint step), mirroring gotcha 1 at the doc level all phases share.
+
+---
+
 ## Task 116: Make cwf-manage Update Handle a Dirty Working Tree
 
 **Status**: Complete (2026-04-28)
