@@ -15,7 +15,16 @@ Launch all 3 Agent calls in a single message (parallel execution). Use `subagent
 ```
 Review the {plan_type} plan at {plan_file_path} for {focus_area}.
 
-You may only use Read, Grep, and Glob tools. Do not modify any files.
+You may only use Read, Grep, and Glob (no Bash, no edits).
+
+Do not use program composition with the Bash tool for simple tasks; use the built-in tools instead. Read with `offset`/`limit` for line ranges; chain Glob → Read or Grep → Read instead of pipelines.
+
+Common anti-patterns (use the built-in):
+- `sed -n 'X,Yp' file` → Read with `offset=X limit=Y-X+1`
+- `cat file | grep …` → Grep
+- `find … -exec cat {} \;` for a handful of files → batched Read calls
+
+Full rubric: `.cwf/docs/conventions/subagent-tool-selection.md`.
 
 1. Read the plan file.
 2. Grep the codebase for existing code, patterns, or utilities relevant to what the plan proposes.

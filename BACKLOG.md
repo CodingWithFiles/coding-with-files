@@ -1748,3 +1748,23 @@ After `cwf-manage update`, `.cwf/version` was bumped to `v1.0.114` but `cwf-proj
 
 **Identified in**: External user upgrade report, 2026-04-26
 
+## Task: Consider parent-agent inline tool-selection rubric
+
+**Task-Type**: discovery
+**Priority**: Low
+**Status**: Follow-up from Task 118 retrospective
+
+Task 118 added a tool-selection rubric for CWF subagents (canonical doc + brief inline excerpt in the plan-review prompt). The same anti-patterns (`sed -n 'X,Yp'`, `cat | grep`, `find … -exec cat`) apply when the *parent* Claude Code agent reaches for them — and Task 118's empirical observation that subagents ignore soft prompt restrictions is plausibly the same for the parent agent reading CLAUDE.md.
+
+**Discovery questions**:
+- Does the parent agent already comply with the rubric? Pull a recent transcript and check.
+- The harness's system prompt already says "Read files: Use Read (NOT cat/head/tail)" — is that catching the cases Task 118's anti-patterns name, or are there gaps the canonical doc covers that the system prompt doesn't?
+- If a gap exists: is the right place to address it CLAUDE.md (project-scoped), `~/.claude/CLAUDE.md` (user-scoped), or a CWF skill that can install the guidance into either?
+
+**Resolution paths** (pick in design phase):
+- **A**: No gap — close the discovery; convention doc remains subagent-scoped
+- **B**: Gap exists, scope is project-specific — add a one-line reference to `.cwf/docs/conventions/subagent-tool-selection.md` from the project's CLAUDE.md
+- **C**: Gap exists, scope is user-wide — add a CWF install-time hook that writes a tool-selection block into `~/.claude/CLAUDE.md` (with user opt-in)
+
+**Identified in**: Task 118 j-retrospective.md (Future Work)
+

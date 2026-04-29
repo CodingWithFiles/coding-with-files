@@ -2,6 +2,25 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 118: Add Tool Selection and Composition Guidance to Subagent Instructions
+
+**Status**: Complete (2026-04-29)
+**Duration**: 1 session (estimated: ~2 hours — on target)
+**Impact**: Chore — adds a tool-selection rubric for CWF subagents in two places: (1) a new canonical convention doc at `.cwf/docs/conventions/subagent-tool-selection.md` documenting the 5-tier preference order (built-in tools → skills → `rg`/`grep` Bash → `sed`/`awk`/`cat`/`head`/`tail` Bash → `find … -exec`/pipelines as last resort), the no-program-composition-for-simple-tasks principle, and 6 anti-patterns with their built-in equivalents; (2) a brief inline excerpt of the same rubric (principle verbatim + 3 highest-value anti-patterns + reference to the canonical doc) embedded in the `plan-review.md` subagent prompt template, so subagents read the guidance at decision time rather than via a link they may not follow. First conventions doc to ship under `.cwf/docs/conventions/` (top-level `docs/conventions/` siblings address CWF-development; `.cwf/docs/conventions/` ships with installed CWF copies).
+
+### Changes
+- Added: `.cwf/docs/conventions/subagent-tool-selection.md` — new convention doc, 57 lines, structured as `## Convention` / `## Anti-patterns` / `## Why` / `## Existing usage` to match the established `docs/conventions/perl-git-paths.md` pattern. Captures the 5-tier hierarchy, the principle "Do not use program composition with the Bash tool for simple tasks; use the built-in tools instead." (single-line emphatic callout), 6-row anti-pattern table, and consumer references to `plan-review.md` and `workflow-preamble.md` Step 4.
+- Modified: `.cwf/docs/skills/plan-review.md` — replaced the single line "You may only use Read, Grep, and Glob tools. Do not modify any files." with a 9-line inline block: tightened restriction ("…no Bash, no edits"), the no-composition principle verbatim, a composition hint (Read offset/limit; Glob → Read / Grep → Read chaining), 3 inline anti-patterns (`sed -n 'X,Yp'` → Read offset/limit; `cat … | grep` → Grep; `find … -exec cat` → batched Read calls), and a "Full rubric: …" pointer to the canonical doc. Prompt block grew 9 lines vs an ≤8 budget — accepted to preserve scannability.
+
+### Notable
+- Plan-review subagents caught the load-bearing design flaw on the first pass: the original d-plan inlined Bash-tier advice (`rg` fallback, etc.) into a prompt that restricts subagents to Read/Grep/Glob, creating a contradiction. Robustness reviewer flagged it; plan revised to scope the rubric to the allowed tools and document the broader hierarchy in the canonical doc.
+- The user provided the load-bearing empirical observation: subagents in this very task reached for `sed -n 'X,Yp'` and `find … -exec` despite the existing "may only use Read, Grep, Glob" prompt restriction. That data point is what forced the design from "linked guidance" → "inline guidance" — soft restrictions in subagent prompts are not enforced, so behavioural rubrics must be visible at decision time, not behind a link.
+- Three plan revisions before execution. First framed the work as a separate convention doc with a one-line link from the prompt; revised on user feedback to inline-only; revised again to "both surfaces" after user clarified ("having the conventions docs is GOOD but that doesn't mean we don't ALSO include a brief instruction with a reference"). Each detour was driven by my over-decomposing the user's clear initial framing — captured in j-retrospective.md as a process learning.
+- `/simplify` post-impl produced one substantive structural change: the convention doc was originally written with ad-hoc section headings (Preference order / Core principle / Composition / See also). User correction ("convention docs serve both humans and agents — top-level `docs/conventions/` is not 'developers only'") prompted alignment to the existing `perl-git-paths.md` pattern (Convention / Why / Existing usage). Same content, conventional structure. Also synchronised one wording divergence — inline said "for a few files", canonical doc said "for a handful of files"; both now say "a handful".
+- 10/10 functional + 3/3 non-functional tests PASS. One mid-test fix (NFR-2 caught a missing `workflow-preamble.md#step-4` cross-reference that the d-plan listed but the impl omitted; added during testing-exec). `cwf-manage validate` OK at every checkpoint.
+
+---
+
 ## Task 117: Add Gotchas to cwf-implementation-exec Skill
 
 **Status**: Complete (2026-04-29)
