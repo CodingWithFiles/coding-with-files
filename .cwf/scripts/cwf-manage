@@ -416,6 +416,153 @@ sub cmd_validate {
     exit 1;
 }
 
+# Recovery hints for unfixable violations, keyed by validator field.
+# fix-security is the user-facing surface (cwf-manage validate keeps its
+# developer-oriented "update the hash" message). Hints suggest both
+# `git pull` (CWF source checkout) and `cwf-manage update` (installed
+# project) so a single message serves both audiences.
+my %FIX_SECURITY_RECOVERY = (
+    'sha256'    => "Recovery: file content has drifted from the recorded hash. Restore from upstream: 'git pull' (in a CWF source checkout) or 'cwf-manage update' (in an installed project).",
+    'existence' => "Recovery: tracked file is missing. Restore from upstream: 'git pull' (CWF source) or 'cwf-manage update' (installed project).",
+    'file'      => "Recovery: 'script-hashes.json' is missing or unparseable. Restore from upstream: 'git pull' or 'cwf-manage update'.",
+    'json'      => "Recovery: 'script-hashes.json' is missing or unparseable. Restore from upstream: 'git pull' or 'cwf-manage update'.",
+);
+
+sub _print_unfixable {
+    my ($u) = @_;
+    printf "[CWF] fix-security: UNFIXABLE — %s\n", $u->{rel};
+    printf "  Field:    %s\n", $u->{field};
+    printf "  Actual:   %s\n", $u->{actual};
+    printf "  Expected: %s\n", $u->{expected};
+    my $hint = $FIX_SECURITY_RECOVERY{$u->{field}};
+    printf "  %s\n",          $hint        if $hint;
+    printf "  Note:     %s\n", $u->{extra} if $u->{extra};
+    print  "\n";
+    return;
+}
+
+sub cmd_fix_security {
+    my ($git_root) = @_;
+
+    require Digest::SHA;
+    require JSON::PP;
+
+    my $hashes_rel  = '.cwf/security/script-hashes.json';
+    my $hashes_path = "$git_root/$hashes_rel";
+
+    unless (-f $hashes_path) {
+        _print_unfixable({
+            rel => $hashes_rel, field => 'file',
+            actual => '(missing)', expected => 'script-hashes.json to exist',
+        });
+        exit 1;
+    }
+
+    my $json_text;
+    {
+        open my $fh, '<', $hashes_path or do {
+            print STDERR "[CWF] ERROR: cannot read $hashes_path: $!\n";
+            exit 1;
+        };
+        local $/;
+        $json_text = <$fh>;
+        close $fh;
+    }
+
+    my $data = eval { JSON::PP::decode_json($json_text) };
+    if ($@ || !ref $data) {
+        _print_unfixable({
+            rel => $hashes_rel, field => 'json',
+            actual => '(parse error)', expected => 'valid JSON',
+        });
+        exit 1;
+    }
+
+    my @repaired;
+    my @unfixable;
+
+    # Walk every section that looks like a file map (mirrors Validate::Security).
+    for my $section (sort keys %$data) {
+        next unless ref $data->{$section} eq 'HASH';
+        my $entries = $data->{$section};
+        my $is_file_map = 0;
+        for my $val (values %$entries) {
+            if (ref $val eq 'HASH' && exists $val->{path}) { $is_file_map = 1; last }
+        }
+        next unless $is_file_map;
+
+        for my $name (sort keys %$entries) {
+            my $entry = $entries->{$name};
+            next unless ref $entry eq 'HASH' && exists $entry->{path};
+
+            my $rel = $entry->{path};
+            my $abs = "$git_root/$rel";
+            my $expected_sha   = $entry->{sha256} // '';
+            my $expected_perms = $entry->{permissions};
+
+            unless (-e $abs) {
+                push @unfixable, {
+                    rel => $rel, field => 'existence',
+                    actual => '(missing)', expected => 'file to exist',
+                };
+                next;
+            }
+
+            # sha256 in binary mode, matching Validate::Security::_sha256.
+            my $sha = '';
+            if (open my $fh, '<:raw', $abs) {
+                local $/;
+                my $content = <$fh>;
+                close $fh;
+                $sha = Digest::SHA::sha256_hex($content);
+            }
+
+            if ($sha ne $expected_sha) {
+                push @unfixable, {
+                    rel => $rel, field => 'sha256',
+                    actual => $sha, expected => $expected_sha,
+                };
+                next;
+            }
+
+            # sha matches — safe to fix permissions if needed.
+            next unless defined $expected_perms;
+            my $actual_perms = (stat($abs))[2] & 07777;
+            my $min_perms    = oct($expected_perms);
+            next if ($actual_perms & $min_perms) == $min_perms;
+
+            if (chmod $min_perms, $abs) {
+                push @repaired, {
+                    rel => $rel,
+                    from => sprintf('0%o', $actual_perms),
+                    to   => $expected_perms,
+                };
+            } else {
+                push @unfixable, {
+                    rel => $rel, field => 'permissions',
+                    actual => sprintf('0%o', $actual_perms),
+                    expected => $expected_perms,
+                    extra    => "chmod failed: $!",
+                };
+            }
+        }
+    }
+
+    for my $r (@repaired) {
+        printf "[CWF] fix-security: chmod %s %s (was %s)\n", $r->{to}, $r->{rel}, $r->{from};
+    }
+
+    if (@unfixable) {
+        _print_unfixable($_) for @unfixable;
+        printf "[CWF] fix-security: repaired %d file(s); %d unfixable\n",
+            scalar @repaired, scalar @unfixable;
+        exit 1;
+    }
+
+    printf "[CWF] fix-security: repaired %d file(s); validate: OK\n", scalar @repaired;
+    return;
+}
+
 sub cmd_help {
     print <<'HELP';
 CWF Management Script
@@ -428,6 +575,8 @@ Commands:
   update [ref]     Update to a specific ref (default: latest tag)
   rollback <ref>   Revert to a previous version
   validate         Validate config and workflow files; exit non-zero on violations
+  fix-security     Repair fixable integrity violations (perms when sha256 matches);
+                   exit non-zero on tampering or missing files
   help             Show this help message
 
 Environment:
@@ -461,6 +610,7 @@ sub main {
         'update'        => sub { cmd_update($git_root, shift @ARGV) },
         'rollback'      => sub { cmd_rollback($git_root, shift @ARGV) },
         'validate'      => sub { cmd_validate($git_root) },
+        'fix-security'  => sub { cmd_fix_security($git_root) },
         'help'          => sub { cmd_help() },
     );
 

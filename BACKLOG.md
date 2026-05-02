@@ -29,6 +29,41 @@ Future tasks and improvements for the Coding with Files system.
 
 ---
 
+## Task: Reconcile cwf-manage update and fix-security chmod logic
+
+**Task-Type**: chore
+**Priority**: Low
+**Status**: Follow-up from Task 120
+
+`cwf-manage update` (line 350) does a blanket `chmod 0755` over `.cwf/scripts/`. `cwf-manage fix-security` (Task 120) chmods to *exact* recorded perms (e.g. `0500`/`0700`/`0755`) per `script-hashes.json`. Both pass validate, but they produce different end states. Worth reconciling so update and fix-security converge — most likely option: have `update` call `fix-security` after the copy step, removing the bespoke `chmod 0755` from the update path.
+
+**Scope**:
+- Replace the blanket chmod in `cmd_update` with a `cmd_fix_security` call (or extract the per-entry chmod logic into a shared sub)
+- Confirm the integration test for `update` (if any) still passes
+- Refresh `cwf-manage` hash after the change
+
+**Identified in**: Task 120 retrospective (j-retrospective.md, "Future Work")
+
+---
+
+## Task: Add --dry-run flag to cwf-manage fix-security
+
+**Task-Type**: feature
+**Priority**: Low
+**Status**: Follow-up from Task 120
+
+`fix-security` currently has no preview mode. A `--dry-run` flag would print the chmod actions it *would* take and the unfixable entries it *would* surface, without mutating the filesystem. Useful for security-conscious users auditing the install before a repair.
+
+**Scope**:
+- Add `--dry-run` argument parsing in `cmd_fix_security`
+- Skip the `chmod` call when in dry-run mode; preface fix lines with `[dry-run]`
+- Add a test case to `t/cwf-manage-fix-security.t` that asserts no fs mutation in dry-run mode
+- Update help text and SKILL.md if appropriate
+
+**Identified in**: Task 120 retrospective (j-retrospective.md, "Future Work")
+
+---
+
 ## Task: Standardise Placeholder Syntax in Remaining CLI Docs
 
 **Task-Type**: chore
@@ -90,19 +125,7 @@ When `/cwf-new-task` or `/cwf-new-subtask` is invoked without a task type, the a
 
 <!-- Completed: "Fix template-copier-v2.1 Uninitialized Variable Warnings" — Task 74 (2026-02-19) -->
 
-## Bug: /cwf-init Should Run Security Check and Fix Permissions
-
-**Task-Type**: bugfix
-**Priority**: Low
-
-After `/cwf-init`, helper scripts may lack execute permissions — particularly when CWF was installed via file copy from a local directory (as opposed to cloning from git, which preserves permissions). `/cwf-init` should run `/cwf-security-check` (or equivalent) and fix any permission mismatches automatically.
-
-**Scope**:
-- Add a security/permissions verification step to `/cwf-init` after directory setup
-- Ensure all scripts under `.cwf/scripts/` have at least `u+rx`
-- Optionally verify SHA256 hashes against `.cwf/security/script-hashes.json`
-
-**Identified in**: Task 60 (testing CWF installation in a fresh repo)
+<!-- Completed: "Bug: /cwf-init Should Run Security Check and Fix Permissions" — Task 120 (2026-05-02) -->
 
 ---
 

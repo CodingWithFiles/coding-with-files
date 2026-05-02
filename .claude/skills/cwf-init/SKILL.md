@@ -25,6 +25,19 @@ allowed-tools:
 ### 1. Create Directory Structure
 - `implementation-guide/` at git root
 
+### 1a. Verify and Repair CWF Install
+
+CWF helper scripts may be missing execute permissions if `.cwf/` was copied via a method that does not preserve modes (e.g. `cp` without `-p`, an extracted archive, or a non-`install.bash` workflow). This step deterministically repairs fixable permission deltas (where the file's sha256 still matches what `script-hashes.json` records) and refuses to proceed if any file is missing or tampered.
+
+Run, using the Bash tool:
+
+```bash
+perl -I.cwf/lib .cwf/scripts/cwf-manage fix-security
+```
+
+- If exit code is 0, continue to step 2.
+- If exit code is non-zero, **abort `/cwf-init`**: relay the subcommand's stdout/stderr to the user verbatim, then append a single line: `[CWF] /cwf-init aborted: run 'cwf-manage update' or reinstall, then re-run /cwf-init.` Do not proceed to step 2.
+
 ### 2. Generate Project Configuration
 - Create `implementation-guide/cwf-project.json` from template
 - Use project name from git remote or directory name
@@ -129,6 +142,7 @@ allowed-tools:
 ## Success Criteria
 - [ ] Git root confirmed
 - [ ] Directory structure created
+- [ ] Install integrity verified via `cwf-manage fix-security` (exit 0)
 - [ ] Project configuration generated
 - [ ] Navigation index created
 - [ ] .gitignore updated
