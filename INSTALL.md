@@ -277,12 +277,9 @@ cat .claude/skills/cwf-init/SKILL.md
 
 # Check helper scripts are executable
 .cwf/scripts/command-helpers/context-manager location
-
-# Check Perl modules load
-perl -I.cwf/lib -MCWF::Common -e 'print "OK\n"'
 ```
 
-All four commands should succeed without errors. If `context-manager location` prints your git root path, CWF is installed correctly.
+All three commands should succeed without errors. If `context-manager location` prints your git root path, CWF is installed correctly.
 
 ## Troubleshooting
 

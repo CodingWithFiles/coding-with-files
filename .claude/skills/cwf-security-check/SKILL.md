@@ -26,7 +26,7 @@ allowed-tools:
 ### 1. Run the deterministic validator
 
 ```bash
-perl -I.cwf/lib .cwf/scripts/cwf-manage validate
+.cwf/scripts/cwf-manage validate
 ```
 
 This checks:

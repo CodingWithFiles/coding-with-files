@@ -29,10 +29,18 @@ allowed-tools:
 
 CWF helper scripts may be missing execute permissions if `.cwf/` was copied via a method that does not preserve modes (e.g. `cp` without `-p`, an extracted archive, or a non-`install.bash` workflow). This step deterministically repairs fixable permission deltas (where the file's sha256 still matches what `script-hashes.json` records) and refuses to proceed if any file is missing or tampered.
 
-Run, using the Bash tool:
+Run, using the Bash tool. The first block reads `cwf-manage`'s recorded permission from `.cwf/security/script-hashes.json` (the source of truth — no magic numbers) and chmods the entry-point to that exact value, in case `.cwf/` was copied without preserving modes. The second command then runs `cwf-manage fix-security`, which reads the same JSON to repair every other tracked file's permissions:
 
 ```bash
-perl -I.cwf/lib .cwf/scripts/cwf-manage fix-security
+PERMS=$(perl -MJSON::PP -e '
+    open my $f, "<", ".cwf/security/script-hashes.json" or die "cannot read script-hashes.json: $!";
+    local $/;
+    my $j = JSON::PP::decode_json(<$f>);
+    close $f;
+    print $j->{scripts}{"cwf-manage"}{permissions} or die "no permissions recorded for cwf-manage";
+')
+chmod "$PERMS" .cwf/scripts/cwf-manage
+.cwf/scripts/cwf-manage fix-security
 ```
 
 - If exit code is 0, continue to step 2.

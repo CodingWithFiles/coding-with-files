@@ -2,6 +2,28 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 121: Drop perl -I prefix from script invocations
+
+**Status**: Complete (2026-05-02)
+**Duration**: <0.5 day (estimated: 0.5 day; variance ~0%)
+**Impact**: Chore — removes the anti-idiomatic `perl -I.cwf/lib <script>` invocation pattern from active CWF source, skills, and tests. Active code now relies on Unix shebang semantics (`#!/usr/bin/perl -CDSL` + `FindBin` + `use lib`) for direct invocation; the single bootstrap exception in `/cwf-init` step 1a uses `chmod` (idiomatic Unix) instead, with the chmod value read from `script-hashes.json` rather than a hardcoded constant. Repo-wide grep over active source returns zero `perl -I.cwf/lib` hits after this task; historical artefacts (commit messages, prior `implementation-guide/**` exec records, prior CHANGELOG entries) are deliberately untouched.
+
+### Changes
+- Modified: `.claude/skills/cwf-init/SKILL.md` — step 1a now reads `cwf-manage`'s recorded permission from `.cwf/security/script-hashes.json` via inline `perl -MJSON::PP -e` (a one-shot JSON parse, not an `-I.cwf/lib <script>` substitute), chmods `cwf-manage` to that exact recorded value, then runs `.cwf/scripts/cwf-manage fix-security`. The chmod value is therefore manifest-driven — if the recorded perm ever changes in `script-hashes.json`, the SKILL bootstrap follows automatically with no edit needed.
+- Modified: `.claude/skills/cwf-security-check/SKILL.md` — single-line cleanup: `perl -I.cwf/lib .cwf/scripts/cwf-manage validate` → `.cwf/scripts/cwf-manage validate`. Direct invocation works because `cwf-manage` already uses `FindBin` + `use lib "$FindBin::Bin/../lib"` (script lines 25–26) to resolve its own library path at runtime.
+- Modified: `INSTALL.md` — removed the `# Check Perl modules load` block (`perl -I.cwf/lib -MCWF::Common -e 'print "OK\n"'`); the `.cwf/scripts/command-helpers/context-manager location` invocation immediately above it already exercises `CWF::Common` loading via `FindBin` (verified at `context-manager.d/location:5–6`), so the explicit module-load check was redundant. Updated the trailing prose: "All four commands…" → "All three commands…".
+- Modified: `t/cwf-manage-fix-security.t` — added `_read_recorded_perms($tmp, $entry_name)` helper (reads `script-hashes.json` via `JSON::PP::decode_json`, returns the recorded permission as an octal integer) and `_ensure_cwf_manage_executable($tmp)` helper (idempotent bootstrap mirroring `/cwf-init` step 1a — uses `Fcntl S_IXUSR` to skip when user-x is already set, otherwise chmods `cwf-manage` to its JSON-recorded value). `run_fix_security` and `run_validate` factored into `_run_cwf_manage($tmp, $subcmd)` (post-`/simplify` dedup) and now invoke `.cwf/scripts/cwf-manage <subcmd>` directly. TC-2 assertion uses `_read_recorded_perms`; TC-4 and TC-5 retargeted from `cwf-manage` to `command-helpers/cwf-version-tag` so fix-security's chmod path is exercised on a non-bootstrap script (the bootstrap helper restores `cwf-manage`'s perms before fix-security runs).
+
+### Notable
+- **First user pivot — broaden the principle**: original plan kept `perl -I` in two "deliberate exceptions" (`/cwf-init` step 1a and `INSTALL.md`). User clarified: shebang `#!` semantics for everything *post-install*; `/cwf-init` step 1a is special only because exec bits may not yet be set on a freshly-copied `.cwf/`, so the bootstrap there should be `chmod` (idiomatic Unix), not `perl -I`. `INSTALL.md`'s `-MCWF::Common` line is just redundant. Captured in commit `0ba7df7`.
+- **Second user pivot — manifest-driven chmod**: "no magic numbers in the chmod calls — fetch from `script-hashes.json`". Drove both the SKILL bootstrap (inline `perl -MJSON::PP -e`) and the test scaffolding (new `_read_recorded_perms` helper). This pivot was load-bearing: a hardcoded `chmod u+x` would only satisfy the validator's bitwise minimum (`(actual & expected) == expected`), leaving `cwf-manage` with extra bits not in the recorded value; chmodding to the exact recorded perm is precise. Captured in commit `eac2e5c`.
+- **TC-4/TC-5 retarget caught a latent test-design subtlety**: tests that mutate the same script the harness uses to *reach* the device-under-test get spurious passes after the harness restores it. Switching the chmod-target from `cwf-manage` to `cwf-version-tag` keeps fix-security's chmod path under test. Worth flagging in `t/lib/CWFTest/Fixtures.pm` if/when other tests need the same pattern.
+- **`Fcntl qw(:mode)` introduced to the codebase**: `S_IXUSR` is preferred over `& 0100` for user-x checks; the latter never appeared elsewhere either, so this also nudges the convention forward.
+- **`/simplify` post-impl produced one real win** — `run_fix_security` and `run_validate` were 11-line near-duplicates, factored into `_run_cwf_manage($tmp, $subcmd)` with one-line public wrappers (net −8 lines). Captured in commit `9b6bc5b`. The agents correctly rejected the lower-value findings (extracting the SKILL one-liner into a separate helper script would have reintroduced the very file-invocation pattern this task removed).
+- 4 source files changed, +50 net lines of test code, 0 new tests, 253/253 regression green.
+
+---
+
 ## Task 120: cwf-init Runs Security Check
 
 **Status**: Complete (2026-05-02)
