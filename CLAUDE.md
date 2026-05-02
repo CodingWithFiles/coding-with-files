@@ -53,6 +53,13 @@ The Coding with Files (CWF) system v2.0 is **implemented and operational**. Core
 - Proper use of `Signed-off-by:` (human only, legal certification)
 - Examples of AI-assisted commits
 
+**Design Alignment**: Keep CWF skill, helper-script, template, and rule names consistent across the codebase. See `docs/conventions/design-alignment.md` for:
+- Single-source-of-truth locations for each artefact type
+- Naming patterns (`cwf-` prefix, kebab-case, phase-letter, version-suffix scope, `<name>.d/` subcommand pattern)
+- Rename audit checklist
+- Deprecation policy (in-repo vs `cwf-manage`)
+- Cross-document reference conventions
+
 ## Architecture Overview
 
 **Hierarchical Workflow System (v2.0)**: Eight lettered workflow steps (a-h) guide tasks from planning through retrospective. Non-linear state machine with dynamic transitions based on step outcomes. Universal decomposition signals (5 criteria) guide task breakdown into subtasks.

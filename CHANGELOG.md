@@ -2,6 +2,26 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 122: Create Design-Alignment Conventions Document
+
+**Status**: Complete (2026-05-02)
+**Duration**: <0.5 day
+**Impact**: Chore — adds `docs/conventions/design-alignment.md`, the third top-level CWF-development convention doc (alongside `commit-messages.md` and `perl-git-paths.md`). Codifies single-source-of-truth locations for skills/helpers/templates/rules, the `cwf-` + kebab-case + phase-letter naming patterns, the version-suffix scope (helper scripts only, never skills), the `<name>.d/` subcommand-dispatch pattern, and a concrete grep-and-`cwf-manage validate`-based rename audit checklist. Also draws an explicit asymmetric-deprecation line: in-repo artefacts have no deprecation period (CWF is its own only consumer), but `cwf-manage` and its subcommands form a weak external contract with installed copies and require a one-minor-version alias on rename.
+
+### Changes
+- Added: `docs/conventions/design-alignment.md` — new convention doc, ~140 lines, follows `perl-git-paths.md`'s Convention/Why/Existing-usage structure. The "Why" section grounds each rule in a concrete prior failure (Tasks 35, 59, 81, 90).
+- Modified: `CLAUDE.md` — added `**Design Alignment**` bullet under §Conventions matching the existing `**Commit Messages**` style (location, summary, sub-bullets).
+- BACKLOG: removed the "Create Design-Alignment Conventions Document" task block (~67 lines) and replaced with a one-line `<!-- Completed: ... -->` marker.
+
+### Notable
+- **Reference-surface inventory was data-driven**, not guessed. `git ls-files | grep -v ^implementation-guide/ | xargs grep -l 'cwf-task-plan\|cwf-status'` returned 19 files spanning `CLAUDE.md`, `README.md`, `BACKLOG.md`, `CHANGELOG.md`, `COMMANDS.md`, `DESIGN.md`, `.claude/rules/`, `.claude/skills/*/SKILL.md`, `.cwf/autoload.yaml`, and `.cwf/docs/{glossary,workflow,skills}/`. The audit checklist (§3) prescribes the same grep so future renames inherit the inventory rather than re-discovering it.
+- **Plan-review subagents caught three load-bearing omissions** before drafting: (1) helper-script `<name>.d/` subcommand pattern was missing — would have left `context-manager.d/` etc. undocumented; (2) version-suffix scope was ambiguous — clarified as "helpers only, never skills"; (3) deprecation stance had to distinguish in-repo (no deprecation) from `cwf-manage` (weak external contract, one-minor alias).
+- **Audit checklist deliberately uses Grep + `cwf-manage validate`**, not `find` or `sed`. User feedback during this task: those tools trigger blocking permission prompts in the harness; built-in tools and `git ls-files` are equivalent for these use cases. The checklist would have proposed `find -type l` for the symlink audit if not for that course-correction.
+- **Symlink integrity is delegated to `cwf-manage validate`** rather than ad-hoc shell. The validator already checks every pool symlink resolves (it's how broken installs are caught); duplicating the logic in a doc-prescribed shell snippet would have been a maintenance liability.
+- Total: 1 new doc, 2 edits, 0 code changes, 0 new tests (documentation task).
+
+---
+
 ## Task 121: Drop perl -I prefix from script invocations
 
 **Status**: Complete (2026-05-02)
