@@ -29,6 +29,24 @@ Future tasks and improvements for the Coding with Files system.
 
 ---
 
+## Task: Tighten security-subagent prompt for sentinel-line compliance
+
+**Task-Type**: chore
+**Priority**: Low
+**Status**: Follow-up from Task 123
+
+The security subagent introduced in Task 123 returns three sentinel-prefixed states (`findings:` / `no findings` / `error:`) classified per a three-tier rule (primary sentinel → numbered-list fallback → conservative-default error). TC-AC8 in Task 123 demonstrated that subagents tend not to lead with the sentinel — the dogfood call returned ~70 lines of analysis before the closing `no findings` line, causing the fallback classifier to fire and produce a `**State**: findings` even though the substantive verdict was clean. The conservative-default behaviour is correct (loud false positive > silent false negative), but the false-positive rate could be reduced.
+
+**Problem**: Subagents respond with verbose intros even when instructed otherwise. The current prompt says "Start your response with one of three sentinel lines" but the model does not reliably comply.
+
+**Solution**: One-line edit to `.cwf/docs/skills/security-review.md` § "Exec-phase prompt template" to push the sentinel ahead of any analysis. Suggested wording: "Your VERY FIRST output line MUST be the sentinel — do not preface with analysis." Optionally consider one-token sentinels (`NO_FINDINGS:`, `FINDINGS:`, `ERROR:`) which are harder to embed mid-paragraph.
+
+**Trigger**: Defer until the classifier-versus-substance gap recurs in >2 of the next 5 feature tasks. If the rate stays acceptable, no action needed — the conservative classifier is doing its job.
+
+**Identified in**: Task 123 retrospective (j-retrospective.md § "What Could Be Improved")
+
+---
+
 ## Task: Reconcile cwf-manage update and fix-security chmod logic
 
 **Task-Type**: chore

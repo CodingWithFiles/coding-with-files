@@ -2,6 +2,30 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 123: Add security-review subagent to plan/exec skills
+
+**Status**: Complete (2026-05-03)
+**Duration**: ~1 session of active work (estimated: 1 day; variance ~0%)
+**Impact**: Feature — extends the existing 3-subagent plan-review map/reduce to 4 subagents (adds **security**) and inserts a new Step 8 (Security Review) into both `cwf-implementation-exec` and `cwf-testing-exec` SKILLs. Threat model lives in one new canonical doc, `.cwf/docs/skills/security-review.md`, covering the five CWF-specific judgement-call categories: bash injection / unsafe command construction (a), Perl helpers consuming git/user output without `-z` (b), prompt injection via user-supplied strings (c), unsafe environment-variable handling (d), pattern-based safe-here-but-risky-elsewhere risks with required `safe here because X; audit future uses where X might not hold` framing (e). Subagent is restricted to Read/Grep/Glob (no Bash, no edits) per the existing plan-review allowlist convention. Boundary explicitly carved out vs deterministic `cwf-manage validate` (sha256 + recorded perms) and vs the user-facing `/security-review` built-in.
+
+### Changes
+- Added: `.cwf/docs/skills/security-review.md` — new canonical doc, ~155 lines. Sections: `## Scope` (cross-references `.cwf/docs/conventions/subagent-tool-selection.md` and explicitly carves out `cwf-manage validate` + built-in `/security-review` boundaries), `## Pathspec coverage` (the single-source-of-truth `git diff $(git merge-base HEAD main)..HEAD -- <pathspec>` with maintainer note for adding new security-relevant trees), `## Threat categories` (a–e per FR4 — each with one-line definition, anti-pattern with file:line citation if real or `# illustrative` label, "do instead" pointer), `## Plan-phase row`, `## Exec-phase prompt template` (parameterised on `{changeset}` + `{phase}` with three sentinel return states).
+- Modified: `.cwf/docs/skills/plan-review.md` — header `Launch 3 Subagents` → `Launch 4 Subagents` plus 4 other prose sites updated 3→4; criteria-lookup table gained a `Security` column with cells for `requirements`/`design`/`implementation` rows that reference `security-review.md` rather than restating the threat model.
+- Modified: `.claude/skills/cwf-implementation-exec/SKILL.md` — added `- Agent` to `allowed-tools`; inserted `**Step 8 (Security Review)**` block (branch check → empty-diff check → 500-line cap check → single Agent call with three-tier classifier); renumbered existing Step 8 (Checkpoint commit) → 9 and Step 9 (Next Steps) → 10; Success Criteria gained the security-review checkbox.
+- Modified: `.claude/skills/cwf-testing-exec/SKILL.md` — same edits with `{phase}` = `"testing"` and `g-testing-exec.md` instead of `f-implementation-exec.md`.
+
+### Notable
+- **Doc-only feature — no script-hash refresh**: `.cwf/security/script-hashes.json` only tracks `.cwf/scripts/` and `.cwf/lib/`. No `.cwf/docs/` file or `.claude/skills/SKILL.md` is in the manifest, so `cwf-manage validate` runs clean without intervention.
+- **Sequential renumbering matches Task 71 precedent (commit `be933c7`)**: existing Step 8 → 9 and Step 9 → 10 rather than introducing `Step 7a`-style sub-steps. Plan-review subagents flagged the original `Step 7a` proposal as inconsistent with the established CWF pattern; the redesign during implementation-plan adopted full renumbering.
+- **Three-tier classifier biases toward visibility**: primary sentinel match → numbered-list/`actionable finding` fallback → conservative-default `error`. A misclassified error is loud; a misclassified `no findings` would silently mask a malformed-output failure on a security tool, which is the worst possible outcome. The conservative default exists for that reason.
+- **Pattern-risk carve-out (FR4(e))**: ordinarily the subagent reports only actionable findings. Pattern-based risks (a snippet that's safe at the current callsite because of a callsite invariant but risky if reused elsewhere) ARE allowed, with the required framing `safe here because X; audit future uses where X might not hold`. Plan-review subagents during requirements review flagged that without this carve-out the subagent would suppress real signal.
+- **Pathspec is single source of truth in `security-review.md` § "Pathspec coverage"**: both exec SKILLs reference that section rather than inlining the pathspec. Adding a new security-relevant tree (e.g. a future `.cwf/scripts/post-install/`) means editing the doc once, not two SKILLs.
+- **Dogfood verification (AC8) ran during g-testing-exec** against this task's own 270-line changeset on branch `feature/123-…`. Subagent invocation succeeded; classifier returned `**State**: findings` because the response led with verbose intro instead of a sentinel — the numbered-list fallback fired exactly as Decision 3 designed it (loud false positive over silent false negative). Substantive verdict from the subagent body: "no findings" across all five (a)–(e) categories with a closing positive statement. Disposition per AC8 option (b): accept with documented rationale, recorded verbatim in g-testing-exec.md § "TC-AC8". The wiring works end-to-end.
+- **Subagent prompt-template tightening identified as follow-up** (BACKLOG: Tighten security-subagent prompt for sentinel-line compliance). The TC-AC8 pattern (verbose intro hiding the closing sentinel) is likely to recur in practice; one-line edit to the canonical doc § "Exec-phase prompt template" would push the sentinel ahead of any analysis. Tracked in BACKLOG.md.
+- 1 new doc, 3 edits (5 files modified counting CHANGELOG and BACKLOG), 0 code changes, 0 new tests (docs-and-skills task; runtime verification is the AC8 dogfood case).
+
+---
+
 ## Task 122: Create Design-Alignment Conventions Document
 
 **Status**: Complete (2026-05-02)

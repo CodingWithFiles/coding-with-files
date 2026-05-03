@@ -7,6 +7,7 @@ allowed-tools:
   - Write
   - Edit
   - Bash
+  - Agent
 ---
 
 ## Gotchas
@@ -43,9 +44,20 @@ allowed-tools:
 
 **Step 7**: Execute implementation steps systematically per d-implementation-plan.md. Test locally, document results, note deviations.
 
-**Step 8**: Checkpoint commit. See `.cwf/docs/skills/checkpoint-commit.md`. Stage: `f-implementation-exec.md` (and any changed files)
+**Step 8 (Security Review)**:
+- Read `.cwf/docs/skills/security-review.md` § "Exec-phase prompt template" and § "Pathspec coverage".
+- Determine current branch: `git rev-parse --abbrev-ref HEAD`.
+  - If `main`: append `## Security Review\n\n**State**: no findings\n\nno findings: on main\n` to `f-implementation-exec.md` and proceed to Step 9.
+- Construct changeset: `git diff $(git merge-base HEAD main)..HEAD -- <pathspec from § "Pathspec coverage">`.
+  - If empty: append `## Security Review\n\n**State**: no findings\n\nno findings: empty changeset\n` and proceed to Step 9.
+  - If >500 lines (count via `wc -l`): append `## Security Review\n\n**State**: error\n\nerror: changeset exceeds 500-line review cap; split the change or perform manual review\n` and proceed to Step 9.
+- Invoke ONE Agent call with `subagent_type="Explore"` using the prompt template, `{phase}` = `"implementation"`.
+- Append `## Security Review\n\n**State**: <findings|no findings|error>\n\n<verbatim subagent output>\n` to `f-implementation-exec.md`. Classify per the three-tier rule in `security-review.md` (primary sentinel → numbered-list fallback → conservative-default error).
+- Do NOT block on `findings`. Surface them; the user decides whether to fix-and-re-run or accept-and-record before Step 9.
 
-**Step 9 (Next Steps)**:
+**Step 9**: Checkpoint commit. See `.cwf/docs/skills/checkpoint-commit.md`. Stage: `f-implementation-exec.md` (and any changed files)
+
+**Step 10 (Next Steps)**:
 - **Primary**: Move to testing → `/cwf-testing-exec <task-path>`
 - **Alt**: Document blockers, update status to "Blocked"
 - **Alt**: Return to `/cwf-implementation-plan` to revise plan
@@ -56,4 +68,5 @@ allowed-tools:
 - [ ] Implementation steps executed according to plan
 - [ ] Actual results documented for each step
 - [ ] Deviations documented with rationale
+- [ ] Security review subagent invoked; result recorded in f-implementation-exec.md
 - [ ] Next steps suggested with reasoning
