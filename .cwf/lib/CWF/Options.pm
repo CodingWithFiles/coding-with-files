@@ -23,6 +23,7 @@ package CWF::Options;
 
 use strict;
 use warnings;
+use utf8;
 use Exporter 'import';
 
 our @EXPORT_OK = qw(parse);

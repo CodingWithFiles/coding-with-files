@@ -26,10 +26,11 @@ use FindBin;
 use lib "$FindBin::Bin/../lib";
 use List::Util qw(first);
 use CWF::Common qw(parse_semver version_cmp);
-use CWF::Validate::Config      ();
-use CWF::Validate::Workflow    ();
-use CWF::Validate::Consistency ();
-use CWF::Validate::Security    ();
+use CWF::Validate::Config           ();
+use CWF::Validate::Workflow         ();
+use CWF::Validate::Consistency      ();
+use CWF::Validate::Security         ();
+use CWF::Validate::PerlConventions  ();
 
 # --- Helpers ------------------------------------------------------------------
 
@@ -396,6 +397,7 @@ sub cmd_validate {
         CWF::Validate::Workflow::validate($git_root),
         CWF::Validate::Consistency::validate($git_root),
         CWF::Validate::Security::validate($git_root),
+        CWF::Validate::PerlConventions::validate($git_root),
     );
 
     if (!@all_violations) {

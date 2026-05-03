@@ -2,6 +2,7 @@ package CWF::TaskState;
 
 use strict;
 use warnings;
+use utf8;
 use Exporter 'import';
 use File::Basename;
 use CWF::WorkflowFiles qw(load_config);

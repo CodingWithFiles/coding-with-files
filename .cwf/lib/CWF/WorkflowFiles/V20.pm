@@ -19,6 +19,7 @@ v2.0 uses 8 workflow phases (a-h) with consistent naming across all phases.
 
 use strict;
 use warnings;
+use utf8;
 
 =head1 WORKFLOW FILES
 

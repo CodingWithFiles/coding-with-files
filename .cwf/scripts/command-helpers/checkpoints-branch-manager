@@ -1,6 +1,7 @@
 #!/usr/bin/env perl
 use strict;
 use warnings;
+use utf8;
 
 # Compute script path once at module level
 my $SCRIPT_PATH = get_script_rel_path();

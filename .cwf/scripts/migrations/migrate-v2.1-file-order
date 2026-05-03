@@ -13,6 +13,7 @@
 
 use strict;
 use warnings;
+use utf8;
 use FindBin;
 use File::Basename;
 use Cwd 'abs_path';

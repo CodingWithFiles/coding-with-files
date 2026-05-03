@@ -8,6 +8,7 @@ package CWF::VersionRouter;
 
 use strict;
 use warnings;
+use utf8;
 use Exporter 'import';
 use FindBin;
 use CWF::TaskPath qw(resolve);

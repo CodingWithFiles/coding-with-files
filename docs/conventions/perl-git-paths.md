@@ -10,12 +10,13 @@ When a Perl script reads paths from `git`, use both:
 - **Shebang**: `#!/usr/bin/perl -CDSL` — makes Perl decode STDIN, STDOUT,
   STDERR, and `@ARGV` as UTF-8.
 - **Source pragma**: `use utf8;` — tells Perl the *source file* is UTF-8.
-  Required if the script contains any non-ASCII literals (emoji, accented
-  characters, etc.). Without it, source bytes default to Latin-1 and a
-  literal like `⚠` (three UTF-8 bytes in the file) becomes three separate
-  Latin-1 codepoints, which then get re-encoded as UTF-8 on output →
-  double-encoded mojibake (`â  ` instead of `⚠`). `-CDSL` controls I/O
-  encoding only, *not* source encoding.
+  Declare it on **every** Perl file under `.cwf/` (script or module),
+  unconditionally — not only ones that currently hold non-ASCII literals.
+  Without it, a literal like `⚠` (three UTF-8 bytes in the file) is read
+  as three separate Latin-1 codepoints and re-encoded as UTF-8 on output
+  → double-encoded mojibake (`â  ` instead of `⚠`). Default-on prevents
+  the latent failure where a future literal silently breaks. `-CDSL`
+  controls I/O encoding only, *not* source encoding.
 - **Git invocation**: pass `-z` to any git subcommand that emits paths
   (`git status --porcelain -z`, `git diff -z --name-only`, `git ls-files -z`,
   …). Records become NUL-separated and paths are emitted verbatim — no
@@ -45,22 +46,26 @@ The alternative — leaving git's default quoting on, or setting
 strings, so `substr`, regex, and `length` work on characters rather than
 raw bytes.
 
-## Existing usage
+## Enforcement
 
-Perl helpers using `-CDSL` shebang:
+`CWF::Validate::PerlConventions` (Task 124) enforces this convention on
+every `cwf-manage validate` run, which itself runs after every workflow
+checkpoint commit. The check walks `.cwf/scripts/` and `.cwf/lib/CWF/` and
+asserts:
 
-- `.cwf/scripts/command-helpers/template-copier-v2.1`
-- `.cwf/scripts/command-helpers/status-aggregator-v2.1`
-- `.cwf/scripts/command-helpers/context-inheritance-v2.1`
+- `use utf8;` is declared in every Perl file (unconditional).
+- Any script that captures output from a path-emitting git subcommand
+  (`status`, `diff`, `ls-files`, `diff-tree`, `diff-index`) passes `-z`.
+- Such scripts use the `#!/usr/bin/perl -CDSL` shebang.
 
-Perl helpers consuming git path output (apply this convention going
-forward):
-
-- `.cwf/scripts/hooks/stop-uncommitted-changes-warning` (Task 113)
+Grandfathered exceptions live in `@CWF::Validate::PerlConventions::GRANDFATHERED`
+— a hard-coded list that requires a source edit to extend (no comment-marker
+opt-out). Allowlisted files still must declare `use utf8;`.
 
 ## Pre-convention scripts
 
 `.cwf/scripts/hooks/stop-stale-status-detector` predates this convention
 and uses a bare `#!/usr/bin/env perl` shebang with `git diff HEAD
---name-only` (no `-z`). It is grandfathered. New helpers and hooks use
-the convention above; do not replicate the older pattern.
+--name-only` (no `-z`). It is grandfathered via the allowlist above.
+New helpers and hooks use the convention; do not replicate the older
+pattern.

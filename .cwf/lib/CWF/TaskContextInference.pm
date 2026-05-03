@@ -2,6 +2,7 @@ package CWF::TaskContextInference;
 
 use strict;
 use warnings;
+use utf8;
 use Exporter 'import';
 use Cwd;
 use File::Find;

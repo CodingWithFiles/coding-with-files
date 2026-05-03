@@ -8,6 +8,7 @@ package CWF::Common;
 
 use strict;
 use warnings;
+use utf8;
 use Exporter 'import';
 
 our @EXPORT_OK = qw(check_perl5opt format_error parse_semver version_cmp find_git_root);

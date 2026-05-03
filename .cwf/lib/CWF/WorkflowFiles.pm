@@ -8,6 +8,7 @@ package CWF::WorkflowFiles;
 
 use strict;
 use warnings;
+use utf8;
 use Exporter 'import';
 use File::Basename;
 use JSON::PP;

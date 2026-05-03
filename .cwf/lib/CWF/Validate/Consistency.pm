@@ -12,6 +12,7 @@ package CWF::Validate::Consistency;
 
 use strict;
 use warnings;
+use utf8;
 use Exporter 'import';
 use CWF::MarkdownParser qw(extract_field);
 use CWF::TaskState qw(status_get);

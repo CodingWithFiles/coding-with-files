@@ -19,6 +19,7 @@ Accepts a list of workflow files and returns aggregated progress percentage.
 
 use strict;
 use warnings;
+use utf8;
 use CWF::TaskState qw(status_get status_percent);
 
 =head1 FUNCTIONS

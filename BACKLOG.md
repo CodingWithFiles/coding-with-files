@@ -29,6 +29,29 @@ Future tasks and improvements for the Coding with Files system.
 
 ---
 
+## Task: Expand script-hashes.json integrity surface to command-helpers and hooks
+
+**Task-Type**: chore
+**Priority**: High
+**Status**: Follow-up from Task 124
+
+Task 124 surfaced a gap in the SHA256 integrity surface: `.cwf/scripts/command-helpers/{context-manager,task-workflow,workflow-manager}` and their `*.d/` subcommand directories, plus `.cwf/scripts/hooks/`, are NOT registered in `.cwf/security/script-hashes.json`. They received `use utf8;` for convention compliance during Task 124, but their hashes are not tracked — meaning `cwf-manage validate` will not detect tampering on these files even though they execute Perl logic on every workflow checkpoint.
+
+**Problem**: The integrity model is partial. A user-side modification (accidental or malicious) to `task-workflow` or `workflow-manager` would not be flagged by `cwf-manage validate`. The new `CWF::Validate::PerlConventions` check covers the convention surface (uses `use utf8;`, `git -z`, env shebang) but not the bytewise-tamper surface for these scripts.
+
+**Scope**:
+- Register hashes for `.cwf/scripts/command-helpers/{context-manager,task-workflow,workflow-manager}` and every script under their `*.d/` subdirs.
+- Register hashes for every script under `.cwf/scripts/hooks/`.
+- Refresh `.cwf/security/script-hashes.json` (maintainer-only operation; do not introduce an end-user `refresh-hashes` command).
+- Confirm `cwf-manage validate` passes with the expanded surface.
+- Confirm planted-breakage on each new entry produces `[SECURITY] sha256` violations.
+
+**Out of scope**: Adding any end-user-runnable hash recompute facility. The integrity model relies on hashes being recorded only in the upstream source repo.
+
+**Identified in**: Task 124 implementation exec (f-implementation-exec.md § Step 4 deviation 3, "Out-of-scope observation").
+
+---
+
 ## Task: Tighten security-subagent prompt for sentinel-line compliance
 
 **Task-Type**: chore
@@ -1735,22 +1758,6 @@ Both `h-rollout.md` and `i-maintenance.md` ship with full enterprise templates (
 **Note**: An existing BACKLOG item ("Lightweight Rollout/Maintenance Templates for Internal Tasks") covers this. Task 114 is corroborating evidence — bumping its priority would be reasonable.
 
 **Identified in**: Task 114 h-rollout.md and i-maintenance.md (both Lessons Learned sections)
-
-## Task: Audit Perl helpers against perl-git-paths.md conventions
-
-**Task-Type**: chore
-**Priority**: Medium
-**Status**: Follow-up from Task 115 retrospective (and Task 113 retrospective recommendation)
-
-`docs/conventions/perl-git-paths.md` (added in Task 113) prescribes `#!/usr/bin/perl -CDSL` shebang, `use utf8;` for any source with non-ASCII literals, and `git ... -z` for git path output. Several CwF Perl scripts predate the convention and have not been audited against it. Task 113's retrospective recommended this audit; Task 115 hit the gap directly when `cwf-manage`'s missing `use utf8;` produced double-encoded em-dash mojibake under `PERL5OPT=-CDSL`. Task 115 boy-scouted `cwf-manage`; the rest of `.cwf/scripts/` and `.cwf/lib/` remain unaudited.
-
-**Scope**:
-- Walk `.cwf/scripts/`, `.cwf/lib/CWF/`, and `.cwf/scripts/hooks/` for Perl files
-- For each: check shebang (should be `#!/usr/bin/perl -CDSL` for executables, libraries are exempt), grep for non-ASCII literals (must have `use utf8;` if any), grep for `git status|diff|ls-files` calls without `-z`
-- Fix non-conformant scripts in a single pass (or batched by area) — script changes will cascade to `.cwf/security/script-hashes.json`
-- Add a one-time `cwf-manage validate` soft check or a `prove t/perl-conventions.t` style test that fails if a registered script breaks the convention, so future regressions are caught at commit time
-
-**Identified in**: Task 113 j-retrospective.md (recommendation); Task 115 j-retrospective.md (boy-scouted one script, audit still owed)
 
 ## Task: Resolve cwf-project.json version drift vs .cwf/version
 

@@ -24,6 +24,7 @@ Key changes from v2.0:
 
 use strict;
 use warnings;
+use utf8;
 use Exporter 'import';
 
 our @EXPORT_OK = qw(get_workflow_files supported_types);

@@ -21,6 +21,7 @@ Handles template discovery, variable substitution, and file copying.
 
 use strict;
 use warnings;
+use utf8;
 use File::Basename qw(basename);
 use File::Spec;
 use File::Path qw(make_path);

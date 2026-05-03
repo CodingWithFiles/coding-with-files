@@ -2,6 +2,33 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 124: Audit Perl helpers vs perl-git-paths conventions
+
+**Status**: Complete (2026-05-03)
+**Duration**: 1 session of active work (estimated: 1–2 days; variance ~0%)
+**Impact**: Chore — adds `CWF::Validate::PerlConventions`, a fifth validator wired into `cwf-manage validate` (which runs at every workflow checkpoint commit via `cwf-checkpoint-commit:53`). Enforces three convention rules from `docs/conventions/perl-git-paths.md`: (1) `use utf8;` declared unconditionally on every Perl file under `.cwf/scripts/` and `.cwf/lib/CWF/`, (2) any captured `git status|diff|ls-files|diff-tree|diff-index` invocation uses `-z`, (3) any script that captures git output uses `#!/usr/bin/perl -CDSL`. POD and `#` comments are stripped before scanning so doc examples cannot trigger false positives. Grandfathered exception for `.cwf/scripts/hooks/stop-stale-status-detector` is hard-coded in the module's `@GRANDFATHERED` allowlist (no comment-marker bypass — TC-NF2 confirms a `# perl-git-paths-skip:` comment does not silence the check). 41 Perl files received `use utf8;` to bring the tree into compliance, plus a one-time refresh of 34 entries (and one new entry for the validator) in `.cwf/security/script-hashes.json`.
+
+### Changes
+- Added: `.cwf/lib/CWF/Validate/PerlConventions.pm` — new validator (~216 lines). Exports `validate($git_root)`. Walks `.cwf/scripts/` and `.cwf/lib/CWF/` via `File::Find`, filters to Perl scripts (shebang) and CWF modules (`^package CWF::`). Returns the same hashref shape as the other `CWF::Validate::*` modules (`{ category, file, field, actual, expected, fix }`) so `cmd_validate` formats it without new infrastructure.
+- Added: `t/validate-perl-conventions.t` — fixture-driven Test::More unit test, 14 subtests. Covers `use_utf8` (TC-U1, TC-U2, TC-U2b), `git_z` (TC-U3, TC-U4, TC-U4b, TC-U4c, TC-U4d), `shebang` (TC-U3b, TC-U4), POD exclusion (TC-U5), argument-paths exclusion (TC-U6), allowlist (TC-U7), non-Perl filter (TC-U8). TC-U4c/U4d added in response to a security-review finding (bareword `open my $fh, '-|', 'git', ...` form).
+- Modified: `.cwf/scripts/cwf-manage` — added `use CWF::Validate::PerlConventions ();` to the validate block and `CWF::Validate::PerlConventions::validate($git_root)` to the `@all_violations` aggregation in `cmd_validate`. Validator runs alongside Config, Workflow, Consistency, Security on every checkpoint commit.
+- Modified: 41 Perl files under `.cwf/lib/CWF/` and `.cwf/scripts/` gained `use utf8;` after `use strict; use warnings;`. Includes all of `.cwf/lib/CWF/*.pm`, `.cwf/scripts/command-helpers/*` and their `*.d/` subdirs, `.cwf/scripts/hooks/stop-stale-status-detector`, and `.cwf/scripts/migrations/migrate-v2.1-file-order`.
+- Modified: `.cwf/security/script-hashes.json` — refreshed sha256 entries for 34 modified files plus one new entry for `CWF::Validate::PerlConventions.pm`. Permissions unchanged.
+- Modified: `docs/conventions/perl-git-paths.md` — source-pragma rule changed to "Declare it on every Perl file under .cwf/ unconditionally". Replaced the "Existing usage" prose list with an "Enforcement" section pointing to `CWF::Validate::PerlConventions` as the live drift check; the grandfathered exception is now described as living in the validator's allowlist constant.
+- Modified: `BACKLOG.md` — closed "Audit Perl helpers against perl-git-paths.md conventions"; added new High-priority follow-up "Expand script-hashes.json integrity surface to command-helpers and hooks".
+
+### Notable
+- **Mid-task rule widening (3 → 41 files)**: original byte-grep audit returned 9 candidates; the validator's POD/comment stripping correctly narrowed that to 3 with code-level non-ASCII; user direction during f-exec then widened the rule to unconditional ("we should ALWAYS use 'use utf8;'"), bringing the final count to 41. Memory `feedback_always_use_utf8.md` saved so future tasks default to the unconditional reading. The widening was scope clarification, not creep — the underlying rule was always meant to be unconditional.
+- **Security model carve-out — end users must NEVER recompute hashes**: the original d-plan framed hash refresh as a routine maintainer step; user correction during plan review made the constraint permanent. `cwf-manage` will not gain a `refresh-hashes` subcommand. `fix-security` only repairs permissions when sha already matches — it never recomputes. Hash regeneration is upstream-source-repo-only. Recorded in d-plan § "Scope Completion" as a permanent out-of-scope item.
+- **Allowlist over comment marker** (TC-NF2): a `# perl-git-paths-skip:` style comment carries no meaning to the validator — the only opt-out is editing `our @GRANDFATHERED` in source, which is visible in code review. A future caller cannot silently exempt their script.
+- **Security-review finding fixed in-task, not deferred**: subagent (run on a 250-line narrowed subset due to the 500-line cap) flagged that the open-pipe regex required parens, missing the bareword `open my $fh, '-|', 'git', ...` form. Regex tightened (terminate at `;` instead of `)`); TC-U4c and TC-U4d lock both forms in.
+- **Integrity surface gap surfaced as follow-up**: `.cwf/scripts/command-helpers/{context-manager,task-workflow,workflow-manager}` + `*.d/` subdirs, plus `.cwf/scripts/hooks/`, are NOT registered in `script-hashes.json`. They received `use utf8;` for convention compliance but their bytes aren't tamper-checked. Added to BACKLOG as High-priority follow-up.
+- **No personal names in committed CWF docs** (memory `feedback_no_name_in_wf_docs.md`): first d-plan draft named the maintainer in the hash-refresh step; corrected to use the role ("the maintainer") instead. Workflow-step docs are committed source — names rot, roles don't.
+- **Probe scripts under `/tmp/task-124/`** (memory update to `feedback_no_heredocs.md`): TC-I4 and TC-NF2 needed scratch Perl to exercise `@GRANDFATHERED` semantics. First attempt used `perl -e` inline in Bash; user correction ("avoid using heredocs… create a dir under /tmp and edit the files in there direct") drove the switch to file-based probes. Memory generalised from "no heredocs in commits" to "no inline scripts of any kind in Bash".
+- 1 new validator module, 1 new unit test (14 subtests), 41 `+use utf8;` insertions, 1 `cwf-manage` wiring change, 1 docs update, 1 BACKLOG close + 1 BACKLOG add. Full suite 28 files / 267 tests green pre/post.
+
+---
+
 ## Task 123: Add security-review subagent to plan/exec skills
 
 **Status**: Complete (2026-05-03)

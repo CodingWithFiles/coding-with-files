@@ -8,6 +8,7 @@ package CWF::TaskPath;
 
 use strict;
 use warnings;
+use utf8;
 use Exporter 'import';
 use File::Basename;
 use Cwd 'abs_path';

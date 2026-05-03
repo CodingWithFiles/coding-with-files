@@ -19,6 +19,7 @@ Generates structural maps of parent task content with headers and line ranges.
 
 use strict;
 use warnings;
+use utf8;
 use File::Basename;
 use CWF::TaskState qw(status_get);
 

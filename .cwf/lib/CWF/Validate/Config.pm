@@ -14,6 +14,7 @@ package CWF::Validate::Config;
 
 use strict;
 use warnings;
+use utf8;
 use Exporter 'import';
 use JSON::PP;
 use CWF::WorkflowFiles::V21 qw(supported_types);

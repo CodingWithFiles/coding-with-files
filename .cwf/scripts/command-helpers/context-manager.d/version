@@ -17,6 +17,7 @@
 
 use strict;
 use warnings;
+use utf8;
 use FindBin;
 use lib "$FindBin::Bin/../../../lib";
 use CWF::Common qw(check_perl5opt);

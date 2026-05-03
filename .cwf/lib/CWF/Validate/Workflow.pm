@@ -12,6 +12,7 @@ package CWF::Validate::Workflow;
 
 use strict;
 use warnings;
+use utf8;
 use Exporter 'import';
 use CWF::TaskState qw(status_get status_is_valid);
 

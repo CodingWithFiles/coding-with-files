@@ -2,6 +2,7 @@ package CWF::Versioning;
 
 use strict;
 use warnings;
+use utf8;
 use Exporter 'import';
 use JSON::PP;
 use File::Basename qw(dirname);

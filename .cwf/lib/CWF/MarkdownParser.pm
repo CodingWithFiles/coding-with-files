@@ -9,6 +9,7 @@ package CWF::MarkdownParser;
 
 use strict;
 use warnings;
+use utf8;
 use Exporter 'import';
 
 our @EXPORT_OK = qw(extract_field find_field_line);
