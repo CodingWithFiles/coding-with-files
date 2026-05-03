@@ -94,10 +94,60 @@
       "permissions" : "0700",
       "sha256" : "418608d19f9c75eb50a0330c8f15532b572af36dc8f5763bd34d4b9ff10743c9"
     },
+    "context-manager" : {
+      "path" : ".cwf/scripts/command-helpers/context-manager",
+      "permissions" : "0500",
+      "sha256" : "c30fbc09fc9c9396142d03517fc2821e4baadaef09f8bae5034e9f62373df6ce"
+    },
+    "context-manager.d/hierarchy" : {
+      "path" : ".cwf/scripts/command-helpers/context-manager.d/hierarchy",
+      "permissions" : "0500",
+      "sha256" : "9d3a3eacba40818e8f3e19d1c45f6ede38810d7a859926c93f1e3ebafe5230ac"
+    },
+    "context-manager.d/inheritance" : {
+      "path" : ".cwf/scripts/command-helpers/context-manager.d/inheritance",
+      "permissions" : "0500",
+      "sha256" : "5852bd1e148c5ffb4d3fcd47d55560344e5aee08b6cdc67dfe5656a4141633f9"
+    },
+    "context-manager.d/location" : {
+      "path" : ".cwf/scripts/command-helpers/context-manager.d/location",
+      "permissions" : "0500",
+      "sha256" : "d745e9103994c71d63d5c260c118eebfd7090973cf4f24ea2f6aa73f16610cfb"
+    },
+    "context-manager.d/version" : {
+      "path" : ".cwf/scripts/command-helpers/context-manager.d/version",
+      "permissions" : "0500",
+      "sha256" : "cbf75898372ab2a63579cfa2cd1e5988ed6cc75f195675254d6d5a3291478473"
+    },
     "cwf-checkpoint-commit" : {
       "path" : ".cwf/scripts/command-helpers/cwf-checkpoint-commit",
       "permissions" : "0700",
       "sha256" : "a7a6b8154021a02ec46e5ebba017c04814bed178123818ad249ecb09634e754c"
+    },
+    "cwf-find-task-numbering-structure" : {
+      "path" : ".cwf/scripts/command-helpers/cwf-find-task-numbering-structure",
+      "permissions" : "0500",
+      "sha256" : "ceb33c3e9d314aa77b8dee613becac0f568eb98115bba08e552758f48ad3424c"
+    },
+    "cwf-load-autoload-config" : {
+      "path" : ".cwf/scripts/command-helpers/cwf-load-autoload-config",
+      "permissions" : "0500",
+      "sha256" : "448b571ca8ea7328d6e693d45d46afbe77db89376b594438f4a0f7c90ff0a526"
+    },
+    "cwf-load-existing-tasks" : {
+      "path" : ".cwf/scripts/command-helpers/cwf-load-existing-tasks",
+      "permissions" : "0500",
+      "sha256" : "782f002d53bbe1bc9a058ee39250778537c2ebd8b56e99e2a1ac8c86cb3964a4"
+    },
+    "cwf-load-project-config" : {
+      "path" : ".cwf/scripts/command-helpers/cwf-load-project-config",
+      "permissions" : "0500",
+      "sha256" : "8260e7431184cb0c2e069ed1d19c10449cca47e605bc4b9e9e2c26b8b5fdac5f"
+    },
+    "cwf-load-status-sections" : {
+      "path" : ".cwf/scripts/command-helpers/cwf-load-status-sections",
+      "permissions" : "0500",
+      "sha256" : "5eabb6d50c0b4343a9c9baf5ef9f3d2be096dca6eb0397e71805660865cc253a"
     },
     "cwf-manage" : {
       "path" : ".cwf/scripts/cwf-manage",
@@ -106,7 +156,7 @@
     },
     "cwf-set-status" : {
       "path" : ".cwf/scripts/command-helpers/cwf-set-status",
-      "permissions" : "0755",
+      "permissions" : "0500",
       "sha256" : "55b04eb0d2af1c1025bb6e6bbef15122f54a01f7286d0e11e7e2289bbd4a617c"
     },
     "cwf-version-bump" : {
@@ -131,7 +181,7 @@
     },
     "migrate-v2.1-file-order" : {
       "path" : ".cwf/scripts/migrations/migrate-v2.1-file-order",
-      "permissions" : "0755",
+      "permissions" : "0500",
       "sha256" : "22b8d6da84337abfc0dd90a420cdca7c6fee1395caa66e375154af292a4d1a04"
     },
     "rollback-migration.sh" : {
@@ -149,15 +199,35 @@
       "permissions" : "0700",
       "sha256" : "ca33a2dc1fa5e63b0367b34e5aa3bb7859889c64935beaaf5b13a34341e3bd07"
     },
+    "stop-stale-status-detector" : {
+      "path" : ".cwf/scripts/hooks/stop-stale-status-detector",
+      "permissions" : "0500",
+      "sha256" : "845f576a4ff22bcc688bbb3e7b4ec7b6fbf5efef55442677002c033ec635e543"
+    },
+    "stop-uncommitted-changes-warning" : {
+      "path" : ".cwf/scripts/hooks/stop-uncommitted-changes-warning",
+      "permissions" : "0500",
+      "sha256" : "3e041d7e6052504f93586de6f0f0f7adba8896266cfa98768847b1214c194643"
+    },
     "task-context-inference" : {
       "path" : ".cwf/scripts/command-helpers/task-context-inference",
-      "permissions" : "0755",
+      "permissions" : "0500",
       "sha256" : "787f3f5ef3d95c29cee1500a6cf77d93e4bf3dc8359081e3fab2be05bae8e5f0"
     },
     "task-stack" : {
       "path" : ".cwf/scripts/command-helpers/task-stack",
-      "permissions" : "0755",
+      "permissions" : "0500",
       "sha256" : "741cc647a76e7f260ed5cbafbe0c9f47f91d320cf03990cff14de70b07997e37"
+    },
+    "task-workflow" : {
+      "path" : ".cwf/scripts/command-helpers/task-workflow",
+      "permissions" : "0500",
+      "sha256" : "6678352e66e0ecdf95d0dd8b74428dc5b3566d3da7562ca076ee8cfcea889dcb"
+    },
+    "task-workflow.d/create" : {
+      "path" : ".cwf/scripts/command-helpers/task-workflow.d/create",
+      "permissions" : "0500",
+      "sha256" : "62d31a1dd84bc5c5806a4bfaa52bb8f7e6d5e2f77c75abd749b458192930d173"
     },
     "template-copier-v2.0" : {
       "path" : ".cwf/scripts/command-helpers/template-copier-v2.0",
@@ -173,6 +243,21 @@
       "path" : ".cwf/scripts/validate-migration.sh",
       "permissions" : "0700",
       "sha256" : "90c2933399266a98dd3cf96db874d48deccaae3cb4f8b47412c1b29fb077b76a"
+    },
+    "workflow-manager" : {
+      "path" : ".cwf/scripts/command-helpers/workflow-manager",
+      "permissions" : "0500",
+      "sha256" : "f4947b75561d8c649e212bae7fbf9a176ef3279f905fdbf8dea4a87f04dae1e9"
+    },
+    "workflow-manager.d/control" : {
+      "path" : ".cwf/scripts/command-helpers/workflow-manager.d/control",
+      "permissions" : "0500",
+      "sha256" : "6b5a7219c0010c1ada308cd74c672aed8b719c51673170453e16eed47f8f16b6"
+    },
+    "workflow-manager.d/status" : {
+      "path" : ".cwf/scripts/command-helpers/workflow-manager.d/status",
+      "permissions" : "0500",
+      "sha256" : "540d7dae48cdcd24825cd63886a8efe2ede89cd64592f235e27cfeb13cce2402"
     }
   },
   "version" : "2.1"

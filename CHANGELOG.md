@@ -2,6 +2,30 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 125: Expand script-hashes integrity surface to command-helpers and hooks
+
+**Status**: Complete (2026-05-03)
+**Duration**: 1 session of active work (estimated: 1 session; variance ~0%)
+**Impact**: Chore — closes the SHA256 integrity gap surfaced by Task 124. Registers 17 new entries in `.cwf/security/script-hashes.json` covering every executable script under `.cwf/scripts/command-helpers/**` (3 Perl trampolines + 7 `*.d/` subcommands + 5 POSIX shell helpers) and `.cwf/scripts/hooks/` (2 hooks). Also lowers 4 pre-existing drift entries (`cwf-set-status`, `migrate-v2.1-file-order`, `task-context-inference`, `task-stack`) from recorded `0755` to `0500` (default policy: minimum bits that allow execution under `Validate::Security`'s min-bits semantics). Adds a permanent regression-guard test (`t/validate-security-coverage.t`) that walks both directories and asserts every executable file is registered — no shebang filter, every language counts. `cwf-manage validate` now reports zero violations across both sha256 and permissions.
+
+### Changes
+- Modified: `.cwf/security/script-hashes.json` — 17 new `scripts` entries (alphabetised by key; `<parent>.d/<sub>` shape used for subcommands per `Validate::Security:76` confirmation that keys are never parsed); 4 in-place permissions updates from `"0755"` → `"0500"`; `last_updated` bumped to 2026-05-03. Total `scripts` section now 36 entries (was 19).
+- Added: `t/validate-security-coverage.t` — Perl Test::More coverage guard, ~135 lines after /simplify pass. Walks `.cwf/scripts/command-helpers/**` once and partitions by depth into TC-C1 (top-level, 22 hits) and TC-C2 (`*.d/` subcommands, 7 hits); walks `.cwf/scripts/hooks/` for TC-C3 (2 hits); TC-U4 self-contained `tempdir` subtest verifies the walker skips symlinks. Uses `File::Spec->abs2rel` for path normalisation matching `CWF::Validate::PerlConventions`. No shebang filter.
+- Modified: `BACKLOG.md` — closed "Expand script-hashes.json integrity surface to command-helpers and hooks"; added Medium-priority follow-up "Audit Perl-vs-Bash helper scripts and migrate where feasible".
+
+### Notable
+- **Mid-task scope expansion (12 → 17 entries)**: original d-plan inventory was Perl-only. User direction during d-plan review widened the rule to "all scripts should be included in the security checks", folding in 5 POSIX shell helpers (`cwf-find-task-numbering-structure`, `cwf-load-{autoload-config,existing-tasks,project-config,status-sections}`). Coverage test dropped its shebang filter as a result; every executable file under tracked directories now must be registered regardless of language. Bundled with the perms-drift fix and a follow-up BACKLOG add into one revision commit (596f67c) since all three changes flowed from the same user decision.
+- **Min-bits permissions semantics let us standardise on `0500`**: `Validate::Security`'s check is `(actual & expected) != expected`, so on-disk `0700` satisfies recorded `0500` (`0700 & 0500 == 0500`). All 17 new entries record `0500` even though their on-disk perms are `0700`. The 4 drift entries that had recorded `0755` against actual `0700` were lowered to `0500` for the same reason — `0755` was overstating precision and creating drift that could only ever be cleared by a manual recompute. Future entries should default to `0500` unless a higher floor is genuinely required.
+- **Hash-key shape `<parent>.d/<sub>` is safe by design**: `lib/CWF/Validate/Security.pm:76` iterates `sort keys %file_entries` without parsing keys, so embedded `/` and `.` characters work transparently. No code change to `Validate::Security` was needed; the validator simply read the new keys and verified their entries.
+- **RED-before-splice was actually executed**: TC-U1 from e-testing-plan asserted the coverage test had to be meaningful, not just present. During f-phase, the test ran pre-splice and produced exactly 17 missing-entry failures across TC-C1 (8) + TC-C2 (7) + TC-C3 (2); after the splice it ran green. The synthetic-file probe (TC-NF1) repeated the demonstration with a freshly-dropped unregistered file to confirm the regression-guard behaviour for future drops.
+- **Planted-byte-flip on every tier**: TC-I2 (top-level Perl trampoline `context-manager`), TC-I3 (`.d/` subcommand `context-manager.d/hierarchy`), TC-I4 (hook `stop-stale-status-detector`), TC-I5 (POSIX shell helper `cwf-load-project-config`) all produced `[SECURITY] sha256` violations on append + `1 violation(s) found`; `git checkout --` cleared each. Confirms shell scripts get the same integrity guarantee as Perl.
+- **Security review changeset was empty by design**: the security-review pathspec deliberately excludes `.cwf/security/**` (manifest data) and `t/**` (test code). Both phase reviews recorded `**State**: no findings\n\nno findings: empty changeset` per the skill's empty-diff branch.
+- **/simplify pass after g-phase** consolidated TC-C1 and TC-C2 into a single walk + path-partition, swapped a regex `rel_to_repo` for `File::Spec->abs2rel`, and removed a what-not-why comment. Net -47/+28 lines, all tests still green. Cleanup committed as a separate fixup (e5aab40); the squash will fold it into the final task commit.
+- **Process error worth noting**: first `task-workflow create` call passed `--destination="implementation-guide"` (instead of the full task-dir path), creating files in the wrong location. Trivial to recover but a recurrence risk on rapid task creation. The helper does what its argument says, not what the user meant — pass full destination paths.
+- 17 new manifest entries, 4 perms-drift fixes, 1 new test file (4 subtests), 1 BACKLOG close + 1 BACKLOG add. Full suite 28 files / 267 tests → 29 / 271 (delta exactly +1 file +4 subtests).
+
+---
+
 ## Task 124: Audit Perl helpers vs perl-git-paths conventions
 
 **Status**: Complete (2026-05-03)

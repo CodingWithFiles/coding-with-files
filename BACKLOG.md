@@ -29,26 +29,35 @@ Future tasks and improvements for the Coding with Files system.
 
 ---
 
-## Task: Expand script-hashes.json integrity surface to command-helpers and hooks
+## Task: Audit Perl-vs-Bash helper scripts and migrate where feasible
 
-**Task-Type**: chore
-**Priority**: High
-**Status**: Follow-up from Task 124
+**Task-Type**: discovery + chore
+**Priority**: Medium
+**Status**: Follow-up from Task 125
 
-Task 124 surfaced a gap in the SHA256 integrity surface: `.cwf/scripts/command-helpers/{context-manager,task-workflow,workflow-manager}` and their `*.d/` subcommand directories, plus `.cwf/scripts/hooks/`, are NOT registered in `.cwf/security/script-hashes.json`. They received `use utf8;` for convention compliance during Task 124, but their hashes are not tracked — meaning `cwf-manage validate` will not detect tampering on these files even though they execute Perl logic on every workflow checkpoint.
+CWF currently mixes Perl and POSIX shell helpers under `.cwf/scripts/command-helpers/`. Task 125 brought all of them under SHA256 integrity tracking, but the Perl-vs-shell split is otherwise unmotivated — same trust boundary, same execution surface, same call sites. Perl gives consistent error handling (`die_msg`), `use strict; use warnings; use utf8;`, structured option parsing (`CWF::Options`), and unit-testability via the `t/` suite; POSIX shell gives none of these and is harder to reason about for branchy logic.
 
-**Problem**: The integrity model is partial. A user-side modification (accidental or malicious) to `task-workflow` or `workflow-manager` would not be flagged by `cwf-manage validate`. The new `CWF::Validate::PerlConventions` check covers the convention surface (uses `use utf8;`, `git -z`, env shebang) but not the bytewise-tamper surface for these scripts.
+**In-scope shell helpers** (5 today, all under `.cwf/scripts/command-helpers/`):
+- `cwf-find-task-numbering-structure`
+- `cwf-load-autoload-config`
+- `cwf-load-existing-tasks`
+- `cwf-load-project-config`
+- `cwf-load-status-sections`
 
-**Scope**:
-- Register hashes for `.cwf/scripts/command-helpers/{context-manager,task-workflow,workflow-manager}` and every script under their `*.d/` subdirs.
-- Register hashes for every script under `.cwf/scripts/hooks/`.
-- Refresh `.cwf/security/script-hashes.json` (maintainer-only operation; do not introduce an end-user `refresh-hashes` command).
-- Confirm `cwf-manage validate` passes with the expanded surface.
-- Confirm planted-breakage on each new entry produces `[SECURITY] sha256` violations.
+**Approach**:
+1. **Discovery**: read each shell helper, document its inputs, outputs, callers, and any logic that would meaningfully benefit from Perl idioms (or, conversely, anything genuinely better as shell — e.g. simple env probing).
+2. **Per-helper migrate-or-keep decision**: for each, decide migrate-to-Perl or keep-as-shell with a one-line rationale.
+3. **Migrate** the chosen ones in a follow-up batch; refresh `script-hashes.json` entries (their bytes change, hash changes); ensure they're `use strict; use warnings; use utf8;` and follow `docs/conventions/perl-git-paths.md`; add unit coverage if behaviour is non-trivial.
 
-**Out of scope**: Adding any end-user-runnable hash recompute facility. The integrity model relies on hashes being recorded only in the upstream source repo.
+**Why now**: Task 125 just registered every helper for tampering detection — natural moment to ask whether the language split is paying for itself. The convention check (`CWF::Validate::PerlConventions`) only constrains Perl files, so anything in shell sits outside that drift guard.
 
-**Identified in**: Task 124 implementation exec (f-implementation-exec.md § Step 4 deviation 3, "Out-of-scope observation").
+**Out of scope**: shell scripts outside `.cwf/scripts/command-helpers/` (install bootstrap, migration scripts) — they have separate reasons to remain shell (must run before Perl modules are available).
+
+**Identified in**: Task 125 d-implementation-plan scope-expansion review (user direction).
+
+---
+
+<!-- Completed: "Expand script-hashes.json integrity surface to command-helpers and hooks" — Task 125 (2026-05-03) -->
 
 ---
 
