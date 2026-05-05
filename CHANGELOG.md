@@ -2,6 +2,34 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 127: Upgrade installs cwf-init artefacts
+
+**Status**: Complete (2026-05-05)
+**Impact**: Feature — `cwf-manage update` now re-applies every artefact `/cwf-init` produces (`.gitignore` lines, `.cwf/rules-inject.txt`, `.cwf-rules/` tree, CLAUDE.md preamble, `.claude/rules/cwf-*.md` symlinks, `.claude/settings.json` allowlist + Stop hooks). Conflicts use Debian dpkg-style three-way comparison with K/I/D/A prompts (`CWF_UPGRADE_RESOLVE=prompt|keep|new|abort` for non-interactive contexts). Closes the gap that Task 126's BACKLOG entry called out: previously only `.cwf/` and `.cwf-skills/` were refreshed by upgrades.
+
+### Changes
+- Added: `.cwf/scripts/command-helpers/cwf-apply-artefacts` (~570 lines, perms `0500`). Reads `.cwf/install-manifest.json` from source + installed trees, dispatches per artefact's `kind` (line-additive, replace, tree, embedded-block, regenerate-symlinks). Three-way compare per FR3; prompts via FR4; honours `CWF_UPGRADE_RESOLVE` per FR5; `--bootstrap-init` mode for `/cwf-init` (silent install + audit log).
+- Added: `.cwf/lib/CWF/ArtefactHelpers.pm` (perms `0444`). Shared `read_json_file`, `atomic_write_text`, `validate_path_allowlist`, `compute_file_sha256`, `read_file_raw`. Used by `cwf-apply-artefacts` and `cwf-claude-settings-merge` so both helpers go through one validated path-allowlist + atomic-write code path.
+- Added: `.cwf/install-manifest.json` (`schema_version: 1`). Per-release inventory of non-script artefacts with source/dest paths and SHA256 pins.
+- Added: `.cwf/templates/install/rules-inject.txt`, `.cwf/templates/install/claude-md-preamble.md` — canonical sources for the upgrade-eligible artefacts.
+- Added: `t/artefacthelpers.t` (21 tests), `t/cwf-apply-artefacts.t` (18 subtests), `t/cwf-manage-update.t` (6 subtests) — covers FR3-FR12 including newline-injection rejection, path-traversal rejection, manifest SHA tampering detection, flock concurrency, sentinel migration, bootstrap-from-no-manifest.
+- Modified: `.cwf/scripts/cwf-manage` — `cmd_update` adds `flock(LOCK_EX|LOCK_NB)` on `.cwf/.update.lock` (with `O_NOFOLLOW` + `lstat` symlink-TOCTOU check), settings.json parse-check (FR12), install-manifest SHA pin check (D12), `cwf-apply-artefacts` invocation, `cwf-claude-settings-merge` invocation, writes `cwf_install_manifest_sha` field.
+- Modified: `.cwf/lib/CWF/Validate/Security.pm` — new `validate_install_manifest($git_root)` exported sub. Walks the manifest, verifies schema_version, allowlists every source/dest, and (when both sides present) verifies on-disk SHA matches `cwf_install_manifest_sha`.
+- Modified: `.cwf/scripts/command-helpers/cwf-claude-settings-merge` — refactored to use `CWF::ArtefactHelpers` for JSON read, atomic write, path allowlisting. Behaviour unchanged; `t/cwf-claude-settings-merge.t` still passes unmodified.
+- Modified: `.cwf/security/script-hashes.json` — new top-level `data` section (for non-executable tracked files); registers `cwf-apply-artefacts`, `CWF::ArtefactHelpers`, the manifest, both templates.
+- Modified: `.claude/skills/cwf-init/SKILL.md` — step 4 (CLAUDE.md preamble) and step 5 (`.gitignore`) now delegated to step 6b-apply (`cwf-apply-artefacts --bootstrap-init`); hard ordering note added so the apply step runs before step 6c (PreToolUse hook).
+- Modified: `.gitignore` — adds `.cwf/.update.lock`.
+- Modified: `BACKLOG.md` — closes the Task 126 follow-up "Refresh .claude/settings.json on cwf-manage update" (Task 127 supersedes with broader scope).
+
+### Notable
+- **Two manifests, separate concerns**: `script-hashes.json` continues to handle scripts; the new `install-manifest.json` handles non-script artefacts. Distinct change cadence (release-time data) vs (cross-release policy) kept them separate.
+- **Bootstrap-from-no-manifest (FR9 / D4)**: projects upgrading from a pre-feature CWF version have no installed manifest. The helper treats on-disk content as the baseline: additive strategies apply silently; replace-strategy artefacts no-op when on-disk == new, otherwise prompt. One unavoidable round of K/I/D/A prompts per replace artefact on the first post-feature upgrade; subsequent upgrades use full three-way logic.
+- **CLAUDE.md sentinel migration (D6)**: legacy preambles (no sentinels) are detected via the existing `CWF.*is installed` heuristic and wrapped in HTML-comment sentinels in-place. The opening sentinel carries an in-marker warning; user notes belong outside the markers.
+- **D12 manifest SHA pin**: `.cwf/version` gains `cwf_install_manifest_sha`. `cwf-manage update` and `cwf-manage validate` cross-check it; mismatch indicates local manifest tampering and aborts the run with a recovery hint.
+- **Concurrency (D8)**: `flock(LOCK_EX|LOCK_NB)` on `.cwf/.update.lock` with `O_NOFOLLOW` + `lstat` precheck. Acquired before `check_clean_tree` so two concurrent updates cannot both pass the clean-tree gate before one blocks. Lock auto-releases on process exit (kernel-managed).
+
+---
+
 ## Task 126: Fix install allowlist and hook enablement
 
 **Status**: Complete (2026-05-05)

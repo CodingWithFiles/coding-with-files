@@ -1,0 +1,770 @@
+#!/usr/bin/perl -CDSL
+#
+# cwf-apply-artefacts — Apply CWF non-script artefacts (CLAUDE.md preamble,
+# .gitignore lines, .cwf-rules/ tree, .cwf/rules-inject.txt, .claude/rules/
+# symlinks) during cwf-manage update or /cwf-init.
+#
+# Usage:
+#   cwf-apply-artefacts <git_root> <source_root>            # update mode
+#   cwf-apply-artefacts <git_root> <source_root> --bootstrap-init
+#   cwf-apply-artefacts --help
+#
+# In --bootstrap-init mode <source_root> may equal <git_root> (the freshly-
+# installed project's root); conflicts are silently overwritten and logged.
+# Tree-replace deletes (files removed upstream) are NOT performed by this
+# helper; stale rule symlinks are cleaned up by the regenerate-symlinks step.
+#
+# Environment:
+#   CWF_UPGRADE_RESOLVE   prompt|keep|new|abort  (FR5)
+#                         Validated against this exact set; any other value
+#                         exits 1.
+#
+# Exit codes (per design Interface):
+#   0   success (all artefacts applied or already up to date)
+#   1   user-aborted run, or unresolved conflicts in non-TTY default mode,
+#       or invalid CWF_UPGRADE_RESOLVE value
+#   2   bootstrap manifest missing in source (info already logged)
+#   3   path validation failure
+#   4   internal error
+#
+use strict;
+use warnings;
+use utf8;
+use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use Fcntl qw(:DEFAULT);
+use File::Basename qw(dirname basename);
+use File::Path qw(make_path);
+use File::Spec ();
+use CWF::ArtefactHelpers qw(
+    read_json_file
+    atomic_write_text
+    validate_path_allowlist
+    compute_file_sha256
+    read_file_raw
+);
+
+my $PROG = 'cwf-apply-artefacts';
+
+# --- Constants ---------------------------------------------------------------
+
+my $EXIT_OK              = 0;
+my $EXIT_ABORT           = 1;
+my $EXIT_BOOTSTRAP_NOMAN = 2;
+my $EXIT_PATH            = 3;
+my $EXIT_INTERNAL        = 4;
+
+my $SUPPORTED_SCHEMA_VERSION = 1;
+
+my @ALLOWED_SOURCE_PREFIXES = (
+    '.cwf/templates/',
+    '.claude/rules/',
+    '.cwf-rules/',
+);
+my @ALLOWED_DEST_PREFIXES = (
+    '.cwf-rules/',
+    '.claude/rules/',
+    '.cwf/rules-inject.txt',
+    'CLAUDE.md',
+    '.gitignore',
+);
+
+# Files whose diffs may contain secrets — option D suppresses the diff and
+# tells the user to inspect manually. Re-prompts after.
+my %REDACT_PATHS = map { $_ => 1 } (
+    '.claude/settings.json',
+);
+my $REDACT_PATTERN = qr/\.env(?:\..*)?$/;
+
+# Inventory: per-id strategy table. baseline_source 'install-manifest' means
+# look up source/dest details in the manifest; 'derived' means the strategy
+# computes its own source (e.g. regenerate-symlinks reads .cwf-rules/ contents).
+my @INVENTORY = (
+    { id => 'gitignore-entries',     strategy => 'line-additive',
+      baseline_source => 'install-manifest' },
+    { id => 'rules-inject',          strategy => 'replace',
+      baseline_source => 'install-manifest' },
+    { id => 'cwf-rules-bundle',      strategy => 'tree-replace',
+      baseline_source => 'install-manifest' },
+    { id => 'claude-md-preamble',    strategy => 'embedded-block',
+      baseline_source => 'install-manifest' },
+    { id => 'claude-rules-symlinks', strategy => 'regenerate-symlinks',
+      baseline_source => 'derived' },
+);
+
+my %STRATEGY = (
+    'line-additive'        => \&apply_line_additive,
+    'replace'              => \&apply_replace,
+    'tree-replace'         => \&apply_tree_replace,
+    'embedded-block'       => \&apply_embedded_block,
+    'regenerate-symlinks'  => \&apply_regenerate_symlinks,
+);
+
+# --- Logging -----------------------------------------------------------------
+
+sub log_info  { print STDERR "[CWF] INFO: @_\n"; return; }
+sub log_warn  { print STDERR "[CWF] WARN: @_\n"; return; }
+sub log_error { print STDERR "[CWF] ERROR: @_\n"; return; }
+
+# --- CLI ---------------------------------------------------------------------
+
+sub usage {
+    return <<"EOH";
+Usage: $PROG <git_root> <source_root> [--bootstrap-init] [--dry-run]
+       $PROG --help
+
+Apply CWF non-script artefacts (CLAUDE.md preamble, .gitignore lines,
+.cwf-rules/ tree, .cwf/rules-inject.txt, .claude/rules/ symlinks).
+
+In --bootstrap-init mode, <source_root> may equal <git_root> (fresh install),
+conflicts are silently overwritten, and each overwrite is logged.
+
+Tree-replace deletes (upstream-removed files) are NOT performed; stale rule
+symlinks are cleaned up by the regenerate-symlinks step.
+
+Environment:
+  CWF_UPGRADE_RESOLVE   prompt|keep|new|abort
+
+Exit codes: 0=success, 1=abort, 2=bootstrap manifest missing,
+            3=path validation failure, 4=internal error
+EOH
+}
+
+sub parse_args {
+    my @args = @_;
+    my %opts = (bootstrap_init => 0, dry_run => 0);
+    my @pos;
+    for my $arg (@args) {
+        if    ($arg eq '--help' || $arg eq '-h') { print usage(); exit $EXIT_OK }
+        elsif ($arg eq '--bootstrap-init')       { $opts{bootstrap_init} = 1 }
+        elsif ($arg eq '--dry-run')              { $opts{dry_run} = 1 }
+        elsif ($arg =~ /^--/) {
+            log_error("$PROG: unknown flag: $arg");
+            print STDERR usage();
+            exit $EXIT_ABORT;
+        }
+        else { push @pos, $arg }
+    }
+    if (@pos != 2) {
+        log_error("$PROG: expected <git_root> <source_root>; got " . scalar(@pos) . " positional args");
+        print STDERR usage();
+        exit $EXIT_ABORT;
+    }
+    $opts{git_root}    = $pos[0];
+    $opts{source_root} = $pos[1];
+    return \%opts;
+}
+
+sub validate_env {
+    my $val = $ENV{CWF_UPGRADE_RESOLVE};
+    return unless defined $val && length $val;
+    my %ok = map { $_ => 1 } qw(prompt keep new abort);
+    unless ($ok{$val}) {
+        log_error("invalid CWF_UPGRADE_RESOLVE='$val'; must be prompt|keep|new|abort");
+        exit $EXIT_ABORT;
+    }
+    return;
+}
+
+# --- Manifest loading --------------------------------------------------------
+
+sub load_manifests {
+    my ($opts) = @_;
+    my $src_path = "$opts->{source_root}/.cwf/install-manifest.json";
+    my $inst_path = "$opts->{git_root}/.cwf/install-manifest.json";
+
+    my $src;
+    if (-f $src_path) {
+        $src = read_json_file($src_path);
+    } else {
+        log_warn("source manifest not found at $src_path; skipping non-script artefacts");
+        return (undef, undef, $EXIT_BOOTSTRAP_NOMAN);
+    }
+
+    my $inst;
+    $inst = read_json_file($inst_path) if -f $inst_path;
+
+    # Schema-version check (D11).
+    my $sv = $src->{schema_version} // 0;
+    if ($sv != $SUPPORTED_SCHEMA_VERSION) {
+        log_error("source manifest schema_version=$sv not supported by this helper (expected $SUPPORTED_SCHEMA_VERSION); upgrade cwf-manage first");
+        exit $EXIT_ABORT;
+    }
+    if ($inst) {
+        my $isv = $inst->{schema_version} // 0;
+        if ($isv > $SUPPORTED_SCHEMA_VERSION) {
+            log_error("installed manifest schema_version=$isv newer than supported $SUPPORTED_SCHEMA_VERSION; rollback case — use 'cwf-manage rollback' to a matching ref");
+            exit $EXIT_ABORT;
+        }
+    }
+
+    # Validate every artefact's source/dest paths.
+    for my $a (@{ $src->{artefacts} || [] }) {
+        for my $f (qw(source dest)) {
+            next unless defined $a->{$f};
+            eval {
+                my @prefixes = $f eq 'source' ? @ALLOWED_SOURCE_PREFIXES : @ALLOWED_DEST_PREFIXES;
+                # "CLAUDE.md" / ".gitignore" / ".cwf/rules-inject.txt" are exact, allow them.
+                validate_path_allowlist($a->{$f}, \@prefixes);
+                1;
+            } or do {
+                log_error("manifest artefact '$a->{id}' $f path rejected: $a->{$f}");
+                exit $EXIT_PATH;
+            };
+        }
+        if (ref $a->{files} eq 'HASH') {
+            for my $rel (keys %{ $a->{files} }) {
+                if ($rel =~ m{^/} || $rel =~ m{(?:^|/)\.\.(?:/|$)}) {
+                    log_error("manifest artefact '$a->{id}' files key has unsafe path: $rel");
+                    exit $EXIT_PATH;
+                }
+            }
+        }
+    }
+    return ($src, $inst, $EXIT_OK);
+}
+
+sub find_entry {
+    my ($manifest, $id) = @_;
+    return undef unless $manifest;
+    for my $a (@{ $manifest->{artefacts} || [] }) {
+        return $a if ($a->{id} // '') eq $id;
+    }
+    return undef;
+}
+
+# --- Conflict prompt (FR4 / FR5) --------------------------------------------
+
+sub is_secret_path {
+    my ($dest) = @_;
+    return 1 if $REDACT_PATHS{$dest};
+    return 1 if $dest =~ $REDACT_PATTERN;
+    return 0;
+}
+
+# prompt_resolve($id, $dest_rel, $on_disk_path, $new_path) -> 'keep'|'new'|'abort'
+# Honours CWF_UPGRADE_RESOLVE env per FR5. Non-TTY default = abort with EXIT_ABORT.
+sub prompt_resolve {
+    my ($id, $dest_rel, $on_disk_path, $new_path) = @_;
+    my $env = $ENV{CWF_UPGRADE_RESOLVE} // 'prompt';
+
+    if ($env eq 'keep')  { log_info("$id: keep on-disk (per CWF_UPGRADE_RESOLVE)"); return 'keep' }
+    if ($env eq 'new')   { log_info("$id: install new (per CWF_UPGRADE_RESOLVE)"); return 'new'  }
+    if ($env eq 'abort') { log_error("$id: aborting per CWF_UPGRADE_RESOLVE=abort"); return 'abort' }
+
+    # prompt mode — needs TTY.
+    unless (-t STDIN && -t STDOUT) {
+        log_error("$id: conflict requires interactive resolution but no TTY; rerun interactively or set CWF_UPGRADE_RESOLVE=keep|new|abort");
+        return 'abort';
+    }
+
+    my $secret = is_secret_path($dest_rel);
+    while (1) {
+        print "[CWF] CONFLICT: $id ($dest_rel) differs from upstream.\n";
+        print "  K) keep on-disk version (default if unsure)\n";
+        print "  I) install new version (overwrite on-disk)\n";
+        print "  D) show diff\n";
+        print "  A) abort cwf-manage update\n";
+        print "Choice [K/I/D/A]: ";
+        my $line = <STDIN>;
+        unless (defined $line) { print "\n"; return 'abort' }
+        chomp $line;
+        $line = uc $line;
+        $line = 'K' if $line eq '';
+        if    ($line eq 'K') { return 'keep' }
+        elsif ($line eq 'I') { return 'new' }
+        elsif ($line eq 'A') { return 'abort' }
+        elsif ($line eq 'D') {
+            if ($secret) {
+                print "[CWF] diff suppressed for $dest_rel — file may contain secrets; "
+                    . "inspect manually with: git diff --no-index "
+                    . _shellquote($on_disk_path) . " "
+                    . _shellquote($new_path) . "\n";
+            } else {
+                system('git', 'diff', '--no-index', '--', $on_disk_path, $new_path);
+            }
+            # loop and re-prompt
+        }
+        else {
+            print "Unrecognised choice; please enter K, I, D, or A.\n";
+        }
+    }
+}
+
+sub _shellquote {
+    my ($s) = @_;
+    return "'" . ($s =~ s/'/'\\''/gr) . "'";
+}
+
+# --- Strategy: line-additive (.gitignore) -----------------------------------
+
+sub apply_line_additive {
+    my ($opts, $entry) = @_;
+    my $id   = $entry->{id} // '(no-id)';
+    my $dest = "$opts->{git_root}/$entry->{dest}";
+    my $lines = $entry->{lines};
+    unless (ref $lines eq 'ARRAY') {
+        log_error("$id: line-additive entry has no 'lines' array");
+        return $EXIT_INTERNAL;
+    }
+
+    # Newline-injection guard (per implementation plan 3a).
+    for my $l (@$lines) {
+        if ($l =~ /[\r\n]/) {
+            log_error("$id: manifest line contains forbidden newline character; rejecting artefact");
+            return $EXIT_PATH;
+        }
+    }
+
+    my @existing;
+    if (-f $dest) {
+        open my $fh, '<:raw', $dest or do {
+            log_error("$id: cannot read $dest: $!");
+            return $EXIT_INTERNAL;
+        };
+        while (<$fh>) { chomp; push @existing, $_ }
+        close $fh;
+    }
+    my %seen = map { $_ => 1 } @existing;
+
+    my @to_add = grep { !$seen{$_} } @$lines;
+    if (!@to_add) {
+        log_info("$id: already up to date");
+        return $EXIT_OK;
+    }
+
+    if ($opts->{dry_run}) {
+        log_info("$id: would add " . scalar(@to_add) . " line(s) to " . $entry->{dest});
+        return $EXIT_OK;
+    }
+
+    # Ensure final-newline before append; preserve existing content.
+    my $current = -f $dest ? read_file_raw($dest) : '';
+    if (length $current && $current !~ /\n\z/) { $current .= "\n" }
+    my $new = $current . join('', map { "$_\n" } @to_add);
+    atomic_write_text($dest, $new);
+    log_info("$id: added " . scalar(@to_add) . " line(s) to " . $entry->{dest});
+    return $EXIT_OK;
+}
+
+# --- Strategy: replace (single-file) ----------------------------------------
+
+sub apply_replace {
+    my ($opts, $entry, $manifests) = @_;
+    my $id   = $entry->{id} // '(no-id)';
+    my $src  = "$opts->{source_root}/$entry->{source}";
+    my $dest = "$opts->{git_root}/$entry->{dest}";
+
+    unless (-f $src) {
+        log_warn("$id: source missing at $entry->{source}; skipping");
+        return $EXIT_OK;
+    }
+
+    my $expected_src_sha = $entry->{sha256};
+    if (defined $expected_src_sha && length $expected_src_sha) {
+        my $actual_sha = compute_file_sha256($src);
+        if ($actual_sha ne $expected_src_sha) {
+            log_error("$id: source SHA mismatch (manifest says $expected_src_sha, file is $actual_sha)");
+            return $EXIT_PATH;
+        }
+    }
+
+    my $on_disk_sha = -f $dest ? compute_file_sha256($dest) : '';
+    my $new_sha     = compute_file_sha256($src);
+
+    if ($on_disk_sha eq $new_sha) {
+        log_info("$id: already up to date");
+        return $EXIT_OK;
+    }
+
+    # FR9 bootstrap branch: if no installed manifest, treat on-disk as baseline.
+    # If on-disk differs from new, prompt (we cannot tell user-modified from
+    # "this is what we shipped last time").
+    my $installed_entry = find_entry($manifests->{installed}, $id);
+    my $baseline_sha;
+    if ($installed_entry && defined $installed_entry->{sha256}) {
+        $baseline_sha = $installed_entry->{sha256};
+    } else {
+        # Bootstrap: treat on-disk as baseline.
+        $baseline_sha = $on_disk_sha;
+    }
+
+    # FR3 case: on-disk == baseline → install silently.
+    if ($on_disk_sha eq $baseline_sha) {
+        return _install_file($opts, $id, $src, $dest, $entry->{dest}, $on_disk_sha, $new_sha);
+    }
+
+    # FR3 case: on-disk != baseline AND on-disk != new → conflict.
+    if ($opts->{bootstrap_init}) {
+        # Bootstrap policy: install-and-log overwrites.
+        log_info("bootstrap-init overwrote pre-existing $id");
+        return _install_file($opts, $id, $src, $dest, $entry->{dest}, $on_disk_sha, $new_sha);
+    }
+
+    my $choice = prompt_resolve($id, $entry->{dest}, $dest, $src);
+    if ($choice eq 'abort')  { return $EXIT_ABORT }
+    if ($choice eq 'keep')   { log_info("$id: kept on-disk (no change)"); return $EXIT_OK }
+    if ($choice eq 'new')    { return _install_file($opts, $id, $src, $dest, $entry->{dest}, $on_disk_sha, $new_sha) }
+    log_error("$id: unexpected prompt result '$choice'");
+    return $EXIT_INTERNAL;
+}
+
+sub _install_file {
+    my ($opts, $id, $src, $dest, $dest_rel, $old_sha, $new_sha) = @_;
+    if ($opts->{dry_run}) {
+        log_info("$id: would install $dest_rel");
+        return $EXIT_OK;
+    }
+    my $blob = read_file_raw($src);
+    atomic_write_text($dest, $blob);
+    if ($id eq 'rules-inject') {
+        log_info(".cwf/rules-inject.txt updated (was $old_sha, now $new_sha)");
+    } else {
+        log_info("$id: installed $dest_rel");
+    }
+    return $EXIT_OK;
+}
+
+# --- Strategy: tree-replace (.cwf-rules/) -----------------------------------
+
+sub apply_tree_replace {
+    my ($opts, $entry, $manifests) = @_;
+    my $id        = $entry->{id} // '(no-id)';
+    my $src_dir   = "$opts->{source_root}/$entry->{source}";
+    my $dest_dir  = "$opts->{git_root}/$entry->{dest}";
+    my $files     = $entry->{files};
+    unless (ref $files eq 'HASH') {
+        log_error("$id: tree entry has no 'files' map");
+        return $EXIT_INTERNAL;
+    }
+    unless (-d $src_dir) {
+        log_warn("$id: source directory missing at $entry->{source}; skipping");
+        return $EXIT_OK;
+    }
+    make_path($dest_dir) unless -d $dest_dir;
+
+    my $installed_entry = find_entry($manifests->{installed}, $id);
+    my $installed_files = ($installed_entry && ref $installed_entry->{files} eq 'HASH')
+        ? $installed_entry->{files} : undef;
+
+    my $rc = $EXIT_OK;
+    for my $rel (sort keys %$files) {
+        my $expected_src_sha = $files->{$rel};
+        my $src  = "$src_dir/$rel";
+        my $dest = "$dest_dir/$rel";
+        unless (-f $src) {
+            log_warn("$id/$rel: source file missing at $src; skipping");
+            next;
+        }
+        my $actual_src_sha = compute_file_sha256($src);
+        if ($actual_src_sha ne ($expected_src_sha // '')) {
+            log_error("$id/$rel: source SHA mismatch (manifest=$expected_src_sha, file=$actual_src_sha)");
+            return $EXIT_PATH;
+        }
+
+        my $on_disk_sha = -f $dest ? compute_file_sha256($dest) : '';
+        my $new_sha     = $actual_src_sha;
+        next if $on_disk_sha eq $new_sha;
+
+        my $baseline_sha;
+        if ($installed_files && defined $installed_files->{$rel}) {
+            $baseline_sha = $installed_files->{$rel};
+        } else {
+            $baseline_sha = $on_disk_sha;
+        }
+
+        if ($on_disk_sha eq $baseline_sha) {
+            my $fc = _install_file($opts, "$id/$rel", $src, $dest, "$entry->{dest}$rel", $on_disk_sha, $new_sha);
+            return $fc if $fc != $EXIT_OK;
+            next;
+        }
+
+        if ($opts->{bootstrap_init}) {
+            log_info("bootstrap-init overwrote pre-existing $id/$rel");
+            my $fc = _install_file($opts, "$id/$rel", $src, $dest, "$entry->{dest}$rel", $on_disk_sha, $new_sha);
+            return $fc if $fc != $EXIT_OK;
+            next;
+        }
+
+        my $choice = prompt_resolve("$id/$rel", "$entry->{dest}$rel", $dest, $src);
+        if    ($choice eq 'abort') { return $EXIT_ABORT }
+        elsif ($choice eq 'keep')  { log_info("$id/$rel: kept on-disk"); next }
+        elsif ($choice eq 'new')   {
+            my $fc = _install_file($opts, "$id/$rel", $src, $dest, "$entry->{dest}$rel", $on_disk_sha, $new_sha);
+            return $fc if $fc != $EXIT_OK;
+        }
+    }
+    log_info("$id: tree applied");
+    return $rc;
+}
+
+# --- Strategy: embedded-block (CLAUDE.md preamble) --------------------------
+
+sub apply_embedded_block {
+    my ($opts, $entry, $manifests) = @_;
+    my $id        = $entry->{id} // '(no-id)';
+    my $container = "$opts->{git_root}/$entry->{container}";
+    my $src       = "$opts->{source_root}/$entry->{source}";
+    my $marker_s  = $entry->{marker_start} // '<!-- CWF-PREAMBLE-START -->';
+    my $marker_e  = $entry->{marker_end}   // '<!-- CWF-PREAMBLE-END -->';
+
+    unless (-f $src) {
+        log_warn("$id: source missing at $entry->{source}; skipping");
+        return $EXIT_OK;
+    }
+    my $expected_src_sha = $entry->{sha256};
+    if (defined $expected_src_sha && length $expected_src_sha) {
+        my $actual_sha = compute_file_sha256($src);
+        if ($actual_sha ne $expected_src_sha) {
+            log_error("$id: source SHA mismatch");
+            return $EXIT_PATH;
+        }
+    }
+
+    my $new_block = read_file_raw($src);
+
+    my $current = -f $container ? read_file_raw($container) : '';
+
+    # Locate existing CWF block: prefer sentinels; else legacy heuristic.
+    my ($pre, $on_disk_block, $post, $had_sentinels) = _split_block($current, $marker_s, $marker_e);
+
+    if (!defined $on_disk_block) {
+        # Legacy detection: contiguous '>'-prefixed lines starting from the
+        # line containing /CWF.*is installed/.
+        ($pre, $on_disk_block, $post) = _wrap_legacy_block($current);
+        $had_sentinels = 0;
+    }
+
+    my $on_disk_for_compare = $on_disk_block // '';
+    if ($on_disk_for_compare eq $new_block) {
+        # Already matches; ensure sentinels are present (wrap-in-place).
+        if (!$had_sentinels && defined $on_disk_block) {
+            return _write_container($opts, $id, $container, $entry->{container}, $pre, $marker_s, $new_block, $marker_e, $post);
+        }
+        log_info("$id: already up to date");
+        return $EXIT_OK;
+    }
+
+    # FR9 bootstrap: treat on-disk as baseline if installed manifest absent.
+    my $installed_entry = find_entry($manifests->{installed}, $id);
+    my $baseline_block;
+    if ($installed_entry && defined $installed_entry->{sha256} && length $installed_entry->{sha256}) {
+        # We don't store baseline content — only its SHA. Compare on-disk's
+        # SHA against installed manifest's SHA to decide silent-vs-prompt.
+        my $on_disk_sha = $on_disk_block ? _sha($on_disk_block) : '';
+        if ($on_disk_sha eq $installed_entry->{sha256}) {
+            return _write_container($opts, $id, $container, $entry->{container}, $pre, $marker_s, $new_block, $marker_e, $post);
+        }
+        $baseline_block = undef;  # known-divergent — fall through to prompt
+    } else {
+        # Bootstrap: treat on-disk as baseline. If on-disk block is empty
+        # (no prior CWF block found at all), install silently.
+        if (!defined $on_disk_block || $on_disk_block eq '') {
+            return _write_container($opts, $id, $container, $entry->{container}, $pre, $marker_s, $new_block, $marker_e, $post);
+        }
+        $baseline_block = $on_disk_block;
+    }
+
+    if (defined $baseline_block && $baseline_block eq $new_block) {
+        log_info("$id: already up to date");
+        return $EXIT_OK;
+    }
+
+    if ($opts->{bootstrap_init}) {
+        log_info("bootstrap-init overwrote pre-existing $id");
+        return _write_container($opts, $id, $container, $entry->{container}, $pre, $marker_s, $new_block, $marker_e, $post);
+    }
+
+    # Conflict: prompt. We need temp files so the diff branch works.
+    my ($cmp_disk, $cmp_new) = _temp_diff_files($on_disk_for_compare, $new_block);
+    my $choice = prompt_resolve($id, $entry->{container}, $cmp_disk, $cmp_new);
+    unlink $cmp_disk; unlink $cmp_new;
+
+    if ($choice eq 'abort') { return $EXIT_ABORT }
+    if ($choice eq 'keep')  { log_info("$id: kept on-disk"); return $EXIT_OK }
+    if ($choice eq 'new')   {
+        return _write_container($opts, $id, $container, $entry->{container}, $pre, $marker_s, $new_block, $marker_e, $post);
+    }
+    return $EXIT_INTERNAL;
+}
+
+# Split $text on marker pair. Returns ($pre, $block, $post, 1) on success or
+# ($text, undef, '', 0) when sentinels not found.
+sub _split_block {
+    my ($text, $ms, $me) = @_;
+    my $sm = quotemeta $ms;
+    my $em = quotemeta $me;
+    if ($text =~ /\A(?<pre>.*?)$sm\n?(?<block>.*?)\n?$em\n?(?<post>.*)\z/s) {
+        return ($+{pre}, $+{block} . "\n", $+{post}, 1);
+    }
+    return ($text, undef, '', 0);
+}
+
+# Legacy wrap: find first contiguous run of '>'-prefixed blockquote lines
+# whose first matched line contains 'CWF.*is installed'. Wraps that run.
+sub _wrap_legacy_block {
+    my ($text) = @_;
+    my @lines = split /\n/, $text, -1;
+    my ($start, $end);
+    for (my $i = 0; $i < @lines; $i++) {
+        if ($lines[$i] =~ /CWF.*is installed/i) {
+            # Walk back to start of contiguous '>' block (allowing the matched line itself).
+            my $s = $i;
+            while ($s > 0 && $lines[$s - 1] =~ /^>/) { $s-- }
+            # Walk forward to end of contiguous '>' block.
+            my $e = $i;
+            while ($e + 1 < @lines && $lines[$e + 1] =~ /^>/) { $e++ }
+            $start = $s; $end = $e; last;
+        }
+    }
+    return ($text, undef, '') unless defined $start;
+    my $pre   = join("\n", @lines[0 .. $start - 1]);
+    $pre .= "\n" if length $pre || $start > 0;
+    my $block = join("\n", @lines[$start .. $end]) . "\n";
+    my $post  = ($end + 1 <= $#lines) ? join("\n", @lines[$end + 1 .. $#lines]) : '';
+    return ($pre, $block, $post);
+}
+
+sub _write_container {
+    my ($opts, $id, $container, $container_rel, $pre, $ms, $block, $me, $post) = @_;
+    if ($opts->{dry_run}) {
+        log_info("$id: would update $container_rel");
+        return $EXIT_OK;
+    }
+    $pre  //= '';
+    $post //= '';
+    # Ensure separators: blank line between pre and marker if pre non-empty
+    # and doesn't end in newline; marker_end followed by newline; preserve post.
+    my $sep_pre  = (length $pre  && $pre  !~ /\n\z/) ? "\n" : '';
+    my $sep_post = (length $post && $post !~ /\A\n/) ? "\n" : '';
+    my $new_text = $pre . $sep_pre . $ms . "\n" . $block . $me . "\n" . $sep_post . $post;
+    atomic_write_text($container, $new_text);
+    log_info("$id: installed $container_rel");
+    return $EXIT_OK;
+}
+
+sub _sha {
+    require Digest::SHA;
+    return Digest::SHA::sha256_hex($_[0]);
+}
+
+sub _temp_diff_files {
+    my ($a, $b) = @_;
+    require File::Temp;
+    my $f1 = File::Temp->new(UNLINK => 0, SUFFIX => '.on-disk');
+    my $f2 = File::Temp->new(UNLINK => 0, SUFFIX => '.new');
+    binmode($f1, ':raw'); binmode($f2, ':raw');
+    print {$f1} $a; close $f1;
+    print {$f2} $b; close $f2;
+    return ("$f1", "$f2");
+}
+
+# --- Strategy: regenerate-symlinks (.claude/rules/cwf-*.md) -----------------
+
+sub apply_regenerate_symlinks {
+    my ($opts, $entry) = @_;
+    my $id          = $entry->{id} // '(no-id)';
+    my $rules_dir   = "$opts->{git_root}/.cwf-rules";
+    my $target_dir  = "$opts->{git_root}/.claude/rules";
+
+    make_path($target_dir) unless -d $target_dir;
+
+    # Step (a): remove broken cwf-*.md symlinks (orphans from removed-upstream rules).
+    my $removed = 0;
+    for my $link (glob("$target_dir/cwf-*.md")) {
+        next unless -l $link;
+        unless (-e $link) {
+            unlink $link;
+            $removed++;
+        }
+    }
+
+    # If .cwf-rules/ doesn't exist, we have nothing to link to. Done.
+    unless (-d $rules_dir) {
+        log_info("$id: $entry->{dest_dir_note}".".cwf-rules/ not present; removed $removed broken link(s)") if 0;
+        log_info("$id: .cwf-rules/ not present; removed $removed broken symlink(s)");
+        return $EXIT_OK;
+    }
+
+    # Step (b): for each .cwf-rules/cwf-*.md, ensure a relative symlink.
+    my $created = 0;
+    my $kept    = 0;
+    for my $rule (sort glob("$rules_dir/cwf-*.md")) {
+        next unless -f $rule;
+        my $name = basename($rule);
+        my $link = "$target_dir/$name";
+        my $want = "../../.cwf-rules/$name";
+
+        if (-l $link) {
+            my $current = readlink($link);
+            if (defined $current && $current eq $want) { $kept++; next }
+            unlink $link;
+        } elsif (-e $link) {
+            # User-owned regular file — leave alone (D7/3e: non-symlink files left alone).
+            $kept++;
+            next;
+        }
+        unless ($opts->{dry_run}) {
+            symlink($want, $link)
+                or do { log_error("$id: failed to symlink $link -> $want: $!"); return $EXIT_INTERNAL };
+        }
+        $created++;
+    }
+
+    log_info("$id: $created new symlink(s), $kept kept, $removed broken removed");
+    return $EXIT_OK;
+}
+
+# --- Main --------------------------------------------------------------------
+
+sub main {
+    validate_env();
+    my $opts = parse_args(@ARGV);
+
+    unless (-d $opts->{git_root}) {
+        log_error("git_root not a directory: $opts->{git_root}");
+        exit $EXIT_ABORT;
+    }
+    unless (-d $opts->{source_root}) {
+        log_error("source_root not a directory: $opts->{source_root}");
+        exit $EXIT_ABORT;
+    }
+
+    my ($src_manifest, $inst_manifest, $load_rc) = load_manifests($opts);
+    if ($load_rc == $EXIT_BOOTSTRAP_NOMAN) {
+        # Source has no manifest: skip non-script artefacts but still run
+        # derived-baseline strategies (e.g. symlink regeneration).
+        for my $row (@INVENTORY) {
+            next unless ($row->{baseline_source} // '') eq 'derived';
+            my $sub = $STRATEGY{$row->{strategy}} or next;
+            my $rc = $sub->($opts, {}, { source => undef, installed => undef });
+            return $rc if $rc != $EXIT_OK && $rc != $EXIT_BOOTSTRAP_NOMAN;
+        }
+        return $EXIT_BOOTSTRAP_NOMAN;
+    }
+
+    my %manifests = (source => $src_manifest, installed => $inst_manifest);
+    my $worst = $EXIT_OK;
+    for my $row (@INVENTORY) {
+        my $sub = $STRATEGY{$row->{strategy}} or do {
+            log_error("unknown strategy '$row->{strategy}' for $row->{id}");
+            return $EXIT_INTERNAL;
+        };
+        my $entry;
+        if (($row->{baseline_source} // '') eq 'install-manifest') {
+            $entry = find_entry($src_manifest, $row->{id});
+            unless ($entry) {
+                log_warn("$row->{id}: not found in source manifest; skipping");
+                next;
+            }
+        } else {
+            $entry = { id => $row->{id} };
+        }
+        my $rc = $sub->($opts, $entry, \%manifests);
+        if ($rc == $EXIT_ABORT) { return $EXIT_ABORT }
+        $worst = $rc if $rc > $worst;
+    }
+    return $worst;
+}
+
+exit main();

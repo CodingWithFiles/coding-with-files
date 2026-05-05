@@ -1,6 +1,28 @@
 {
   "last_updated" : "2026-05-05",
+  "data" : {
+    "install-manifest" : {
+      "path" : ".cwf/install-manifest.json",
+      "permissions" : "0444",
+      "sha256" : "1da39a42f287e3d12facd51d76ea647aad165d6eea6a25dca325aff1c5e27a16"
+    },
+    "rules-inject-template" : {
+      "path" : ".cwf/templates/install/rules-inject.txt",
+      "permissions" : "0444",
+      "sha256" : "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "claude-md-preamble-template" : {
+      "path" : ".cwf/templates/install/claude-md-preamble.md",
+      "permissions" : "0444",
+      "sha256" : "c72927c7a3b14d50bcc15f0acb790bc0b2208930e80b8d14af019350460b436a"
+    }
+  },
   "lib" : {
+    "CWF::ArtefactHelpers" : {
+      "path" : ".cwf/lib/CWF/ArtefactHelpers.pm",
+      "permissions" : "0444",
+      "sha256" : "db2097dd4dccbf7c9320abdb6e8231f06910cda1d618a806e29ac9f0ed14f6b3"
+    },
     "CWF::Common" : {
       "path" : ".cwf/lib/CWF/Common.pm",
       "sha256" : "851ba3c8c0b1af09ec374d6473723713c013865f5b40ff1fc38a3089e1bd51b9"
@@ -51,7 +73,7 @@
     },
     "CWF::Validate::Security" : {
       "path" : ".cwf/lib/CWF/Validate/Security.pm",
-      "sha256" : "18b22a74087d75429d3ece991b23c4953a217cc6f6592ac655c106ee21b38455"
+      "sha256" : "7c93e0fd686aeff971b159460d8a16459f2ac1d0ce02cfbc7033901597fe6d9b"
     },
     "CWF::Validate::Workflow" : {
       "path" : ".cwf/lib/CWF/Validate/Workflow.pm",
@@ -119,6 +141,11 @@
       "permissions" : "0500",
       "sha256" : "cbf75898372ab2a63579cfa2cd1e5988ed6cc75f195675254d6d5a3291478473"
     },
+    "cwf-apply-artefacts" : {
+      "path" : ".cwf/scripts/command-helpers/cwf-apply-artefacts",
+      "permissions" : "0500",
+      "sha256" : "134906fb958f4d879aeb3ce0b53f563ddae7a1da569fc60db866d2e2a5881712"
+    },
     "cwf-checkpoint-commit" : {
       "path" : ".cwf/scripts/command-helpers/cwf-checkpoint-commit",
       "permissions" : "0700",
@@ -127,7 +154,7 @@
     "cwf-claude-settings-merge" : {
       "path" : ".cwf/scripts/command-helpers/cwf-claude-settings-merge",
       "permissions" : "0500",
-      "sha256" : "2806a6fbf60501465b72d12018231a7e3dc7c610964308796a5a1438a346f0aa"
+      "sha256" : "f28dec46729dfd7bac7b6f6815f6c3526d410523125dea6f1ccac916bb972bf9"
     },
     "cwf-find-task-numbering-structure" : {
       "path" : ".cwf/scripts/command-helpers/cwf-find-task-numbering-structure",
@@ -157,7 +184,7 @@
     "cwf-manage" : {
       "path" : ".cwf/scripts/cwf-manage",
       "permissions" : "0700",
-      "sha256" : "572e0b080624b33eafa6d4b31d598b1f72977b6397f7f2fc3795f37cf3f36957"
+      "sha256" : "2d89be3f3cabd7596ca636e34cb408514b203e865c0c3edc31bae626340891e6"
     },
     "cwf-set-status" : {
       "path" : ".cwf/scripts/command-helpers/cwf-set-status",

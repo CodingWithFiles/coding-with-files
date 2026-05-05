@@ -56,22 +56,19 @@ chmod "$PERMS" .cwf/scripts/cwf-manage
 - Include command reference and project overview
 
 ### 4. Update CLAUDE.md
-- Check for existing preamble (idempotency):
-  `grep -q "CWF.*is installed" CLAUDE.md 2>/dev/null`
-- **If preamble already present**: Skip — do not re-add
-- **If absent**: Prepend the following block to CLAUDE.md (create file if it doesn't exist), preserving all existing content after it:
+- The CWF preamble is owned by the `claude-md-preamble` artefact (applied in step 6b-apply below). Step 6b-apply wraps the preamble in HTML-comment sentinels so future updates can replace it precisely:
   ```markdown
+  <!-- CWF-PREAMBLE-START -->
   > **CWF (Coding with Files) is installed in this project.**
   > - Invoke CWF workflow steps using the `Skill` tool (e.g. `Skill("cwf-task-plan")`). Do not manually read or follow SKILL.md instructions directly.
   > - All workflow steps are mandatory. If a step is genuinely inapplicable, mark it `Skipped` via the workflow process — do not silently omit it.
-
+  <!-- CWF-PREAMBLE-END -->
   ```
-- Add CWF system integration hints, section extraction commands, and standard section names reference
+- Content **between** the sentinels is owned by CWF and will be overwritten on update. User notes belong outside the markers.
+- This step is now a no-op at the LLM level — the apply helper handles it. Continue to step 5.
 
 ### 5. Configure .gitignore
-- Ensure `.gitignore` exists at git root
-- Add `.cwf/task-stack` entry if not present (user-specific workspace state)
-- Use idempotent check: `grep -q '^\\.cwf/task-stack$' .gitignore || echo '.cwf/task-stack' >> .gitignore`
+- The `.gitignore` entries (`.cwf/task-stack`, `.cwf/.update.lock`) are owned by the `gitignore-entries` artefact and applied by step 6b-apply below. No manual action needed at this step.
 
 ### 6. Register Skill Permissions
 - List available CWF skills: `ls .claude/skills/cwf-*/`
@@ -82,18 +79,28 @@ chmod "$PERMS" .cwf/scripts/cwf-manage
 - Write back valid JSON to `.claude/settings.json`
 - **Note**: This is the project-level `.claude/settings.json` (at git root), not the global `~/.claude/settings.json` used for PERL5OPT in step 7
 
-### 6b. Create Rules Directory
-- Create `.claude/rules/` if not present: `mkdir -p .claude/rules`
-- If `.cwf-rules/` exists (installed by install.bash), create symlinks:
-  ```bash
-  for rule_file in .cwf-rules/*.md; do
-      if [[ -f "$rule_file" ]]; then
-          name="$(basename "$rule_file")"
-          [[ -L ".claude/rules/$name" ]] || ln -s "../../.cwf-rules/$name" ".claude/rules/$name"
-      fi
-  done
-  ```
-- Verify symlinks resolve: `ls -la .claude/rules/`
+### 6b-apply. Apply CWF Artefacts (Bootstrap)
+
+Run, using the Bash tool, from the git root:
+
+```bash
+GIT_ROOT="$(git rev-parse --show-toplevel)"
+.cwf/scripts/command-helpers/cwf-apply-artefacts "$GIT_ROOT" "$GIT_ROOT" --bootstrap-init
+```
+
+This installs (or refreshes) every non-script artefact CWF ships:
+- `.gitignore` entries (`.cwf/task-stack`, `.cwf/.update.lock`)
+- `.cwf/rules-inject.txt`
+- `.cwf-rules/cwf-*.md` (rule bundle)
+- CLAUDE.md preamble (wrapped in sentinels per step 4)
+- `.claude/rules/cwf-*.md` symlinks → `.cwf-rules/`
+
+**Hard ordering**: this step MUST run before step 6c. Step 6c registers the
+PreToolUse hook whose command (`cat .cwf/rules-inject.txt 2>/dev/null || true`)
+reads the file written here. Future SKILL.md edits must preserve this ordering.
+
+- If exit code 0: continue.
+- If non-zero: relay stderr to the user verbatim and append `[CWF] /cwf-init aborted: cwf-apply-artefacts failed; resolve the error above and re-run /cwf-init.` Do not proceed.
 
 ### 6c. Configure Rule Re-Injection Hook
 - Read existing `.claude/settings.json`
@@ -166,9 +173,8 @@ Run, using the Bash tool:
 - [ ] Install integrity verified via `cwf-manage fix-security` (exit 0)
 - [ ] Project configuration generated
 - [ ] Navigation index created
-- [ ] .gitignore updated
 - [ ] Skill permissions registered in `.claude/settings.json` (with user confirmation)
-- [ ] Rules directory created with symlinks (`.claude/rules/`)
+- [ ] CWF artefacts applied via `cwf-apply-artefacts --bootstrap-init` (gitignore entries, rules-inject, .cwf-rules/, CLAUDE.md preamble, .claude/rules/ symlinks)
 - [ ] Rule re-injection hook configured in `.claude/settings.json`
 - [ ] Bash allowlist + Stop hooks registered via `cwf-claude-settings-merge`
 - [ ] PERL5OPT checked and user informed only if not already configured

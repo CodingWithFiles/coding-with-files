@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "cwf_version": "unreleased",
+  "generated_at": "2026-05-05T00:00:00Z",
+  "artefacts": [
+    {
+      "id": "gitignore-entries",
+      "kind": "line-additive",
+      "dest": ".gitignore",
+      "lines": [
+        ".cwf/task-stack",
+        ".cwf/.update.lock"
+      ]
+    },
+    {
+      "id": "rules-inject",
+      "kind": "file",
+      "source": ".cwf/templates/install/rules-inject.txt",
+      "dest": ".cwf/rules-inject.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "cwf-rules-bundle",
+      "kind": "tree",
+      "source": ".claude/rules/",
+      "dest": ".cwf-rules/",
+      "files": {
+        "cwf-workflow-files.md": "05d3e1e76cfb82acf35d399d158a5e1a947209f167485f55e84c260656df7240"
+      }
+    },
+    {
+      "id": "claude-md-preamble",
+      "kind": "embedded-block",
+      "container": "CLAUDE.md",
+      "marker_start": "<!-- CWF-PREAMBLE-START -->",
+      "marker_end": "<!-- CWF-PREAMBLE-END -->",
+      "source": ".cwf/templates/install/claude-md-preamble.md",
+      "sha256": "c72927c7a3b14d50bcc15f0acb790bc0b2208930e80b8d14af019350460b436a"
+    }
+  ]
+}

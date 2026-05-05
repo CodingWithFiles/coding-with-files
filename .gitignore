@@ -4,6 +4,9 @@
 # CWF task stack (user-specific workspace state)
 .cwf/task-stack
 
+# CWF update lock (transient, runtime-only)
+.cwf/.update.lock
+
 # Scratchpad - working notes not to be committed
 scratchpad.md
 scratchpad

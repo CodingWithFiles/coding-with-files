@@ -17,7 +17,7 @@ use utf8;
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use JSON::PP;
-use File::Temp ();
+use CWF::ArtefactHelpers qw(read_json_file atomic_write_text validate_path_allowlist);
 
 my $PROG = 'cwf-claude-settings-merge';
 
@@ -41,16 +41,10 @@ my $manifest_path = '.cwf/security/script-hashes.json';
 my $settings_dir  = '.claude';
 my $settings_path = "$settings_dir/settings.json";
 
+my @ALLOWED_MANIFEST_PATH_PREFIXES = ('.cwf/scripts/');
+
 # --- Manifest reader -------------------------------------------------------
-sub read_manifest {
-    open(my $fh, '<:raw', $manifest_path)
-        or die "[CWF] ERROR: cannot open $manifest_path: $!\n";
-    my $blob = do { local $/; <$fh> };
-    close $fh;
-    my $json = eval { JSON::PP->new->decode($blob) };
-    die "[CWF] ERROR: cannot parse $manifest_path: $@\n" if $@;
-    return $json;
-}
+sub read_manifest { return read_json_file($manifest_path); }
 
 # Partition manifest paths into allowlist + hook entries.
 # Returns (\@allow_entries, \@hook_entries).
@@ -66,9 +60,8 @@ sub partition_manifest {
         my $path  = $entry->{path};
         next unless defined $path;
 
-        if ($path !~ m{^\.cwf/scripts/} || $path =~ m{(^|/)\.\.(/|$)}) {
-            die "[CWF] ERROR: refusing manifest path: $path\n";
-        }
+        eval { validate_path_allowlist($path, \@ALLOWED_MANIFEST_PATH_PREFIXES); 1 }
+            or die "[CWF] ERROR: refusing manifest path: $path\n";
         unless (-e $path) {
             warn "[CWF] WARN: manifest entry $path not found on disk; skipping\n";
             next;
@@ -174,23 +167,8 @@ sub merge_hooks {
 # --- Atomic write ----------------------------------------------------------
 sub atomic_write {
     my ($blob) = @_;
-    unless (-d $settings_dir) {
-        mkdir $settings_dir
-            or die "[CWF] ERROR: cannot mkdir $settings_dir: $!\n";
-    }
-    my $tmp = File::Temp->new(
-        DIR      => $settings_dir,
-        TEMPLATE => '.settings.json.XXXXXX',
-        UNLINK   => 0,
-    );
-    print {$tmp} $blob or die "[CWF] ERROR: cannot write $tmp: $!\n";
-    close $tmp        or die "[CWF] ERROR: cannot close $tmp: $!\n";
-    rename "$tmp", $settings_path
-        or do {
-            my $err = $!;
-            unlink "$tmp";
-            die "[CWF] ERROR: cannot rename $tmp -> $settings_path: $err\n";
-        };
+    atomic_write_text($settings_path, $blob);
+    return;
 }
 
 # --- Main ------------------------------------------------------------------

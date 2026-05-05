@@ -22,10 +22,14 @@ use File::Path qw(rmtree make_path);
 use File::Find;
 use File::Copy qw(copy);
 use Cwd qw(getcwd);
+use Fcntl qw(:flock O_RDWR O_CREAT O_NOFOLLOW);
+use Digest::SHA qw(sha256_hex);
+use JSON::PP;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use List::Util qw(first);
 use CWF::Common qw(parse_semver version_cmp);
+use CWF::ArtefactHelpers qw(read_json_file);
 use CWF::Validate::Config           ();
 use CWF::Validate::Workflow         ();
 use CWF::Validate::Consistency      ();
@@ -147,6 +151,94 @@ sub resolve_sha {
     return $sha;
 }
 
+# --- Update prelude helpers ---------------------------------------------------
+
+# acquire_update_lock — Perl flock(LOCK_EX|LOCK_NB) on .cwf/.update.lock with
+# symlink-TOCTOU protection (lstat precheck + O_NOFOLLOW). Returns the open
+# filehandle; caller MUST retain it until cmd_update returns (closing releases
+# the lock, kernel auto-releases on process exit).
+sub acquire_update_lock {
+    my ($git_root) = @_;
+    my $path = "$git_root/.cwf/.update.lock";
+    if (-l $path) {
+        die_msg("$path is a symlink; refusing to lock");
+    }
+    my $fh;
+    sysopen($fh, $path, O_RDWR | O_CREAT | O_NOFOLLOW, 0600)
+        or die_msg("cannot open $path: $!");
+    unless (flock($fh, LOCK_EX | LOCK_NB)) {
+        die_msg("another cwf-manage update is in progress (lock: $path); wait for it to finish or remove the lock if stale");
+    }
+    return $fh;
+}
+
+# validate_settings_parseable — FR12. .claude/settings.json (if present) must
+# parse as JSON before we begin an update; otherwise a downstream merge step
+# will explode after side-effects have started.
+sub validate_settings_parseable {
+    my ($git_root) = @_;
+    my $path = "$git_root/.claude/settings.json";
+    return unless -f $path;
+    open my $fh, '<:raw', $path or die_msg("cannot read $path: $!");
+    local $/;
+    my $blob = <$fh>;
+    close $fh;
+    return unless length $blob;
+    eval { JSON::PP->new->decode($blob); 1 }
+        or die_msg(".claude/settings.json is not valid JSON: $@\nFix the file (or restore from git) and re-run.");
+    return;
+}
+
+# validate_install_manifest_sha — D12. No-op when either side is absent
+# (pre-D12 install / pre-feature install). Mismatch aborts.
+sub validate_install_manifest_sha {
+    my ($git_root, $vref) = @_;
+    my $expected = $vref->{cwf_install_manifest_sha};
+    return unless defined $expected && length $expected;
+    my $path = "$git_root/.cwf/install-manifest.json";
+    return unless -f $path;
+
+    my $sha = compute_install_manifest_sha($git_root);
+    return if $sha eq $expected;
+    die_msg(".cwf/install-manifest.json content does not match .cwf/version (cwf_install_manifest_sha); the manifest may have been tampered with. Restore with 'git checkout -- .cwf/install-manifest.json' or run 'cwf-manage update' to reinstall.");
+}
+
+sub compute_install_manifest_sha {
+    my ($git_root) = @_;
+    my $path = "$git_root/.cwf/install-manifest.json";
+    return '' unless -f $path;
+    open my $fh, '<:raw', $path or return '';
+    local $/;
+    my $blob = <$fh>;
+    close $fh;
+    return sha256_hex($blob);
+}
+
+# run_apply_artefacts — invoke the helper as a subprocess; non-zero aborts.
+sub run_apply_artefacts {
+    my ($git_root, $clone_dir) = @_;
+    my $helper = "$git_root/.cwf/scripts/command-helpers/cwf-apply-artefacts";
+    my $rc = system($helper, $git_root, $clone_dir);
+    if ($rc != 0) {
+        my $code = $rc >> 8;
+        die_msg("cwf-apply-artefacts failed (exit $code); aborting before version-file update");
+    }
+    return;
+}
+
+# run_settings_merge — invoke cwf-claude-settings-merge; non-zero aborts.
+sub run_settings_merge {
+    my ($git_root) = @_;
+    my $helper = "$git_root/.cwf/scripts/command-helpers/cwf-claude-settings-merge";
+    return unless -x $helper;   # tolerated for installs that pre-date the helper
+    my $rc = system($helper);
+    if ($rc != 0) {
+        my $code = $rc >> 8;
+        die_msg("cwf-claude-settings-merge failed (exit $code); .claude/settings.json may be partially updated. Re-run 'cwf-manage update' after resolving the underlying error.");
+    }
+    return;
+}
+
 # --- Subcommands --------------------------------------------------------------
 
 sub cmd_status {
@@ -245,6 +337,19 @@ sub cmd_update {
     my $method = $v{cwf_method} or die_msg("No cwf_method in .cwf/version");
     my ($source, $origin) = resolve_source(\%v);
 
+    # D8: lock acquired BEFORE check_clean_tree so two concurrent updates do
+    # not both pass the clean-tree check before one blocks. $lock_fh stays in
+    # scope until cmd_update returns; closing the FH (or process exit)
+    # releases the lock.
+    my $lock_fh = acquire_update_lock($git_root);
+
+    # FR12: catch unparseable settings.json before we begin side effects.
+    validate_settings_parseable($git_root);
+
+    # D12: detect locally-tampered install-manifest.json before we trust it
+    # for baseline comparisons.
+    validate_install_manifest_sha($git_root, \%v);
+
     check_clean_tree($git_root);
 
     log_msg("Updating CWF (method: $method, ref: $ref)");
@@ -272,14 +377,23 @@ sub cmd_update {
         die_msg("Unknown install method: $method");
     }
 
-    # Recreate symlinks
+    # Recreate skill symlinks (existing — non-rule)
     create_skill_symlinks($git_root);
 
-    # Update version file
-    $v{cwf_version}   = $resolved;
-    $v{cwf_ref}       = $resolved;
-    $v{cwf_sha}       = $sha;
-    $v{cwf_installed} = gmtime_iso();
+    # D7/D9: apply non-script artefacts (.cwf-rules/, .gitignore, CLAUDE.md
+    # preamble, .cwf/rules-inject.txt, .claude/rules/ symlinks).
+    run_apply_artefacts($git_root, $clone_dir);
+
+    # D7: settle .claude/settings.json (Bash allowlist + Stop hooks).
+    run_settings_merge($git_root);
+
+    # Update version file. cwf_install_manifest_sha pins the freshly-installed
+    # manifest's SHA (D12) so subsequent updates can detect tampering.
+    $v{cwf_version}                = $resolved;
+    $v{cwf_ref}                    = $resolved;
+    $v{cwf_sha}                    = $sha;
+    $v{cwf_installed}              = gmtime_iso();
+    $v{cwf_install_manifest_sha}   = compute_install_manifest_sha($git_root);
     write_version_file($git_root, %v);
 
     log_msg("Updated to $resolved ($sha)");
@@ -397,6 +511,7 @@ sub cmd_validate {
         CWF::Validate::Workflow::validate($git_root),
         CWF::Validate::Consistency::validate($git_root),
         CWF::Validate::Security::validate($git_root),
+        CWF::Validate::Security::validate_install_manifest($git_root),
         CWF::Validate::PerlConventions::validate($git_root),
     );
 

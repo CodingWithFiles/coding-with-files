@@ -79,28 +79,50 @@ The security subagent introduced in Task 123 returns three sentinel-prefixed sta
 
 ---
 
-## Task: Refresh .claude/settings.json on `cwf-manage update`
+<!-- Completed: "Refresh .claude/settings.json on `cwf-manage update`" — superseded by Task 127 (broader: re-applies every cwf-init artefact, not just settings.json). -->
 
-**Task-Type**: bugfix
-**Priority**: Medium
-**Status**: Follow-up from Task 126
+<!-- Completed: "Sync cwf-init artefacts during upgrade with Debian-style config conflict resolution" — Task 127 (2026-05-05) -->
 
-Task 126 added `cwf-claude-settings-merge` and wired it into `/cwf-init` so a fresh install gets the right `Bash(...)` allowlist + Stop hooks in `.claude/settings.json`. The upgrade path (`cwf-manage update`, `cwf-manage:240-287`) does not call the helper — so an upgraded project keeps its old allowlist when a new release adds helpers or hooks. Users get permission prompts for new helpers and ship without new Stop hooks until they manually re-run `/cwf-init`.
+---
 
-The original Task 126 a-task-plan deferred this explicitly (Risk Assessment, Manifest drift): "Out of scope: an automatic refresh on `cwf-manage update`. Worth a BACKLOG item."
+## Task: Quantitatively justify the security-review subagent line-count cap
 
-**Scope**:
-- Append a `cwf-claude-settings-merge` invocation at the end of `cmd_update` in `.cwf/scripts/cwf-manage` (after the version-file write at line 282).
-- Treat helper exit ≠ 0 (or any `[CWF] ERROR:` on stderr) as a warning, not a fatal — the upgrade itself succeeded; the settings refresh is best-effort. Relay the helper's stdout/stderr verbatim and tell the user how to recover.
-- Refresh `cwf-manage`'s recorded sha256 in `script-hashes.json` after the change.
-- Add an integration test under `t/` that runs `cmd_update` (or its tested seam) end-to-end and asserts settings.json is touched.
+**Task-Type**: chore
+**Priority**: Low
+**Status**: Follow-up from Task 127
 
-**Considerations**:
-- Same logic likely belongs in `cmd_rollback` (`cwf-manage:289-294`) — rollback already calls `cmd_update`, so this is automatic if the call is in `cmd_update`.
-- The helper is idempotent, so calling it on every update is safe (no-op when nothing has changed).
-- Reuses the same WARN/ERROR distinction Task 126 already established in cwf-init/SKILL.md Step 6d.
+The current 500-line cap on security-review subagent invocations (set in Task 123, applied across `.cwf/docs/skills/security-review.md` and the exec-phase skills) is qualitatively justified — large changesets exceed the subagent's effective review window — but no empirical evidence backs the specific value of 500 vs 250 vs 1000. Task 127's changeset (2166 lines) blew through the cap and required a manual approval workflow; the user explicitly flagged the threshold's lack of quantitative basis.
 
-**Identified in**: Task 126 (during testing-exec phase, raised by the maintainer).
+**Approach**:
+1. Pick 5-10 representative changesets from CWF history at varying sizes (250, 500, 1000, 2000 lines).
+2. Run the security-review subagent on each; record finding-rate, false-positive-rate, runtime, and the subagent's own self-reported coverage assessment.
+3. Plot finding-rate-per-line and runtime against changeset size; identify the inflection point where review quality starts to degrade.
+4. Set the cap from data, not vibes. Document the methodology in `.cwf/docs/skills/security-review.md` so future revisions have a baseline.
+
+**Out of scope**: changing the subagent prompt itself (covered by the existing "Tighten security-subagent prompt for sentinel-line compliance" follow-up). This task is purely about the threshold value.
+
+**Identified in**: Task 127 retrospective (j-retrospective.md § "What Could Be Improved")
+
+---
+
+## Task: Add fixture-server harness for end-to-end cwf-manage update tests
+
+**Task-Type**: chore
+**Priority**: Low
+**Status**: Follow-up from Task 127
+
+Task 127's testing covers `cwf-apply-artefacts` at the helper level and `cwf-manage update` at the helper-sub level (lock acquisition, manifest SHA validation, path-traversal). What's missing is a true end-to-end test that exercises the full clone+subtree-pull flow — TC-INT-AC1 in Task 127's test plan was marked PARTIAL for this reason. Closing the gap requires a fixture remote (a local git repo serving as upstream) and a multi-commit fixture history so subtree pulls have something meaningful to pull.
+
+**Approach**:
+1. Build a `t/fixtures/upstream-server/` skeleton: bare git repo, scripted commit history (3-5 commits with realistic CWF-shaped diffs).
+2. Add `t/cwf-manage-update-end-to-end.t`: clones fixture upstream → runs `cwf-manage init` → modifies fixture → runs `cwf-manage update` → asserts artefacts updated, manifest-SHA pinned, lock released.
+3. Cover the regression cases not currently covered: subtree-pull conflict, manifest schema bump (when v2 exists), upstream rollback (downgrade scenario).
+
+**Out of scope**: SIGKILL-during-rename atomicity (covered architecturally by same-dir-temp + rename), interactive D/A prompt branches (need expect-style harness — separate task if ever needed).
+
+**Identified in**: Task 127 retrospective (j-retrospective.md § "Recommendations § Future Work")
+
+---
 
 ---
 
