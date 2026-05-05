@@ -1,5 +1,5 @@
 {
-  "last_updated" : "2026-05-03",
+  "last_updated" : "2026-05-05",
   "lib" : {
     "CWF::Common" : {
       "path" : ".cwf/lib/CWF/Common.pm",
@@ -123,6 +123,11 @@
       "path" : ".cwf/scripts/command-helpers/cwf-checkpoint-commit",
       "permissions" : "0700",
       "sha256" : "a7a6b8154021a02ec46e5ebba017c04814bed178123818ad249ecb09634e754c"
+    },
+    "cwf-claude-settings-merge" : {
+      "path" : ".cwf/scripts/command-helpers/cwf-claude-settings-merge",
+      "permissions" : "0500",
+      "sha256" : "2806a6fbf60501465b72d12018231a7e3dc7c610964308796a5a1438a346f0aa"
     },
     "cwf-find-task-numbering-structure" : {
       "path" : ".cwf/scripts/command-helpers/cwf-find-task-numbering-structure",

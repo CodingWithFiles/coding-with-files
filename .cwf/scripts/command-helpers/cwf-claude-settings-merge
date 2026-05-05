@@ -1,0 +1,215 @@
+#!/usr/bin/env perl
+#
+# cwf-claude-settings-merge - Register CWF Bash allowlist + Stop hooks in
+# .claude/settings.json by walking .cwf/security/script-hashes.json.
+#
+# Idempotent: re-running adds only missing entries; existing user entries are
+# preserved.
+#
+# Usage:
+#   .cwf/scripts/command-helpers/cwf-claude-settings-merge [--dry-run]
+#
+# Run from the git root of a CWF-installed repo. See cwf-init/SKILL.md Step 6d.
+#
+use strict;
+use warnings;
+use utf8;
+use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use JSON::PP;
+use File::Temp ();
+
+my $PROG = 'cwf-claude-settings-merge';
+
+sub usage {
+    return "Usage: $PROG [--dry-run]\n"
+         . "  Walks .cwf/security/script-hashes.json and merges Bash allowlist\n"
+         . "  + Stop hook entries into .claude/settings.json. Idempotent.\n";
+}
+
+my $dry_run = 0;
+for my $arg (@ARGV) {
+    if    ($arg eq '--dry-run')           { $dry_run = 1; next }
+    elsif ($arg eq '--help' || $arg eq '-h') { print usage(); exit 0 }
+    else {
+        warn "[CWF] ERROR: $PROG: unknown argument: $arg\n", usage();
+        exit 1;
+    }
+}
+
+my $manifest_path = '.cwf/security/script-hashes.json';
+my $settings_dir  = '.claude';
+my $settings_path = "$settings_dir/settings.json";
+
+# --- Manifest reader -------------------------------------------------------
+sub read_manifest {
+    open(my $fh, '<:raw', $manifest_path)
+        or die "[CWF] ERROR: cannot open $manifest_path: $!\n";
+    my $blob = do { local $/; <$fh> };
+    close $fh;
+    my $json = eval { JSON::PP->new->decode($blob) };
+    die "[CWF] ERROR: cannot parse $manifest_path: $@\n" if $@;
+    return $json;
+}
+
+# Partition manifest paths into allowlist + hook entries.
+# Returns (\@allow_entries, \@hook_entries).
+#  - allow_entries: list of strings like 'Bash(<path>:*)' or 'Bash(<path>)'
+#  - hook_entries:  list of { type => 'command', command => <path>, timeout => 5 }
+sub partition_manifest {
+    my ($json) = @_;
+    my (@allow, @hooks);
+
+    my $scripts = $json->{scripts} || {};
+    for my $key (sort keys %$scripts) {
+        my $entry = $scripts->{$key};
+        my $path  = $entry->{path};
+        next unless defined $path;
+
+        if ($path !~ m{^\.cwf/scripts/} || $path =~ m{(^|/)\.\.(/|$)}) {
+            die "[CWF] ERROR: refusing manifest path: $path\n";
+        }
+        unless (-e $path) {
+            warn "[CWF] WARN: manifest entry $path not found on disk; skipping\n";
+            next;
+        }
+
+        if ($path eq '.cwf/scripts/cwf-manage') {
+            push @allow, "Bash($path:*)";
+        }
+        elsif ($path =~ m{^\.cwf/scripts/command-helpers/([^/]+)$}) {
+            push @allow, "Bash($path:*)";
+        }
+        elsif ($path =~ m{^\.cwf/scripts/command-helpers/[^/]+\.d/}) {
+            # trampoline — reachable via parent's :* glob
+            next;
+        }
+        elsif ($path =~ m{^\.cwf/scripts/hooks/[^/]+$}) {
+            push @allow, "Bash($path)";
+            push @hooks, {
+                type    => 'command',
+                command => $path,
+                timeout => 5,
+            };
+        }
+        # else: migrations/ and other paths — skip silently
+    }
+
+    return (\@allow, \@hooks);
+}
+
+# --- Settings reader -------------------------------------------------------
+sub read_settings {
+    if (-l $settings_dir) {
+        die "[CWF] ERROR: $settings_dir/ must be a regular directory\n";
+    }
+    unless (-d $settings_dir) {
+        return {};
+    }
+    return {} unless -e $settings_path;
+
+    if (-l $settings_path) {
+        die "[CWF] ERROR: $settings_path must be a regular file (found symlink)\n";
+    }
+    unless (-f $settings_path) {
+        die "[CWF] ERROR: $settings_path must be a regular file\n";
+    }
+
+    open(my $fh, '<:raw', $settings_path)
+        or die "[CWF] ERROR: cannot open $settings_path: $!\n";
+    my $blob = do { local $/; <$fh> };
+    close $fh;
+    return {} unless length $blob;
+    my $obj = eval { JSON::PP->new->decode($blob) };
+    die "[CWF] ERROR: cannot parse $settings_path: $@\n" if $@;
+    return $obj;
+}
+
+# --- Merge -----------------------------------------------------------------
+sub merge_allow {
+    my ($settings, $entries) = @_;
+    $settings->{permissions} ||= {};
+    $settings->{permissions}{allow} ||= [];
+    my $allow = $settings->{permissions}{allow};
+    my %seen  = map { $_ => 1 } @$allow;
+    my $added = 0;
+    for my $e (@$entries) {
+        next if $seen{$e};
+        push @$allow, $e;
+        $seen{$e} = 1;
+        $added++;
+    }
+    return $added;
+}
+
+sub merge_hooks {
+    my ($settings, $entries) = @_;
+    $settings->{hooks} ||= {};
+    $settings->{hooks}{Stop} ||= [];
+    my $stop = $settings->{hooks}{Stop};
+
+    # Build set of existing hook commands across ALL matcher objects.
+    my %seen;
+    for my $matcher (@$stop) {
+        next unless ref($matcher) eq 'HASH' && ref($matcher->{hooks}) eq 'ARRAY';
+        for my $h (@{ $matcher->{hooks} }) {
+            next unless ref($h) eq 'HASH' && defined $h->{command};
+            $seen{ $h->{command} } = 1;
+        }
+    }
+
+    my @missing = grep { !$seen{ $_->{command} } } @$entries;
+    return 0 unless @missing;
+
+    # Append missing entries to Stop[0].hooks; create Stop[0] if absent.
+    if (!@$stop) {
+        push @$stop, { hooks => [] };
+    }
+    my $first = $stop->[0];
+    $first->{hooks} ||= [];
+    push @{ $first->{hooks} }, @missing;
+    return scalar @missing;
+}
+
+# --- Atomic write ----------------------------------------------------------
+sub atomic_write {
+    my ($blob) = @_;
+    unless (-d $settings_dir) {
+        mkdir $settings_dir
+            or die "[CWF] ERROR: cannot mkdir $settings_dir: $!\n";
+    }
+    my $tmp = File::Temp->new(
+        DIR      => $settings_dir,
+        TEMPLATE => '.settings.json.XXXXXX',
+        UNLINK   => 0,
+    );
+    print {$tmp} $blob or die "[CWF] ERROR: cannot write $tmp: $!\n";
+    close $tmp        or die "[CWF] ERROR: cannot close $tmp: $!\n";
+    rename "$tmp", $settings_path
+        or do {
+            my $err = $!;
+            unlink "$tmp";
+            die "[CWF] ERROR: cannot rename $tmp -> $settings_path: $err\n";
+        };
+}
+
+# --- Main ------------------------------------------------------------------
+my $manifest = read_manifest();
+my ($allow_entries, $hook_entries) = partition_manifest($manifest);
+
+my $settings = read_settings();
+my $allow_added = merge_allow($settings, $allow_entries);
+my $hook_added  = merge_hooks($settings, $hook_entries);
+
+my $encoder = JSON::PP->new->pretty->indent_length(2)->canonical;
+my $blob    = $encoder->encode($settings);
+
+if ($dry_run) {
+    print $blob;
+    print "[CWF] settings: would add $allow_added allowlist entries, $hook_added hook entries (dry-run)\n";
+    exit 0;
+}
+
+atomic_write($blob);
+print "[CWF] settings: added $allow_added allowlist entries, $hook_added hook entries\n";
+exit 0;

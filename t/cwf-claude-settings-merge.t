@@ -1,0 +1,312 @@
+#!/usr/bin/env perl
+#
+# cwf-claude-settings-merge.t — Unit tests for the helper that merges Bash
+# allowlist + Stop hook entries into .claude/settings.json from the integrity
+# manifest.
+#
+# Each test builds a tempdir with a synthetic .cwf/security/script-hashes.json
+# (and stub files on disk so the existence check passes), optionally drops a
+# starting .claude/settings.json, then runs the helper with cwd = tempdir.
+#
+use strict;
+use warnings;
+use utf8;
+use Test::More;
+use FindBin;
+use File::Spec;
+use File::Path qw(make_path);
+use File::Temp qw(tempdir);
+use Cwd qw(getcwd);
+use JSON::PP;
+
+my $REPO    = File::Spec->rel2abs("$FindBin::Bin/..");
+my $HELPER  = "$REPO/.cwf/scripts/command-helpers/cwf-claude-settings-merge";
+
+# Build a tempdir with a synthetic manifest. $manifest is a hashref shaped like
+# { scripts => { name => { path => '.cwf/scripts/...', sha256 => '...',
+# permissions => '0500' }, ... } }. Stub files are created on disk for every
+# manifest path that lives under .cwf/scripts/, unless the test opts out.
+sub build_fixture {
+    my (%opts) = @_;
+    my $tmp = tempdir(CLEANUP => 1);
+    my $manifest = $opts{manifest} || {};
+    my $skip_disk = $opts{skip_disk_for} || {};
+
+    my %payload = (
+        last_updated => '2026-05-05',
+        version      => '2.1',
+        scripts      => $manifest,
+    );
+    make_path("$tmp/.cwf/security");
+    open(my $fh, '>:raw', "$tmp/.cwf/security/script-hashes.json") or die $!;
+    print $fh JSON::PP->new->pretty->canonical->encode(\%payload);
+    close $fh;
+
+    for my $name (keys %$manifest) {
+        next if $skip_disk->{$name};
+        my $rel = $manifest->{$name}{path};
+        next unless defined $rel && $rel =~ m{^\.cwf/scripts/};
+        my $abs = "$tmp/$rel";
+        my ($vol, $dir, undef) = File::Spec->splitpath($abs);
+        make_path($dir) unless -d $dir;
+        open(my $sf, '>', $abs) or die "stub $abs: $!";
+        print $sf "#!/bin/sh\n";
+        close $sf;
+    }
+    return $tmp;
+}
+
+sub write_settings {
+    my ($tmp, $obj) = @_;
+    make_path("$tmp/.claude");
+    open(my $fh, '>:raw', "$tmp/.claude/settings.json") or die $!;
+    print $fh JSON::PP->new->pretty->canonical->encode($obj);
+    close $fh;
+}
+
+sub read_settings {
+    my ($tmp) = @_;
+    my $path = "$tmp/.claude/settings.json";
+    return undef unless -e $path;
+    open(my $fh, '<:raw', $path) or die $!;
+    local $/;
+    my $blob = <$fh>;
+    close $fh;
+    return JSON::PP->new->decode($blob);
+}
+
+# Run the helper with cwd = $tmp. Returns ($exit, $stdout, $stderr).
+sub run_helper {
+    my ($tmp, @args) = @_;
+    my $orig = getcwd();
+    chdir $tmp or die $!;
+    my $stdout_path = "$tmp/.helper.stdout";
+    my $stderr_path = "$tmp/.helper.stderr";
+    my $rc = system("$HELPER " . join(' ', map { "'$_'" } @args)
+                    . " >'$stdout_path' 2>'$stderr_path'");
+    my $exit = $rc >> 8;
+    chdir $orig or die $!;
+    open(my $oh, '<', $stdout_path) or die $!;
+    my $out = do { local $/; <$oh> };
+    close $oh;
+    open(my $eh, '<', $stderr_path) or die $!;
+    my $err = do { local $/; <$eh> };
+    close $eh;
+    return ($exit, $out // '', $err // '');
+}
+
+sub mk_entry {
+    my ($path) = @_;
+    return {
+        path => $path,
+        sha256 => 'a' x 64,
+        permissions => '0500',
+    };
+}
+
+# Standard "one of each" manifest.
+sub standard_manifest {
+    return {
+        'cwf-manage' => mk_entry('.cwf/scripts/cwf-manage'),
+        'a-helper'   => mk_entry('.cwf/scripts/command-helpers/a-helper'),
+        'a-helper.d/sub' =>
+            mk_entry('.cwf/scripts/command-helpers/a-helper.d/sub'),
+        'a-hook' => mk_entry('.cwf/scripts/hooks/a-hook'),
+    };
+}
+
+# ----- TC-U1: empty input — full population --------------------------------
+subtest 'TC-U1: empty .claude/settings.json — full population' => sub {
+    plan tests => 8;
+    my $tmp = build_fixture(manifest => standard_manifest());
+    my ($exit, $out, $err) = run_helper($tmp);
+    is($exit, 0, 'exit 0');
+    like($out, qr/added 3 allowlist entries, 1 hook entries/,
+         'summary reports 3 allow + 1 hook');
+    my $s = read_settings($tmp);
+    ok($s, 'settings.json was created');
+    my %allow = map { $_ => 1 } @{ $s->{permissions}{allow} };
+    ok($allow{'Bash(.cwf/scripts/cwf-manage:*)'},
+       'cwf-manage as :*');
+    ok($allow{'Bash(.cwf/scripts/command-helpers/a-helper:*)'},
+       'top-level helper as :*');
+    ok(!$allow{'Bash(.cwf/scripts/command-helpers/a-helper.d/sub:*)'},
+       '.d/ subcommand NOT in allow');
+    ok($allow{'Bash(.cwf/scripts/hooks/a-hook)'},
+       'hook as exact (no :*)');
+    my $hooks = $s->{hooks}{Stop}[0]{hooks};
+    is_deeply($hooks, [{ type => 'command',
+                         command => '.cwf/scripts/hooks/a-hook',
+                         timeout => 5 }],
+              'Stop[0].hooks contains the one hook');
+};
+
+# ----- TC-U2: pre-populated allowlist — additive, dedup, idempotent ---------
+subtest 'TC-U2: pre-populated allowlist preserved + dedup + idempotent' => sub {
+    plan tests => 5;
+    my $tmp = build_fixture(manifest => standard_manifest());
+    write_settings($tmp, {
+        permissions => {
+            allow => [
+                'Bash(git status:*)',
+                'Bash(.cwf/scripts/cwf-manage:*)',
+            ],
+        },
+    });
+    my ($exit) = run_helper($tmp);
+    is($exit, 0, 'exit 0');
+    my $s = read_settings($tmp);
+    my @allow = @{ $s->{permissions}{allow} };
+    is($allow[0], 'Bash(git status:*)', 'existing entry preserved at index 0');
+    is($allow[1], 'Bash(.cwf/scripts/cwf-manage:*)',
+       'existing CWF entry preserved at index 1 (no dup)');
+    my $count = grep { $_ eq 'Bash(.cwf/scripts/cwf-manage:*)' } @allow;
+    is($count, 1, 'cwf-manage appears exactly once');
+
+    # Idempotency: re-run, byte-identical output
+    open(my $f1, '<:raw', "$tmp/.claude/settings.json") or die $!;
+    my $first = do { local $/; <$f1> };
+    close $f1;
+    my ($e2) = run_helper($tmp);
+    open(my $f2, '<:raw', "$tmp/.claude/settings.json") or die $!;
+    my $second = do { local $/; <$f2> };
+    close $f2;
+    is($first, $second, 'second run produces byte-identical file');
+};
+
+# ----- TC-U3: hooks across multiple matcher objects ------------------------
+subtest 'TC-U3: hooks across multiple matchers — no dup, append into [0]' => sub {
+    plan tests => 4;
+    my $manifest = {
+        'stop-stale' => mk_entry('.cwf/scripts/hooks/stop-stale'),
+        'stop-warn'  => mk_entry('.cwf/scripts/hooks/stop-warn'),
+    };
+    my $tmp = build_fixture(manifest => $manifest);
+    write_settings($tmp, {
+        hooks => {
+            Stop => [
+                { hooks => [ { type => 'command',
+                               command => 'user-lint',
+                               timeout => 10 } ] },
+                { hooks => [ { type => 'command',
+                               command => '.cwf/scripts/hooks/stop-stale',
+                               timeout => 5 } ] },
+            ],
+        },
+    });
+    my ($exit) = run_helper($tmp);
+    is($exit, 0, 'exit 0');
+    my $s = read_settings($tmp);
+    my $stop = $s->{hooks}{Stop};
+    is(scalar(@$stop), 2, 'still 2 matcher objects');
+    # Stop[0]: original user-lint + appended stop-warn
+    my @cmds0 = map { $_->{command} } @{ $stop->[0]{hooks} };
+    is_deeply(\@cmds0,
+              ['user-lint', '.cwf/scripts/hooks/stop-warn'],
+              'Stop[0] = user-lint + appended stop-warn');
+    # Stop[1]: untouched (no dup of stop-stale into [0])
+    my @cmds1 = map { $_->{command} } @{ $stop->[1]{hooks} };
+    is_deeply(\@cmds1,
+              ['.cwf/scripts/hooks/stop-stale'],
+              'Stop[1] unchanged — stop-stale not duplicated');
+};
+
+# ----- TC-U4: --dry-run does not write -------------------------------------
+subtest 'TC-U4: --dry-run prints, does not write' => sub {
+    plan tests => 4;
+    my $tmp = build_fixture(manifest => standard_manifest());
+    my ($exit, $out, $err) = run_helper($tmp, '--dry-run');
+    is($exit, 0, 'exit 0');
+    ok(!-e "$tmp/.claude/settings.json", 'settings.json not created');
+    like($out, qr/"permissions"/, 'stdout contains rendered JSON');
+    like($out, qr/would add 3 allowlist entries, 1 hook entries \(dry-run\)/,
+         'dry-run summary present');
+};
+
+# ----- TC-U5(a): manifest path traversal ------------------------------------
+subtest 'TC-U5a: refuse manifest path with ..' => sub {
+    plan tests => 3;
+    my $manifest = {
+        'evil' => { path => '.cwf/scripts/../../../etc/passwd',
+                    sha256 => 'b' x 64, permissions => '0500' },
+    };
+    my $tmp = build_fixture(manifest => $manifest, skip_disk_for => { evil => 1 });
+    my ($exit, $out, $err) = run_helper($tmp);
+    isnt($exit, 0, 'non-zero exit');
+    like($err, qr{\Q[CWF] ERROR: refusing manifest path:\E .*\Q..\E},
+         'rejects path with ..');
+    ok(!-e "$tmp/.claude/settings.json", 'no file written');
+};
+
+# ----- TC-U5(b): settings.json is a symlink ---------------------------------
+subtest 'TC-U5b: refuse settings.json symlink' => sub {
+    plan tests => 3;
+    my $tmp = build_fixture(manifest => standard_manifest());
+    make_path("$tmp/.claude");
+    open(my $tf, '>', "$tmp/elsewhere.json") or die $!;
+    print $tf "{}\n";
+    close $tf;
+    symlink("$tmp/elsewhere.json", "$tmp/.claude/settings.json")
+        or do { plan skip_all => 'symlink not supported'; return };
+    my ($exit, $out, $err) = run_helper($tmp);
+    isnt($exit, 0, 'non-zero exit');
+    like($err, qr{\Q.claude/settings.json must be a regular file\E},
+         'error mentions regular file requirement');
+    ok(-l "$tmp/.claude/settings.json", 'symlink unchanged');
+};
+
+# ----- TC-U5(c): .claude/ is a symlink --------------------------------------
+subtest 'TC-U5c: refuse .claude/ symlink' => sub {
+    plan tests => 3;
+    my $tmp = build_fixture(manifest => standard_manifest());
+    make_path("$tmp/elsewhere");
+    symlink("$tmp/elsewhere", "$tmp/.claude")
+        or do { plan skip_all => 'symlink not supported'; return };
+    my ($exit, $out, $err) = run_helper($tmp);
+    isnt($exit, 0, 'non-zero exit');
+    like($err, qr{\Q.claude/ must be a regular directory\E},
+         'error mentions directory requirement');
+    ok(!-e "$tmp/elsewhere/settings.json", 'no file written into target');
+};
+
+# ----- TC-U5(d): malformed JSON in settings.json ----------------------------
+subtest 'TC-U5d: refuse malformed settings.json' => sub {
+    plan tests => 3;
+    my $tmp = build_fixture(manifest => standard_manifest());
+    make_path("$tmp/.claude");
+    open(my $sf, '>', "$tmp/.claude/settings.json") or die $!;
+    print $sf "{ this is not valid json";
+    close $sf;
+    my ($exit, $out, $err) = run_helper($tmp);
+    isnt($exit, 0, 'non-zero exit');
+    like($err, qr{\Q[CWF] ERROR: cannot parse .claude/settings.json\E},
+         'parse-error message');
+    open(my $fh, '<:raw', "$tmp/.claude/settings.json") or die $!;
+    my $blob = do { local $/; <$fh> };
+    close $fh;
+    is($blob, "{ this is not valid json", 'original file untouched');
+};
+
+# ----- TC-U6: missing-on-disk manifest entry warns and skips ----------------
+subtest 'TC-U6: manifest entry references missing file — warn-and-skip' => sub {
+    plan tests => 4;
+    my $manifest = standard_manifest();
+    $manifest->{'missing'} = mk_entry('.cwf/scripts/command-helpers/missing-helper');
+    my $tmp = build_fixture(
+        manifest      => $manifest,
+        skip_disk_for => { missing => 1 },
+    );
+    my ($exit, $out, $err) = run_helper($tmp);
+    is($exit, 0, 'exit 0 (warn-and-skip is non-fatal)');
+    like($err,
+         qr{\Q[CWF] WARN: manifest entry .cwf/scripts/command-helpers/missing-helper not found on disk; skipping\E},
+         'WARN line emitted');
+    my $s = read_settings($tmp);
+    my %allow = map { $_ => 1 } @{ $s->{permissions}{allow} };
+    ok(!$allow{'Bash(.cwf/scripts/command-helpers/missing-helper:*)'},
+       'missing helper not in allowlist');
+    ok($allow{'Bash(.cwf/scripts/command-helpers/a-helper:*)'},
+       'present helper still in allowlist');
+};
+
+done_testing();

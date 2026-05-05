@@ -79,6 +79,31 @@ The security subagent introduced in Task 123 returns three sentinel-prefixed sta
 
 ---
 
+## Task: Refresh .claude/settings.json on `cwf-manage update`
+
+**Task-Type**: bugfix
+**Priority**: Medium
+**Status**: Follow-up from Task 126
+
+Task 126 added `cwf-claude-settings-merge` and wired it into `/cwf-init` so a fresh install gets the right `Bash(...)` allowlist + Stop hooks in `.claude/settings.json`. The upgrade path (`cwf-manage update`, `cwf-manage:240-287`) does not call the helper — so an upgraded project keeps its old allowlist when a new release adds helpers or hooks. Users get permission prompts for new helpers and ship without new Stop hooks until they manually re-run `/cwf-init`.
+
+The original Task 126 a-task-plan deferred this explicitly (Risk Assessment, Manifest drift): "Out of scope: an automatic refresh on `cwf-manage update`. Worth a BACKLOG item."
+
+**Scope**:
+- Append a `cwf-claude-settings-merge` invocation at the end of `cmd_update` in `.cwf/scripts/cwf-manage` (after the version-file write at line 282).
+- Treat helper exit ≠ 0 (or any `[CWF] ERROR:` on stderr) as a warning, not a fatal — the upgrade itself succeeded; the settings refresh is best-effort. Relay the helper's stdout/stderr verbatim and tell the user how to recover.
+- Refresh `cwf-manage`'s recorded sha256 in `script-hashes.json` after the change.
+- Add an integration test under `t/` that runs `cmd_update` (or its tested seam) end-to-end and asserts settings.json is touched.
+
+**Considerations**:
+- Same logic likely belongs in `cmd_rollback` (`cwf-manage:289-294`) — rollback already calls `cmd_update`, so this is automatic if the call is in `cmd_update`.
+- The helper is idempotent, so calling it on every update is safe (no-op when nothing has changed).
+- Reuses the same WARN/ERROR distinction Task 126 already established in cwf-init/SKILL.md Step 6d.
+
+**Identified in**: Task 126 (during testing-exec phase, raised by the maintainer).
+
+---
+
 ## Task: Reconcile cwf-manage update and fix-security chmod logic
 
 **Task-Type**: chore

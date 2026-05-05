@@ -2,6 +2,31 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 126: Fix install allowlist and hook enablement
+
+**Status**: Complete (2026-05-05)
+**Duration**: 1 session of active work (estimated: 1 session; variance ~0%)
+**Impact**: Bugfix — closes two install-time gaps in `/cwf-init` surfaced by a fresh install in a downstream project. (1) `Bash(.cwf/scripts/...)` allowlist entries were never written, so every helper invocation triggered a permission prompt on a fresh install; this repo's working `.claude/settings.local.json` had accreted those entries one at a time over months of use, masking the gap. (2) Stop hooks (`stop-stale-status-detector`, `stop-uncommitted-changes-warning`) were never registered, so fresh installs shipped without the two CWF safety nets the workflow assumes are active. Adds `cwf-claude-settings-merge` (a manifest-driven helper that walks `script-hashes.json` and merges the right entries into `.claude/settings.json`) and wires it into `/cwf-init` Step 6d. Idempotent. Builds on Task 125's coverage guard so future helpers/hooks flow into the allowlist automatically.
+
+### Changes
+- Added: `.cwf/scripts/command-helpers/cwf-claude-settings-merge` (~150 lines, perms `0500`). Walks `.cwf/security/script-hashes.json`; partitions by path shape (cwf-manage / top-level helper / `.d/` skipped / hook); writes `Bash(<path>:*)` for argument-taking helpers, `Bash(<path>)` exact for hooks, and `hooks.Stop[0].hooks[]` entries with `type: command, timeout: 5`. Atomic write via `File::Temp` + `rename` (same pattern as `CWF::Versioning::bump_to`). Refuses symlinked `.claude/` or `.claude/settings.json` and manifest paths containing `..`. `--dry-run` and `--help` flags. Idempotent re-run.
+- Added: `t/cwf-claude-settings-merge.t` — 9 subtests covering empty input, additive/dedup/idempotency, multi-matcher hook scan, dry-run, all four KD7 unsafe-input refusals (manifest path with `..`, settings symlink, `.claude/` symlink, malformed JSON), missing-on-disk warn-and-skip.
+- Modified: `.cwf/security/script-hashes.json` — one new `scripts.cwf-claude-settings-merge` entry; `last_updated` bumped to 2026-05-05. `validate-security-coverage.t` TC-C1 grew 22 → 23.
+- Modified: `.claude/skills/cwf-init/SKILL.md` — new Step 6d with helper invocation and WARN-tolerated / ERROR-aborts semantics; matching Success Criteria checkbox.
+- Modified: `BACKLOG.md` — added Medium-priority follow-up "Refresh `.claude/settings.json` on `cwf-manage update`" (the upgrade path; out-of-scope-by-design per Task 126's a-task-plan risk note).
+
+### Notable
+- **Manifest as single source of truth**: rather than hard-coding a list of helpers in the skill, the new helper walks `script-hashes.json` directly. Task 125's `validate-security-coverage.t` already guarantees every executable file under `.cwf/scripts/{command-helpers,hooks}/` is registered, so the allowlist now self-maintains: any future helper added under those trees automatically gets the right `Bash(...)` entry on the next `/cwf-init` re-run.
+- **Three allowlist entry shapes**: `Bash(<path>:*)` for `cwf-manage` and top-level command-helpers (matches `<path> <args>`), `Bash(<path>)` exact for hooks (Claude Code's hook system invokes them bare), no entry at all for `.d/` subcommands (reachable only via the parent's `:*` glob — the trampoline invariant). The repo's working `.claude/settings.local.json` mixed `:*` and ` *` shapes for the same script, evidence the right shape is non-obvious; the helper picks one canonical shape per role.
+- **Hook idempotency across all matcher objects**: `hooks.Stop` is an array of matcher objects each with their own `hooks[]`. The dedup check scans every `Stop[i].hooks[j].command` for an exact match before appending, so a CWF hook that landed in `Stop[1]` (e.g. user-edited settings) is not re-added to `Stop[0]`. New entries land in `Stop[0]` (created if absent).
+- **Upgrade path deliberately deferred**: a-task-plan's Manifest-drift risk explicitly noted "out of scope: automatic refresh on `cwf-manage update`. Worth a BACKLOG item." The question was raised during testing-exec; the deferral was honoured and the follow-up went onto BACKLOG cleanly. Will be Task 127.
+- **Plan-review subagents earned their keep**: c- and d-phase reviews flagged the shebang choice (`#!/usr/bin/env perl` for non-git-reading scripts; reserve `-CDSL` for git-path-handling helpers per `docs/conventions/perl-git-paths.md`) and the parent-`.claude/`-symlink defence — both before any code was written.
+- **Self-caught regex-delimiter bug during f-phase**: tests parse-failed because `\Q...\E` does not escape the regex's `/` delimiter at parse time. Fixed by switching the affected regexes to `qr{...}` delimiters. Net change: 5 test-file edits, no production-code impact.
+- **Security-review prose-before-sentinel**: both phase reviews emitted analysis before the required sentinel line, forcing the strict three-tier rule to classify them as `findings`. The agent's substantive conclusion in both cases was no actionable items (false-positive shebang nit in f, comprehensive analysis ending in `no findings` in g). Both accepted-and-recorded. Aligns with the existing BACKLOG item "Tighten security-subagent prompt for sentinel-line compliance".
+- 1 new helper, 1 new test file (9 subtests), 1 new SKILL step, 1 manifest entry, 1 BACKLOG add. Full suite 29 files / 271 tests → 30 / 280 (delta exactly +1 file +9 subtests).
+
+---
+
 ## Task 125: Expand script-hashes integrity surface to command-helpers and hooks
 
 **Status**: Complete (2026-05-03)

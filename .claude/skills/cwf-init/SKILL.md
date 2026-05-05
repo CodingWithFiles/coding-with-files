@@ -118,6 +118,19 @@ chmod "$PERMS" .cwf/scripts/cwf-manage
 - If matcher absent, append to the array
 - Write back valid JSON
 
+### 6d. Register Bash Allowlist and Stop Hooks
+
+Walk `.cwf/security/script-hashes.json` and add a `Bash(...)` allowlist entry per top-level CWF helper plus `hooks.Stop[]` entries for every CWF Stop hook. Without this, a fresh install prompts for permission on every helper invocation and ships without the CWF safety hooks. The helper is idempotent — safe to re-run after `cwf-manage update` adds new helpers.
+
+Run, using the Bash tool:
+
+```bash
+.cwf/scripts/command-helpers/cwf-claude-settings-merge
+```
+
+- If exit code is 0, continue. Relay the helper's stdout summary verbatim. `[CWF] WARN:` lines on stderr (e.g. a manifest entry references a file that is not on disk) are logged and tolerated — partial coverage is acceptable.
+- If exit code is non-zero **or** stderr contains any `[CWF] ERROR:` line, **abort `/cwf-init`**: relay stdout/stderr to the user verbatim and append: `[CWF] /cwf-init aborted: cwf-claude-settings-merge failed; resolve the error above and re-run /cwf-init.` Do not proceed.
+
 ### 7. Configure Claude Code Settings (user action required)
 - First, check if PERL5OPT is already configured:
   `grep -q 'PERL5OPT' ~/.claude/settings.json 2>/dev/null`
@@ -157,5 +170,6 @@ chmod "$PERMS" .cwf/scripts/cwf-manage
 - [ ] Skill permissions registered in `.claude/settings.json` (with user confirmation)
 - [ ] Rules directory created with symlinks (`.claude/rules/`)
 - [ ] Rule re-injection hook configured in `.claude/settings.json`
+- [ ] Bash allowlist + Stop hooks registered via `cwf-claude-settings-merge`
 - [ ] PERL5OPT checked and user informed only if not already configured
 - [ ] Init commit created (mandatory — do not begin task work without it)
