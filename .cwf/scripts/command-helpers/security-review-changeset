@@ -1,0 +1,406 @@
+#!/usr/bin/perl -CDSL
+#
+# security-review-changeset - Construct the changeset reviewed by the
+# exec-phase security-review subagent.
+#
+# Single source of truth for what counts as security-relevant in CWF.
+# Called from the Step 8 of cwf-implementation-exec/SKILL.md and
+# cwf-testing-exec/SKILL.md. Documents its contract in
+# .cwf/docs/skills/security-review.md.
+#
+# Anchor resolution:
+#   1. Read the task's a-task-plan.md for a `**Baseline Commit**: <sha>` line.
+#   2. Fallback (in-flight tasks created before this field existed):
+#      git merge-base HEAD <trunk>, where trunk is resolved from
+#      cwf-project.json's optional top-level `trunk` field, or
+#      git symbolic-ref refs/remotes/origin/HEAD, or hardcoded 'main'.
+#      The resolved trunk name is validated by `git check-ref-format --branch`.
+#
+# File classification (over the diff window only):
+#   1. Paths under CWF-internal directories are included unconditionally.
+#   2. Other paths are included only if they begin with `#!` and the
+#      interpreter basename matches the anchored regex below.
+#   3. Other paths are excluded.
+#
+# Usage:
+#   security-review-changeset [--phase=implementation|testing] [--task-num=NUM] [--verbose]
+#
+# Output:
+#   stdout: filtered git diff output (the changeset for the subagent).
+#   stderr: one-line summary `reviewed N files, M lines, anchor=<sha7>`,
+#           plus one path per line under --verbose.
+#
+# Exit:
+#   0 ok (changeset may be empty)
+#   1 error (unparseable branch, task not found, malformed trunk, etc.)
+
+use strict;
+use warnings;
+use utf8;
+use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use CWF::Common qw(check_perl5opt);
+use CWF::TaskPath qw(parse_branch resolve_num);
+
+check_perl5opt();
+
+my $PROG = 'security-review-changeset';
+
+# ---------------------------------------------------------------------------
+# CWF-internal coverage. Unconditional include for these paths/prefixes.
+# Maintainers extending the security-relevant directory set edit this list.
+# ---------------------------------------------------------------------------
+my @CWF_INTERNAL_PREFIXES = (
+    '.cwf/scripts/',
+    '.cwf/lib/',
+    '.cwf/docs/skills/',
+    '.cwf/templates/',
+    '.claude/scripts/',
+    '.claude/skills/',
+    '.claude/hooks/',
+    '.claude/rules/',
+);
+my %CWF_INTERNAL_FILES = map { $_ => 1 } (
+    '.claude/settings.json',
+    '.claude/settings.local.json',
+    'implementation-guide/cwf-project.json',
+);
+
+# ---------------------------------------------------------------------------
+# Shebang interpreter regex. Anchored at both ends.
+# Future maintainers extending this list MUST preserve `^…$`. An unanchored
+# alternative could match arbitrary substrings inside a shebang line and
+# wrongly include unrelated files.
+# CWF presently uses SHA-1 baseline hashes. If CWF migrates SHAs, the
+# 40-char regex in parse_baseline_line() must update separately.
+# ---------------------------------------------------------------------------
+my $SCRIPT_INTERPRETER_RE = qr/^(?:perl|bash|sh|ksh|zsh|fish|python\d?|ruby|node|deno|php|lua|pwsh|powershell)$/;
+
+# ---------------------------------------------------------------------------
+# CLI parsing
+# ---------------------------------------------------------------------------
+my %opt = (phase => undef, task_num => undef, verbose => 0);
+for my $arg (@ARGV) {
+    if    ($arg =~ /^--phase=(implementation|testing)$/) { $opt{phase} = $1 }
+    elsif ($arg =~ /^--task-num=(.+)$/)                  { $opt{task_num} = $1 }
+    elsif ($arg eq '--verbose')                          { $opt{verbose} = 1 }
+    elsif ($arg eq '--help' || $arg eq '-h') {
+        print_usage();
+        exit 0;
+    }
+    else {
+        warn "$PROG: unknown argument: $arg\n";
+        exit 1;
+    }
+}
+
+# Defence in depth: --task-num arrives from the command line. Validate
+# before any FS access — guard against path-traversal-shaped values.
+if (defined $opt{task_num} && $opt{task_num} !~ /^\d+(?:\.\d+)*$/) {
+    warn "$PROG: invalid --task-num '$opt{task_num}' (expected /^\\d+(\\.\\d+)*\$/)\n";
+    exit 1;
+}
+
+# ---------------------------------------------------------------------------
+# Resolve task number (from --task-num, else from current branch)
+# ---------------------------------------------------------------------------
+my $task_num = $opt{task_num};
+unless (defined $task_num) {
+    my $branch = capture_git('rev-parse', '--abbrev-ref', 'HEAD');
+    chomp $branch;
+    my ($num, $type, $slug) = parse_branch($branch);
+    unless (defined $num) {
+        warn "$PROG: branch '$branch' does not match pattern <type>/<num>-<slug>\n";
+        exit 1;
+    }
+    $task_num = $num;
+}
+
+# ---------------------------------------------------------------------------
+# Resolve task directory via the Perl module API
+# ---------------------------------------------------------------------------
+my $task_info = resolve_num($task_num);
+unless ($task_info && $task_info->{full_path}) {
+    warn "$PROG: task '$task_num' not found\n";
+    exit 1;
+}
+my $task_dir = $task_info->{full_path};
+
+# ---------------------------------------------------------------------------
+# Resolve anchor: baseline-commit-in-a-task-plan, else fallback
+# ---------------------------------------------------------------------------
+my $anchor = resolve_anchor_from_baseline($task_dir);
+$anchor //= resolve_anchor_from_fallback();
+
+# ---------------------------------------------------------------------------
+# List changed files between anchor and HEAD
+# ---------------------------------------------------------------------------
+my @changed = list_changed_files($anchor);
+
+# ---------------------------------------------------------------------------
+# Classify changed files: CWF-internal dirs unconditionally, others
+# only if shebang sniff matches a known script interpreter.
+# ---------------------------------------------------------------------------
+my @included;
+for my $path (@changed) {
+    if (is_cwf_internal($path)) {
+        push @included, $path;
+        next;
+    }
+    if (looks_like_script($path)) {
+        push @included, $path;
+        next;
+    }
+}
+
+# ---------------------------------------------------------------------------
+# Emit filtered diff (or empty changeset) and stderr summary
+# ---------------------------------------------------------------------------
+my $short = substr($anchor, 0, 7);
+if (!@included) {
+    warn "reviewed 0 files, 0 lines, anchor=$short\n";
+    if ($opt{verbose}) {
+        # nothing to print
+    }
+    exit 0;
+}
+
+my $diff = capture_git('diff', "${anchor}..HEAD", '--', @included);
+my $line_count = ($diff =~ tr/\n//);
+print $diff;
+
+warn sprintf("reviewed %d files, %d lines, anchor=%s\n",
+             scalar @included, $line_count, $short);
+if ($opt{verbose}) {
+    warn "  $_\n" for @included;
+}
+exit 0;
+
+# ===========================================================================
+# Subroutines
+# ===========================================================================
+
+sub print_usage {
+    print <<"USAGE";
+Usage: $PROG [--phase=implementation|testing] [--task-num=NUM] [--verbose]
+
+Constructs the changeset reviewed by the exec-phase security-review subagent.
+
+Options:
+  --phase=PHASE    Identify the calling exec phase (informational; no behavioural
+                   effect on the changeset). PHASE is 'implementation' or 'testing'.
+  --task-num=NUM   Override task-number inference from the current branch name.
+                   NUM must match /^\\d+(\\.\\d+)*\$/.
+  --verbose        On stderr, list the included paths after the summary line.
+  --help           Show this message.
+
+Exit codes:
+  0  Changeset emitted (may be empty).
+  1  Error.
+USAGE
+}
+
+# ---------------------------------------------------------------------------
+# Run git with the given args; capture stdout. Dies on non-zero exit.
+# Uses list-form open '-|' — never invokes a shell.
+# ---------------------------------------------------------------------------
+sub capture_git {
+    my @args = @_;
+    my $pid = open(my $fh, '-|', 'git', @args);
+    unless ($pid) {
+        warn "$PROG: cannot run git @args: $!\n";
+        exit 1;
+    }
+    binmode $fh, ':raw';
+    local $/;
+    my $out = <$fh>;
+    $out //= '';
+    close $fh;
+    if ($? != 0) {
+        warn "$PROG: git @args exited with status " . ($? >> 8) . "\n";
+        exit 1;
+    }
+    return $out;
+}
+
+# ---------------------------------------------------------------------------
+# Run git with stdout/stderr suppressed; return exit status (0 = ok).
+# ---------------------------------------------------------------------------
+sub git_check {
+    my @args = @_;
+    my $pid = fork;
+    unless (defined $pid) {
+        warn "$PROG: fork failed: $!\n";
+        exit 1;
+    }
+    if ($pid == 0) {
+        # child: redirect stdout & stderr to /dev/null
+        open(STDOUT, '>', '/dev/null');
+        open(STDERR, '>', '/dev/null');
+        exec('git', @args) or exit 127;
+    }
+    waitpid($pid, 0);
+    return $? == 0 ? 0 : ($? >> 8);
+}
+
+# ---------------------------------------------------------------------------
+# Try to read the recorded baseline commit from <task-dir>/a-task-plan.md.
+# Returns the SHA on success, undef on absent / format-unexpected.
+# Emits a stderr warning when a `Baseline Commit:` line exists but does
+# not match the strict format — falls back rather than failing hard.
+# ---------------------------------------------------------------------------
+sub resolve_anchor_from_baseline {
+    my ($dir) = @_;
+    my $plan = "$dir/a-task-plan.md";
+    return undef unless -f $plan;
+
+    open(my $fh, '<:encoding(UTF-8)', $plan)
+        or return undef;
+    my $found_line;
+    my $found_sha;
+    while (my $line = <$fh>) {
+        next unless $line =~ /^- \*\*Baseline Commit\*\*:/;
+        $found_line = $line;
+        if ($line =~ /^- \*\*Baseline Commit\*\*:\s+([0-9a-f]{40})\s*$/) {
+            $found_sha = $1;
+        }
+        last;  # only consider the first such line
+    }
+    close $fh;
+
+    return undef unless defined $found_line;
+
+    unless (defined $found_sha) {
+        # Line present but malformed — warn and let caller fall back.
+        warn "$PROG: warning: Baseline Commit line found but format unexpected; falling back to merge-base\n";
+        return undef;
+    }
+
+    # Validate SHA points at a real commit reachable in this repo.
+    my $rc = git_check('rev-parse', '--verify', '--quiet', "${found_sha}^{commit}");
+    unless ($rc == 0) {
+        warn "$PROG: warning: Baseline Commit '$found_sha' is not a valid commit object; falling back to merge-base\n";
+        return undef;
+    }
+    return $found_sha;
+}
+
+# ---------------------------------------------------------------------------
+# Fallback: resolve a trunk name (config / symbolic-ref / hardcoded), then
+# anchor = merge-base HEAD <trunk>. Validates the trunk via
+# `git check-ref-format --branch` to reject `..`, `.`, control chars, etc.
+# Dies on unrecoverable failure.
+# ---------------------------------------------------------------------------
+sub resolve_anchor_from_fallback {
+    my $trunk;
+
+    # Tier 1: top-level "trunk" field in cwf-project.json (if readable).
+    my $cfg = eval {
+        require CWF::Versioning;
+        CWF::Versioning::read_config();
+    };
+    if ($cfg && ref $cfg eq 'HASH' && defined $cfg->{trunk}) {
+        $trunk = $cfg->{trunk};
+    }
+
+    # Tier 2: git's notion of the remote default branch.
+    unless (defined $trunk) {
+        my $rc = git_check('symbolic-ref', '--quiet', 'refs/remotes/origin/HEAD');
+        if ($rc == 0) {
+            my $name = capture_git('symbolic-ref', '--quiet', 'refs/remotes/origin/HEAD');
+            chomp $name;
+            $name =~ s{^refs/remotes/origin/}{};
+            $trunk = $name if length $name;
+        }
+    }
+
+    # Tier 3: hardcoded.
+    $trunk //= 'main';
+
+    # Validate via git itself — better than a hand-rolled regex.
+    my $rc = git_check('check-ref-format', '--branch', $trunk);
+    unless ($rc == 0) {
+        warn "$PROG: trunk name '$trunk' is not a valid git branch reference\n";
+        exit 1;
+    }
+
+    my $base = capture_git('merge-base', 'HEAD', $trunk);
+    chomp $base;
+    unless ($base =~ /^[0-9a-f]{40}$/) {
+        warn "$PROG: merge-base HEAD $trunk did not return a SHA\n";
+        exit 1;
+    }
+    return $base;
+}
+
+# ---------------------------------------------------------------------------
+# git diff --name-only -z <anchor>..HEAD → list of paths.
+# ---------------------------------------------------------------------------
+sub list_changed_files {
+    my ($anchor) = @_;
+    my $out = capture_git('diff', '--name-only', '-z', "${anchor}..HEAD");
+    return () unless length $out;
+    my @paths = split /\0/, $out;
+    return grep { length } @paths;
+}
+
+# ---------------------------------------------------------------------------
+# Path classification: CWF-internal directory or exact-file match.
+# ---------------------------------------------------------------------------
+sub is_cwf_internal {
+    my ($path) = @_;
+    return 1 if exists $CWF_INTERNAL_FILES{$path};
+    for my $prefix (@CWF_INTERNAL_PREFIXES) {
+        return 1 if index($path, $prefix) == 0;
+    }
+    return 0;
+}
+
+# ---------------------------------------------------------------------------
+# Shebang sniff. Skips deleted, symlinks, and non-regular files (FIFOs,
+# sockets, devices) — DoS guard. Reads up to 128 bytes <:raw, takes the
+# first line, checks for #!, parses the interpreter basename, matches
+# against the anchored regex.
+# ---------------------------------------------------------------------------
+sub looks_like_script {
+    my ($path) = @_;
+    return 0 unless -e $path;
+    return 0 if -l $path;
+    return 0 unless -f $path;
+
+    open(my $fh, '<:raw', $path) or return 0;
+    my $buf;
+    my $n = sysread($fh, $buf, 128);
+    close $fh;
+    return 0 unless defined $n && $n >= 2;
+
+    # Take the first line — bytes up to first \n or \r.
+    my $first;
+    if ($buf =~ /^([^\r\n]*)/) {
+        $first = $1;
+    } else {
+        return 0;
+    }
+    return 0 unless $first =~ /^#!/;
+
+    # Strip the leading `#!` and any whitespace after.
+    my $rest = substr($first, 2);
+    $rest =~ s/^\s+//;
+
+    # `#!/usr/bin/env <name>...` → interpreter is the token after env.
+    my $interp;
+    if ($rest =~ m{^(?:/[^ \t]+/)?env\s+(\S+)}) {
+        $interp = $1;
+    }
+    elsif ($rest =~ m{^(\S+)}) {
+        my $cmd = $1;
+        # basename: drop any leading path component.
+        $cmd =~ s{.*/}{};
+        $interp = $cmd;
+    }
+    else {
+        return 0;
+    }
+
+    return $interp =~ $SCRIPT_INTERPRETER_RE ? 1 : 0;
+}

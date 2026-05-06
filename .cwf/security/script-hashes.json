@@ -241,10 +241,15 @@
       "permissions" : "0500",
       "sha256" : "280831e80d5bfe1e786c024f106dab4d4ea958348688d0aa478e620231a6c2e7"
     },
+    "security-review-changeset" : {
+      "path" : ".cwf/scripts/command-helpers/security-review-changeset",
+      "permissions" : "0500",
+      "sha256" : "29a1a6cf2167cf2d994737f4e41f611f7a52320b9b2ec07c337ff1578fe7daab"
+    },
     "template-copier-v2.1" : {
       "path" : ".cwf/scripts/command-helpers/template-copier-v2.1",
       "permissions" : "0700",
-      "sha256" : "36382370e5d396b4f7ac5dba670749912df7d7e8f19de29d355b3bd247d0b112"
+      "sha256" : "2bfa724502d543dbd4961f08a1c04809c9589ce18b9c36cb7de42d4e27efccd7"
     },
     "validate-migration.sh" : {
       "path" : ".cwf/scripts/validate-migration.sh",

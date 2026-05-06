@@ -2,7 +2,7 @@
 #
 # template-copier-v2.1 - Copy and populate template files for CIG tasks (v2.1 format)
 #
-# Usage: template-copier-v2.1 --task-type=TYPE --task-num=NUM --description=DESC [--destination=PATH] [--format=json]
+# Usage: template-copier-v2.1 --task-type=TYPE --task-num=NUM --description=DESC [--destination=PATH] [--baseline-commit=SHA] [--format=json]
 #
 # v2.1 changes:
 #   - Uses 10-phase workflow (a-j) with explicit execution phases
@@ -13,6 +13,8 @@
 #   --destination=PATH   Full path to task directory (optional, auto-constructed if omitted)
 #   --task-num=NUM       Task number (e.g., "17", "1.2.3")
 #   --description=DESC   Task description/slug
+#   --baseline-commit=SHA Optional 40-char git SHA recorded in a-task-plan.md as the
+#                        anchor for security-review changeset construction
 #   --format=FORMAT      Output format: markdown (default) or json
 #   --help               Show this help message
 #
@@ -62,6 +64,8 @@ sub parse_parameters {
             $params{task_num} = $1;
         } elsif ($arg =~ /^--description=(.+)$/) {
             $params{description} = $1;
+        } elsif ($arg =~ /^--baseline-commit=(.+)$/) {
+            $params{baseline_commit} = $1;
         } elsif ($arg =~ /^--format=(.+)$/) {
             $params{format} = $1;
         } else {
@@ -121,13 +125,15 @@ sub print_usage {
     print <<'USAGE';
 template-copier-v2.1 - Copy and populate template files for CIG tasks (v2.1 format)
 
-Usage: template-copier-v2.1 --task-type=TYPE --destination=PATH --task-num=NUM --description=DESC [--format=json]
+Usage: template-copier-v2.1 --task-type=TYPE --destination=PATH --task-num=NUM --description=DESC [--baseline-commit=SHA] [--format=json]
 
 Parameters:
   --task-type=TYPE     Task type (feature, bugfix, hotfix, chore, discovery)
   --destination=PATH   Full path to task directory
   --task-num=NUM       Task number (e.g., "17", "1.2.3")
   --description=DESC   Task description/slug
+  --baseline-commit=SHA Optional 40-char git SHA recorded in a-task-plan.md as the
+                       anchor for security-review changeset construction
   --format=FORMAT      Output format: markdown (default) or json
   --help               Show this help message
 
@@ -409,6 +415,7 @@ sub compute_variables {
     # Add new template variables
     $vars{taskNum} = $params->{task_num};
     $vars{taskType} = $params->{task_type};
+    $vars{baselineCommit} = $params->{baseline_commit} // '';
 
     return %vars;
 }

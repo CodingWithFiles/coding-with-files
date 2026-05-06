@@ -17,15 +17,32 @@ Both callers restrict the subagent to `Read`, `Grep`, and `Glob` per `.cwf/docs/
 
 ## Pathspec coverage
 
-The exec-phase subagent reviews the changeset returned by:
+The exec-phase subagent reviews the changeset emitted by:
 
 ```
-git diff $(git merge-base HEAD main)..HEAD -- '*.pl' '*.pm' '*.bash' '*.sh' '.cwf/scripts/**' '.claude/scripts/**' '.claude/skills/**' '.claude/hooks/**' '.cwf/lib/**' '.cwf/docs/skills/**' '.claude/rules/**' '.claude/settings.json' 'implementation-guide/cwf-project.json'
+.cwf/scripts/command-helpers/security-review-changeset --phase=<implementation|testing>
 ```
 
-This pathspec is the **single source of truth** for what counts as security-relevant in CWF. Both exec SKILLs reference this section rather than inlining the pathspec.
+This helper is the **single source of truth** for what counts as security-relevant in CWF. Both exec SKILLs invoke the helper rather than inlining a pathspec or anchor.
 
-**Maintainer note**: when adding a new security-relevant tree (e.g. a future `.cwf/scripts/post-install/` or a new hook directory), update this pathspec in this file. Silent expansion of the attack surface is the failure mode this single-source-of-truth rule prevents.
+The helper resolves its diff anchor in two steps. The success path: read the recorded `**Baseline Commit**: <sha>` field from the task's `a-task-plan.md` (written by `cwf-new-task` and `cwf-new-subtask` at branch creation). The fallback path (in-flight tasks created before this field existed): `git merge-base HEAD <trunk>`, where `<trunk>` is taken from the optional top-level `trunk` field of `cwf-project.json`, or from `git symbolic-ref refs/remotes/origin/HEAD`, or hardcoded `main`. The resolved trunk name is validated via `git check-ref-format --branch` before reaching `git merge-base`.
+
+The helper's classification rules over the resulting changed-files list are:
+
+1. **CWF-internal coverage (unconditional include)**: paths under `.cwf/scripts/`, `.cwf/lib/`, `.cwf/docs/skills/`, `.cwf/templates/`, `.claude/scripts/`, `.claude/skills/`, `.claude/hooks/`, `.claude/rules/`, plus the exact files `.claude/settings.json`, `.claude/settings.local.json`, `implementation-guide/cwf-project.json`. Reviewed regardless of file type — markdown skills/rules carry instructions interpreted by Claude.
+2. **Shebang sniff (conditional include)**: any path *outside* (1) is included only if its first line begins with `#!` and the interpreter basename matches the anchored regex `^(?:perl|bash|sh|ksh|zsh|fish|python\d?|ruby|node|deno|php|lua|pwsh|powershell)$`. Symlinks and non-regular files (FIFOs, sockets, devices) are skipped to avoid following arbitrary targets and to defend against DoS-shaped diff entries.
+3. **Default exclude**: anything else.
+
+**Maintainer note**: when adding a new security-relevant tree (e.g. a future `.cwf/scripts/post-install/` or a new hook directory), update the `@CWF_INTERNAL_PREFIXES` list inside the helper script. Silent expansion of the attack surface is the failure mode this single-source-of-truth rule prevents. The shebang interpreter regex is anchored at both ends (`^…$`); future maintainers extending it MUST preserve anchoring.
+
+**Known limitations** (each acceptable for v1; tracked as separate backlog items if a consumer reports a gap):
+
+- Library files outside the CWF-internal directories are missed if they have no shebang (the v2 add-an-`always-included-paths`-config-field follow-up would address this if needed).
+- Shebang-less scripts loaded via `source`/`.` are missed.
+- Uncommon interpreters (`awk`, `tcl`, `make`) are missed; the regex covers the common-case stack.
+- UTF-8 BOM-prefixed shebangs (vanishingly rare on POSIX) are missed.
+
+If a user rebases their task branch onto a newer trunk mid-task, the recorded baseline names the old fork point and the diff over-includes trunk drift. Mid-task rebase is not a CWF workflow (tasks land via squash + `git branch -f`); accepting this trade-off keeps the design simple.
 
 ## Threat categories
 

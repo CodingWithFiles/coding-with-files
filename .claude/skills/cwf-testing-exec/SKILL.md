@@ -43,7 +43,7 @@ allowed-tools:
 - Read `.cwf/docs/skills/security-review.md` § "Exec-phase prompt template" and § "Pathspec coverage".
 - Determine current branch: `git rev-parse --abbrev-ref HEAD`.
   - If `main`: append `## Security Review\n\n**State**: no findings\n\nno findings: on main\n` to `g-testing-exec.md` and proceed to Step 9.
-- Construct changeset: `git diff $(git merge-base HEAD main)..HEAD -- <pathspec from § "Pathspec coverage">`.
+- Construct changeset: capture stdout of `.cwf/scripts/command-helpers/security-review-changeset --phase=testing`. The helper resolves the anchor and applies CWF-internal-dir + shebang-sniff classification per § "Pathspec coverage".
   - If empty: append `## Security Review\n\n**State**: no findings\n\nno findings: empty changeset\n` and proceed to Step 9.
   - If >500 lines (count via `wc -l`): append `## Security Review\n\n**State**: error\n\nerror: changeset exceeds 500-line review cap; split the change or perform manual review\n` and proceed to Step 9.
 - Invoke ONE Agent call with `subagent_type="Explore"` using the prompt template, `{phase}` = `"testing"`.

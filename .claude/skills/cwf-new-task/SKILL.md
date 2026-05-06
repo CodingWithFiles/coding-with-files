@@ -41,12 +41,21 @@ allowed-tools:
 - Subtask: nested inside parent directory (e.g. task 48.1 → `implementation-guide/48-feature-parent/48.1-bugfix-slug/`)
 
 ### 3. Copy Template Files
+
+Verify you are on the intended base branch (typically the trunk) before running — the
+recorded **Baseline Commit** is whatever `HEAD` points to at this moment, and the
+security-review-changeset helper uses it as the anchor for diffing. Detached HEAD or
+branching off another task's branch is allowed but the user owns that decision.
+
 ```bash
+BASELINE_COMMIT=$(git rev-parse HEAD)
 .cwf/scripts/command-helpers/task-workflow create \
   --task-type="{type}" --destination="{task-dir}" \
-  --task-num="{num}" --description="{description}"
+  --task-num="{num}" --description="{description}" \
+  --baseline-commit="$BASELINE_COMMIT"
 ```
-Creates directory automatically, copies templates, substitutes variables, sets permissions.
+Creates directory automatically, copies templates, substitutes variables (including
+`{{baselineCommit}}` in `a-task-plan.md`), sets permissions.
 
 ### 4. Create Git Branch
 ```bash

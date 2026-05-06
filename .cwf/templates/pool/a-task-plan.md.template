@@ -6,6 +6,7 @@
 - **Task URL**: {{taskUrl}}
 - **Parent Task**: {{parentTask}}
 - **Branch**: {{branchName}}
+- **Baseline Commit**: {{baselineCommit}}
 - **Template Version**: 2.1
 
 ## Goal

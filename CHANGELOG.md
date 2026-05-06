@@ -2,6 +2,32 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 129: Fix security-review changeset construction
+
+**Status**: Complete (2026-05-06)
+**Duration**: 1 session of active work (estimated: 1-2 days; variance: under)
+**Impact**: Bugfix — closes the Very-High-priority BACKLOG entry surfaced by Task 128's cap-overflow. Replaces the inline `git diff $(git merge-base HEAD main)..HEAD -- <extension-and-directory-pathspec>` in the two exec SKILLs with one Perl helper that owns the full changeset-construction contract: per-task baseline anchor (recorded as a markdown field in `a-task-plan.md`), CWF-internal-directory unconditional-include rule, and shebang-based content classification over the diff window. Closes all three independent failure modes (extension-only filtering, hardcoded language stack, merge-base over-inclusion). 13 new subtests cover the BACKLOG axes plus security/reliability/performance non-functionals.
+
+### Changes
+- Added: `.cwf/scripts/command-helpers/security-review-changeset` (~340 lines Perl, perms `0500`). Anchor resolution: `**Baseline Commit**` field in `a-task-plan.md` → fallback `git merge-base HEAD <trunk>` (trunk via `cwf-project.json:trunk` → `git symbolic-ref refs/remotes/origin/HEAD` → hardcoded `main`, validated by `git check-ref-format --branch`). Classification: hardcoded CWF-internal-dir prefix list (rule 1, unconditional include) + anchored shebang regex `^(?:perl|bash|sh|ksh|zsh|fish|python\d?|ruby|node|deno|php|lua|pwsh|powershell)$` over the diff window (rule 2). `-e && -f && !-l` guard before `open` defends against symlink/FIFO/device targets in the diff. List-form `system`/`open '-|'` everywhere; no shell metacharacter exposure.
+- Added: `t/security-review-changeset.t` — 13 subtests (8 functional TC-F1..TC-F8 mapping to BACKLOG axes 1-3 + helper internals; 5 non-functional TC-NF1..TC-NF5 covering trunk-name guard, `--task-num` validation, symlink skip, FIFO non-blocking, 200-file performance). All PASS. Full `prove t/` regression: 338/338 PASS.
+- Modified: `.cwf/templates/pool/a-task-plan.md.template` — adds `**Baseline Commit**: {{baselineCommit}}` line in Task Reference (between Branch and Template Version). Single edit covers all task-type symlinks.
+- Modified: `.cwf/scripts/command-helpers/template-copier-v2.1` — accepts new `--baseline-commit=<sha>` argument (optional; absent → empty render); maps to `$vars{baselineCommit}`.
+- Modified: `.claude/skills/cwf-new-task/SKILL.md` and `.claude/skills/cwf-new-subtask/SKILL.md` — capture `git rev-parse HEAD` before branch creation; pass `--baseline-commit="$BASELINE_COMMIT"` to `task-workflow create`. One-line user note about base-branch verification.
+- Modified: `.cwf/docs/skills/security-review.md` — § "Pathspec coverage" rewritten as contract description naming the helper, the two-tier anchor resolution, the three classification rules, the `git check-ref-format` trunk guard, and the v1 known limitations (shebang-less library files outside CWF dirs, sourced scripts, uncommon interpreters, BOM, mid-task rebase).
+- Modified: `.claude/skills/cwf-implementation-exec/SKILL.md` Step 8 line 51 and `.claude/skills/cwf-testing-exec/SKILL.md` Step 8 line 46 — replaced inline `git diff …` with helper invocation.
+- Modified: `.cwf/security/script-hashes.json` — registers `security-review-changeset` (perms `0500`); updates `template-copier-v2.1` SHA after the new arg landed.
+- Modified: `BACKLOG.md` — closes "Security-review changeset construction is broken in three ways" (Very High priority); adds three Low-priority follow-ups (baseline backfill helper, shebang-regex extension, `File::chdir` adoption for tests).
+
+### Notable
+- **Markdown fields beat custom git refs.** c-design originally proposed `refs/cwf/task-base/<num>`; user pushback during review pivoted to a markdown field in `a-task-plan.md`. Field is data, refs are plumbing — discoverable, self-documenting, survives rebase of the task-plan checkpoint, no namespace, no cleanup story, no `.git/` knowledge required. Pivot was free because it happened pre-code.
+- **Plan-review subagents earned their keep again.** Four parallel Explore subagents in d-phase caught (a) shell-out-vs-Perl-module-API for `parse_branch`/`resolve_num`, (b) hand-rolled trunk-name regex vs `git check-ref-format --branch`, (c) symlink/FIFO/device DoS guard, (d) script-hashes.json top-level `scripts` section (not `command-helpers`). All four landed in the d-plan; zero rework in implementation.
+- **Helper dogfood validates the fallback.** f-phase smoke (`reviewed 8 files, 593 lines, anchor=9ac3f96`) and g-phase smoke (`reviewed 9 files, 1112 lines, anchor=9ac3f96`) both anchor at `main`'s tip via the merge-base fallback — exactly the design's promise for in-flight tasks (whose `a-task-plan.md` predates the new field). Anchor scopes correctly to this task's delta despite Task 128 sitting between merge-base and main.
+- **`die` exits 255.** Smoke test surfaced that Perl's default `die` exit code (255) violated the spec'd exit 1 for `--task-num='foo;bar'`. Converted all `die` to `warn …; exit 1;` per the existing CWF helper convention (`cwf-checkpoint-commit:14-15`). Future helpers should adopt this from the start.
+- **Cap-overflow recurs when the change *is* the security-review fix.** Both f (593 lines) and g (1112 lines) recorded `**State**: error`; manual threat-category walkthroughs supplied in the wf step files. The follow-up "Quantitatively justify the security-review subagent line-count cap" should run next with the now-correctly-scoped diff in hand.
+
+---
+
 ## Task 128: Audit Perl-vs-Bash helper scripts and migrate where feasible
 
 **Status**: Complete (2026-05-06)
