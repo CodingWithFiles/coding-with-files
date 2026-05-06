@@ -21,7 +21,7 @@ allowed-tools:
 
 **Mandatory context** (run before proceeding):
 - Run `ls -la ~/.cwf/ .cwf/ 2>/dev/null || echo "No configs found"` using the Bash tool to check existing config directories.
-- Run `.cwf/scripts/command-helpers/cwf-load-autoload-config` using the Bash tool to load current autoload configuration.
+- Run `cat .cwf/autoload.yaml 2>/dev/null || echo "No autoload config found"` using the Bash tool to load current autoload configuration.
 
 ## Workflow
 

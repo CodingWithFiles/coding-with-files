@@ -29,31 +29,47 @@ Future tasks and improvements for the Coding with Files system.
 
 ---
 
-## Task: Audit Perl-vs-Bash helper scripts and migrate where feasible
+<!-- Completed: "Audit Perl-vs-Bash helper scripts and migrate where feasible" — Task 128 (2026-05-06): all 5 shell helpers were dead/trivial; deleted, with the one live caller (cwf-config skill) inlined -->
 
-**Task-Type**: discovery + chore
-**Priority**: Medium
-**Status**: Follow-up from Task 125
+---
 
-CWF currently mixes Perl and POSIX shell helpers under `.cwf/scripts/command-helpers/`. Task 125 brought all of them under SHA256 integrity tracking, but the Perl-vs-shell split is otherwise unmotivated — same trust boundary, same execution surface, same call sites. Perl gives consistent error handling (`die_msg`), `use strict; use warnings; use utf8;`, structured option parsing (`CWF::Options`), and unit-testability via the `t/` suite; POSIX shell gives none of these and is harder to reason about for branchy logic.
+## Bug: Security-review changeset construction is broken in three ways
 
-**In-scope shell helpers** (5 today, all under `.cwf/scripts/command-helpers/`):
-- `cwf-find-task-numbering-structure`
-- `cwf-load-autoload-config`
-- `cwf-load-existing-tasks`
-- `cwf-load-project-config`
-- `cwf-load-status-sections`
+**Task-Type**: bugfix
+**Priority**: Very High
+**Status**: Follow-up from Task 128 (discovered while running g-testing-exec)
 
-**Approach**:
-1. **Discovery**: read each shell helper, document its inputs, outputs, callers, and any logic that would meaningfully benefit from Perl idioms (or, conversely, anything genuinely better as shell — e.g. simple env probing).
-2. **Per-helper migrate-or-keep decision**: for each, decide migrate-to-Perl or keep-as-shell with a one-line rationale.
-3. **Migrate** the chosen ones in a follow-up batch; refresh `script-hashes.json` entries (their bytes change, hash changes); ensure they're `use strict; use warnings; use utf8;` and follow `docs/conventions/perl-git-paths.md`; add unit coverage if behaviour is non-trivial.
+The pathspec and diff anchor used by the exec-phase security-review subagent (defined in `.cwf/docs/skills/security-review.md` § "Pathspec coverage" and inlined into Step 8 of `cwf-implementation-exec/SKILL.md` and `cwf-testing-exec/SKILL.md`) is `git diff $(git merge-base HEAD main)..HEAD -- '*.pl' '*.pm' '*.bash' '*.sh' '.cwf/scripts/**' '.claude/scripts/**' '.claude/skills/**' '.claude/hooks/**' '.cwf/lib/**' '.cwf/docs/skills/**' '.claude/rules/**' '.claude/settings.json' 'implementation-guide/cwf-project.json'`. This is wrong-shaped on three independent axes; any one of them can cause silent under-coverage.
 
-**Why now**: Task 125 just registered every helper for tampering detection — natural moment to ask whether the language split is paying for itself. The convention check (`CWF::Validate::PerlConventions`) only constrains Perl files, so anything in shell sits outside that drift guard.
+### 1. Extension-based filtering misses script-content files
+The pathspec mixes extension globs (`*.pl`, `*.pm`, `*.bash`, `*.sh`) with directory globs. Most CWF helpers and hooks have **no extension** (`cwf-manage`, `context-manager`, `task-stack`, `stop-stale-status-detector`, etc.) — they are caught only because the directory globs (`.cwf/scripts/**`, `.cwf/lib/**`, `.cwf/scripts/hooks/**` via the parent glob) happen to also list them. Extension is a label, not a content classification. A new Perl or shell file dropped *outside* the listed directories (e.g. a top-level repo script with no extension) would be silently skipped. Classification by shebang / content is the only correct mechanism.
 
-**Out of scope**: shell scripts outside `.cwf/scripts/command-helpers/` (install bootstrap, migration scripts) — they have separate reasons to remain shell (must run before Perl modules are available).
+### 2. Pathspec hardcodes this repo's language stack
+The extension list bakes in `*.pl` `*.pm` `*.bash` `*.sh` — fine here, useless in any consumer of CWF that uses Python, Go, Ruby, JavaScript, etc. A repo using CWF for an Elixir project would get a security-review subagent that ignores all the project's executable code. The subagent is shipped as part of CWF (it's referenced from installed skills via `.cwf/docs/skills/security-review.md`), so the breakage propagates everywhere CWF is installed.
 
-**Identified in**: Task 125 d-implementation-plan scope-expansion review (user direction).
+### 3. `merge-base HEAD main` anchor mechanically over-includes earlier work
+`git merge-base HEAD main` gives a stable lineage point only under particular merge policies (FF-only, no rebase, no main rewinds). When an earlier task's branch has not yet been merged to main (the normal case mid-batch — Task 127 was unmerged when Task 128 ran), the merge-base sits *before* that earlier task's tip, so the diff includes the earlier task's already-reviewed changes. This inflated Task 127's review to ~2166 lines (blew the 500-line cap; required manual workflow per the existing backlog entry "Quantitatively justify the security-review subagent line-count cap") and inflated Task 128's review to 1422/1545 lines for the same reason. It also breaks for any consumer who rebases, squashes on landing, or uses a non-`main` trunk name.
+
+### Why Very High
+
+- Silent failure mode: the cap-exceeded path records `error: changeset exceeds 500-line review cap` and proceeds to checkpoint anyway, so the gap is logged but doesn't block. A reader of the wf step file sees "security review ran" without realising no review actually occurred.
+- The same bug affects every CWF-installed project's security gate.
+- The three issues compound: extension-filtering would matter less if the directory list were exhaustive, but the directory list also presumes the consumer's layout.
+
+### Acceptance criteria
+
+- [ ] Replace extension globs with content-based detection (shebang / `file --mime-type`) for files in the security-relevant directory set. Files without a shebang in those dirs still go through; files outside those dirs that **are** scripts also go through.
+- [ ] Make the security-relevant directory set discoverable (e.g. read from `.cwf/security/` config or compute from CWF install layout) rather than hardcoded language-stack assumptions.
+- [ ] Replace the `merge-base HEAD main` anchor with something that doesn't depend on merge policy and doesn't over-include earlier-task commits. Candidates to evaluate: (a) the previous wf step's checkpoint commit (so f-phase reviews diff f's own delta, g reviews g's delta), (b) the task branch's own first commit, (c) a per-task baseline ref written by `cwf-new-task`. Do not assume `main` exists or is the trunk.
+- [ ] Update `.cwf/docs/skills/security-review.md` and the two exec SKILLs (`cwf-implementation-exec`, `cwf-testing-exec`) consistently — pathspec is single-source-of-truth in `security-review.md`.
+- [ ] Add a regression test that constructs a synthetic repo with: (a) an extensionless shell script that should be reviewed, (b) a Python file that should be reviewed in a non-CWF-stack consumer, (c) an unmerged earlier task branch that should not pollute the diff.
+
+### Out of scope
+
+- The 500-line cap value itself (covered by the existing backlog entry "Quantitatively justify the security-review subagent line-count cap").
+- The subagent prompt content / threat model — already covered separately ("Tighten security-subagent prompt for sentinel-line compliance").
+
+**Identified in**: Task 128 g-testing-exec phase, when the cap-overflow message in the wf step file led the user to inspect the underlying `git diff` invocation.
 
 ---
 

@@ -2,6 +2,27 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 128: Audit Perl-vs-Bash helper scripts and migrate where feasible
+
+**Status**: Complete (2026-05-06)
+**Duration**: 1 session of active work (estimated: 0.5–1 day; variance ~0%)
+**Impact**: Chore — closes the Task 125 follow-up. Discovery found that 4 of 5 in-scope POSIX shell helpers (`cwf-find-task-numbering-structure`, `cwf-load-{existing-tasks,project-config,status-sections}`) had zero callers in active code (artefacts of an earlier autoload-config design that never landed), and the 5th (`cwf-load-autoload-config`) was a 4-line `cat`-or-fallback used in exactly one place (the `cwf-config` skill's mandatory-context bullet). Decision: delete all five rather than migrate, and inline the one usage. Net delta ~50 lines: 5 helper deletions, 1 SKILL.md line edit, 5-entry pruning of `script-hashes.json`, BACKLOG completion marker. Coverage-regression test (`t/validate-security-coverage.t`) auto-adjusted from 24 → 19 top-level helpers; full suite 325/325 passing. Migration-to-Perl was reframed away because none of the helpers carried logic that justified Perl ceremony — no path-emitting git, no options, no error handling, no shared state.
+
+### Changes
+- Deleted: `.cwf/scripts/command-helpers/cwf-find-task-numbering-structure`, `cwf-load-autoload-config`, `cwf-load-existing-tasks`, `cwf-load-project-config`, `cwf-load-status-sections` (all POSIX shell, all dead/trivial).
+- Modified: `.claude/skills/cwf-config/SKILL.md` — line 24 inlined: helper invocation replaced with `cat .cwf/autoload.yaml 2>/dev/null || echo "No autoload config found"`. Equivalent behaviour, one less indirection.
+- Modified: `.cwf/security/script-hashes.json` — 5 entries removed from `scripts` map (38 → 33); `last_updated` bumped to 2026-05-06.
+- Modified: `BACKLOG.md` — closed "Audit Perl-vs-Bash helper scripts and migrate where feasible"; added Very-High-priority bug "Security-review changeset construction is broken in three ways" (extension-globs, hardcoded language stack, merge-base anchor).
+
+### Notable
+- **The right answer to "migrate?" was "delete".** Four helpers had zero callers; the fifth was a 4-line cat-or-fallback. The simplicity principle ("the best part is no part") applied more strongly than the migration-to-Perl benefit. Future audit tasks should ask "is this used at all?" before "what language?".
+- **Atomic commit boundary preserved.** Helper deletions and `script-hashes.json` pruning landed in a single commit (`76d79a7`); `cwf-manage validate` was clean at every checkpoint.
+- **Plan-review subagents earned their keep again.** Caught (1) stale baseline test count (22 → 24, copy-pasted from Task 125's d-plan without re-verifying), (2) test counts dynamically so no edit needed, (3) atomicity gap between deletes and manifest update, (4) BACKLOG entry to close. All applied; zero rework in implementation.
+- **Dynamic-count test pattern paid off.** `t/validate-security-coverage.t`'s `plan tests => scalar(@top_level) + 1` auto-adjusted to the new helper count without source edit. Worth standardising for any "every X under Y must satisfy Z" assertion.
+- **Cap-exceeded security review surfaced a real bug.** Both f and g phases recorded `**State**: error` (1422 / 1545 lines, inflated by Task 127 sitting unmerged between this branch's merge-base and main). Inspecting the underlying `git diff` invocation revealed three independent bugs in the security-review pathspec construction — extension-based file filtering, hardcoded language-stack assumptions, and merge-base anchor over-including earlier-task commits. Captured to BACKLOG as Very High; the cap-overflow was the leading indicator, not the underlying problem.
+
+---
+
 ## Task 127: Upgrade installs cwf-init artefacts
 
 **Status**: Complete (2026-05-05)

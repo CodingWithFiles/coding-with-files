@@ -1,5 +1,5 @@
 {
-  "last_updated" : "2026-05-05",
+  "last_updated" : "2026-05-06",
   "data" : {
     "install-manifest" : {
       "path" : ".cwf/install-manifest.json",
@@ -155,31 +155,6 @@
       "path" : ".cwf/scripts/command-helpers/cwf-claude-settings-merge",
       "permissions" : "0500",
       "sha256" : "f28dec46729dfd7bac7b6f6815f6c3526d410523125dea6f1ccac916bb972bf9"
-    },
-    "cwf-find-task-numbering-structure" : {
-      "path" : ".cwf/scripts/command-helpers/cwf-find-task-numbering-structure",
-      "permissions" : "0500",
-      "sha256" : "ceb33c3e9d314aa77b8dee613becac0f568eb98115bba08e552758f48ad3424c"
-    },
-    "cwf-load-autoload-config" : {
-      "path" : ".cwf/scripts/command-helpers/cwf-load-autoload-config",
-      "permissions" : "0500",
-      "sha256" : "448b571ca8ea7328d6e693d45d46afbe77db89376b594438f4a0f7c90ff0a526"
-    },
-    "cwf-load-existing-tasks" : {
-      "path" : ".cwf/scripts/command-helpers/cwf-load-existing-tasks",
-      "permissions" : "0500",
-      "sha256" : "782f002d53bbe1bc9a058ee39250778537c2ebd8b56e99e2a1ac8c86cb3964a4"
-    },
-    "cwf-load-project-config" : {
-      "path" : ".cwf/scripts/command-helpers/cwf-load-project-config",
-      "permissions" : "0500",
-      "sha256" : "8260e7431184cb0c2e069ed1d19c10449cca47e605bc4b9e9e2c26b8b5fdac5f"
-    },
-    "cwf-load-status-sections" : {
-      "path" : ".cwf/scripts/command-helpers/cwf-load-status-sections",
-      "permissions" : "0500",
-      "sha256" : "5eabb6d50c0b4343a9c9baf5ef9f3d2be096dca6eb0397e71805660865cc253a"
     },
     "cwf-manage" : {
       "path" : ".cwf/scripts/cwf-manage",
