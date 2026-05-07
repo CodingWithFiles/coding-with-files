@@ -314,20 +314,7 @@ Task 119's plan-review caught that `template-copier-v2.1`'s top-level execution 
 
 ---
 
-## Task: Add Settings.json Merge Helper Script (`cwf-settings-merge`)
-
-**Task-Type**: feature
-**Priority**: Medium
-
-Extract the JSON settings merge logic from cwf-init into a helper script. Currently the agent reads `.claude/settings.json`, manually manipulates the JSON structure (adding permissions entries, hook configurations), and writes back. This is the most error-prone deterministic operation in the system — JSON escaping, key ordering, and idempotency logic done by hand.
-
-**Scope**:
-- Script takes `(key-path, value)` and performs idempotent merge into `.claude/settings.json`
-- Handles nested keys (e.g. `hooks.PreToolUse`)
-- Checks for existing entries to avoid duplicates
-- Writes back valid JSON
-
-**Identified in**: Task 100 discovery (rank 1.5, highest error-proneness score)
+<!-- Completed: "Add Settings.json Merge Helper Script" — superseded by `.cwf/scripts/command-helpers/cwf-claude-settings-merge` (idempotent merge, nested keys, dedup, --dry-run; tests at t/cwf-claude-settings-merge.t). The helper is purpose-built for cwf-init's allowlist + Stop-hook merge rather than a generic (key-path, value) API. Removed in Task 130. -->
 
 ---
 
@@ -347,20 +334,20 @@ The entire cwf-extract skill is deterministic end-to-end: input type detection (
 
 ---
 
-## Task: Lightweight Rollout/Maintenance Templates for Internal Tasks
+## Task: Lightweight Rollout/Maintenance Templates for Internal/Developer-Tool Tasks
 
 **Task-Type**: chore
-**Priority**: Low
-**Status**: Follow-up from Task 57
+**Priority**: Medium
+**Status**: Follow-up from Task 57; reinforced by Task 114
 
-The rollout and maintenance templates are designed for production services (phased rollout, SLA monitoring, incident response). Internal tooling tasks waste time filling in inapplicable sections. Create lightweight variants.
+Both `h-rollout.md` and `i-maintenance.md` ship with full enterprise templates (blue-green/canary, SLAs, monitoring, alerting, scaling). For internal tooling and developer-tool changes — which is most CwF self-development — these templates are 80% boilerplate that gets manually marked "not applicable". Task 114 wrote both phases as essentially custom freeform documents because the template didn't fit; Task 57 also flagged this in i-maintenance lessons learned.
 
 **Scope**:
 - Create "internal" variants of h-rollout.md and i-maintenance.md templates
 - Reduce to relevant sections (deployment strategy, known issues, architecture reference)
 - Template selection during `/cwf-new-task` based on project type or explicit flag
 
-**Identified in**: Task 57 retrospective (j-retrospective.md — i-maintenance.md lessons learned)
+**Identified in**: Task 57 retrospective (j-retrospective.md — i-maintenance.md lessons learned); Task 114 h-rollout.md and i-maintenance.md (both Lessons Learned sections); coalesced from a duplicate entry in Task 130 (2026-05-07)
 
 ---
 
@@ -1150,49 +1137,7 @@ Task completion percentage is calculated by aggregating the `## Status` field fr
 
 ---
 
-## Task: Update Documentation References from status-aggregator to status-aggregator
-
-**Task-Type**: chore
-**Priority**: Low
-**Status**: Proposed (identified during Task 25 retrospective discussion)
-
-Update all documentation and command references to use `status-aggregator` entry point script instead of outdated `status-aggregator` direct module reference.
-
-**Problem**: Task 25 implemented trampoline architecture where helper scripts are invoked via entry points (no .pl extension), not by calling .pl files directly:
-- Entry point: `.cwf/scripts/command-helpers/status-aggregator`
-- Routes to: `status-aggregator-v2.0` or `status-aggregator-v2.1` orchestration
-- Uses: Core::StatusAggregator module
-
-Documentation and commands may still reference `status-aggregator` which:
-- Is technically incorrect (should call entry point, not .pl directly)
-- Bypasses trampoline version routing
-- Confusing for users who see `status-aggregator` in directory listings
-
-**Solution**: Find and update all references:
-
-**Files to check**:
-- `.cwf/docs/workflow/workflow-steps.md`
-- `.cwf/docs/context/tools.md`
-- `.claude/commands/cwf-status.md`
-- Any other documentation or command files
-- BACKLOG.md (this file)
-
-**Change pattern**:
-- `status-aggregator <task-path>` → `status-aggregator <task-path>`
-- References to "status-aggregator script" → "status-aggregator script"
-
-**Scope**:
-1. Grep for all `status-aggregator` references
-2. Update to `status-aggregator` (entry point)
-3. Verify no functional changes (entry point routes to same logic)
-4. Update this BACKLOG item itself (contains status-aggregator references)
-
-**Success Criteria**:
-- [ ] All references updated to use entry point (no .pl)
-- [ ] No references to status-aggregator remain
-- [ ] Documentation reflects trampoline architecture
-
-**Rationale**: Documentation should reflect actual implementation (trampoline architecture). Entry point scripts are the public interface, .pl modules are internal implementation details.
+<!-- Removed: "Update Documentation References from status-aggregator to status-aggregator" — Task 130 (2026-05-07). Entry was incoherent: title and body both had source/target homogenised by an apparent search-replace; referenced .claude/commands/cwf-status.md which no longer exists post commands→skills migration (Task 57). The substantive intent — move docs from .pl-suffix references to entry-point references — was settled during the trampoline architecture rollout (Task 25). -->
 
 ---
 
@@ -1291,9 +1236,11 @@ Analyse and standardise cross-document reference patterns used throughout CWF sy
 ## Task: Extract CWF Argument Validation Pattern to Documentation
 
 **Task-Type**: feature
-**Priority**: Needs-Triage
+**Priority**: Low
 
 Create reusable documentation for the secure argument parsing pattern developed in Task 11. This pattern (LLM validates format → extracts arguments → invokes bash with literals) prevents command injection and handles arbitrary user input safely. Should be documented in `.cwf/docs/` for use in future CWF commands or similar systems. Include: (1) Security model explanation, (2) Format validation regex patterns, (3) Example implementation, (4) Test scenarios.
+
+**Note**: Task 11 was cancelled (commands→skills migration in Task 57 bypassed the underlying $ARGUMENTS bug). The pattern itself remains useful as a security-review reference, hence kept at Low rather than removed. Reclassified from `Needs-Triage` in Task 130.
 
 ---
 
@@ -1633,21 +1580,22 @@ This is a **significant refactor** touching the core status aggregation architec
 
 ---
 
-## Task: Audit CWF Commands for Hardcoded Data
+## Task: Audit CWF Skills for Hardcoded Data
 
 **Task-Type**: chore
 **Priority**: Low
 **Status**: Follow-up from Task 43
 
-Audit all CWF command files to identify and eliminate hardcoded data that should be read from configuration files instead.
+Audit all CWF skill files to identify and eliminate hardcoded data that should be read from configuration files instead.
 
 **Scope**:
-- Check all `.claude/commands/cwf-*.md` files for hardcoded lists, paths, or configuration values
+- Check all `.claude/skills/cwf-*/SKILL.md` files (and any companion `*-extras.md` docs) for hardcoded lists, paths, or configuration values
 - Identify data that duplicates information in `script-hashes.json`, `cwf-project.json`, or other config files
 - Refactor to read from canonical sources instead of duplicating data
-- Example: cig-security-check.md had hardcoded list of v2.0 scripts
 
-**Identified in**: Task 43 retrospective (j-retrospective.md)
+**Note**: Originally framed against `.claude/commands/cwf-*.md`; rescoped to skills in Task 130 after the commands→skills migration (Task 57) eliminated the original audit target. The audit motivation still applies to the skill files that replaced them.
+
+**Identified in**: Task 43 retrospective (j-retrospective.md); rescoped in Task 130 (2026-05-07)
 
 ---
 
@@ -1817,17 +1765,7 @@ Add a small regression test that exercises the `stop-uncommitted-changes-warning
 
 **Identified in**: Task 114 j-retrospective.md
 
-## Task: Lighter-Weight Rollout/Maintenance Templates for Internal/Developer-Tool Tasks
-
-**Task-Type**: chore
-**Priority**: Medium
-**Status**: Follow-up from Task 114 (and reinforces existing backlog item)
-
-Both `h-rollout.md` and `i-maintenance.md` ship with full enterprise templates (blue-green/canary, SLAs, monitoring, alerting, scaling). For developer-tool changes (which is most CwF self-development), these templates are 80% boilerplate that gets manually marked "not applicable". Task 114 wrote both phases as essentially custom freeform documents because the template didn't fit.
-
-**Note**: An existing BACKLOG item ("Lightweight Rollout/Maintenance Templates for Internal Tasks") covers this. Task 114 is corroborating evidence — bumping its priority would be reasonable.
-
-**Identified in**: Task 114 h-rollout.md and i-maintenance.md (both Lessons Learned sections)
+<!-- Coalesced into "Lightweight Rollout/Maintenance Templates for Internal/Developer-Tool Tasks" (above) — Task 130 (2026-05-07). -->
 
 ## Task: Resolve cwf-project.json version drift vs .cwf/version
 

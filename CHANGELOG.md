@@ -2,6 +2,26 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 130: Refactor BACKLOG to match current code state
+
+**Status**: Complete (2026-05-07)
+**Duration**: 1 session of active work (estimated: 1 day; on target)
+**Impact**: Chore — first deliberate BACKLOG triage sweep against current code state. 4 of ~50 active entries touched: 2 removed (work shipped or scope dead), 1 edited (commands→skills migration changed the audit target), 1 coalesced (two duplicate entries about lightweight rollout/maintenance templates merged at higher priority), 1 reclassified (`Needs-Triage` → `Low`). ~45 entries kept-as-is — verified each named script/file/function genuinely doesn't exist or wasn't completed. BACKLOG.md −62 net lines (17 ins, 79 del); 6/6 manual test cases PASS; `cwf-manage validate` clean.
+
+### Changes
+- Modified: `BACKLOG.md` — removed `Add Settings.json Merge Helper Script` (superseded by `.cwf/scripts/command-helpers/cwf-claude-settings-merge`); removed `Update Documentation References from status-aggregator to status-aggregator` (title incoherent post-rebrand; referenced deleted `.claude/commands/cwf-status.md`; intent settled by Task 25 trampoline rollout); edited `Audit CWF Commands for Hardcoded Data` → `Audit CWF Skills for Hardcoded Data` (commands→skills migration eliminated the original audit target); coalesced `Lightweight Rollout/Maintenance Templates for Internal Tasks` (Low) + `Lighter-Weight Rollout/Maintenance Templates for Internal/Developer-Tool Tasks` (Medium) into a single Medium-priority entry; reclassified `Extract CWF Argument Validation Pattern to Documentation` from `Needs-Triage` → `Low` (underlying Task 11 cancelled; pattern still useful as security-review reference).
+- Added: `implementation-guide/130-chore-refactor-backlog-to-match-current-code-state/` — 6 wf step files (a/d/e/f/g/j) documenting the triage methodology, decisions, and evidence trail.
+
+### Notable
+- **`cwf-claude-settings-merge` was the textbook stale entry.** Existed in BACKLOG as `Medium` priority for months while the implementation (under a slightly different name — `cwf-claude-` prefix scopes it to `.claude/settings.json`) had already shipped. Periodic sweeps catch this; ad-hoc maintenance does not.
+- **Three of four edits hinged on the commands→skills migration (Task 57).** Anything in BACKLOG that names `.claude/commands/cwf-*.md`, `cig-*.md`, or `$ARGUMENTS` is a strong candidate for re-evaluation — that surface no longer exists. Worth keeping in mind for future sweeps.
+- **Title incoherence as a stale-entry signal.** The R2 entry's title was "Update Documentation References from status-aggregator to status-aggregator" — same word as both source and target after a global search-replace homogenised the `.pl` distinction. A `from X to X` linter on BACKLOG titles would catch this proactively.
+- **Plan-review subagents earned their keep on a small task too.** Caught the missing pre-identified coalesce candidate (lines 350+1820), the `Needs-Triage` ambiguity, batching over-engineering, and a pre-judged priority assignment. All addressed before exec; conservative-default outcome.
+- **Empty security-review changeset on a markdown-only task** — confirmed the helper's CWF-internal-dir + shebang-sniff classification correctly excludes pure content edits. No subagent invocation needed.
+- **Process deviation accepted up-front.** d-impl-plan called for per-entry user co-review; user delegated triage to me with a single review pass at the end. I leaned conservative (lean toward keep when evidence ambiguous); user's review pass remains authoritative.
+
+---
+
 ## Task 129: Fix security-review changeset construction
 
 **Status**: Complete (2026-05-06)
