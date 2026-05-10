@@ -9,6 +9,7 @@
 #   modify      Edit an existing entry's priority (or other fields)
 #   delete      Remove an entry outright (requires --confirm)
 #   retire      Move an entry from BACKLOG to CHANGELOG (transactional)
+#   normalise   Convert legacy `**Field**:` / `---` format to heading-tree (idempotent)
 #
 # Run "backlog-manager <subcommand> --help" for subcommand-specific usage.
 #
@@ -24,14 +25,16 @@ use File::Spec;
 use CWF::Common qw(find_git_root);
 use CWF::ArtefactHelpers qw(validate_path_allowlist);
 use CWF::Backlog qw(
-    parse_backlog_file parse_changelog_file
-    write_backlog_file write_changelog_file
-    validate_backlog validate_changelog
-    find_active_by_slug find_active_by_title
-    find_changelog_task block_exists_in_retired append_retired_block
-    entry_title entry_metadata entry_body_start_index entry_slug
-    set_priority_field
-    list_active
+    parse_backlog_tree parse_changelog_tree
+    write_tree serialize_tree
+    validate_backlog_tree validate_changelog_tree
+    metadata_get set_metadata_field
+    add_entry delete_entry
+    find_all_entries_by_slug find_all_entries_by_title
+    find_changelog_entry_by_task_num
+    append_retired_block_tree block_exists_in_retired_tree
+    trim_blank_lines
+    $VALID_PRIORITIES
 );
 
 #==============================================================================
@@ -89,6 +92,7 @@ Subcommands:
   modify                    Edit an existing entry
   delete                    Remove an entry (requires --confirm)
   retire                    Move BACKLOG entry to CHANGELOG (transactional)
+  normalise                 Convert legacy `**Field**:` / `---` to heading-tree
 
 Run "backlog-manager <subcommand> --help" for subcommand-specific usage.
 END
@@ -96,11 +100,12 @@ END
 
 sub usage_validate {
     return <<'END';
-Usage: backlog-manager validate [--all]
+Usage: backlog-manager validate [--all] [--strict]
 
   Check BACKLOG.md and CHANGELOG.md against the format contract.
-  Default: print first error and exit 1.
-  --all:   print every error and exit 1 if any.
+  Default:    print first error and exit 1; warnings always printed.
+  --all:      print every error and exit 1 if any.
+  --strict:   escalate warnings to errors (also fails the exit code).
 END
 }
 
@@ -146,6 +151,22 @@ Usage: backlog-manager delete (--id=SLUG | --exact-title=TITLE) --confirm
 END
 }
 
+sub usage_normalise {
+    return <<'END';
+Usage: backlog-manager normalise [--dry-run]
+
+  Convert legacy `**Field**:` paragraph metadata to `### Field: Value` headings
+  and drop `^---$` separators. Idempotent: a re-run on canonical files writes
+  nothing. Use after `cwf-manage update` to migrate BACKLOG.md / CHANGELOG.md
+  inherited from a Task-131-era install.
+  --dry-run:  report what would change; write nothing.
+
+  Per-entry gates run before any write: cardinality (entry count preserved),
+  identity (titles preserved), required-metadata-keys present, and per-entry
+  byte budget (post >= 90% of pre).
+END
+}
+
 sub usage_retire {
     return <<'END';
 Usage: backlog-manager retire (--id=SLUG | --exact-title=TITLE)
@@ -168,19 +189,22 @@ sub cmd_validate {
     if ($opts{help}) { print usage_validate(); return 0; }
 
     my ($bl, $cl) = repo_paths();
-    my ($bl_sects,  $bl_global) = parse_backlog_file($bl);
-    my ($cl_sects,  $cl_global) = parse_changelog_file($cl);
-    my $bl_errs = validate_backlog($bl_sects);
-    my $cl_errs = validate_changelog($cl_sects);
+    my ($bl_tree, $bl_global) = parse_backlog_tree($bl);
+    my ($cl_tree, $cl_global) = parse_changelog_tree($cl);
+    my $bl_errs = validate_backlog_tree($bl_tree, $bl);
+    my $cl_errs = validate_changelog_tree($cl_tree, $cl);
 
     my @all = (@$bl_global, @$cl_global, @$bl_errs, @$cl_errs);
     return 0 unless @all;
 
-    # Partition into errors (severity unset or 'error') and warnings.
-    my @errors   = grep { ($_->{severity} // 'error') eq 'error' } @all;
-    my @warnings = grep { ($_->{severity} // '') eq 'warning' } @all;
+    # Partition into errors and warnings; --strict promotes warnings.
+    my $strict = $opts{strict} ? 1 : 0;
+    my @errors   = grep {
+        my $sev = $_->{severity} // 'error';
+        $sev eq 'error' || ($strict && $sev eq 'warning')
+    } @all;
+    my @warnings = grep { ($_->{severity} // '') eq 'warning' && !$strict } @all;
 
-    # Always print warnings (informational).
     warn "[CWF] WARN: $_->{file}:$_->{line} [$_->{rule}] $_->{message}\n" for @warnings;
 
     return 0 unless @errors;
@@ -203,18 +227,16 @@ sub cmd_list {
     if ($opts{help}) { print usage_list(); return 0; }
 
     my ($bl, undef) = repo_paths();
-    my ($sects, $g_errs) = parse_backlog_file($bl);
-    my $actives = list_active($sects);
+    my ($tree, $g_errs) = parse_backlog_tree($bl);
 
     # Group by priority (file order preserved within band)
     my @bands = ('Very High', 'High', 'Medium', 'Low', 'Very Low');
     my %by_band;
-    for my $a (@$actives) {
-        my $p = entry_metadata($a)->{Priority} // '';
-        # Strip optional parenthetical annotation
+    for my $e (@{$tree->{entries}}) {
+        my $p = metadata_get($e, 'Priority') // '';
         $p =~ s/\s*\(.*\)\s*$//;
         $p = 'Unknown' unless grep { $_ eq $p } @bands;
-        push @{$by_band{$p}}, $a;
+        push @{$by_band{$p}}, $e;
     }
 
     my $cap_default = 20;
@@ -230,7 +252,6 @@ sub cmd_list {
             $take = scalar @entries;
         }
         elsif ($shown == 0 && @entries > $cap_default) {
-            # Soft cap: top band overflow → show entire band
             $take = scalar @entries;
         }
         elsif ($shown + @entries <= $cap_default) {
@@ -242,8 +263,7 @@ sub cmd_list {
 
         push @output, "## $band (" . scalar(@entries) . ")";
         for my $i (0 .. $take - 1) {
-            my $e = $entries[$i];
-            my $title = entry_title($e) // '<unknown>';
+            my $title = $entries[$i]{title} // '<unknown>';
             push @output, "  - $title";
         }
         $shown += $take;
@@ -275,7 +295,7 @@ sub cmd_add {
 
     my $priority = $opts{priority};
     die_user("invalid --priority '$priority' (must be Very High|High|Medium|Low|Very Low)")
-        unless $priority =~ /^(?:Very High|High|Medium|Low|Very Low)$/;
+        unless $priority =~ $VALID_PRIORITIES;
 
     my $body = '';
     if (defined $opts{'body-file'}) {
@@ -293,55 +313,66 @@ sub cmd_add {
         $body = $opts{body};
     }
 
-    # Body must not contain ^---$ (BACKLOG-003) or ^#### (BACKLOG-006).
-    for my $bl (split /\n/, $body, -1) {
-        die_user("body line matches separator pattern '---'") if $bl eq '---';
-        die_user("body line matches '#### ' (reserved for retired-block headings)")
-            if $bl =~ /^####\s+/;
-    }
+    my @metadata = (
+        { key => 'Task-Type', value => $type,     lineno => undef },
+        { key => 'Priority',  value => $priority, lineno => undef },
+    );
+    push @metadata, { key => 'Status', value => $opts{status}, lineno => undef }
+        if defined $opts{status};
+    push @metadata, { key => 'Identified in', value => $opts{'identified-in'}, lineno => undef }
+        if defined $opts{'identified-in'};
 
-    # Build raw_lines for the new section. Lead with a blank line so the
-    # serialised file has `\n---\n\n## Task: …` (matches existing style).
-    my @raw = ("\n", "## Task: $title\n", "\n",
-               "**Task-Type**: $type\n",
-               "**Priority**: $priority\n");
-    push @raw, "**Status**: $opts{status}\n" if defined $opts{status};
-    push @raw, "\n";
-    # Body
-    chomp $body while length($body) && substr($body, -1) eq "\n";
-    for my $bl (split /\n/, $body, -1) {
-        push @raw, "$bl\n";
-    }
-    push @raw, "\n";
-    if (defined $opts{'identified-in'}) {
-        push @raw, "**Identified in**: $opts{'identified-in'}\n";
-        push @raw, "\n";
-    }
+    my @body_lines = map { "$_\n" } split /\n/, $body, -1;
+    trim_blank_lines(\@body_lines);
 
-    my $new_section = {
-        kind               => 'active',
-        raw_lines          => [@raw],
-        trailing_separator => 0,    # last section: no trailing separator
+    my $new_entry = {
+        type             => 'Task',
+        task_num         => undef,
+        title            => $title,
+        header_lineno    => undef,
+        metadata         => \@metadata,
+        subsections      => [],
+        body_raw         => \@body_lines,
+        body_before_meta => 0,
     };
 
     my ($bl_path, undef) = repo_paths();
-    my ($sects, undef) = parse_backlog_file($bl_path);
-
-    # Ensure the previous last section has a separator before our new one,
-    # so the parser-on-read correctly splits them.
-    if (@$sects && !$sects->[-1]{trailing_separator}) {
-        $sects->[-1]{trailing_separator} = 1;
-    }
-
-    push @$sects, $new_section;
-
-    write_backlog_file($bl_path, $sects);
+    my ($tree, undef) = parse_backlog_tree($bl_path);
+    add_entry($tree, $new_entry);
+    write_tree($bl_path, $tree);
     return 0;
 }
 
 #==============================================================================
 # Subcommand: modify
 #==============================================================================
+
+# Resolve --id (slug) or --exact-title to a single (entry, idx) pair. Returns
+# (undef, undef) if not found and $allow_missing is true; dies on ambiguity
+# or (when $allow_missing is false) on miss.
+sub resolve_entry {
+    my ($tree, $opts, %args) = @_;
+    my $allow_missing = $args{allow_missing};
+    my @hits;
+    my $what;
+    if (defined $opts->{id}) {
+        @hits = find_all_entries_by_slug($tree, $opts->{id});
+        $what = "slug='$opts->{id}'";
+    } else {
+        @hits = find_all_entries_by_title($tree, $opts->{'exact-title'});
+        $what = "title='$opts->{'exact-title'}'";
+    }
+    if (@hits > 1) {
+        my @titles = map { $_->[0]{title} // '<unknown>' } @hits;
+        die_user(sprintf("ambiguous match (%s); matches: %s; use --exact-title to disambiguate",
+            $what, join('; ', @titles)));
+    }
+    if (!@hits) {
+        return (undef, undef) if $allow_missing;
+        die_user("entry not found: $what");
+    }
+    return ($hits[0][0], $hits[0][1]);
+}
 
 sub cmd_modify {
     my %opts = @_;
@@ -351,35 +382,16 @@ sub cmd_modify {
         unless defined $opts{id} || defined $opts{'exact-title'};
 
     my ($bl_path, undef) = repo_paths();
-    my ($sects, undef) = parse_backlog_file($bl_path);
+    my ($tree, undef) = parse_backlog_tree($bl_path);
+    my ($target, $idx) = resolve_entry($tree, \%opts);
 
-    my @hits;
-    if (defined $opts{id}) {
-        @hits = find_active_by_slug($sects, $opts{id});
-    } else {
-        @hits = find_active_by_title($sects, $opts{'exact-title'});
-    }
-
-    if (@hits == 0) {
-        die_user(sprintf("entry not found: %s",
-            $opts{id} ? "slug='$opts{id}'" : "title='$opts{'exact-title'}'"));
-    }
-    if (@hits > 1) {
-        my @titles = map { entry_title($_) // '<unknown>' } @hits;
-        die_user(sprintf("ambiguous slug '%s'; matches: %s; use --exact-title to disambiguate",
-            $opts{id} // '<n/a>', join('; ', @titles)));
-    }
-
-    my $target = $hits[0];
     if (defined $opts{priority}) {
-        my $new = $opts{priority};
-        die_user("invalid --priority '$new' (must be Very High|High|Medium|Low|Very Low)")
-            unless $new =~ /^(?:Very High|High|Medium|Low|Very Low)$/;
-        set_priority_field($target, $new);
+        die_user("invalid --priority '$opts{priority}' (must be Very High|High|Medium|Low|Very Low)")
+            unless $opts{priority} =~ $VALID_PRIORITIES;
+        set_metadata_field($target, 'Priority', $opts{priority});
     }
-    # (other fields are out of v1 scope; document as future work)
 
-    write_backlog_file($bl_path, $sects);
+    write_tree($bl_path, $tree);
     return 0;
 }
 
@@ -397,27 +409,10 @@ sub cmd_delete {
         unless $opts{confirm};
 
     my ($bl_path, undef) = repo_paths();
-    my ($sects, undef) = parse_backlog_file($bl_path);
-
-    my @hits;
-    if (defined $opts{id}) {
-        @hits = find_active_by_slug($sects, $opts{id});
-    } else {
-        @hits = find_active_by_title($sects, $opts{'exact-title'});
-    }
-
-    die_user("entry not found") if @hits == 0;
-    die_user("ambiguous match; use --exact-title") if @hits > 1;
-
-    my $target = $hits[0];
-    # Find target's index in @$sects and remove it (along with its trailing separator)
-    my $idx = -1;
-    for (my $i = 0; $i < @$sects; $i++) {
-        if ($sects->[$i] == $target) { $idx = $i; last; }
-    }
-    splice(@$sects, $idx, 1);
-
-    write_backlog_file($bl_path, $sects);
+    my ($tree, undef) = parse_backlog_tree($bl_path);
+    my ($target, $idx) = resolve_entry($tree, \%opts);
+    delete_entry($tree, $idx);
+    write_tree($bl_path, $tree);
     return 0;
 }
 
@@ -452,66 +447,197 @@ sub cmd_retire {
     die_user("refusing symlink at $bl_path") if -l $bl_path;
     die_user("refusing symlink at $cl_path") if -l $cl_path;
 
-    my ($bl_sects, undef) = parse_backlog_file($bl_path);
-    my ($cl_sects, undef) = parse_changelog_file($cl_path);
+    my ($bl_tree, undef) = parse_backlog_tree($bl_path);
+    my ($cl_tree, undef) = parse_changelog_tree($cl_path);
 
-    # 1. Find the target BACKLOG entry.
-    my @hits;
-    if (defined $opts{id}) {
-        @hits = find_active_by_slug($bl_sects, $opts{id});
-    } else {
-        @hits = find_active_by_title($bl_sects, $opts{'exact-title'});
-    }
-
-    if (@hits == 0) {
-        # Either already retired, or never existed. Idempotent no-op:
-        # verify the implementing task's CHANGELOG entry already has a
-        # matching `#### <title>` block — if so, treat as already done.
-        # Otherwise just inform and exit 0 so retries are safe.
+    my ($target, $idx) = resolve_entry($bl_tree, \%opts, allow_missing => 1);
+    if (!defined $target) {
+        # Already retired (or never existed); re-runs are safe.
         info(sprintf("not found in BACKLOG (already retired?): %s",
             $opts{id} ? "slug='$opts{id}'" : "title='$opts{'exact-title'}'"));
         return 0;
     }
-    die_user("ambiguous match; use --exact-title") if @hits > 1;
 
-    my $target  = $hits[0];
-    my $title   = entry_title($target);
-    my $body_start = entry_body_start_index($target);
-    my @body    = @{$target->{raw_lines}}[$body_start .. $#{$target->{raw_lines}}];
+    my $title = $target->{title};
+    my @body = @{$target->{body_raw} // []};
+    for my $s (@{$target->{subsections} // []}) {
+        push @body, "\n", "### $s->{name}\n", @{$s->{body_raw} // []};
+    }
 
-    # 2. Find the implementing-task CHANGELOG entry. Missing = hard error
-    # (must run retrospective first to create the entry).
-    my $cl_entry = find_changelog_task($cl_sects, $task)
+    my ($cl_entry) = find_changelog_entry_by_task_num($cl_tree, $task)
         or die_user("Task $task has no CHANGELOG entry; create the entry first or pick a different --task");
 
-    # 3. Dedup: if the block already exists under the implementing task's
-    # `### Retired Backlog Items` subsection, skip the CHANGELOG write —
-    # this is the crash-recovery branch (CHANGELOG written, BACKLOG not).
+    # CHANGELOG written first so a crash leaves the recoverable state
+    # "CHANGELOG-has-block, BACKLOG-still-active" — re-running retire detects
+    # the existing block via dedup and only rewrites BACKLOG.
     my $need_cl_write = 1;
-    if (block_exists_in_retired($cl_entry, $title)) {
+    if (block_exists_in_retired_tree($cl_entry, $title)) {
         $need_cl_write = 0;
         info(sprintf("'%s' already present under Task %d; skipping CHANGELOG write",
             $title, $task));
     } else {
-        append_retired_block($cl_entry, $title, \@body, $note);
+        append_retired_block_tree($cl_entry, $title, \@body, $note);
     }
 
-    # 4. Drop the BACKLOG entry from the in-memory section list.
-    my @new_bl;
-    for my $s (@$bl_sects) {
-        next if $s == $target;
-        push @new_bl, $s;
+    delete_entry($bl_tree, $idx);
+
+    write_tree($cl_path, $cl_tree) if $need_cl_write;
+    write_tree($bl_path, $bl_tree);
+    return 0;
+}
+
+#==============================================================================
+# Subcommand: normalise
+#==============================================================================
+#
+# Converts legacy Task-131 format (paragraph metadata `**Field**: value`,
+# `^---$` section separators) into the heading-tree canonical form (H3
+# metadata `### Field: value`, no `---` separators). Idempotent: re-runs on
+# canonical input write nothing.
+#
+# Strategy: parse with the heading-tree parser (handles both formats — old
+# entries come back with empty `metadata` and `**Field**:` lines in body_raw).
+# Walk each entry and any subsections, promoting bold-paragraph metadata and
+# stripping `---` lines. Run AC5a/b/c/d gates against the pre/post-tree.
+# Write atomically.
+
+# Canonicalise an entry in place: promote `**Key**: value` body lines to
+# `### Key: value` metadata, drop `^---$` separator lines, trim blanks. Sets
+# $changed to 1 if any line was promoted or dropped (used for no-op detection).
+sub _canonicalise_entry_inplace {
+    my ($entry, $changed) = @_;
+    my @new_body;
+    for my $line (@{$entry->{body_raw} // []}) {
+        if ($line =~ /^\*\*($CWF::Backlog::METADATA_KEY_RE)\*\*:[ \t]*(.*?)\s*\z/) {
+            push @{$entry->{metadata}}, { key => $1, value => $2, lineno => undef };
+            $$changed = 1;
+            next;
+        }
+        if ($line =~ /^---\r?\n?\z/) { $$changed = 1; next; }
+        push @new_body, $line;
     }
-    # Last surviving section must not have a trailing_separator (otherwise
-    # round-trip emits a stray `---` at end of file).
-    $new_bl[-1]{trailing_separator} = 0 if @new_bl;
+    trim_blank_lines(\@new_body);
+    $entry->{body_raw} = \@new_body;
+    for my $s (@{$entry->{subsections}}) {
+        my @sb;
+        for my $l (@{$s->{body_raw}}) {
+            if ($l =~ /^---\r?\n?\z/) { $$changed = 1; next; }
+            push @sb, $l;
+        }
+        trim_blank_lines(\@sb);
+        $s->{body_raw} = \@sb;
+    }
+}
 
-    # 5. Atomic writes. CHANGELOG first so a crash leaves the recoverable
-    # state "CHANGELOG-has-block, BACKLOG-still-active" — re-running retire
-    # detects the existing block via dedup and only rewrites BACKLOG.
-    write_changelog_file($cl_path, $cl_sects) if $need_cl_write;
-    write_backlog_file($bl_path, \@new_bl);
+sub _canonicalise_intro {
+    my ($intro_lines, $changed) = @_;
+    my @out;
+    for my $l (@$intro_lines) {
+        if ($l =~ /^---\r?\n?\z/) { $$changed = 1; next; }
+        push @out, $l;
+    }
+    pop @out while @out && $out[-1] =~ /^\s*$/;
+    return \@out;
+}
 
+# Total entry byte count under canonical serialisation. Used for AC5d.
+sub _entry_byte_count {
+    my ($entry) = @_;
+    my $n = 0;
+    $n += length("### $_->{key}: " . ($_->{value} // '') . "\n") for @{$entry->{metadata}};
+    $n += length($_) for @{$entry->{body_raw} // []};
+    for my $s (@{$entry->{subsections} // []}) {
+        $n += length("### $s->{name}\n");
+        $n += length($_) for @{$s->{body_raw}};
+    }
+    return $n;
+}
+
+sub _normalise_one {
+    my (%args) = @_;
+    my $path = $args{path};
+    my $kind = $args{kind};
+    my $dry  = $args{dry_run};
+
+    my ($tree, $g_errs) = $kind eq 'backlog'
+        ? parse_backlog_tree($path)
+        : parse_changelog_tree($path);
+    if (@$g_errs) {
+        die_user("$path: parse errors: " .
+            join('; ', map { "$_->{rule}: $_->{message}" } @$g_errs[0..($#{$g_errs} < 4 ? $#{$g_errs} : 4)]));
+    }
+
+    my @pre_titles  = map { $_->{title} } @{$tree->{entries}};
+    my %pre_bytes   = map { $_ => _entry_byte_count($tree->{entries}[$_]) }
+                      0 .. $#{$tree->{entries}};
+    my $pre_count   = scalar @{$tree->{entries}};
+
+    my $changed = 0;
+    _canonicalise_entry_inplace($_, \$changed) for @{$tree->{entries}};
+    $tree->{intro} = _canonicalise_intro($tree->{intro}, \$changed);
+
+    if (!$changed) {
+        info("$path: already canonical (no change)");
+        return 0;
+    }
+
+    # AC5a: cardinality preserved.
+    die_user("$path: AC5a cardinality fail: pre=$pre_count post=" . scalar @{$tree->{entries}})
+        unless $pre_count == scalar @{$tree->{entries}};
+    # AC5b: every pre title present post.
+    my %post_titles = map { $_->{title} => 1 } @{$tree->{entries}};
+    for my $t (@pre_titles) {
+        die_user("$path: AC5b identity fail: title '$t' missing post-canonicalisation")
+            unless $post_titles{$t};
+    }
+    # AC5c: required keys present.
+    my @required = $kind eq 'backlog' ? ('Task-Type', 'Priority') : ('Status', 'Impact');
+    for my $e (@{$tree->{entries}}) {
+        for my $k (@required) {
+            my $val = metadata_get($e, $k);
+            die_user("$path: AC5c metadata fail: '$e->{title}' missing required key '$k'")
+                unless defined $val && length $val;
+        }
+    }
+    # AC5d: per-entry total byte ≥ 90% of pre. Skip trivial entries.
+    for (my $i = 0; $i < @{$tree->{entries}}; $i++) {
+        my $pre  = $pre_bytes{$i};
+        next if $pre < 80;
+        my $post = _entry_byte_count($tree->{entries}[$i]);
+        my $ratio = $pre ? ($post / $pre) : 1;
+        if ($ratio < 0.90) {
+            die_user(sprintf("%s: AC5d byte fail: '%s' pre=%d post=%d (%.1f%%)",
+                $path, $tree->{entries}[$i]{title}, $pre, $post, $ratio * 100));
+        }
+    }
+
+    my $errs = $kind eq 'backlog'
+        ? validate_backlog_tree($tree, $path)
+        : validate_changelog_tree($tree, $path);
+    my @hard = grep { ($_->{severity}//'error') eq 'error' } @$errs;
+    die_user("$path: post-canonicalisation validate failed: " .
+        join('; ', map { "$_->{rule}: $_->{message}" } @hard[0..($#hard < 4 ? $#hard : 4)]))
+        if @hard;
+
+    my $post_bytes = length(serialize_tree($tree));
+    my $verb = $dry ? 'would normalise' : 'normalised';
+    info(sprintf("%s: %s %d entries (%d -> %d bytes)",
+        $path, $verb, $pre_count, -s $path, $post_bytes));
+    return 0 if $dry;
+    write_tree($path, $tree);
+    return 0;
+}
+
+sub cmd_normalise {
+    my %opts = @_;
+    if ($opts{help}) { print usage_normalise(); return 0; }
+
+    my ($bl_path, $cl_path) = repo_paths();
+    die_user("refusing symlink at $bl_path") if -l $bl_path;
+    die_user("refusing symlink at $cl_path") if -l $cl_path;
+
+    _normalise_one(path => $bl_path, kind => 'backlog',   dry_run => $opts{'dry-run'});
+    _normalise_one(path => $cl_path, kind => 'changelog', dry_run => $opts{'dry-run'});
     return 0;
 }
 
@@ -520,12 +646,13 @@ sub cmd_retire {
 #==============================================================================
 
 my %DISPATCH = (
-    validate => \&cmd_validate,
-    list     => \&cmd_list,
-    add      => \&cmd_add,
-    modify   => \&cmd_modify,
-    delete   => \&cmd_delete,
-    retire   => \&cmd_retire,
+    validate  => \&cmd_validate,
+    list      => \&cmd_list,
+    add       => \&cmd_add,
+    modify    => \&cmd_modify,
+    delete    => \&cmd_delete,
+    retire    => \&cmd_retire,
+    normalise => \&cmd_normalise,
 );
 
 sub classify_exit_code {

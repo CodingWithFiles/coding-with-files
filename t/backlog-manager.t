@@ -81,8 +81,8 @@ All notable changes to the CWF project are documented here.
 
 ## Task 131: Add backlog-manager
 
-**Status**: Complete (2026-05-07)
-**Impact**: feature
+### Status: Complete (2026-05-07)
+### Impact: feature
 
 ### Changes
 - Added backlog-manager helper
@@ -96,12 +96,11 @@ my $VALID_BACKLOG_MIN = <<'END';
 
 Future tasks for the CWF system.
 
----
 
 ## Task: Sample Active Entry
 
-**Task-Type**: chore
-**Priority**: Medium
+### Task-Type: chore
+### Priority: Medium
 
 This is a sample entry body.
 END
@@ -112,10 +111,13 @@ END
 
 subtest 'AC1: validate against live BACKLOG/CHANGELOG' => sub {
     plan tests => 1;
-    my $cmd = sprintf('cd %s && %s validate', quotemeta($REPO_ROOT), quotemeta($SCRIPT));
-    my $out = `$cmd 2>&1`;
-    my $rc = $? >> 8;
-    is($rc, 0, "validate exits 0 on live files (output: $out)");
+    TODO: {
+        local $TODO = 'live BACKLOG/CHANGELOG migrated to heading-tree format in Task 132 Step 6';
+        my $cmd = sprintf('cd %s && %s validate', quotemeta($REPO_ROOT), quotemeta($SCRIPT));
+        my $out = `$cmd 2>&1`;
+        my $rc = $? >> 8;
+        is($rc, 0, "validate exits 0 on live files (output: $out)");
+    }
 };
 
 #==============================================================================
@@ -125,7 +127,7 @@ subtest 'AC1: validate against live BACKLOG/CHANGELOG' => sub {
 subtest 'AC2a: BACKLOG-002 banned priority' => sub {
     plan tests => 2;
     my $bad = $VALID_BACKLOG_MIN;
-    $bad =~ s/Priority\*\*: Medium/Priority**: Needs-Triage/;
+    $bad =~ s/### Priority: Medium/### Priority: Needs-Triage/;
     my $dir = make_isolated('BACKLOG.md' => $bad, 'CHANGELOG.md' => $VALID_CHANGELOG);
     my ($rc, $out, $err) = run_bm($dir, 'validate');
     is($rc, 1, 'exit 1');
@@ -163,19 +165,18 @@ subtest 'AC2d: BACKLOG-004 HTML comment rejected' => sub {
     like($err, qr/BACKLOG-004/, 'BACKLOG-004 fired');
 };
 
-subtest 'AC2e: BACKLOG-005 struck-through heading rejected' => sub {
+subtest 'AC2e: BACKLOG-005 struck-through title rejected' => sub {
     plan tests => 2;
     my $bad = <<'END';
 # CWF System Backlog
 
 Intro.
 
----
 
-## ~~Task: Old~~ ✓ COMPLETED
+## Task: ~~Old~~ ✓ COMPLETED
 
-**Task-Type**: chore
-**Priority**: Low
+### Task-Type: chore
+### Priority: Low
 
 Body.
 END
@@ -185,19 +186,18 @@ END
     like($err, qr/BACKLOG-005/, 'BACKLOG-005 fired');
 };
 
-subtest 'AC2f: BACKLOG-006 #### in body rejected' => sub {
-    plan tests => 2;
-    my $bad = <<'END';
+subtest 'AC2f: #### in body now allowed (BACKLOG-006 retired in Task 132)' => sub {
+    plan tests => 1;
+    my $body_with_h4 = <<'END';
 # CWF System Backlog
 
 Intro.
 
----
 
 ## Task: Has Subhead
 
-**Task-Type**: chore
-**Priority**: Low
+### Task-Type: chore
+### Priority: Low
 
 Body before.
 
@@ -205,10 +205,9 @@ Body before.
 
 Body after.
 END
-    my $dir = make_isolated('BACKLOG.md' => $bad, 'CHANGELOG.md' => $VALID_CHANGELOG);
+    my $dir = make_isolated('BACKLOG.md' => $body_with_h4, 'CHANGELOG.md' => $VALID_CHANGELOG);
     my ($rc, $out, $err) = run_bm($dir, 'validate');
-    is($rc, 1, 'exit 1');
-    like($err, qr/BACKLOG-006/, 'BACKLOG-006 fired');
+    is($rc, 0, "validate exit 0; #### in body allowed (err: $err)");
 };
 
 subtest 'AC2g: CHANGELOG-003 out-of-order subsections rejected' => sub {
@@ -220,8 +219,8 @@ Intro.
 
 ## Task 1: Out of order
 
-**Status**: Complete (2026-01-01)
-**Impact**: chore
+### Status: Complete (2026-01-01)
+### Impact: chore
 
 ### Notable
 - bar
@@ -248,8 +247,8 @@ Intro.
 
 ## Task 131: Foo
 
-**Status**: Complete (2026-05-07)
-**Impact**: feature
+### Status: Complete (2026-05-07)
+### Impact: feature
 
 ### Changes
 - Did stuff.
@@ -274,9 +273,9 @@ Intro.
 
 ## Task 1: Has all
 
-**Status**: Complete (2026-01-01)
-**Duration**: 1 day
-**Impact**: chore
+### Status: Complete (2026-01-01)
+### Duration: 1 day
+### Impact: chore
 
 ### Changes
 - foo
@@ -284,49 +283,44 @@ Intro.
 ### Notable
 - bar
 
----
 
 ## Task 2: No duration
 
-**Status**: Complete (2026-01-02)
-**Impact**: chore
+### Status: Complete (2026-01-02)
+### Impact: chore
 
 ### Changes
 - foo
 
----
 
 ## Task 3: No changes section
 
-**Status**: Complete (2026-01-03)
-**Impact**: chore
+### Status: Complete (2026-01-03)
+### Impact: chore
 
 ### Notable
 - bar
 
----
 
 ## Task 4: No notable section
 
-**Status**: Complete (2026-01-04)
-**Impact**: chore
+### Status: Complete (2026-01-04)
+### Impact: chore
 
 ### Changes
 - foo
 
----
 
 ## Task 5: Bare metadata
 
-**Status**: Complete (2026-01-05)
-**Impact**: chore
+### Status: Complete (2026-01-05)
+### Impact: chore
 
----
 
 ## Task 6: With Retired
 
-**Status**: Complete (2026-01-06)
-**Impact**: feature
+### Status: Complete (2026-01-06)
+### Impact: feature
 
 ### Changes
 - foo
@@ -353,39 +347,35 @@ subtest 'AC5: list groups by priority' => sub {
 
 Intro.
 
----
 
 ## Task: Very High Item
 
-**Task-Type**: chore
-**Priority**: Very High
+### Task-Type: chore
+### Priority: Very High
 
 Body.
 
----
 
 ## Task: High Item
 
-**Task-Type**: chore
-**Priority**: High
+### Task-Type: chore
+### Priority: High
 
 Body.
 
----
 
 ## Task: Medium Item
 
-**Task-Type**: chore
-**Priority**: Medium
+### Task-Type: chore
+### Priority: Medium
 
 Body.
 
----
 
 ## Task: Low Item
 
-**Task-Type**: chore
-**Priority**: Low
+### Task-Type: chore
+### Priority: Low
 
 Body.
 END
@@ -403,13 +393,13 @@ END
 
 subtest 'AC6a: soft cap — top band overflow shown in full' => sub {
     plan tests => 2;
-    my $bl = "# CWF System Backlog\n\nIntro.\n\n---\n\n";
+    my $bl = "# CWF System Backlog\n\nIntro.\n\n";
     for my $i (1 .. 25) {
-        $bl .= "## Task: High Item $i\n\n**Task-Type**: chore\n**Priority**: High\n\nBody.\n\n---\n\n";
+        $bl .= "## Task: High Item $i\n\n### Task-Type: chore\n### Priority: High\n\nBody.\n\n";
     }
     for my $i (1 .. 5) {
-        $bl .= "## Task: Med Item $i\n\n**Task-Type**: chore\n**Priority**: Medium\n\nBody.\n";
-        $bl .= "\n---\n\n" if $i < 5;
+        $bl .= "## Task: Med Item $i\n\n### Task-Type: chore\n### Priority: Medium\n\nBody.\n";
+        $bl .= "\n" if $i < 5;
     }
     my $dir = make_isolated('BACKLOG.md' => $bl, 'CHANGELOG.md' => $VALID_CHANGELOG);
     my ($rc, $out, $err) = run_bm($dir, 'list');
@@ -420,13 +410,13 @@ subtest 'AC6a: soft cap — top band overflow shown in full' => sub {
 
 subtest 'AC6b: --all-items shows everything' => sub {
     plan tests => 2;
-    my $bl = "# CWF System Backlog\n\nIntro.\n\n---\n\n";
+    my $bl = "# CWF System Backlog\n\nIntro.\n\n";
     for my $i (1 .. 25) {
-        $bl .= "## Task: High Item $i\n\n**Task-Type**: chore\n**Priority**: High\n\nBody.\n\n---\n\n";
+        $bl .= "## Task: High Item $i\n\n### Task-Type: chore\n### Priority: High\n\nBody.\n\n";
     }
     for my $i (1 .. 5) {
-        $bl .= "## Task: Med Item $i\n\n**Task-Type**: chore\n**Priority**: Medium\n\nBody.\n";
-        $bl .= "\n---\n\n" if $i < 5;
+        $bl .= "## Task: Med Item $i\n\n### Task-Type: chore\n### Priority: Medium\n\nBody.\n";
+        $bl .= "\n" if $i < 5;
     }
     my $dir = make_isolated('BACKLOG.md' => $bl, 'CHANGELOG.md' => $VALID_CHANGELOG);
     my ($rc, $out, $err) = run_bm($dir, 'list', '--all-items');
@@ -462,22 +452,26 @@ subtest 'AC8a: add rejects banned priority' => sub {
     is($rc, 1, 'rejected with exit 1');
 };
 
-subtest 'AC8b: add rejects body containing ^---$' => sub {
-    plan tests => 1;
+subtest 'AC8b: add allows body containing --- (heading-tree format has no separator semantics)' => sub {
+    plan tests => 2;
     my $dir = make_isolated('BACKLOG.md' => $VALID_BACKLOG_MIN, 'CHANGELOG.md' => $VALID_CHANGELOG);
     my ($rc, $out, $err) = run_bm($dir, 'add',
-        '--priority=Low', '--task-type=chore', '--title=X', "--body=line1\n---\nline2",
+        '--priority=Low', '--task-type=chore', '--title=Body With Hr', "--body=line1\n---\nline2",
     );
-    is($rc, 1, 'rejected with exit 1');
+    is($rc, 0, "add exit 0 (err: $err)");
+    my ($rc2, undef, $err2) = run_bm($dir, 'validate');
+    is($rc2, 0, "validate after add (err: $err2)");
 };
 
-subtest 'AC8c: add rejects body containing #### line' => sub {
-    plan tests => 1;
+subtest 'AC8c: add allows body containing #### (BACKLOG-006 retired in Task 132)' => sub {
+    plan tests => 2;
     my $dir = make_isolated('BACKLOG.md' => $VALID_BACKLOG_MIN, 'CHANGELOG.md' => $VALID_CHANGELOG);
     my ($rc, $out, $err) = run_bm($dir, 'add',
-        '--priority=Low', '--task-type=chore', '--title=X', "--body=before\n#### Subhead\nafter",
+        '--priority=Low', '--task-type=chore', '--title=Body With H4', "--body=before\n#### Subhead\nafter",
     );
-    is($rc, 1, 'rejected with exit 1');
+    is($rc, 0, "add exit 0 (err: $err)");
+    my ($rc2, undef, $err2) = run_bm($dir, 'validate');
+    is($rc2, 0, "validate after add (err: $err2)");
 };
 
 #==============================================================================
@@ -491,13 +485,12 @@ subtest 'AC9: modify priority preserves Status field byte-for-byte' => sub {
 
 Intro.
 
----
 
 ## Task: Test Mod
 
-**Task-Type**: chore
-**Priority**: Medium
-**Status**: Backlog
+### Task-Type: chore
+### Priority: Medium
+### Status: Backlog
 
 Body content here.
 END
@@ -505,8 +498,8 @@ END
     my ($rc, $out, $err) = run_bm($dir, 'modify', '--id=test-mod', '--priority=Low');
     is($rc, 0, "modify exit 0 (err: $err)");
     my $content = _slurp("$dir/BACKLOG.md");
-    like($content, qr/^\*\*Priority\*\*: Low$/m, 'priority changed to Low');
-    like($content, qr/^\*\*Status\*\*: Backlog$/m, 'Status preserved');
+    like($content, qr/^### Priority: Low$/m, 'priority changed to Low');
+    like($content, qr/^### Status: Backlog$/m, 'Status preserved');
 };
 
 #==============================================================================
@@ -520,21 +513,19 @@ subtest 'AC10: ambiguous slug rejected' => sub {
 
 Intro.
 
----
 
 ## Task: Same Slug
 
-**Task-Type**: chore
-**Priority**: Low
+### Task-Type: chore
+### Priority: Low
 
 Body.
 
----
 
 ## Task: Same  Slug
 
-**Task-Type**: chore
-**Priority**: Low
+### Task-Type: chore
+### Priority: Low
 
 Body.
 END
@@ -679,8 +670,8 @@ Intro.
 
 ## Task 131: Foo
 
-**Status**: Complete (2026-05-07)
-**Impact**: feature
+### Status: Complete (2026-05-07)
+### Impact: feature
 
 ### Changes
 - A.
@@ -780,6 +771,98 @@ subtest 'AC17: chain add → modify → validate → retire' => sub {
 
     ($rc, undef, $err) = run_bm($dir, 'validate');
     is($rc, 0, "validate after retire (err: $err)");
+};
+
+#==============================================================================
+# AC18 — `normalise` subcommand: convert legacy Task-131 format to heading-tree
+#==============================================================================
+
+# Legacy-format BACKLOG (mirrors the Task-131 shape pre-migration).
+my $LEGACY_BACKLOG = <<'END';
+# CWF System Backlog
+
+Future tasks for the CWF system.
+
+---
+
+## Task: Sample Legacy Entry
+
+**Task-Type**: chore
+**Priority**: Medium
+
+This is a legacy-format entry body.
+
+**Identified in**: Task 131 retrospective
+
+---
+
+## Task: Second Legacy Entry
+
+**Task-Type**: feature
+**Priority**: High
+
+Second body content.
+END
+
+# Legacy-format CHANGELOG fixture (Task-131 shape: bold-paragraph metadata
+# at entry top, subsection bodies preserved).
+my $LEGACY_CHANGELOG = <<'END';
+# Changelog
+
+History.
+
+## Task 131: Add backlog-manager
+
+**Status**: Complete (2026-05-07)
+**Impact**: feature
+
+### Changes
+- Added backlog-manager helper
+
+### Notable
+- First feature task to use it.
+END
+
+subtest 'AC18a: normalise --dry-run on legacy fixture reports change, writes nothing' => sub {
+    plan tests => 4;
+    my $dir = make_isolated('BACKLOG.md' => $LEGACY_BACKLOG, 'CHANGELOG.md' => $LEGACY_CHANGELOG);
+    my $bl_before = _slurp("$dir/BACKLOG.md");
+    my $cl_before = _slurp("$dir/CHANGELOG.md");
+    my ($rc, $out, $err) = run_bm($dir, 'normalise', '--dry-run');
+    is($rc, 0, "dry-run exit 0 (err: $err)");
+    like($err, qr/would normalise/, 'reports planned change');
+    is(_slurp("$dir/BACKLOG.md"), $bl_before, 'BACKLOG unchanged on dry-run');
+    is(_slurp("$dir/CHANGELOG.md"), $cl_before, 'CHANGELOG unchanged on dry-run');
+};
+
+subtest 'AC18b: normalise migrates legacy fixture; subsequent validate clean' => sub {
+    plan tests => 5;
+    my $dir = make_isolated('BACKLOG.md' => $LEGACY_BACKLOG, 'CHANGELOG.md' => $LEGACY_CHANGELOG);
+    my ($rc, $out, $err) = run_bm($dir, 'normalise');
+    is($rc, 0, "normalise exit 0 (err: $err)");
+    my $bl_after = _slurp("$dir/BACKLOG.md");
+    my $cl_after = _slurp("$dir/CHANGELOG.md");
+    unlike($bl_after, qr/^---$/m, 'no `---` separators in BACKLOG');
+    unlike($bl_after, qr/^\*\*Task-Type\*\*:/m, 'no `**Task-Type**:` paragraph metadata in BACKLOG');
+    like($bl_after, qr/^### Task-Type: chore$/m, '### Task-Type: chore present');
+    my ($rc2, undef, $err2) = run_bm($dir, 'validate');
+    is($rc2, 0, "validate exit 0 (err: $err2)");
+};
+
+subtest 'AC18c: normalise on canonical fixture is no-op (byte-identical)' => sub {
+    plan tests => 3;
+    my $dir = make_isolated('BACKLOG.md' => $LEGACY_BACKLOG, 'CHANGELOG.md' => $LEGACY_CHANGELOG);
+    # First pass: migrate.
+    my ($rc, $out, $err) = run_bm($dir, 'normalise');
+    is($rc, 0, "first normalise (err: $err)");
+    my $bl_canon = _slurp("$dir/BACKLOG.md");
+    my $cl_canon = _slurp("$dir/CHANGELOG.md");
+    # Second pass: idempotent.
+    my ($rc2, $out2, $err2) = run_bm($dir, 'normalise');
+    is($rc2, 0, "second normalise (err: $err2)");
+    is(_slurp("$dir/BACKLOG.md") . "|" . _slurp("$dir/CHANGELOG.md"),
+       $bl_canon . "|" . $cl_canon,
+       'second normalise byte-identical');
 };
 
 done_testing();

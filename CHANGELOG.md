@@ -2,11 +2,41 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 132: Refactor BACKLOG/CHANGELOG to heading-tree model
+
+### Status: Complete (2026-05-10)
+### Duration: ~5 sessions; estimate 3-5 sessions; landed at the upper end of the band, with implementation-exec ~25-50% over budget driven by migration-script iteration and an unplanned `/simplify` pass.
+### Impact: Feature — replaces the `^---$`-delimited section + `**Field**:` bold-paragraph metadata convention with a uniform heading-based tree. `## (Task|Bug):`/`## Task N:` headings are entries by construction; metadata is `### Key: value` H3 lines; subsections are `### Changes`/`### Notable`/`### Retired Backlog Items`. The Task 131 missing-entries bug (45 reported / 50 actual headings) is now structurally impossible. CWF::Backlog exposes a tree API (`parse_backlog_tree`/`parse_changelog_tree`/`serialize_tree` plus mutators); `backlog-manager` gains a seventh subcommand `normalise` for external adopter migration. New `/cwf-backlog-manager` slash-command skill registered. Live BACKLOG.md (50 entries) and CHANGELOG.md (94 entries) round-trip byte-identical post-migration. `prove t/` 412/412 PASS (vs 408 baseline); `cwf-manage validate` clean.
+
+### Changes
+- Refactored: `.cwf/lib/CWF/Backlog.pm` — heading-tree parser/validator/serialiser (~700 lines after `/simplify`, perms `0444`). Public API: `parse_backlog_tree`/`parse_changelog_tree`/`serialize_tree`/`write_tree`/`metadata_get`/`metadata_node`/`set_metadata_field`/`add_entry`/`delete_entry`/`find_all_entries_by_slug`/`find_all_entries_by_title`/`find_changelog_entry_by_task_num`/`append_retired_block_tree`/`block_exists_in_retired_tree`/`validate_backlog_tree`/`validate_changelog_tree`/`trim_blank_lines`/`$VALID_PRIORITIES`/`$METADATA_KEY_RE`/`@CANONICAL_SUBSECTIONS`. Postel-liberal parser, Postel-strict serialiser. Single-source `_build_fence_map($lines)` cached on the tree (`_source_lines`/`_source_fence`). Body-before-metadata captured as a boolean `body_before_meta` flag, not a separate body slot.
+- Refactored: `.cwf/scripts/command-helpers/backlog-manager` (~660 lines after `/simplify`). Seven subcommands: `validate` (with `--all` and `--strict`), `list`, `add`, `modify`, `delete`, `retire`, `normalise` (new — with `--dry-run`). `resolve_entry($tree, \%opts, allow_missing => …)` extracted helper for find-or-die pattern; `cmd_normalise` reuses the canonicalisation logic that originated in the throwaway migration script.
+- Added: `.claude/skills/cwf-backlog-manager/SKILL.md` — thin `/cwf-status`-shape wrapper exposing all seven subcommands; documents the `cd "$(git rev-parse --show-toplevel)"` pre-step and the list-form invocation rule (`--title='Test $(date)'` worked example).
+- Added: `t/backlog-tree-parse.t` — 10 subtests (TC-PARSE-1 through TC-PARSE-8 plus live-file plausibility). TC-PARSE-7 covers round-trip byte-identity for 5 canonical fixtures.
+- Added: `t/backlog-tree-validate.t` — 15 subtests; positive + negative coverage for every active rule (`GLOBAL-001a/b`, `GLOBAL-002`, `BACKLOG-001/002/004/005/007`, `CHANGELOG-001/002/003/004`); TC-VAL-FENCE-INVARIANT; regression cases asserting retired BACKLOG-003 (`---` body) and BACKLOG-006 (`#### Sub` body) no longer fire.
+- Added: `t/backlog-tree-mutators.t` — 7 subtests covering `set_metadata_field`, `add_entry`, `delete_entry`, `find_all_entries_by_*`, `append_retired_block_tree`, `block_exists_in_retired_tree`.
+- Added: `t/backlog-roundtrip-live.t` — TC-ROUNDTRIP-LIVE-BACKLOG and TC-ROUNDTRIP-LIVE-CHANGELOG; the strongest regression alarm (one byte different = red).
+- Refactored: `t/backlog-manager.t` — fixtures bulk-converted from `**Field**:` to `### Field:`; AC1 TODO-wrapped until live BACKLOG migration complete; AC2e/2f, AC6a/b, AC8b/8c, AC9 updated for new format; 3 new normalise subtests (AC18a/b/c).
+- Removed: `t/backlog.t` — Task 131 flat-blob test surface superseded by the four `t/backlog-tree-*.t` files.
+- Migrated: `BACKLOG.md` (50 entries) and `CHANGELOG.md` (94 entries) to heading-tree format. Pre-migration snapshots durable at `/tmp/task-132/BACKLOG.md.pre-migration` (74,014 B) and `/tmp/task-132/CHANGELOG.md.pre-migration` (231,373 B).
+- Modified: `.cwf/security/script-hashes.json` — refreshes `Backlog.pm` and `backlog-manager` SHA256 after the refactor + `/simplify` pass.
+
+### Notable
+- **The data model is the bug, not the splitter.** The Task 131 missing-entries diagnosis ended at "the parser splits on `^---$` and entries silently merge when the marker is absent". The Task 132 reframe was "the data model is the bug" — entries should *be* `## Heading` blocks by construction, not opaque blobs split on a presentation-layer artefact. The 5-session structural refactor beats a 1-day fragile splitter patch by removing the bug class, not patching one instance.
+- **Postel's Law as architecture, not just a saying.** The parser is liberal (accepts pre-migration `**Field**:` *and* canonical `### Field:`; tolerates body-before-metadata as a warning, not an error). The serialiser is strict (always emits canonical title→metadata→body order; always normalises blank lines). The migration script's job was small because the round-trip guaranteed everything else.
+- **Live round-trip byte-identity is the strongest regression alarm available.** TC-ROUNDTRIP-LIVE-BACKLOG/CHANGELOG fail on a single byte difference between read and re-serialise. Worth keeping as a pattern in any future parser/serialiser refactor.
+- **Single-source fence map is non-negotiable.** Two consumers of "is this line inside a fence?" must never compute it independently — they will disagree on edge cases. `_build_fence_map($lines)` cached on the parse tree, queried by all four fence-aware validator rules and both retired-subsection mutators.
+- **`/simplify` after f-implementation-exec earned its keep.** -82 lines `Backlog.pm`, -40 lines `backlog-manager`. Single-source-of-truth constants (`$VALID_PRIORITIES`, `$METADATA_KEY_RE`, `@CANONICAL_SUBSECTIONS`) extracted; redundant `pre_meta_body` array slot collapsed to `body_before_meta` boolean; cached `_source_lines`/`_source_fence` on the tree so validators don't re-tokenise. The diff was tighter and easier to review afterwards.
+- **Promote helpful one-off scripts into first-class commands when the user asks.** The user pointed out external CWF adopters need an upgrade path; the throwaway `/tmp/task-132/migrate-backlog-format.pl` was lifted into `backlog-manager normalise` for ~0.25 sess. Idempotent (`already canonical (no change)` on no-op), `--dry-run` available, integrated with the standard helper surface.
+- **Permission-prompt friction from `perl <script>` was a measurable wall-clock cost.** I repeatedly invoked `/tmp` Perl scripts via `perl /tmp/.../script.pl` instead of `chmod +x` then direct shebang execution. User pushback was sharp ("this is unix not windows … ~20× slower than necessary"). Memory `feedback_chmod_and_execute.md` captured.
+- **Migration script needed three iterations.** BACKLOG-007 false fire (caused by all body in `body_raw` regardless of position relative to metadata), AC5d body-byte ratio failing on legitimate body→metadata promotion, idempotency heuristic tripping on a `### Solution:` body line. Each was small; cumulatively they ate the f-phase overrun. Pre-mortem of "what could the validator falsely fire on" would have surfaced the first two.
+- **AC4 grep gate was too coarse.** File-wide `^\*\*[A-Z][\w\- ]*\*\*:` grep finds prose-bold body content (e.g. `**Create**:` followed by a bullet list) as well as metadata. Validators correctly do not classify these as metadata; the semantic gate (validate clean + round-trip byte-identical) holds. Tightening AC4 to "metadata position only" added to BACKLOG as follow-up.
+
 ## Task 131: Add backlog management helper script
 
-**Status**: Complete (2026-05-10)
-**Duration**: ~3 sessions (Pass 1 + Pass 2 re-plan/re-exec); estimate 1–2 days; variance +25–50% from the marker-tombstone re-plan cycle.
-**Impact**: Feature — `.cwf/scripts/command-helpers/backlog-manager` (six subcommands: `add`, `delete`, `modify`, `list`, `validate`, `retire`) plus shared `CWF::Backlog` library codify a strict separation: **BACKLOG holds active work only; CHANGELOG holds history**. `retire` *moves* an entry across the boundary into the implementing task's CHANGELOG `### Retired Backlog Items` block; nothing is ever marked-in-place. Validator (BACKLOG-001..006, CHANGELOG-001..003, GLOBAL-001) enforces the contract by construction. As part of rollout, 61 legacy `<!-- Completed: -->` / `<!-- Removed: -->` markers were migrated out of BACKLOG.md (1646 → 1482 lines, -10%); two `^####` body headings demoted to bold-paragraph per BACKLOG-006. `prove t/` 408/408 PASS; `cwf-manage validate` clean. j-retrospective Step 8 onwards can invoke `backlog-manager retire` instead of hand-editing both files.
+### Status: Complete (2026-05-10)
+### Duration: ~3 sessions (Pass 1 + Pass 2 re-plan/re-exec); estimate 1–2 days; variance +25–50% from the marker-tombstone re-plan cycle.
+### Impact: Feature — `.cwf/scripts/command-helpers/backlog-manager` (six subcommands: `add`, `delete`, `modify`, `list`, `validate`, `retire`) plus shared `CWF::Backlog` library codify a strict separation: **BACKLOG holds active work only; CHANGELOG holds history**. `retire` *moves* an entry across the boundary into the implementing task's CHANGELOG `### Retired Backlog Items` block; nothing is ever marked-in-place. Validator (BACKLOG-001..006, CHANGELOG-001..003, GLOBAL-001) enforces the contract by construction. As part of rollout, 61 legacy `<!-- Completed: -->` / `<!-- Removed: -->` markers were migrated out of BACKLOG.md (1646 → 1482 lines, -10%); two `^####` body headings demoted to bold-paragraph per BACKLOG-006. `prove t/` 408/408 PASS; `cwf-manage validate` clean. j-retrospective Step 8 onwards can invoke `backlog-manager retire` instead of hand-editing both files.
 
 ### Changes
 - Added: `.cwf/scripts/command-helpers/backlog-manager` (~700 lines Perl, perms `0500`). Six subcommands; printable-ASCII + `-->`-rejection on `--note`; atomic two-file write (CHANGELOG first, BACKLOG second; dedup via `block_exists_in_retired` for crash recovery).
@@ -25,13 +55,11 @@ All notable changes to the Code Implementation Guide (CIG) project are documente
 - **TODO-wrapped live-file assertions order rollout against test changes cleanly.** AC1 (live BACKLOG passes validate) needed the migration to land first; wrapping it in `TODO {}` during f/g and lifting the wrapper in h kept the suite green throughout, made the migration's rollout-readiness machine-verifiable, and the lift itself was a one-line per-file edit.
 - **Migration was reversible end-to-end.** `/tmp/task-131/BACKLOG.md.before` snapshot + `git revert` of the migration commit + `git revert` of the Pass 2 squash — three independent rollback points.
 
----
-
 ## Task 130: Refactor BACKLOG to match current code state
 
-**Status**: Complete (2026-05-07)
-**Duration**: 1 session of active work (estimated: 1 day; on target)
-**Impact**: Chore — first deliberate BACKLOG triage sweep against current code state. 4 of ~50 active entries touched: 2 removed (work shipped or scope dead), 1 edited (commands→skills migration changed the audit target), 1 coalesced (two duplicate entries about lightweight rollout/maintenance templates merged at higher priority), 1 reclassified (`Needs-Triage` → `Low`). ~45 entries kept-as-is — verified each named script/file/function genuinely doesn't exist or wasn't completed. BACKLOG.md −62 net lines (17 ins, 79 del); 6/6 manual test cases PASS; `cwf-manage validate` clean.
+### Status: Complete (2026-05-07)
+### Duration: 1 session of active work (estimated: 1 day; on target)
+### Impact: Chore — first deliberate BACKLOG triage sweep against current code state. 4 of ~50 active entries touched: 2 removed (work shipped or scope dead), 1 edited (commands→skills migration changed the audit target), 1 coalesced (two duplicate entries about lightweight rollout/maintenance templates merged at higher priority), 1 reclassified (`Needs-Triage` → `Low`). ~45 entries kept-as-is — verified each named script/file/function genuinely doesn't exist or wasn't completed. BACKLOG.md −62 net lines (17 ins, 79 del); 6/6 manual test cases PASS; `cwf-manage validate` clean.
 
 ### Changes
 - Modified: `BACKLOG.md` — removed `Add Settings.json Merge Helper Script` (superseded by `.cwf/scripts/command-helpers/cwf-claude-settings-merge`); removed `Update Documentation References from status-aggregator to status-aggregator` (title incoherent post-rebrand; referenced deleted `.claude/commands/cwf-status.md`; intent settled by Task 25 trampoline rollout); edited `Audit CWF Commands for Hardcoded Data` → `Audit CWF Skills for Hardcoded Data` (commands→skills migration eliminated the original audit target); coalesced `Lightweight Rollout/Maintenance Templates for Internal Tasks` (Low) + `Lighter-Weight Rollout/Maintenance Templates for Internal/Developer-Tool Tasks` (Medium) into a single Medium-priority entry; reclassified `Extract CWF Argument Validation Pattern to Documentation` from `Needs-Triage` → `Low` (underlying Task 11 cancelled; pattern still useful as security-review reference).
@@ -45,13 +73,11 @@ All notable changes to the Code Implementation Guide (CIG) project are documente
 - **Empty security-review changeset on a markdown-only task** — confirmed the helper's CWF-internal-dir + shebang-sniff classification correctly excludes pure content edits. No subagent invocation needed.
 - **Process deviation accepted up-front.** d-impl-plan called for per-entry user co-review; user delegated triage to me with a single review pass at the end. I leaned conservative (lean toward keep when evidence ambiguous); user's review pass remains authoritative.
 
----
-
 ## Task 129: Fix security-review changeset construction
 
-**Status**: Complete (2026-05-06)
-**Duration**: 1 session of active work (estimated: 1-2 days; variance: under)
-**Impact**: Bugfix — closes the Very-High-priority BACKLOG entry surfaced by Task 128's cap-overflow. Replaces the inline `git diff $(git merge-base HEAD main)..HEAD -- <extension-and-directory-pathspec>` in the two exec SKILLs with one Perl helper that owns the full changeset-construction contract: per-task baseline anchor (recorded as a markdown field in `a-task-plan.md`), CWF-internal-directory unconditional-include rule, and shebang-based content classification over the diff window. Closes all three independent failure modes (extension-only filtering, hardcoded language stack, merge-base over-inclusion). 13 new subtests cover the BACKLOG axes plus security/reliability/performance non-functionals.
+### Status: Complete (2026-05-06)
+### Duration: 1 session of active work (estimated: 1-2 days; variance: under)
+### Impact: Bugfix — closes the Very-High-priority BACKLOG entry surfaced by Task 128's cap-overflow. Replaces the inline `git diff $(git merge-base HEAD main)..HEAD -- <extension-and-directory-pathspec>` in the two exec SKILLs with one Perl helper that owns the full changeset-construction contract: per-task baseline anchor (recorded as a markdown field in `a-task-plan.md`), CWF-internal-directory unconditional-include rule, and shebang-based content classification over the diff window. Closes all three independent failure modes (extension-only filtering, hardcoded language stack, merge-base over-inclusion). 13 new subtests cover the BACKLOG axes plus security/reliability/performance non-functionals.
 
 ### Changes
 - Added: `.cwf/scripts/command-helpers/security-review-changeset` (~340 lines Perl, perms `0500`). Anchor resolution: `**Baseline Commit**` field in `a-task-plan.md` → fallback `git merge-base HEAD <trunk>` (trunk via `cwf-project.json:trunk` → `git symbolic-ref refs/remotes/origin/HEAD` → hardcoded `main`, validated by `git check-ref-format --branch`). Classification: hardcoded CWF-internal-dir prefix list (rule 1, unconditional include) + anchored shebang regex `^(?:perl|bash|sh|ksh|zsh|fish|python\d?|ruby|node|deno|php|lua|pwsh|powershell)$` over the diff window (rule 2). `-e && -f && !-l` guard before `open` defends against symlink/FIFO/device targets in the diff. List-form `system`/`open '-|'` everywhere; no shell metacharacter exposure.
@@ -71,13 +97,11 @@ All notable changes to the Code Implementation Guide (CIG) project are documente
 - **`die` exits 255.** Smoke test surfaced that Perl's default `die` exit code (255) violated the spec'd exit 1 for `--task-num='foo;bar'`. Converted all `die` to `warn …; exit 1;` per the existing CWF helper convention (`cwf-checkpoint-commit:14-15`). Future helpers should adopt this from the start.
 - **Cap-overflow recurs when the change *is* the security-review fix.** Both f (593 lines) and g (1112 lines) recorded `**State**: error`; manual threat-category walkthroughs supplied in the wf step files. The follow-up "Quantitatively justify the security-review subagent line-count cap" should run next with the now-correctly-scoped diff in hand.
 
----
-
 ## Task 128: Audit Perl-vs-Bash helper scripts and migrate where feasible
 
-**Status**: Complete (2026-05-06)
-**Duration**: 1 session of active work (estimated: 0.5–1 day; variance ~0%)
-**Impact**: Chore — closes the Task 125 follow-up. Discovery found that 4 of 5 in-scope POSIX shell helpers (`cwf-find-task-numbering-structure`, `cwf-load-{existing-tasks,project-config,status-sections}`) had zero callers in active code (artefacts of an earlier autoload-config design that never landed), and the 5th (`cwf-load-autoload-config`) was a 4-line `cat`-or-fallback used in exactly one place (the `cwf-config` skill's mandatory-context bullet). Decision: delete all five rather than migrate, and inline the one usage. Net delta ~50 lines: 5 helper deletions, 1 SKILL.md line edit, 5-entry pruning of `script-hashes.json`, BACKLOG completion marker. Coverage-regression test (`t/validate-security-coverage.t`) auto-adjusted from 24 → 19 top-level helpers; full suite 325/325 passing. Migration-to-Perl was reframed away because none of the helpers carried logic that justified Perl ceremony — no path-emitting git, no options, no error handling, no shared state.
+### Status: Complete (2026-05-06)
+### Duration: 1 session of active work (estimated: 0.5–1 day; variance ~0%)
+### Impact: Chore — closes the Task 125 follow-up. Discovery found that 4 of 5 in-scope POSIX shell helpers (`cwf-find-task-numbering-structure`, `cwf-load-{existing-tasks,project-config,status-sections}`) had zero callers in active code (artefacts of an earlier autoload-config design that never landed), and the 5th (`cwf-load-autoload-config`) was a 4-line `cat`-or-fallback used in exactly one place (the `cwf-config` skill's mandatory-context bullet). Decision: delete all five rather than migrate, and inline the one usage. Net delta ~50 lines: 5 helper deletions, 1 SKILL.md line edit, 5-entry pruning of `script-hashes.json`, BACKLOG completion marker. Coverage-regression test (`t/validate-security-coverage.t`) auto-adjusted from 24 → 19 top-level helpers; full suite 325/325 passing. Migration-to-Perl was reframed away because none of the helpers carried logic that justified Perl ceremony — no path-emitting git, no options, no error handling, no shared state.
 
 ### Changes
 - Deleted: `.cwf/scripts/command-helpers/cwf-find-task-numbering-structure`, `cwf-load-autoload-config`, `cwf-load-existing-tasks`, `cwf-load-project-config`, `cwf-load-status-sections` (all POSIX shell, all dead/trivial).
@@ -92,12 +116,10 @@ All notable changes to the Code Implementation Guide (CIG) project are documente
 - **Dynamic-count test pattern paid off.** `t/validate-security-coverage.t`'s `plan tests => scalar(@top_level) + 1` auto-adjusted to the new helper count without source edit. Worth standardising for any "every X under Y must satisfy Z" assertion.
 - **Cap-exceeded security review surfaced a real bug.** Both f and g phases recorded `**State**: error` (1422 / 1545 lines, inflated by Task 127 sitting unmerged between this branch's merge-base and main). Inspecting the underlying `git diff` invocation revealed three independent bugs in the security-review pathspec construction — extension-based file filtering, hardcoded language-stack assumptions, and merge-base anchor over-including earlier-task commits. Captured to BACKLOG as Very High; the cap-overflow was the leading indicator, not the underlying problem.
 
----
-
 ## Task 127: Upgrade installs cwf-init artefacts
 
-**Status**: Complete (2026-05-05)
-**Impact**: Feature — `cwf-manage update` now re-applies every artefact `/cwf-init` produces (`.gitignore` lines, `.cwf/rules-inject.txt`, `.cwf-rules/` tree, CLAUDE.md preamble, `.claude/rules/cwf-*.md` symlinks, `.claude/settings.json` allowlist + Stop hooks). Conflicts use Debian dpkg-style three-way comparison with K/I/D/A prompts (`CWF_UPGRADE_RESOLVE=prompt|keep|new|abort` for non-interactive contexts). Closes the gap that Task 126's BACKLOG entry called out: previously only `.cwf/` and `.cwf-skills/` were refreshed by upgrades.
+### Status: Complete (2026-05-05)
+### Impact: Feature — `cwf-manage update` now re-applies every artefact `/cwf-init` produces (`.gitignore` lines, `.cwf/rules-inject.txt`, `.cwf-rules/` tree, CLAUDE.md preamble, `.claude/rules/cwf-*.md` symlinks, `.claude/settings.json` allowlist + Stop hooks). Conflicts use Debian dpkg-style three-way comparison with K/I/D/A prompts (`CWF_UPGRADE_RESOLVE=prompt|keep|new|abort` for non-interactive contexts). Closes the gap that Task 126's BACKLOG entry called out: previously only `.cwf/` and `.cwf-skills/` were refreshed by upgrades.
 
 ### Changes
 - Added: `.cwf/scripts/command-helpers/cwf-apply-artefacts` (~570 lines, perms `0500`). Reads `.cwf/install-manifest.json` from source + installed trees, dispatches per artefact's `kind` (line-additive, replace, tree, embedded-block, regenerate-symlinks). Three-way compare per FR3; prompts via FR4; honours `CWF_UPGRADE_RESOLVE` per FR5; `--bootstrap-init` mode for `/cwf-init` (silent install + audit log).
@@ -120,13 +142,11 @@ All notable changes to the Code Implementation Guide (CIG) project are documente
 - **D12 manifest SHA pin**: `.cwf/version` gains `cwf_install_manifest_sha`. `cwf-manage update` and `cwf-manage validate` cross-check it; mismatch indicates local manifest tampering and aborts the run with a recovery hint.
 - **Concurrency (D8)**: `flock(LOCK_EX|LOCK_NB)` on `.cwf/.update.lock` with `O_NOFOLLOW` + `lstat` precheck. Acquired before `check_clean_tree` so two concurrent updates cannot both pass the clean-tree gate before one blocks. Lock auto-releases on process exit (kernel-managed).
 
----
-
 ## Task 126: Fix install allowlist and hook enablement
 
-**Status**: Complete (2026-05-05)
-**Duration**: 1 session of active work (estimated: 1 session; variance ~0%)
-**Impact**: Bugfix — closes two install-time gaps in `/cwf-init` surfaced by a fresh install in a downstream project. (1) `Bash(.cwf/scripts/...)` allowlist entries were never written, so every helper invocation triggered a permission prompt on a fresh install; this repo's working `.claude/settings.local.json` had accreted those entries one at a time over months of use, masking the gap. (2) Stop hooks (`stop-stale-status-detector`, `stop-uncommitted-changes-warning`) were never registered, so fresh installs shipped without the two CWF safety nets the workflow assumes are active. Adds `cwf-claude-settings-merge` (a manifest-driven helper that walks `script-hashes.json` and merges the right entries into `.claude/settings.json`) and wires it into `/cwf-init` Step 6d. Idempotent. Builds on Task 125's coverage guard so future helpers/hooks flow into the allowlist automatically.
+### Status: Complete (2026-05-05)
+### Duration: 1 session of active work (estimated: 1 session; variance ~0%)
+### Impact: Bugfix — closes two install-time gaps in `/cwf-init` surfaced by a fresh install in a downstream project. (1) `Bash(.cwf/scripts/...)` allowlist entries were never written, so every helper invocation triggered a permission prompt on a fresh install; this repo's working `.claude/settings.local.json` had accreted those entries one at a time over months of use, masking the gap. (2) Stop hooks (`stop-stale-status-detector`, `stop-uncommitted-changes-warning`) were never registered, so fresh installs shipped without the two CWF safety nets the workflow assumes are active. Adds `cwf-claude-settings-merge` (a manifest-driven helper that walks `script-hashes.json` and merges the right entries into `.claude/settings.json`) and wires it into `/cwf-init` Step 6d. Idempotent. Builds on Task 125's coverage guard so future helpers/hooks flow into the allowlist automatically.
 
 ### Changes
 - Added: `.cwf/scripts/command-helpers/cwf-claude-settings-merge` (~150 lines, perms `0500`). Walks `.cwf/security/script-hashes.json`; partitions by path shape (cwf-manage / top-level helper / `.d/` skipped / hook); writes `Bash(<path>:*)` for argument-taking helpers, `Bash(<path>)` exact for hooks, and `hooks.Stop[0].hooks[]` entries with `type: command, timeout: 5`. Atomic write via `File::Temp` + `rename` (same pattern as `CWF::Versioning::bump_to`). Refuses symlinked `.claude/` or `.claude/settings.json` and manifest paths containing `..`. `--dry-run` and `--help` flags. Idempotent re-run.
@@ -145,13 +165,11 @@ All notable changes to the Code Implementation Guide (CIG) project are documente
 - **Security-review prose-before-sentinel**: both phase reviews emitted analysis before the required sentinel line, forcing the strict three-tier rule to classify them as `findings`. The agent's substantive conclusion in both cases was no actionable items (false-positive shebang nit in f, comprehensive analysis ending in `no findings` in g). Both accepted-and-recorded. Aligns with the existing BACKLOG item "Tighten security-subagent prompt for sentinel-line compliance".
 - 1 new helper, 1 new test file (9 subtests), 1 new SKILL step, 1 manifest entry, 1 BACKLOG add. Full suite 29 files / 271 tests → 30 / 280 (delta exactly +1 file +9 subtests).
 
----
-
 ## Task 125: Expand script-hashes integrity surface to command-helpers and hooks
 
-**Status**: Complete (2026-05-03)
-**Duration**: 1 session of active work (estimated: 1 session; variance ~0%)
-**Impact**: Chore — closes the SHA256 integrity gap surfaced by Task 124. Registers 17 new entries in `.cwf/security/script-hashes.json` covering every executable script under `.cwf/scripts/command-helpers/**` (3 Perl trampolines + 7 `*.d/` subcommands + 5 POSIX shell helpers) and `.cwf/scripts/hooks/` (2 hooks). Also lowers 4 pre-existing drift entries (`cwf-set-status`, `migrate-v2.1-file-order`, `task-context-inference`, `task-stack`) from recorded `0755` to `0500` (default policy: minimum bits that allow execution under `Validate::Security`'s min-bits semantics). Adds a permanent regression-guard test (`t/validate-security-coverage.t`) that walks both directories and asserts every executable file is registered — no shebang filter, every language counts. `cwf-manage validate` now reports zero violations across both sha256 and permissions.
+### Status: Complete (2026-05-03)
+### Duration: 1 session of active work (estimated: 1 session; variance ~0%)
+### Impact: Chore — closes the SHA256 integrity gap surfaced by Task 124. Registers 17 new entries in `.cwf/security/script-hashes.json` covering every executable script under `.cwf/scripts/command-helpers/**` (3 Perl trampolines + 7 `*.d/` subcommands + 5 POSIX shell helpers) and `.cwf/scripts/hooks/` (2 hooks). Also lowers 4 pre-existing drift entries (`cwf-set-status`, `migrate-v2.1-file-order`, `task-context-inference`, `task-stack`) from recorded `0755` to `0500` (default policy: minimum bits that allow execution under `Validate::Security`'s min-bits semantics). Adds a permanent regression-guard test (`t/validate-security-coverage.t`) that walks both directories and asserts every executable file is registered — no shebang filter, every language counts. `cwf-manage validate` now reports zero violations across both sha256 and permissions.
 
 ### Changes
 - Modified: `.cwf/security/script-hashes.json` — 17 new `scripts` entries (alphabetised by key; `<parent>.d/<sub>` shape used for subcommands per `Validate::Security:76` confirmation that keys are never parsed); 4 in-place permissions updates from `"0755"` → `"0500"`; `last_updated` bumped to 2026-05-03. Total `scripts` section now 36 entries (was 19).
@@ -169,13 +187,11 @@ All notable changes to the Code Implementation Guide (CIG) project are documente
 - **Process error worth noting**: first `task-workflow create` call passed `--destination="implementation-guide"` (instead of the full task-dir path), creating files in the wrong location. Trivial to recover but a recurrence risk on rapid task creation. The helper does what its argument says, not what the user meant — pass full destination paths.
 - 17 new manifest entries, 4 perms-drift fixes, 1 new test file (4 subtests), 1 BACKLOG close + 1 BACKLOG add. Full suite 28 files / 267 tests → 29 / 271 (delta exactly +1 file +4 subtests).
 
----
-
 ## Task 124: Audit Perl helpers vs perl-git-paths conventions
 
-**Status**: Complete (2026-05-03)
-**Duration**: 1 session of active work (estimated: 1–2 days; variance ~0%)
-**Impact**: Chore — adds `CWF::Validate::PerlConventions`, a fifth validator wired into `cwf-manage validate` (which runs at every workflow checkpoint commit via `cwf-checkpoint-commit:53`). Enforces three convention rules from `docs/conventions/perl-git-paths.md`: (1) `use utf8;` declared unconditionally on every Perl file under `.cwf/scripts/` and `.cwf/lib/CWF/`, (2) any captured `git status|diff|ls-files|diff-tree|diff-index` invocation uses `-z`, (3) any script that captures git output uses `#!/usr/bin/perl -CDSL`. POD and `#` comments are stripped before scanning so doc examples cannot trigger false positives. Grandfathered exception for `.cwf/scripts/hooks/stop-stale-status-detector` is hard-coded in the module's `@GRANDFATHERED` allowlist (no comment-marker bypass — TC-NF2 confirms a `# perl-git-paths-skip:` comment does not silence the check). 41 Perl files received `use utf8;` to bring the tree into compliance, plus a one-time refresh of 34 entries (and one new entry for the validator) in `.cwf/security/script-hashes.json`.
+### Status: Complete (2026-05-03)
+### Duration: 1 session of active work (estimated: 1–2 days; variance ~0%)
+### Impact: Chore — adds `CWF::Validate::PerlConventions`, a fifth validator wired into `cwf-manage validate` (which runs at every workflow checkpoint commit via `cwf-checkpoint-commit:53`). Enforces three convention rules from `docs/conventions/perl-git-paths.md`: (1) `use utf8;` declared unconditionally on every Perl file under `.cwf/scripts/` and `.cwf/lib/CWF/`, (2) any captured `git status|diff|ls-files|diff-tree|diff-index` invocation uses `-z`, (3) any script that captures git output uses `#!/usr/bin/perl -CDSL`. POD and `#` comments are stripped before scanning so doc examples cannot trigger false positives. Grandfathered exception for `.cwf/scripts/hooks/stop-stale-status-detector` is hard-coded in the module's `@GRANDFATHERED` allowlist (no comment-marker bypass — TC-NF2 confirms a `# perl-git-paths-skip:` comment does not silence the check). 41 Perl files received `use utf8;` to bring the tree into compliance, plus a one-time refresh of 34 entries (and one new entry for the validator) in `.cwf/security/script-hashes.json`.
 
 ### Changes
 - Added: `.cwf/lib/CWF/Validate/PerlConventions.pm` — new validator (~216 lines). Exports `validate($git_root)`. Walks `.cwf/scripts/` and `.cwf/lib/CWF/` via `File::Find`, filters to Perl scripts (shebang) and CWF modules (`^package CWF::`). Returns the same hashref shape as the other `CWF::Validate::*` modules (`{ category, file, field, actual, expected, fix }`) so `cmd_validate` formats it without new infrastructure.
@@ -196,13 +212,11 @@ All notable changes to the Code Implementation Guide (CIG) project are documente
 - **Probe scripts under `/tmp/task-124/`** (memory update to `feedback_no_heredocs.md`): TC-I4 and TC-NF2 needed scratch Perl to exercise `@GRANDFATHERED` semantics. First attempt used `perl -e` inline in Bash; user correction ("avoid using heredocs… create a dir under /tmp and edit the files in there direct") drove the switch to file-based probes. Memory generalised from "no heredocs in commits" to "no inline scripts of any kind in Bash".
 - 1 new validator module, 1 new unit test (14 subtests), 41 `+use utf8;` insertions, 1 `cwf-manage` wiring change, 1 docs update, 1 BACKLOG close + 1 BACKLOG add. Full suite 28 files / 267 tests green pre/post.
 
----
-
 ## Task 123: Add security-review subagent to plan/exec skills
 
-**Status**: Complete (2026-05-03)
-**Duration**: ~1 session of active work (estimated: 1 day; variance ~0%)
-**Impact**: Feature — extends the existing 3-subagent plan-review map/reduce to 4 subagents (adds **security**) and inserts a new Step 8 (Security Review) into both `cwf-implementation-exec` and `cwf-testing-exec` SKILLs. Threat model lives in one new canonical doc, `.cwf/docs/skills/security-review.md`, covering the five CWF-specific judgement-call categories: bash injection / unsafe command construction (a), Perl helpers consuming git/user output without `-z` (b), prompt injection via user-supplied strings (c), unsafe environment-variable handling (d), pattern-based safe-here-but-risky-elsewhere risks with required `safe here because X; audit future uses where X might not hold` framing (e). Subagent is restricted to Read/Grep/Glob (no Bash, no edits) per the existing plan-review allowlist convention. Boundary explicitly carved out vs deterministic `cwf-manage validate` (sha256 + recorded perms) and vs the user-facing `/security-review` built-in.
+### Status: Complete (2026-05-03)
+### Duration: ~1 session of active work (estimated: 1 day; variance ~0%)
+### Impact: Feature — extends the existing 3-subagent plan-review map/reduce to 4 subagents (adds **security**) and inserts a new Step 8 (Security Review) into both `cwf-implementation-exec` and `cwf-testing-exec` SKILLs. Threat model lives in one new canonical doc, `.cwf/docs/skills/security-review.md`, covering the five CWF-specific judgement-call categories: bash injection / unsafe command construction (a), Perl helpers consuming git/user output without `-z` (b), prompt injection via user-supplied strings (c), unsafe environment-variable handling (d), pattern-based safe-here-but-risky-elsewhere risks with required `safe here because X; audit future uses where X might not hold` framing (e). Subagent is restricted to Read/Grep/Glob (no Bash, no edits) per the existing plan-review allowlist convention. Boundary explicitly carved out vs deterministic `cwf-manage validate` (sha256 + recorded perms) and vs the user-facing `/security-review` built-in.
 
 ### Changes
 - Added: `.cwf/docs/skills/security-review.md` — new canonical doc, ~155 lines. Sections: `## Scope` (cross-references `.cwf/docs/conventions/subagent-tool-selection.md` and explicitly carves out `cwf-manage validate` + built-in `/security-review` boundaries), `## Pathspec coverage` (the single-source-of-truth `git diff $(git merge-base HEAD main)..HEAD -- <pathspec>` with maintainer note for adding new security-relevant trees), `## Threat categories` (a–e per FR4 — each with one-line definition, anti-pattern with file:line citation if real or `# illustrative` label, "do instead" pointer), `## Plan-phase row`, `## Exec-phase prompt template` (parameterised on `{changeset}` + `{phase}` with three sentinel return states).
@@ -220,13 +234,11 @@ All notable changes to the Code Implementation Guide (CIG) project are documente
 - **Subagent prompt-template tightening identified as follow-up** (BACKLOG: Tighten security-subagent prompt for sentinel-line compliance). The TC-AC8 pattern (verbose intro hiding the closing sentinel) is likely to recur in practice; one-line edit to the canonical doc § "Exec-phase prompt template" would push the sentinel ahead of any analysis. Tracked in BACKLOG.md.
 - 1 new doc, 3 edits (5 files modified counting CHANGELOG and BACKLOG), 0 code changes, 0 new tests (docs-and-skills task; runtime verification is the AC8 dogfood case).
 
----
-
 ## Task 122: Create Design-Alignment Conventions Document
 
-**Status**: Complete (2026-05-02)
-**Duration**: <0.5 day
-**Impact**: Chore — adds `docs/conventions/design-alignment.md`, the third top-level CWF-development convention doc (alongside `commit-messages.md` and `perl-git-paths.md`). Codifies single-source-of-truth locations for skills/helpers/templates/rules, the `cwf-` + kebab-case + phase-letter naming patterns, the version-suffix scope (helper scripts only, never skills), the `<name>.d/` subcommand-dispatch pattern, and a concrete grep-and-`cwf-manage validate`-based rename audit checklist. Also draws an explicit asymmetric-deprecation line: in-repo artefacts have no deprecation period (CWF is its own only consumer), but `cwf-manage` and its subcommands form a weak external contract with installed copies and require a one-minor-version alias on rename.
+### Status: Complete (2026-05-02)
+### Duration: <0.5 day
+### Impact: Chore — adds `docs/conventions/design-alignment.md`, the third top-level CWF-development convention doc (alongside `commit-messages.md` and `perl-git-paths.md`). Codifies single-source-of-truth locations for skills/helpers/templates/rules, the `cwf-` + kebab-case + phase-letter naming patterns, the version-suffix scope (helper scripts only, never skills), the `<name>.d/` subcommand-dispatch pattern, and a concrete grep-and-`cwf-manage validate`-based rename audit checklist. Also draws an explicit asymmetric-deprecation line: in-repo artefacts have no deprecation period (CWF is its own only consumer), but `cwf-manage` and its subcommands form a weak external contract with installed copies and require a one-minor-version alias on rename.
 
 ### Changes
 - Added: `docs/conventions/design-alignment.md` — new convention doc, ~140 lines, follows `perl-git-paths.md`'s Convention/Why/Existing-usage structure. The "Why" section grounds each rule in a concrete prior failure (Tasks 35, 59, 81, 90).
@@ -240,13 +252,11 @@ All notable changes to the Code Implementation Guide (CIG) project are documente
 - **Symlink integrity is delegated to `cwf-manage validate`** rather than ad-hoc shell. The validator already checks every pool symlink resolves (it's how broken installs are caught); duplicating the logic in a doc-prescribed shell snippet would have been a maintenance liability.
 - Total: 1 new doc, 2 edits, 0 code changes, 0 new tests (documentation task).
 
----
-
 ## Task 121: Drop perl -I prefix from script invocations
 
-**Status**: Complete (2026-05-02)
-**Duration**: <0.5 day (estimated: 0.5 day; variance ~0%)
-**Impact**: Chore — removes the anti-idiomatic `perl -I.cwf/lib <script>` invocation pattern from active CWF source, skills, and tests. Active code now relies on Unix shebang semantics (`#!/usr/bin/perl -CDSL` + `FindBin` + `use lib`) for direct invocation; the single bootstrap exception in `/cwf-init` step 1a uses `chmod` (idiomatic Unix) instead, with the chmod value read from `script-hashes.json` rather than a hardcoded constant. Repo-wide grep over active source returns zero `perl -I.cwf/lib` hits after this task; historical artefacts (commit messages, prior `implementation-guide/**` exec records, prior CHANGELOG entries) are deliberately untouched.
+### Status: Complete (2026-05-02)
+### Duration: <0.5 day (estimated: 0.5 day; variance ~0%)
+### Impact: Chore — removes the anti-idiomatic `perl -I.cwf/lib <script>` invocation pattern from active CWF source, skills, and tests. Active code now relies on Unix shebang semantics (`#!/usr/bin/perl -CDSL` + `FindBin` + `use lib`) for direct invocation; the single bootstrap exception in `/cwf-init` step 1a uses `chmod` (idiomatic Unix) instead, with the chmod value read from `script-hashes.json` rather than a hardcoded constant. Repo-wide grep over active source returns zero `perl -I.cwf/lib` hits after this task; historical artefacts (commit messages, prior `implementation-guide/**` exec records, prior CHANGELOG entries) are deliberately untouched.
 
 ### Changes
 - Modified: `.claude/skills/cwf-init/SKILL.md` — step 1a now reads `cwf-manage`'s recorded permission from `.cwf/security/script-hashes.json` via inline `perl -MJSON::PP -e` (a one-shot JSON parse, not an `-I.cwf/lib <script>` substitute), chmods `cwf-manage` to that exact recorded value, then runs `.cwf/scripts/cwf-manage fix-security`. The chmod value is therefore manifest-driven — if the recorded perm ever changes in `script-hashes.json`, the SKILL bootstrap follows automatically with no edit needed.
@@ -262,13 +272,11 @@ All notable changes to the Code Implementation Guide (CIG) project are documente
 - **`/simplify` post-impl produced one real win** — `run_fix_security` and `run_validate` were 11-line near-duplicates, factored into `_run_cwf_manage($tmp, $subcmd)` with one-line public wrappers (net −8 lines). Captured in commit `9b6bc5b`. The agents correctly rejected the lower-value findings (extracting the SKILL one-liner into a separate helper script would have reintroduced the very file-invocation pattern this task removed).
 - 4 source files changed, +50 net lines of test code, 0 new tests, 253/253 regression green.
 
----
-
 ## Task 120: cwf-init Runs Security Check
 
-**Status**: Complete (2026-05-02)
-**Duration**: 1 session (estimated: 0.5 day — variance +50% after mid-design pivot from SKILL-orchestrated chmod to a deterministic `cwf-manage fix-security` subcommand)
-**Impact**: Bugfix — `/cwf-init` now verifies and repairs CWF install integrity before mutating any project state. New step `1a` calls a new `cwf-manage fix-security` subcommand that reads `.cwf/security/script-hashes.json`, repairs *fixable* permission deltas (only when the file's sha256 still matches what's recorded — never paper over tampering), and refuses to proceed if any file is missing, tampered, or the hashes file itself is missing/unparseable. Unfixable violations include a `Recovery:` line keyed by violation field suggesting `git pull` (CWF source checkout) or `cwf-manage update` (installed project). On non-zero exit the SKILL relays the subcommand's output verbatim and aborts init before CLAUDE.md, `.claude/settings.json`, or the init commit are touched. Originally identified during Task 60 (CWF installation testing in a fresh repo).
+### Status: Complete (2026-05-02)
+### Duration: 1 session (estimated: 0.5 day — variance +50% after mid-design pivot from SKILL-orchestrated chmod to a deterministic `cwf-manage fix-security` subcommand)
+### Impact: Bugfix — `/cwf-init` now verifies and repairs CWF install integrity before mutating any project state. New step `1a` calls a new `cwf-manage fix-security` subcommand that reads `.cwf/security/script-hashes.json`, repairs *fixable* permission deltas (only when the file's sha256 still matches what's recorded — never paper over tampering), and refuses to proceed if any file is missing, tampered, or the hashes file itself is missing/unparseable. Unfixable violations include a `Recovery:` line keyed by violation field suggesting `git pull` (CWF source checkout) or `cwf-manage update` (installed project). On non-zero exit the SKILL relays the subcommand's output verbatim and aborts init before CLAUDE.md, `.claude/settings.json`, or the init commit are touched. Originally identified during Task 60 (CWF installation testing in a fresh repo).
 
 ### Changes
 - Added: `.cwf/scripts/cwf-manage` — new `cmd_fix_security($git_root)` subroutine (~120 lines) plus `_print_unfixable($entry)` helper and `%FIX_SECURITY_RECOVERY` recovery-hint table keyed by validator field (`sha256`, `existence`, `permissions`, `file`, `json`). Reuses the same `Digest::SHA::sha256_hex` with `<:raw` mode that `Validate::Security::_sha256` uses, so the two never disagree on what counts as a hash match. Per-entry algorithm: missing → unfixable; sha mismatch → unfixable (no chmod attempted); sha matches and perms below recorded minimum → `chmod $expected_perms $file` (exact recorded perms, not blanket 0755). Best-effort fix on mixed installs: repairs everything fixable in one pass, then surfaces all unfixable entries with their `field`/`actual`/`expected` and recovery hint, exits 1.
@@ -288,15 +296,12 @@ All notable changes to the Code Implementation Guide (CIG) project are documente
 - Manual smoke (TC-8/9/10 — end-to-end SKILL exec) deferred to the user with reproduction steps in `g-testing-exec.md`. Skill-level exec requires a separate Claude Code session in a scratch checkout; cannot run under `prove`.
 - 7/7 fix-security cases pass; full suite 253/253 (was 246 baseline; +7 new, 0 regressions).
 
----
-
 ## Task 119: Reject Overlong Task Slugs
 
-**Status**: Complete (2026-04-29)
-**Duration**: 1 session (estimated: ~2–3 hours — on the lower end)
-**Impact**: Feature (breaking) — `/cwf-new-task` and `/cwf-new-subtask` now reject descriptions whose slug exceeds 50 characters, instead of silently truncating to fit. Previously a description like `"error on overlong slugs instead of silent truncation"` would slugify to `"error-on-overlong-slugs-instead-of-silent-truncati"` (mid-word stub); now it exits 1 with `[CWF] ERROR: Task slug '…' is N characters; limit is 50. Use a briefer task description (try fewer or shorter words).` on STDERR. Validation lives in `.cwf/scripts/command-helpers/template-copier-v2.1` (single source of truth via `use constant SLUG_MAX_LEN => 50`) and runs before any filesystem write, so rejection is atomic — no partial directory or branch left behind. Empty slugs (e.g. description = `"!!!"` → slugifies to `""`) get a separate rejection with a distinct recovery message. Existing on-disk tasks with previously-truncated slugs are unaffected (FR5 / AC5.2).
-
-**Migration**: Users with descriptions whose slug exceeds 50 chars must shorten the description and rerun. No on-disk migration needed — pre-existing tasks remain operational.
+### Status: Complete (2026-04-29)
+### Duration: 1 session (estimated: ~2–3 hours — on the lower end)
+### Impact: Feature (breaking) — `/cwf-new-task` and `/cwf-new-subtask` now reject descriptions whose slug exceeds 50 characters, instead of silently truncating to fit. Previously a description like `"error on overlong slugs instead of silent truncation"` would slugify to `"error-on-overlong-slugs-instead-of-silent-truncati"` (mid-word stub); now it exits 1 with `[CWF] ERROR: Task slug '…' is N characters; limit is 50. Use a briefer task description (try fewer or shorter words).` on STDERR. Validation lives in `.cwf/scripts/command-helpers/template-copier-v2.1` (single source of truth via `use constant SLUG_MAX_LEN => 50`) and runs before any filesystem write, so rejection is atomic — no partial directory or branch left behind. Empty slugs (e.g. description = `"!!!"` → slugifies to `""`) get a separate rejection with a distinct recovery message. Existing on-disk tasks with previously-truncated slugs are unaffected (FR5 / AC5.2).
+### Migration: Users with descriptions whose slug exceeds 50 chars must shorten the description and rerun. No on-disk migration needed — pre-existing tasks remain operational.
 
 ### Changes
 - Modified: `.cwf/scripts/command-helpers/template-copier-v2.1` — added `die_msg` helper (mirrors `cwf-manage`'s) and `use constant SLUG_MAX_LEN => 50` near the top; new validation block in `parse_parameters` after the required-param loop and before destination construction (rejects empty slug or `length($slug) > SLUG_MAX_LEN`); `generate_slug` no longer truncates and now strips leading/trailing hyphens (so `"---foo---"` → `"foo"`); top-level execution wrapped in `sub main { ... } main() unless caller();` so the script is `do`-loadable from tests without firing required-param checks. The /simplify pass post-impl inlined `SLUG_MAX_LEN` directly into the error message and threaded the slug computed in `parse_parameters` into `construct_destination` as an optional 2nd arg, eliminating one redundant `generate_slug` call per invocation.
@@ -314,13 +319,11 @@ All notable changes to the Code Implementation Guide (CIG) project are documente
 - Dogfooding: the task's own slug (`reject-overlong-task-slugs`, 26 chars) was deliberately short. The first attempt picked an overlong description and got correctly truncated (the very behaviour this task fixes); user caught it and the slug was redone. The fix this task ships would have surfaced the overrun immediately on creation.
 - 17/17 test cases pass: 8 unit, 2 integration (direct script invocation), 2 system (via `task-workflow create`), 3 source-of-truth grep checks, 2 regression (`prove t/` 246 passing = 238 baseline + 8 new; `cwf-manage validate` OK).
 
----
-
 ## Task 118: Add Tool Selection and Composition Guidance to Subagent Instructions
 
-**Status**: Complete (2026-04-29)
-**Duration**: 1 session (estimated: ~2 hours — on target)
-**Impact**: Chore — adds a tool-selection rubric for CWF subagents in two places: (1) a new canonical convention doc at `.cwf/docs/conventions/subagent-tool-selection.md` documenting the 5-tier preference order (built-in tools → skills → `rg`/`grep` Bash → `sed`/`awk`/`cat`/`head`/`tail` Bash → `find … -exec`/pipelines as last resort), the no-program-composition-for-simple-tasks principle, and 6 anti-patterns with their built-in equivalents; (2) a brief inline excerpt of the same rubric (principle verbatim + 3 highest-value anti-patterns + reference to the canonical doc) embedded in the `plan-review.md` subagent prompt template, so subagents read the guidance at decision time rather than via a link they may not follow. First conventions doc to ship under `.cwf/docs/conventions/` (top-level `docs/conventions/` siblings address CWF-development; `.cwf/docs/conventions/` ships with installed CWF copies).
+### Status: Complete (2026-04-29)
+### Duration: 1 session (estimated: ~2 hours — on target)
+### Impact: Chore — adds a tool-selection rubric for CWF subagents in two places: (1) a new canonical convention doc at `.cwf/docs/conventions/subagent-tool-selection.md` documenting the 5-tier preference order (built-in tools → skills → `rg`/`grep` Bash → `sed`/`awk`/`cat`/`head`/`tail` Bash → `find … -exec`/pipelines as last resort), the no-program-composition-for-simple-tasks principle, and 6 anti-patterns with their built-in equivalents; (2) a brief inline excerpt of the same rubric (principle verbatim + 3 highest-value anti-patterns + reference to the canonical doc) embedded in the `plan-review.md` subagent prompt template, so subagents read the guidance at decision time rather than via a link they may not follow. First conventions doc to ship under `.cwf/docs/conventions/` (top-level `docs/conventions/` siblings address CWF-development; `.cwf/docs/conventions/` ships with installed CWF copies).
 
 ### Changes
 - Added: `.cwf/docs/conventions/subagent-tool-selection.md` — new convention doc, 57 lines, structured as `## Convention` / `## Anti-patterns` / `## Why` / `## Existing usage` to match the established `docs/conventions/perl-git-paths.md` pattern. Captures the 5-tier hierarchy, the principle "Do not use program composition with the Bash tool for simple tasks; use the built-in tools instead." (single-line emphatic callout), 6-row anti-pattern table, and consumer references to `plan-review.md` and `workflow-preamble.md` Step 4.
@@ -333,13 +336,11 @@ All notable changes to the Code Implementation Guide (CIG) project are documente
 - `/simplify` post-impl produced one substantive structural change: the convention doc was originally written with ad-hoc section headings (Preference order / Core principle / Composition / See also). User correction ("convention docs serve both humans and agents — top-level `docs/conventions/` is not 'developers only'") prompted alignment to the existing `perl-git-paths.md` pattern (Convention / Why / Existing usage). Same content, conventional structure. Also synchronised one wording divergence — inline said "for a few files", canonical doc said "for a handful of files"; both now say "a handful".
 - 10/10 functional + 3/3 non-functional tests PASS. One mid-test fix (NFR-2 caught a missing `workflow-preamble.md#step-4` cross-reference that the d-plan listed but the impl omitted; added during testing-exec). `cwf-manage validate` OK at every checkpoint.
 
----
-
 ## Task 117: Add Gotchas to cwf-implementation-exec Skill
 
-**Status**: Complete (2026-04-29)
-**Duration**: 1 session (estimated: <1 session — on target)
-**Impact**: Chore — adds a `## Gotchas` section to `.claude/skills/cwf-implementation-exec/SKILL.md` containing the two execution-phase gotchas filed from Task 107's LMM memory analysis: (1) run `git status` before every checkpoint commit (covers untracked AND unstaged); (2) after any rename or string substitution, verify both source and generated output (source-grep and output-grep both required, neither sufficient alone). Project-neutral wording — installable into any downstream CWF-using project. The `## Gotchas` convention is now consistent across 4 SKILL.md files (cwf-design-plan, cwf-implementation-plan, cwf-retrospective, cwf-implementation-exec).
+### Status: Complete (2026-04-29)
+### Duration: 1 session (estimated: <1 session — on target)
+### Impact: Chore — adds a `## Gotchas` section to `.claude/skills/cwf-implementation-exec/SKILL.md` containing the two execution-phase gotchas filed from Task 107's LMM memory analysis: (1) run `git status` before every checkpoint commit (covers untracked AND unstaged); (2) after any rename or string substitution, verify both source and generated output (source-grep and output-grep both required, neither sufficient alone). Project-neutral wording — installable into any downstream CWF-using project. The `## Gotchas` convention is now consistent across 4 SKILL.md files (cwf-design-plan, cwf-implementation-plan, cwf-retrospective, cwf-implementation-exec).
 
 ### Changes
 - Modified: `.claude/skills/cwf-implementation-exec/SKILL.md` — inserted new `## Gotchas` section between the front-matter terminator and `## Scope & Boundaries`, matching the placement and single-line item formatting used by sibling skills. Diff is +5 lines (header, blank, item 1, item 2, blank); zero changes outside the inserted block
@@ -353,13 +354,11 @@ All notable changes to the Code Implementation Guide (CIG) project are documente
 - 8/8 manual test cases pass (2 structural, 2 content, 2 project-neutrality, 2 regression). `cwf-manage validate` OK after each checkpoint.
 - Boy-scout: added a one-line `git status --untracked-files=all` instruction to `.cwf/docs/skills/checkpoint-commit.md` (the doc referenced from every phase's checkpoint step), mirroring gotcha 1 at the doc level all phases share.
 
----
-
 ## Task 116: Make cwf-manage Update Handle a Dirty Working Tree
 
-**Status**: Complete (2026-04-28)
-**Duration**: 1 session (estimated: 0.5–1 day — well under)
-**Impact**: Bugfix — `cwf-manage update` (and via delegation, `cwf-manage rollback`) now refuse to run if `.cwf/` or `.cwf-skills/` has uncommitted changes (tracked-modified or untracked, via `--untracked-files=all`). Replaces the previous opaque `git subtree pull` failure (subtree method) and silent `rmtree`-then-overwrite (copy method) with a single CWF-prefixed error listing the dirty paths and the recovery recipe (`git stash` / `cwf-manage update [ref]` / `git stash pop`). Closes the second of two pain points filed during the same external-user upgrade report (v1.0.95 → v1.0.114).
+### Status: Complete (2026-04-28)
+### Duration: 1 session (estimated: 0.5–1 day — well under)
+### Impact: Bugfix — `cwf-manage update` (and via delegation, `cwf-manage rollback`) now refuse to run if `.cwf/` or `.cwf-skills/` has uncommitted changes (tracked-modified or untracked, via `--untracked-files=all`). Replaces the previous opaque `git subtree pull` failure (subtree method) and silent `rmtree`-then-overwrite (copy method) with a single CWF-prefixed error listing the dirty paths and the recovery recipe (`git stash` / `cwf-manage update [ref]` / `git stash pop`). Closes the second of two pain points filed during the same external-user upgrade report (v1.0.95 → v1.0.114).
 
 ### Changes
 - Added: `check_clean_tree($git_root)` helper in `.cwf/scripts/cwf-manage` — list-form `open '-|', 'git', '-C', $git_root, 'status', '--porcelain', '-z', '--untracked-files=all', '--', '.cwf', '.cwf-skills'`; defensive `$? != 0` exit-code check; calls `die_msg` with one heredoc containing header + dirty-file list + recipe
@@ -375,13 +374,11 @@ All notable changes to the Code Implementation Guide (CIG) project are documente
 - TC-6 fixture footnote: first attempt for "dirty file outside scope" carried over the untracked `.cwf/foo.txt` from TC-5 (because `git stash` doesn't include untracked files without `-u`); re-ran with a fresh `mktemp -d` fixture and it passed. Lesson noted: prefer per-scenario fixtures over cleanup when the thing under test is "dirtiness detection".
 - Suite: 235 → 238 passing (25 files). `cwf-manage validate` OK after the hash bump.
 
----
-
 ## Task 115: Honour CWF_SOURCE Env Var in cwf-manage Update
 
-**Status**: Complete (2026-04-27)
-**Duration**: 1 session (estimated: 0.5 day — on target)
-**Impact**: Bugfix — `cwf-manage update` and `cwf-manage list-releases` now honour `$ENV{CWF_SOURCE}` for this-invocation-only override of `cwf_source` from `.cwf/version`, matching the convention `install.bash` already established. Lets external developers point a single update or release-list at a `file:///` source without editing the installed `.cwf/version` (and without it sticking). Also boy-scouts a pre-existing UTF-8 source-encoding bug in `cwf-manage` that surfaced double-encoded em-dashes under `PERL5OPT=-CDSL`.
+### Status: Complete (2026-04-27)
+### Duration: 1 session (estimated: 0.5 day — on target)
+### Impact: Bugfix — `cwf-manage update` and `cwf-manage list-releases` now honour `$ENV{CWF_SOURCE}` for this-invocation-only override of `cwf_source` from `.cwf/version`, matching the convention `install.bash` already established. Lets external developers point a single update or release-list at a `file:///` source without editing the installed `.cwf/version` (and without it sticking). Also boy-scouts a pre-existing UTF-8 source-encoding bug in `cwf-manage` that surfaced double-encoded em-dashes under `PERL5OPT=-CDSL`.
 
 ### Changes
 - Added: `resolve_source(\%v)` helper in `.cwf/scripts/cwf-manage` — pure function returning `($source, $origin)` two-element list with env > file precedence and `defined && ne ''` checks on both
@@ -397,13 +394,11 @@ All notable changes to the Code Implementation Guide (CIG) project are documente
 - The boy-scout fix was raised early but I initially proposed deferring to a separate task — user pushed back ("why are we doing a massive ceremony to do a very minor totally obvious fix while we're doing this work?"); fix landed in this task. Reinforces the principle that co-located one-line fixes don't earn the full task ceremony.
 - Suite: 229 → 235 passing (24 files). `cwf-manage validate` OK after both hash bumps.
 
----
-
 ## Task 114: Add Retrospective Version Bump and Tag Settings with Versioning Helper Script
 
-**Status**: Complete (2026-04-26)
-**Duration**: 1 session (estimated: 1-2 days — well under)
-**Impact**: Feature — deterministic semver versioning subsystem invoked from the retrospective phase. CwF projects gain `versioning.major_minor` (HITL) and `versioning.last_released` (script-owned) fields in `cwf-project.json`, plus per-project `wf_step_config.retrospective.{bump_version,tag_version}` flags. Three new helper scripts (`cwf-version-{next,bump,tag}`) implement the workflow; the `cwf-retrospective` skill calls them. CwF itself is configured `bump_version: true`, `tag_version: false` (tagging stays human-only per CLAUDE.md); external adopters can flip either flag.
+### Status: Complete (2026-04-26)
+### Duration: 1 session (estimated: 1-2 days — well under)
+### Impact: Feature — deterministic semver versioning subsystem invoked from the retrospective phase. CwF projects gain `versioning.major_minor` (HITL) and `versioning.last_released` (script-owned) fields in `cwf-project.json`, plus per-project `wf_step_config.retrospective.{bump_version,tag_version}` flags. Three new helper scripts (`cwf-version-{next,bump,tag}`) implement the workflow; the `cwf-retrospective` skill calls them. CwF itself is configured `bump_version: true`, `tag_version: false` (tagging stays human-only per CLAUDE.md); external adopters can flip either flag.
 
 ### Changes
 - Added: `.cwf/lib/CWF/Versioning.pm` — version-with-config logic (`read_config`, `wf_step_setting`, `next_version`, `current_version`, `bump_to`, `tag_at`)
@@ -427,13 +422,11 @@ All notable changes to the Code Implementation Guide (CIG) project are documente
 - Eating own dog food caught a fresh issue: `retrospective-extras.md` had section labels ("Step 9", "Step 10", "Step 11") tied to the SKILL.md numbering; the renumber silently rotted them. Caught only by actually running the retrospective skill on this very task. Fixed in-task. Added to BACKLOG as "Skill cross-reference linter" follow-up.
 - KD8 (bump pre-squash, tag post-squash) was the right call — without explicit ordering, putting both before the squash would have left tags pointing at commits that the squash workflow rewrote.
 
----
-
 ## Task 113: Build Uncommitted Changes Warning Stop Hook
 
-**Status**: Complete (2026-04-25)
-**Duration**: 1 session (estimated: 1 session — on target)
-**Impact**: Feature — second Stop hook (Candidate B from Task 103's framework) deployed alongside Task 104's stale-status detector. Warns when the agent stops with uncommitted (staged, unstaged, untracked, or conflict-state) wf files in `implementation-guide/`. Output bounded to ~25 tokens with a 3-file cap; silent on clean stops.
+### Status: Complete (2026-04-25)
+### Duration: 1 session (estimated: 1 session — on target)
+### Impact: Feature — second Stop hook (Candidate B from Task 103's framework) deployed alongside Task 104's stale-status detector. Warns when the agent stops with uncommitted (staged, unstaged, untracked, or conflict-state) wf files in `implementation-guide/`. Output bounded to ~25 tokens with a 3-file cap; silent on clean stops.
 
 ### Changes
 - Added: `.cwf/scripts/hooks/stop-uncommitted-changes-warning` — 31-line Perl hook (`-CDSL` shebang, `use utf8;`, `eval`-wrapped, exits 0 always)
@@ -447,13 +440,11 @@ All notable changes to the Code Implementation Guide (CIG) project are documente
 - Smoke testing caught a real bug before deployment: `-CDSL` does not cover source-file encoding, only I/O streams. Without `use utf8;`, the literal `⚠` in source bytes was double-UTF-8-encoded on output (`â  `). Fix added to script and gotcha documented in conventions doc.
 - /simplify review confirmed the script is idiomatic — no premature abstraction (Rule of Three not met for two callers); intentional consistency with Task 104 patterns.
 
----
-
 ## Task 111: Add Measure-Twice-Cut-Once Gotchas to Plan Skills
 
-**Status**: Complete (2026-04-22)
-**Duration**: 1 session (estimated: <1 session — on target)
-**Impact**: Chore — unified two open BACKLOG items (cwf-design-plan assumption verification, cwf-implementation-plan codebase checking) into a single shared gotcha under the "measure twice, cut once" theme. Gotcha 3 is byte-identical across both SKILL.md files and includes a reminder to check memories alongside grep and file reading.
+### Status: Complete (2026-04-22)
+### Duration: 1 session (estimated: <1 session — on target)
+### Impact: Chore — unified two open BACKLOG items (cwf-design-plan assumption verification, cwf-implementation-plan codebase checking) into a single shared gotcha under the "measure twice, cut once" theme. Gotcha 3 is byte-identical across both SKILL.md files and includes a reminder to check memories alongside grep and file reading.
 
 ### Changes
 - Modified: `.claude/skills/cwf-design-plan/SKILL.md` — gotcha 3 appended
@@ -464,13 +455,11 @@ All notable changes to the Code Implementation Guide (CIG) project are documente
 - User caught two wording weaknesses plan review did not: a weak enumeration of artefact types (dropped) and a missing "check memories" clause (added). Plan review agents assess structure and reuse, not prose quality — wording review is a distinct check for text-heavy tasks.
 - Status sweep found nothing to fix for the first time in 3 tasks — Gotcha 1 is paying off.
 
----
-
 ## Task 110: Add Gotchas to Plan Skills to Prevent Step-Skipping
 
-**Status**: Complete (2026-04-22)
-**Duration**: 1 session (estimated: <1 session — on target)
-**Impact**: Bugfix — addresses recurring step-skipping behaviour in cwf-requirements-plan, cwf-design-plan, and cwf-implementation-plan SKILL.md files. Also project-neutralises gotchas in cwf-retrospective SKILL.md (added in Task 109) that referenced specific internal task numbers — skill files are installed into downstream projects where those references are meaningless.
+### Status: Complete (2026-04-22)
+### Duration: 1 session (estimated: <1 session — on target)
+### Impact: Bugfix — addresses recurring step-skipping behaviour in cwf-requirements-plan, cwf-design-plan, and cwf-implementation-plan SKILL.md files. Also project-neutralises gotchas in cwf-retrospective SKILL.md (added in Task 109) that referenced specific internal task numbers — skill files are installed into downstream projects where those references are meaningless.
 
 ### Changes
 - Modified: `.claude/skills/cwf-requirements-plan/SKILL.md` — new `## Gotchas` section (2 gotchas)
@@ -485,13 +474,11 @@ Note: The existing "Add Gotchas to cwf-implementation-plan" and "Add Gotchas to 
 - /simplify review caught project-specific task-number references in both the plan-skills (Task 108, 109) and cwf-retrospective (Tasks 65, 67, 81, 84, 98, 103) — a whole class of bugs for installable skill files. Task 109's work had to be retroactively fixed within Task 110's scope.
 - Gotcha 1 from Task 109 (status sweep) caught stale statuses during this task's own retrospective, on its second use. Working as designed.
 
----
-
 ## Task 109: Add Gotchas to cwf-retrospective Skill
 
-**Status**: Complete (2026-04-21)
-**Duration**: 1 session (estimated: <1 session — on target)
-**Impact**: Chore — added 3 gotcha warnings to cwf-retrospective SKILL.md targeting the most recurring CWF errors: stale status fields (6+ tasks), executing merge to main (2 tasks), and skipping the retrospective (2 tasks). Also reworded Step 10 from "Merge to main" to "Suggest merge to user (do not execute)".
+### Status: Complete (2026-04-21)
+### Duration: 1 session (estimated: <1 session — on target)
+### Impact: Chore — added 3 gotcha warnings to cwf-retrospective SKILL.md targeting the most recurring CWF errors: stale status fields (6+ tasks), executing merge to main (2 tasks), and skipping the retrospective (2 tasks). Also reworded Step 10 from "Merge to main" to "Suggest merge to user (do not execute)".
 
 ### Changes
 - Modified: `.claude/skills/cwf-retrospective/SKILL.md` — new `## Gotchas` section + Step 10 rewording
@@ -501,13 +488,11 @@ Note: The existing "Add Gotchas to cwf-implementation-plan" and "Add Gotchas to 
 - Plan review subagents (Task 108) caught a real error: Gotcha 3 originally said "proceed to retrospective (j)" which skips h/i for feature tasks. Corrected to "complete all remaining phases."
 - Gotcha 1 was immediately validated during this task's own retrospective — d and e were still "In Progress."
 
----
-
 ## Task 108: Add Map/Reduce Plan Review to Planning Skills
 
-**Status**: Complete (2026-04-21)
-**Duration**: 1 session (~1 hour, estimated: 1 day — under estimate)
-**Impact**: Feature — 3 planning skills (cwf-requirements-plan, cwf-design-plan, cwf-implementation-plan) now automatically review plan files before checkpoint commit using 3 parallel subagents focused on improvements, misalignment, and robustness.
+### Status: Complete (2026-04-21)
+### Duration: 1 session (~1 hour, estimated: 1 day — under estimate)
+### Impact: Feature — 3 planning skills (cwf-requirements-plan, cwf-design-plan, cwf-implementation-plan) now automatically review plan files before checkpoint commit using 3 parallel subagents focused on improvements, misalignment, and robustness.
 
 ### Changes
 - New: `.cwf/docs/skills/plan-review.md` — shared doc with parameterised prompt template, 3×3 criteria lookup table, reduce/synthesis instructions
@@ -517,13 +502,11 @@ Note: The existing "Add Gotchas to cwf-implementation-plan" and "Add Gotchas to 
 ### Notable
 - /simplify was run on the plan files before implementation, effectively dogfooding the feature. It identified 8 must-fix items that collapsed 9 prompt templates to 1, removed unnecessary ceremony, and simplified the implementation from ~200 lines to ~50 lines.
 
----
-
 ## Task 107: Discover Best Gotchas for Skills via LMM Memory Analysis
 
-**Status**: Complete (2026-04-21)
-**Duration**: 1 session (estimated: 1 session — on target)
-**Impact**: Discovery — analysed all 19 CWF skills via LMM semantic search and retrospective file analysis to identify recurring failure modes. Produced 4 backlog items with 8 evidence-backed gotchas.
+### Status: Complete (2026-04-21)
+### Duration: 1 session (estimated: 1 session — on target)
+### Impact: Discovery — analysed all 19 CWF skills via LMM semantic search and retrospective file analysis to identify recurring failure modes. Produced 4 backlog items with 8 evidence-backed gotchas.
 
 ### Findings
 - **cwf-retrospective** (High, 3 gotchas): Stale status fields (6+ tasks), executing merge to main (2 tasks), skipping retrospective (2 tasks)
@@ -538,13 +521,11 @@ Note: The existing "Add Gotchas to cwf-implementation-plan" and "Add Gotchas to 
 - "Add Gotchas to cwf-implementation-plan" (Medium)
 - "Add Gotchas to cwf-design-plan" (Medium)
 
----
-
 ## Task 106: Rename cwf-subtask Skill to cwf-new-subtask
 
-**Status**: Complete (2026-04-21)
-**Duration**: 1 session (estimated: <1 day — on target)
-**Impact**: Chore — renamed `/cwf-subtask` to `/cwf-new-subtask` to mirror `/cwf-new-task` naming and reduce agent confusion.
+### Status: Complete (2026-04-21)
+### Duration: 1 session (estimated: <1 day — on target)
+### Impact: Chore — renamed `/cwf-subtask` to `/cwf-new-subtask` to mirror `/cwf-new-task` naming and reduce agent confusion.
 
 ### Changes
 - `.claude/skills/cwf-subtask/` → `.claude/skills/cwf-new-subtask/` (directory rename + `name:` field update)
@@ -556,13 +537,11 @@ Note: The existing "Add Gotchas to cwf-implementation-plan" and "Add Gotchas to 
 ### Testing
 - 5/5 test cases passed: directory exists, old dir gone, zero stale live refs, new name in expected files, historical files untouched
 
----
-
 ## Task 105: Consolidate Status Extraction to CWF::TaskState
 
-**Status**: Complete (2026-04-19)
-**Duration**: 1 session (estimated: 1 day — on target)
-**Impact**: Chore — consolidated 4 independent section-scoped, code-block-aware parsing loops into a single general-purpose `CWF::MarkdownParser::extract_field()` API. Net -91 LOC in production code. Fixed bug in `Validate::Workflow` (hardcoded status list diverged from `cwf-project.json`).
+### Status: Complete (2026-04-19)
+### Duration: 1 session (estimated: 1 day — on target)
+### Impact: Chore — consolidated 4 independent section-scoped, code-block-aware parsing loops into a single general-purpose `CWF::MarkdownParser::extract_field()` API. Net -91 LOC in production code. Fixed bug in `Validate::Workflow` (hardcoded status list diverged from `cwf-project.json`).
 
 ### Changes
 - `.cwf/lib/CWF/MarkdownParser.pm`: Generalised with `extract_field()` and `find_field_line()`, deleted `extract_status()`
@@ -577,13 +556,11 @@ Note: The existing "Add Gotchas to cwf-implementation-plan" and "Add Gotchas to 
 ### Bug Fixed
 - `Validate::Workflow` had hardcoded `%ALLOWED_STATUS_SET` containing `Implemented` (not in config) and missing `To-Do` (in config). Now reads from `cwf-project.json` via `TaskState::status_is_valid()`.
 
----
-
 ## Task 104: Build Stale Status Detector Stop Hook
 
-**Status**: Complete (2026-04-19)
-**Duration**: 1 session (estimated: 1 session — on target)
-**Impact**: Feature — Stop event hook that detects wf files modified during the session whose status is still "Backlog". First hook in the CWF system.
+### Status: Complete (2026-04-19)
+### Duration: 1 session (estimated: 1 session — on target)
+### Impact: Feature — Stop event hook that detects wf files modified during the session whose status is still "Backlog". First hook in the CWF system.
 
 ### Changes
 - `.cwf/scripts/hooks/stop-stale-status-detector`: New 42-line Perl script using `CWF::TaskState::status_get()` for canonical status extraction
@@ -598,13 +575,11 @@ Note: The existing "Add Gotchas to cwf-implementation-plan" and "Add Gotchas to 
 - "Consolidate Status Extraction to Single Canonical Module (CWF::TaskState)" — Very High priority, 3 duplicate implementations discovered
 - "Progress Signal Scores Completed Tasks Highest in Task Context Inference" — Medium priority bugfix
 
----
-
 ## Task 103: Research Stop Event Hooks for CWF Quality Improvement
 
-**Status**: Complete (2026-04-19)
-**Duration**: 1 session (estimated: 1 session — on target)
-**Impact**: Discovery — produced a reusable framework for evaluating Stop event hooks, with taxonomy, evaluation checklist, and ranked candidates grounded in observed CWF errors.
+### Status: Complete (2026-04-19)
+### Duration: 1 session (estimated: 1 session — on target)
+### Impact: Discovery — produced a reusable framework for evaluating Stop event hooks, with taxonomy, evaluation checklist, and ranked candidates grounded in observed CWF errors.
 
 ### Changes
 - `.cwf/docs/workflow/stop-hooks-framework.md`: New 101-line framework document with 4-category taxonomy, 6-question evaluation checklist, and 3 candidates ranked build/defer/skip
@@ -622,13 +597,11 @@ Note: The existing "Add Gotchas to cwf-implementation-plan" and "Add Gotchas to 
 - "Build Stale Status Detector Stop Hook" — Candidate A from framework
 - "Build Uncommitted Changes Warning Stop Hook" — Candidate B from framework
 
----
-
 ## Task 102: Add Checkpoint Commit Helper Script (cwf-checkpoint-commit)
 
-**Status**: Complete (2026-04-18)
-**Duration**: 1 session (estimated: 1 day — on target)
-**Impact**: Feature — bundles the 5-step checkpoint commit procedure into a single atomic script call, eliminating the most common agent errors during workflow phase transitions.
+### Status: Complete (2026-04-18)
+### Duration: 1 session (estimated: 1 day — on target)
+### Impact: Feature — bundles the 5-step checkpoint commit procedure into a single atomic script call, eliminating the most common agent errors during workflow phase transitions.
 
 ### Changes
 - `.cwf/scripts/command-helpers/cwf-checkpoint-commit`: 56-line Perl script — validates args, resolves task, globs wf file, sets status to Finished, stages, commits with formatted message, runs `cwf-manage validate`
@@ -644,13 +617,11 @@ Note: The existing "Add Gotchas to cwf-implementation-plan" and "Add Gotchas to 
 ### BACKLOG Items Completed
 - "Add Checkpoint Commit Helper Script (`cwf-checkpoint-commit`)" — from Task 100 discovery (rank 3.0)
 
----
-
 ## Task 101: Add Status Update Helper Script (cwf-set-status)
 
-**Status**: Complete (2026-04-18)
-**Duration**: 1 day (estimated: 1 day — on target)
-**Impact**: Feature — adds validated status field updates to `CWF::TaskState` and a CLI wrapper, replacing manual regex replacements across all ~10 workflow skills.
+### Status: Complete (2026-04-18)
+### Duration: 1 day (estimated: 1 day — on target)
+### Impact: Feature — adds validated status field updates to `CWF::TaskState` and a CLI wrapper, replacing manual regex replacements across all ~10 workflow skills.
 
 ### Changes
 - `CWF::TaskState`: Added `status_set`, renamed `status_extract` → `status_get`, extracted shared `_find_status_line` (section-scoped, code-block-aware) and `_ensure_status_map` helpers
@@ -665,13 +636,12 @@ Note: The existing "Add Gotchas to cwf-implementation-plan" and "Add Gotchas to 
 ### BACKLOG Items Created
 - Add `status_set` unit tests directly in `t/task-state.t` (currently tested only via CLI wrapper)
 
----
-
 ## Task 100: Identify Deterministic Operations Still Handled by Agent
 
-**Status**: Complete (2026-04-17)
-**Duration**: 1 session (estimated: 1 session — on target)
-**Impact**: Discovery — systematic audit of all 18 CWF skills to identify deterministic
+### Status: Complete (2026-04-17)
+### Duration: 1 session (estimated: 1 session — on target)
+### Impact: Discovery — systematic audit of all 18 CWF skills to identify deterministic
+
 operations the agent performs that should be extracted to helper scripts. Found 24
 candidates across 8 skills (10 skills already well-scripted). Produced 5 ranked backlog
 items for extraction.
@@ -690,13 +660,12 @@ items for extraction.
 - cwf-settings-merge script (feature, Medium)
 - cwf-extract replacement script (feature, Low)
 
----
-
 ## Task 99: Add PreToolUse Hook for Rule Re-Injection
 
-**Status**: Complete (2026-04-17)
-**Duration**: 1 session (estimated: 1 session — on target)
-**Impact**: Feature — critical CWF rules now survive context compaction via automatic
+### Status: Complete (2026-04-17)
+### Duration: 1 session (estimated: 1 session — on target)
+### Impact: Feature — critical CWF rules now survive context compaction via automatic
+
 re-injection on every user message.
 
 ### Changes
@@ -712,13 +681,12 @@ re-injection on every user message.
 ### BACKLOG Items Addressed
 - "Add PreToolUse Hook for Rule Re-Injection" (from Task 97 discovery)
 
----
-
 ## Task 98: Add Path-Scoped Rules for Workflow File Protection
 
-**Status**: Complete (2026-04-17)
-**Duration**: 1 session (estimated: 1 session — on target)
-**Impact**: Feature — wf step files now trigger an advisory rule reminding the agent to
+### Status: Complete (2026-04-17)
+### Duration: 1 session (estimated: 1 session — on target)
+### Impact: Feature — wf step files now trigger an advisory rule reminding the agent to
+
 use the corresponding `/cwf-{step}` skill instead of editing directly.
 
 ### Changes
@@ -732,13 +700,12 @@ use the corresponding `/cwf-{step}` skill instead of editing directly.
 ### BACKLOG Items Addressed
 - "Add Path-Scoped Rules for Workflow File Protection" (from Task 97 discovery)
 
----
-
 ## Task 97: Research Claude Code Best Practices for CWF Quality Improvements
 
-**Status**: Complete (2026-04-16)
-**Duration**: 1 session (estimated: 1 session — on target)
-**Impact**: Discovery — systematic review of Claude Code best practices corpus (40+ files,
+### Status: Complete (2026-04-16)
+### Duration: 1 session (estimated: 1 session — on target)
+### Impact: Discovery — systematic review of Claude Code best practices corpus (40+ files,
+
 10 topic areas) against CWF current implementation. Produced 6 prioritised backlog items
 for quality improvements. Emergent discussion on agent process enforcement yielded insights
 on Deming-inspired post-training approaches.
@@ -763,13 +730,12 @@ on Deming-inspired post-training approaches.
 - Rejected `disable-model-invocation` — contradicts skill-first philosophy (skills are quality gates)
 - Deferred `@import` — current progressive disclosure approach is better for caching
 
----
-
 ## Task 96: Fix Subtask Resolution to Support Nested Directory Hierarchy
 
-**Status**: Complete (2026-03-31)
-**Duration**: 1 session (estimated: 1–2 sessions — on target)
-**Impact**: Bugfix — nested subtask directories (a founding design goal) were never
+### Status: Complete (2026-03-31)
+### Duration: 1 session (estimated: 1–2 sessions — on target)
+### Impact: Bugfix — nested subtask directories (a founding design goal) were never
+
 supported by the resolution code. `resolve_num()` only searched flat in
 `implementation-guide/`, so `context-manager hierarchy 48.1` failed with "Task not found"
 when `48.1` was correctly nested inside `48`'s directory. Now uses iterative ancestor walk
@@ -792,13 +758,12 @@ Existing flat subtasks (e.g. `implementation-guide/48.1-bugfix-*` at top level) 
 be found by the new nested resolution. Move them into their parent directory:
 `implementation-guide/48-*/48.1-bugfix-*/`
 
----
-
 ## Task 95: Fix Bare workflow-manager Path in All wf Step Skills
 
-**Status**: Complete (2026-02-26)
-**Duration**: < 1 hour (estimated: < 1 hour — on target)
-**Impact**: Bugfix — all 10 wf step SKILL.md files referenced `workflow-manager control`
+### Status: Complete (2026-02-26)
+### Duration: < 1 hour (estimated: < 1 hour — on target)
+### Impact: Bugfix — all 10 wf step SKILL.md files referenced `workflow-manager control`
+
 without a path, causing models to fail with "command not found" when trying to use the
 control flow feature. Fixed to `.cwf/scripts/command-helpers/workflow-manager control`.
 
@@ -808,13 +773,12 @@ control flow feature. Fixed to `.cwf/scripts/command-helpers/workflow-manager co
 ### BACKLOG Items Addressed
 - None
 
----
-
 ## Task 94: Fix Stale Repo URL in install.bash and INSTALL.md
 
-**Status**: Complete (2026-02-25)
-**Duration**: < 1 hour (estimated: < 1 hour — on target)
-**Impact**: Bugfix — corrects stale `mattkeenan/coding-with-files` GitHub org references
+### Status: Complete (2026-02-25)
+### Duration: < 1 hour (estimated: < 1 hour — on target)
+### Impact: Bugfix — corrects stale `mattkeenan/coding-with-files` GitHub org references
+
 that would have caused default installs to fail. Task 91 fixed `README.md` but missed
 `scripts/install.bash` (the `CWF_SOURCE` default) and `INSTALL.md` (the quick-install
 curl command). Both corrected.
@@ -826,13 +790,12 @@ curl command). Both corrected.
 ### BACKLOG Items Addressed
 - None
 
----
-
 ## Task 93: README.md — Problem and Benefits Sections
 
-**Status**: Complete (2026-02-22)
-**Duration**: ~45 minutes (estimated: <1 hour — on target)
-**Impact**: Bugfix — adds three new sections near the top of README.md explaining the
+### Status: Complete (2026-02-22)
+### Duration: ~45 minutes (estimated: <1 hour — on target)
+### Impact: Bugfix — adds three new sections near the top of README.md explaining the
+
 problem CWF solves, what it does, and why the structure matters. Includes a Dan Shapiro
 Five Levels reference (targeting Level 3–3.3) and the 80% token-efficiency context
 reduction figure.
@@ -844,13 +807,12 @@ reduction figure.
 ### BACKLOG Items Addressed
 - None
 
----
-
 ## Task 92: Fix COMMERCIAL-LICENSE.md GPL-2.0 → AGPL-3.0
 
-**Status**: Complete (2026-02-22)
-**Duration**: ~20 minutes (estimated: <15 minutes — on target)
-**Impact**: Hotfix — corrects incorrect licence references in COMMERCIAL-LICENSE.md. CWF has
+### Status: Complete (2026-02-22)
+### Duration: ~20 minutes (estimated: <15 minutes — on target)
+### Impact: Hotfix — corrects incorrect licence references in COMMERCIAL-LICENSE.md. CWF has
+
 never been released under GPL-2.0; that licence applied briefly to the predecessor project
 (CIG). The incorrect text was carried over during the Task 59 CIG→CWF rebrand.
 
@@ -860,13 +822,12 @@ never been released under GPL-2.0; that licence applied briefly to the predecess
 ### BACKLOG Items Addressed
 - None
 
----
-
 ## Task 91: README.md Updates for v1.0.90
 
-**Status**: Complete (2026-02-22)
-**Duration**: ~30 minutes (estimated: <1 hour — well under)
-**Impact**: Bugfix — brings README.md in sync with v1.0.90: correct org URL, full v2.1
+### Status: Complete (2026-02-22)
+### Duration: ~30 minutes (estimated: <1 hour — well under)
+### Impact: Bugfix — brings README.md in sync with v1.0.90: correct org URL, full v2.1
+
 10-skill workflow command list, accurate task-type phase counts, semver convention, and
 direct GitHub issues link. One unplanned fix: `v2.0` heading in Features section caught
 by TC-3 absence-grep.
@@ -880,13 +841,12 @@ by TC-3 absence-grep.
 ### BACKLOG Items Addressed
 - None
 
----
-
 ## Task 90: Fix Stale CIG References in WF Step Templates and Template-Copier
 
-**Status**: Complete (2026-02-22)
-**Duration**: ~20 minutes (estimated: <0.25 days — well under)
-**Impact**: Hotfix — closes a Task 59 (CIG→CWF rebrand) miss that caused every new task
+### Status: Complete (2026-02-22)
+### Duration: ~20 minutes (estimated: <0.25 days — well under)
+### Impact: Hotfix — closes a Task 59 (CIG→CWF rebrand) miss that caused every new task
+
 created since the rebrand to have wrong paths and skill names in generated wf step files.
 Two fix sites: the `**See ...` Status footer in all 10 wf step templates (`.cig/` →
 `.cwf/`), and `name_to_action()` in `template-copier-v2.1` (`/cig-` → `/cwf-`).
@@ -899,13 +859,12 @@ Two fix sites: the `**See ...` Status footer in all 10 wf step templates (`.cig/
 ### BACKLOG Items Addressed
 - None
 
----
-
 ## Task 89: Update Version Conventions
 
-**Status**: Complete (2026-02-22)
-**Duration**: ~2 hours (estimated: 0.5 days — well under)
-**Impact**: Feature — establishes `v{major}.{minor}.{task_num}` semver convention for CWF
+### Status: Complete (2026-02-22)
+### Duration: ~2 hours (estimated: 0.5 days — well under)
+### Impact: Feature — establishes `v{major}.{minor}.{task_num}` semver convention for CWF
+
 itself, documented dev-side only; updates `cwf-manage list-releases` from a full tag dump
 to a curated upgrade view showing the latest patch on current minor, one entry per higher
 minor, and one entry per higher major.
@@ -926,13 +885,12 @@ silently accepted `1.2.3`. Fixed with single-regex `/^v(\d+)\.(\d+)\.(\d+)$/`.
 ### BACKLOG Items Addressed
 - None
 
----
-
 ## Task 88: Refactor Workflow Docs for Efficiency
 
-**Status**: Complete (2026-02-22)
-**Duration**: ~1 hour (estimated: 0.5 days — well under)
-**Impact**: Bugfix — eliminates three categories of token waste from CWF workflow docs:
+### Status: Complete (2026-02-22)
+### Duration: ~1 hour (estimated: 0.5 days — well under)
+### Impact: Bugfix — eliminates three categories of token waste from CWF workflow docs:
+
 repeated checkpoint commit blocks (8 phases × ~8 lines), duplicate "Typical Structure"
 sections (10 phases × ~8 lines), and 3-line per-phase boilerplate in blocker-patterns.md
 (9 phases × 3 lines). File-edit reversion instructions in blocker-patterns.md replaced
@@ -952,13 +910,12 @@ Progressive disclosure preserved — every removal points to its canonical sourc
 ### BACKLOG Items Addressed
 - None (originated from ad-hoc plan)
 
----
-
 ## Task 87: Create CWF Terminology Glossary
 
-**Status**: Complete (2026-02-22)
-**Duration**: ~45 minutes (estimated: <1 hour — on target)
-**Impact**: Hotfix — 8 previously undefined terms (CWF, wf, skill, slug, task branch,
+### Status: Complete (2026-02-22)
+### Duration: ~45 minutes (estimated: <1 hour — on target)
+### Impact: Hotfix — 8 previously undefined terms (CWF, wf, skill, slug, task branch,
+
 checkpoints branch, checkpoint commit, squash commit) now canonically defined in
 `.cwf/docs/glossary.md`. `workflow-preamble.md` references the glossary so every skill
 invocation surfaces it to lesser models without extra steps.
@@ -971,13 +928,12 @@ invocation surfaces it to lesser models without extra steps.
 ### BACKLOG Items Addressed
 - "Create CWF Terminology Glossary" (Low priority, follow-up from Task 44)
 
----
-
 ## Task 86: Remove Decomposition Checks from Non-Planning Workflow Steps
 
-**Status**: Complete (2026-02-22)
-**Duration**: ~30 minutes (estimated: <1 hour — well under)
-**Impact**: Hotfix — Step 7 decomposition check removed from `cwf-rollout` and
+### Status: Complete (2026-02-22)
+### Duration: ~30 minutes (estimated: <1 hour — well under)
+### Impact: Hotfix — Step 7 decomposition check removed from `cwf-rollout` and
+
 `cwf-maintenance` SKILL.md files; remaining steps renumbered (8→7, 9→8).
 Decomposition checks are only actionable during planning; rollout and maintenance
 operate on already-committed work and gained no benefit from the check.
@@ -989,13 +945,12 @@ operate on already-committed work and gained no benefit from the check.
 ### BACKLOG Items Addressed
 - "Remove Decomposition Checks from Non-Planning Workflow Steps" (Medium priority)
 
----
-
 ## Task 85: Ensure Retrospective Checkpoint Commit Stages Entire Task Directory
 
-**Status**: Complete (2026-02-22)
-**Duration**: ~1 hour (estimated: <1 hour — on target)
-**Impact**: Hotfix — closes the gap that caused stale wf step statuses to persist
+### Status: Complete (2026-02-22)
+### Duration: ~1 hour (estimated: <1 hour — on target)
+### Impact: Hotfix — closes the gap that caused stale wf step statuses to persist
+
 in task squash commits after retrospectives (root cause of tasks 77 and 81 showing <100%).
 
 ### Changes
@@ -1006,13 +961,12 @@ in task squash commits after retrospectives (root cause of tasks 77 and 81 showi
   `git add implementation-guide/<task-dir>/` to stage entire task directory,
   overriding the generic single-file staging from `checkpoint-commit.md`
 
----
-
 ## Task 84: Backlog Audit — Remove Moot Items
 
-**Status**: Complete (2026-02-21)
-**Duration**: ~1 hour (estimated: 1 hour — on target)
-**Impact**: Chore — backlog reduced from 41 to 33 active items by removing 8 items
+### Status: Complete (2026-02-21)
+### Duration: ~1 hour (estimated: 1 hour — on target)
+### Impact: Chore — backlog reduced from 41 to 33 active items by removing 8 items
+
 superseded by architecture changes or already implemented, and correcting the scope
 of 1 mis-specified item.
 
@@ -1030,13 +984,12 @@ of 1 mis-specified item.
 - "Remove Decomposition Checks from Non-Planning Workflow Steps" — scope corrected: keep Step 7
   in all `*-plan` skills; remove only from cwf-rollout and cwf-maintenance
 
----
-
 ## Task 83: Add Status Update Step to checkpoint-commit.md
 
-**Status**: Complete (2026-02-21)
-**Duration**: <1 session (estimated: <30 min — slightly over due to full wf cycle)
-**Impact**: Hotfix — `checkpoint-commit.md` now instructs the LLM to set
+### Status: Complete (2026-02-21)
+### Duration: <1 session (estimated: <30 min — slightly over due to full wf cycle)
+### Impact: Hotfix — `checkpoint-commit.md` now instructs the LLM to set
+
 `**Status**: Finished` in the current phase's workflow file before staging,
 so `cwf-status` stays accurate throughout a task rather than only being
 corrected at retrospective time. All wf step skills inherit the fix
@@ -1050,13 +1003,12 @@ automatically — no per-skill edits needed.
 3/3 TCs pass: new step present as step 1, existing steps renumbered 2-5,
 wording unambiguous.
 
----
-
 ## Task 82: Fix checkpoints-branch-manager verify die → warn
 
-**Status**: Complete (2026-02-21)
-**Duration**: <1 session (estimated: <1 session — on target)
-**Impact**: Bugfix — `verify_checkpoints_branch()` now emits a non-fatal warning
+### Status: Complete (2026-02-21)
+### Duration: <1 session (estimated: <1 session — on target)
+### Impact: Bugfix — `verify_checkpoints_branch()` now emits a non-fatal warning
+
 instead of a fatal Perl exception when `git log` exits non-zero (e.g. SIGPIPE
 from piping through `head`, or branch genuinely absent). Callers receive exit
 code 1 they can handle, with no misleading stack trace.
@@ -1071,13 +1023,12 @@ code 1 they can handle, with no misleading stack trace.
 4/4 TCs pass: happy path (exit 0), error path (exit 1, warn not die),
 create regression, and `cwf-manage validate` integrity check.
 
----
-
 ## Task 81: Enforce Single Canonical Task Type List
 
-**Status**: Complete (2026-02-21)
-**Duration**: <1 session (estimated: <1 session — on target)
-**Impact**: Bugfix — `cwf-manage validate` now catches projects with unknown task types
+### Status: Complete (2026-02-21)
+### Duration: <1 session (estimated: <1 session — on target)
+### Impact: Bugfix — `cwf-manage validate` now catches projects with unknown task types
+
 (e.g. `docs`, `refactor`, `test`) or missing canonical types (e.g. missing `discovery`).
 Previously these passed silently.
 
@@ -1095,13 +1046,12 @@ Previously these passed silently.
 ### Test Results
 8/8 TCs pass. `prove t/` — 162 tests, 17 files, all pass. No regressions.
 
----
-
 ## Task 80: Fix install.bash file:// Source Defaults to HEAD
 
-**Status**: Complete (2026-02-21)
-**Duration**: <1 session (estimated: <1 session — on target)
-**Impact**: Bugfix — installing CWF from a local `file://` clone with no `CWF_REF`
+### Status: Complete (2026-02-21)
+### Duration: <1 session (estimated: <1 session — on target)
+### Impact: Bugfix — installing CWF from a local `file://` clone with no `CWF_REF`
+
 set previously resolved `latest` to the most recent git tag (e.g. `v0.2.1`), which
 predates the `.cig` → `.cwf` rename and causes a fatal subtree error. Now defaults
 to `HEAD` when `CWF_SOURCE` is a `file://` URL.
@@ -1119,13 +1069,12 @@ to `HEAD` when `CWF_SOURCE` is a `file://` URL.
 5/5 TCs pass including 2 live end-to-end installs into temp repos.
 `prove t/` exits 0 (158 tests, no regressions).
 
----
-
 ## Task 79: Update Branding and Documentation for Skills Architecture
 
-**Status**: Complete (2026-02-20)
-**Duration**: <1 session (estimated: <1 session — on target)
-**Impact**: Bugfix — CLAUDE.md and README.md now reflect current skills architecture
+### Status: Complete (2026-02-20)
+### Duration: <1 session (estimated: <1 session — on target)
+### Impact: Bugfix — CLAUDE.md and README.md now reflect current skills architecture
+
 terminology and correct v2.1 skill names throughout.
 
 ### Key Changes
@@ -1144,13 +1093,12 @@ terminology and correct v2.1 skill names throughout.
 ### Test Results
 6/6 grep-based TCs pass. `prove t/` exits 0 (158 tests, no regressions).
 
----
-
 ## Task 78: Fix Progress Signal Non-Determinism in task-context-inference
 
-**Status**: Complete (2026-02-19)
-**Duration**: <1 session (estimated: <1 session — on target)
-**Impact**: Hotfix — `task-context-inference` now returns a consistent
+### Status: Complete (2026-02-19)
+### Duration: <1 session (estimated: <1 session — on target)
+### Impact: Hotfix — `task-context-inference` now returns a consistent
+
 `confidence: correlated` result on every run. Previously, completed tasks with
 `state_achievable == 0` produced `score == 0` in `_get_progress_signal`, and
 Perl's non-deterministic sort order for equal elements caused a different random
@@ -1168,13 +1116,12 @@ uncorrelated` every time.
 158 tests across 17 files (up from 157), all pass. 5× consecutive runs of
 `task-context-inference` produce identical output.
 
----
-
 ## Task 77: Comprehensive Perl Test Suite for CWF Library Modules
 
-**Status**: Complete (2026-02-19)
-**Duration**: ~1 session (estimated 3–5 days — 80% faster than estimate)
-**Impact**: Feature — establishes `prove t/` as the standard quality gate for all 17
+### Status: Complete (2026-02-19)
+### Duration: ~1 session (estimated 3–5 days — 80% faster than estimate)
+### Impact: Feature — establishes `prove t/` as the standard quality gate for all 17
+
 CWF library modules. Regressions are now caught automatically rather than through
 manual inspection.
 
@@ -1197,13 +1144,12 @@ manual inspection.
 - Functions not in `@EXPORT_OK` must be called fully qualified
 - `Blocked` status = 15% in `CWF::TaskState`, not 0%
 
----
-
 ## Task 76: Add Re-Execution Guidance to Implementation and Testing Exec Skills
 
-**Status**: Complete (2026-02-19)
-**Duration**: <1 session (trivial)
-**Impact**: Bugfix — agents re-running `cwf-implementation-exec` or `cwf-testing-exec`
+### Status: Complete (2026-02-19)
+### Duration: <1 session (trivial)
+### Impact: Bugfix — agents re-running `cwf-implementation-exec` or `cwf-testing-exec`
+
 on an already-executed phase now have explicit instructions: work forward, don't revert
 commits, use `Task N: Pass 2: …` commit naming, append results rather than overwriting.
 
@@ -1217,13 +1163,12 @@ commits, use `Task N: Pass 2: …` commit naming, append results rather than ove
 ### Test Results
 6/6 tests pass (content review).
 
----
-
 ## Task 75: Harden Install Script with Pre-Flight Checks and Simplify Bootstrap
 
-**Status**: Complete (2026-02-19)
-**Duration**: <1 session (trivial)
-**Impact**: Bugfix — `install.bash` now exits with a clear error when the target repo
+### Status: Complete (2026-02-19)
+### Duration: <1 session (trivial)
+### Impact: Bugfix — `install.bash` now exits with a clear error when the target repo
+
 has no commits (subtree method requires at least one). Bootstrap docs simplified from
 a 4-line sparse-checkout sequence to clean one-liners.
 
@@ -1239,13 +1184,11 @@ a 4-line sparse-checkout sequence to clean one-liners.
 6/6 tests pass. Guard fires correctly for empty repo + subtree; skipped for committed
 repo + subtree and all copy-method repos.
 
----
-
 ## Task 74: Fix template-copier-v2.1 Uninitialized Variable Warnings
 
-**Status**: Complete (2026-02-19)
-**Duration**: <1 session (trivial)
-**Impact**: Bugfix — `Branch` field in all generated template files is now correctly populated from the project's branch-naming convention. Previously always blank due to two compounding silent bugs in `build_template_vars`.
+### Status: Complete (2026-02-19)
+### Duration: <1 session (trivial)
+### Impact: Bugfix — `Branch` field in all generated template files is now correctly populated from the project's branch-naming convention. Previously always blank due to two compounding silent bugs in `build_template_vars`.
 
 ### Root Cause
 Two bugs in `build_template_vars`, both silent:
@@ -1259,13 +1202,11 @@ Two bugs in `build_template_vars`, both silent:
 ### Test Results
 5/5 tests pass. Branch field correct for both bugfix and feature task types. No stderr warnings.
 
----
-
 ## Task 71: Add Missing Checkpoint Commit Instructions to cwf-requirements-plan and cwf-maintenance
 
-**Status**: Complete (2026-02-19)
-**Duration**: <1 session (trivial)
-**Impact**: Hotfix — `cwf-requirements-plan` and `cwf-maintenance` were the only two wf step skills missing a checkpoint commit step. Agents completing these phases did not commit their workflow files. Both now have Step 8 (checkpoint commit) with the correct Stage file, and Next Steps renumbered to Step 9.
+### Status: Complete (2026-02-19)
+### Duration: <1 session (trivial)
+### Impact: Hotfix — `cwf-requirements-plan` and `cwf-maintenance` were the only two wf step skills missing a checkpoint commit step. Agents completing these phases did not commit their workflow files. Both now have Step 8 (checkpoint commit) with the correct Stage file, and Next Steps renumbered to Step 9.
 
 ### Key Changes
 - `.claude/skills/cwf-requirements-plan/SKILL.md`: Added Step 8 checkpoint commit (`Stage: b-requirements-plan.md`), renumbered Next Steps to Step 9
@@ -1274,13 +1215,11 @@ Two bugs in `build_template_vars`, both silent:
 ### Test Results
 6/6 tests pass. Full skill audit (TC-5) confirmed cwf-new-task, cwf-subtask, and cwf-retrospective are legitimately exempt.
 
----
-
 ## Task 70: Improve CWF Skill Initialisation in cwf-init
 
-**Status**: Complete (2026-02-19)
-**Duration**: <1 session
-**Impact**: Feature — `cwf-init` now produces a fully-functional CWF environment from a fresh project. Fixes three problems identified in Task 63 external agent testing: skill permission prompts on every call, agents manually following SKILL.md instead of using the `Skill` tool, and the post-init commit being skipped.
+### Status: Complete (2026-02-19)
+### Duration: <1 session
+### Impact: Feature — `cwf-init` now produces a fully-functional CWF environment from a fresh project. Fixes three problems identified in Task 63 external agent testing: skill permission prompts on every call, agents manually following SKILL.md instead of using the `Skill` tool, and the post-init commit being skipped.
 
 ### Key Changes
 - `.claude/skills/cwf-init/SKILL.md`: Extended from 7 to 8 steps:
@@ -1292,13 +1231,11 @@ Two bugs in `build_template_vars`, both silent:
 ### Test Results
 9/9 tests pass. No defects.
 
----
-
 ## Task 69: Remove Obsolete `Implemented` Status Value
 
-**Status**: Complete (2026-02-18)
-**Duration**: <1 session (trivial)
-**Impact**: Bugfix — eliminates the root cause of recurring `f-implementation-exec.md` being left at `Implemented` (50%) instead of `Finished` (100%). The `Implemented` status was a v2.0 artefact made obsolete when v2.1 split implementation and testing into separate files.
+### Status: Complete (2026-02-18)
+### Duration: <1 session (trivial)
+### Impact: Bugfix — eliminates the root cause of recurring `f-implementation-exec.md` being left at `Implemented` (50%) instead of `Finished` (100%). The `Implemented` status was a v2.0 artefact made obsolete when v2.1 split implementation and testing into separate files.
 
 ### Key Changes
 - `cwf-project.json`: Removed `"Implemented": 50` from `status-values`
@@ -1311,41 +1248,34 @@ Two bugs in `build_template_vars`, both silent:
 ### Test Results
 8/8 tests pass.
 
----
-
 ## Task 68: Remove v1.0 Category Subdirectories from cwf-init
 
-**Status**: Complete (2026-02-18)
-**Duration**: <1 session (trivial)
-**Impact**: Hotfix — `cwf-init` no longer instructs agents to create obsolete `feature/`, `bugfix/`, `hotfix/`, `chore/` subdirectories under `implementation-guide/`. README Project Structure updated to v2.1 layout.
+### Status: Complete (2026-02-18)
+### Duration: <1 session (trivial)
+### Impact: Hotfix — `cwf-init` no longer instructs agents to create obsolete `feature/`, `bugfix/`, `hotfix/`, `chore/` subdirectories under `implementation-guide/`. README Project Structure updated to v2.1 layout.
 
 ### Key Changes
 - `.claude/skills/cwf-init/SKILL.md`: Removed bullet instructing category subdir creation (v1.0 legacy)
 - `README.md`: Replaced stale v1.0 Project Structure block with v2.1 number-prefixed layout; updated `.cwf/` subtree to reflect current reality (`lib/CWF/`, `security/`, `templates/pool/`)
 - `BACKLOG.md`: Retired both duplicate entries covering this issue (Task 63 High + Task 60 Medium)
 
----
-
 ## Task 67: Fix Stale Statuses in Tasks 46 and 49
 
-**Status**: Complete (2026-02-18)
-**Duration**: <1 session (trivial)
-**Impact**: Chore — 7 status field edits; tasks 46 and 49 now show 100%.
+### Status: Complete (2026-02-18)
+### Duration: <1 session (trivial)
+### Impact: Chore — 7 status field edits; tasks 46 and 49 now show 100%.
 
 ### Key Changes
 - Task 46: `f-implementation-exec.md`, `g-testing-exec.md` — `Backlog` → `Finished`
 - Task 49: `a`, `c`, `d`, `e` — `In Progress` → `Finished`; `f` — `Implemented` → `Finished`
 
----
-
 ## Task 66: Fix Terminal Status Handling in state_done and Status Aggregators
 
-**Status**: Complete (2026-02-18)
-**Duration**: <1 session
-**Impact**: Bugfix — tasks where all workflow files are Cancelled or Skipped now score 100% in status-aggregator. Blocked tasks now surface in task-context-inference at a low DORMANT score rather than being hidden.
+### Status: Complete (2026-02-18)
+### Duration: <1 session
+### Impact: Bugfix — tasks where all workflow files are Cancelled or Skipped now score 100% in status-aggregator. Blocked tasks now surface in task-context-inference at a low DORMANT score rather than being hidden.
 
 ### Key Changes
-
 1. **`CWF::TaskState.pm`**:
    - Add `Skipped => 100` to `%DEFAULT_STATUS_MAP`
    - Replace `_is_terminal` (Blocked|Finished|Cancelled) with `_is_closed` (Finished|Cancelled|Skipped) — Blocked is recoverable, not terminal
@@ -1358,37 +1288,29 @@ Two bugs in `build_template_vars`, both silent:
 ### Test Results
 14/14 test cases pass. Task 11 (all Cancelled) now shows 100%.
 
----
-
 ## Task 65: Fix Stale In Progress Statuses in Tasks 47 and 48
 
-**Status**: Complete (2026-02-18)
-**Duration**: <1 session (trivial)
-**Impact**: Chore — 10 status field edits; tasks 47 and 48 now show 100% in status-aggregator and no longer appear in task-context-inference output.
+### Status: Complete (2026-02-18)
+### Duration: <1 session (trivial)
+### Impact: Chore — 10 status field edits; tasks 47 and 48 now show 100% in status-aggregator and no longer appear in task-context-inference output.
 
 ### Key Changes
-
 1. Tasks 47 and 48: `a-task-plan.md`, `c-design-plan.md`, `d-implementation-plan.md`, `e-testing-plan.md` — `In Progress` → `Finished`
 2. Tasks 47 and 48: `f-implementation-exec.md` — `Implemented` → `Finished`
 
 ### Root Cause
-
 Retrospective skills did not require updating intermediate workflow files before marking j-retrospective.md Finished. Both tasks had retrospectives that set j-retrospective.md to Finished but left a–f stale.
 
 ### Recommendation Added
-
 `.cwf/docs/skills/retrospective-extras.md` should include an explicit checklist item: "Set all preceding workflow files (a through g) to Finished." (See j-retrospective.md for full recommendation.)
-
----
 
 ## Task 64: cwf-manage validate and CWF::Validate Module Suite
 
-**Status**: Complete (2026-02-18)
-**Duration**: 1 session (vs. 2-3 sessions estimated — well under)
-**Impact**: Feature — Deterministic validation of config, workflow, consistency, and security fields across the entire repo, callable as a post-skill guard.
+### Status: Complete (2026-02-18)
+### Duration: 1 session (vs. 2-3 sessions estimated — well under)
+### Impact: Feature — Deterministic validation of config, workflow, consistency, and security fields across the entire repo, callable as a post-skill guard.
 
 ### Key Changes
-
 1. **Four new modules** under `.cwf/lib/CWF/Validate/`:
    - `Config.pm` — validates `cwf-project.json` schema (supported-task-types, source-management)
    - `Workflow.pm` — validates `## Status` section presence and value in all workflow files
@@ -1403,69 +1325,55 @@ Retrospective skills did not require updating intermediate workflow files before
    - `chmod 0755` on `task-context-inference`, `task-stack`, `migrate-v2.1-file-order` (permissions mismatch)
 
 ### Test Results
-
 - 25 test cases (2 static + 6 Config + 4 Workflow + 4 Consistency + 5 Security + 3 integration + 2 regression), all PASS
 - 1 additional test (lib files without `permissions` key skip the permissions check)
 
 ### BACKLOG Items Added
-
 - **Expand Perl test suite to cover all CWF library modules** (chore, High) — `t/` currently has only `task-state.t`; all four new modules and the remaining 10 library modules need proper `.t` files runnable via `prove t/`
-
----
 
 ## Task 63: Fix template-copier-v2.1 Undef Warnings and Sparse-Checkout Bootstrap
 
-**Status**: Complete (2026-02-17)
-**Duration**: 1 session (vs. 1 session estimated = on target)
-**Impact**: Bugfix — Zero undef warnings during template creation; agent-friendly install bootstrap documented.
+### Status: Complete (2026-02-17)
+### Duration: 1 session (vs. 1 session estimated = on target)
+### Impact: Bugfix — Zero undef warnings during template creation; agent-friendly install bootstrap documented.
 
 ### Key Changes
-
 1. **Undef guards in template-copier-v2.1**: `$pattern // ''` (line 354), `$value // ''` (line 385), `supported-task-types // [default list]` (line 198)
 2. **Perlcritic stern**: Fixed 3 pre-existing violations — explicit `return` on `print_usage` and `output_results`, `return sort` ambiguity resolved
 3. **Sparse-checkout bootstrap**: Added agent-friendly 4-line install sequence to README.md and INSTALL.md for non-GitHub hosts
 4. **Security hash**: Updated for template-copier-v2.1
 
 ### Test Results
-
 - 10 test cases: 2 static analysis + 2 source inspection + 2 integration + 1 hash + 2 docs + 1 array guard, all PASS
 
 ### BACKLOG Items Added
-
 - **Harden install script**: Initial commit pre-flight + replace sparse checkout with `git archive` one-liner
 - **Remove v1.0 category dirs from /cwf-init**
 - **`cwf-manage validate` and CWF::Validate module suite**
 - **Improve CWF skill initialisation in /cwf-init** (permissions, enforcement preamble, post-init commit)
 
----
-
 ## Task 62: Fix Install Script / cwf-init Boundary and Post-Install UX
 
-**Status**: Complete (2026-02-17)
-**Duration**: 1 session (vs. 1 session estimated = on target)
-**Impact**: Bugfix — Clean separation between install script (plumbing) and /cwf-init (project setup).
+### Status: Complete (2026-02-17)
+### Duration: 1 session (vs. 1 session estimated = on target)
+### Impact: Bugfix — Clean separation between install script (plumbing) and /cwf-init (project setup).
 
 ### Key Changes
-
 1. **Install script boundary**: Removed `implementation-guide/` and `.gitignore` creation from `post_install()` — these are now exclusively `/cwf-init`'s responsibility
 2. **cwf-manage Perl idioms**: Replaced `system()` file operations with core Perl (`File::Find`, `File::Copy`, `File::Path`). Added `copy_tree()` helper.
 3. **cwf-init UX**: Added PERL5OPT detection (skip suggestion if already configured) and post-init commit step
 4. **INSTALL.md**: Documents that Claude Code restart is needed after install for skills to register
 
 ### Test Results
-
 - 15 test cases: 3 boundary + 5 Perl idioms + 3 SKILL.md + 1 docs + 3 regression, all PASS
-
----
 
 ## Task 61: CWF Install Script and Release Management
 
-**Status**: Complete (2026-02-16)
-**Duration**: 2 sessions (vs. 1-2 sessions estimated = on target)
-**Impact**: Feature — Zero-interaction bootstrap install script and Perl management script for CWF lifecycle.
+### Status: Complete (2026-02-16)
+### Duration: 2 sessions (vs. 1-2 sessions estimated = on target)
+### Impact: Feature — Zero-interaction bootstrap install script and Perl management script for CWF lifecycle.
 
 ### Key Changes
-
 1. **Bootstrap script** (`scripts/install.bash`, ~240 lines): `curl | bash` installer supporting subtree (default) and copy methods via `CWF_METHOD`, `CWF_REF`, `CWF_SOURCE`, `CWF_FORCE` env vars
 2. **Management script** (`.cwf/scripts/cwf-manage`, ~345 lines Perl): `status`, `list-releases`, `update`, `rollback` subcommands with dispatch table
 3. **Staging prefix + symlinks**: Skills install to `.cwf-skills/` and are symlinked into `.claude/skills/`, preserving existing consumer skills
@@ -1473,64 +1381,51 @@ Retrospective skills did not require updating intermediate workflow files before
 5. **Perlcritic**: Clean at severity 4 (stern) — explicit returns on all subs, dispatch table for command routing
 
 ### Design Decision
-
 Original design used `.claude/skills/` as a subtree prefix, which would clobber existing consumer skills. Reworked through full process (b→g) to use `.cwf-skills/` staging prefix with relative symlinks. This was the critical design insight of the task.
 
 ### Test Results
-
 - 28 test cases: 4 subtree + 1 copy + 3 symlink + 4 ref resolution + 2 prereq + 8 management + 2 docs + 2 regression, all PASS
 - Pass 1: 5 bugs found. Pass 2 (after rework): 0 bugs found.
 
 ### BACKLOG Items Added
-
 - **Replace backtick operators with IPC::Open3 in cwf-manage** (chore, very low)
 
 ### BACKLOG Items Completed
-
 - Task 60 deferred items (install script, tag-based release management) now implemented
-
----
 
 ## Task 60: Add Installation Instructions
 
-**Status**: Complete (2026-02-15)
-**Duration**: ~2 hours (vs. 1-2 hours estimated = on target)
-**Impact**: Chore — New INSTALL.md enabling users to install CWF into their own repos.
+### Status: Complete (2026-02-15)
+### Duration: ~2 hours (vs. 1-2 hours estimated = on target)
+### Impact: Chore — New INSTALL.md enabling users to install CWF into their own repos.
 
 ### Key Changes
-
 1. **INSTALL.md**: Two first-class installation methods — git subtree (two-split approach) and file copy (static/manual upgrade)
 2. **README.md**: Installation section replaced with concise summary linking to INSTALL.md
 3. **Git subtree two-split**: Verified approach using `git subtree split` for `.cwf/` and `.claude/skills/` from single CWF repo
 
 ### Scope Notes
-
 This is an intentionally incomplete implementation. Deferred to Task 61 (feature):
 - `curl | bash` install script
 - Tag-based release management with update/rollback
 
 ### BACKLOG Items Added
-
 - **Audit /cwf-init for obsolete category subdirectories** (chore, medium)
 - **template-copier-v2.1 undef warnings** (bugfix, high)
 - **/cwf-init should run security check and fix permissions** (bugfix, low)
 - **Add status update helper script** (feature, low)
 
 ### Test Results
-
 - 11 test cases: 3 structure + 3 path accuracy + 2 command validity + 2 README integration + 1 verification, all PASS
 - External validation: both methods tested against real repo
 
----
-
 ## Task 59: Rebrand CIG to CWF (Coding with Files)
 
-**Status**: Complete (2026-02-14)
-**Duration**: ~2 hours (vs. 3-5 hours estimated = under estimate)
-**Impact**: Feature — Full rebrand from "Code Implementation Guide" (CIG) to "Coding with Files" (CWF, pronounced "swiff").
+### Status: Complete (2026-02-14)
+### Duration: ~2 hours (vs. 3-5 hours estimated = under estimate)
+### Impact: Feature — Full rebrand from "Code Implementation Guide" (CIG) to "Coding with Files" (CWF, pronounced "swiff").
 
 ### Key Changes
-
 1. **Structural renames**: `.cig/`→`.cwf/`, 19 skill dirs (`cig-*`→`cwf-*`), 5 helper scripts, `CIG-PROJECT-SPEC.md`→`CWF-PROJECT-SPEC.md`, `cig-project.json`→`cwf-project.json`
 2. **Perl namespace**: `CIG::*`→`CWF::*` across 15 modules. `TaskState` and `TaskContextInference` moved from lib root into `CWF::` namespace.
 3. **Content updates**: All SKILL.md files, root docs (README, CLAUDE.md, COMMANDS.md, DESIGN.md, BACKLOG), internal docs, configs updated
@@ -1538,33 +1433,26 @@ This is an intentionally incomplete implementation. Deferred to Task 61 (feature
 5. **README pronunciation**: "CWF is pronounced 'swiff'"
 
 ### Preserved Unchanged
-
 - All historical task workflow docs (`implementation-guide/*/`)
 - CHANGELOG.md (append-only history)
 
 ### Test Results
-
 - 20 test cases: 5 structural + 2 compilation + 6 content sweep + 3 functional + 4 regression, all PASS
 
 ### BACKLOG Items Affected
-
 - **Added**: "Add Delete Task Skill" (High) — from Task 59 misclassification experience
 - **Added**: "Infer Task Type When Not Specified" (Medium) — agent should infer type from complexity
 
----
-
 ## Task 58: Add Cancelled Status to Workflow System
 
-**Status**: Complete (2026-02-13)
-**Duration**: ~30 minutes (vs. <1 hour estimated = on target)
-**Impact**: Bugfix — Added "Cancelled" as a terminal status value (0%) for tasks that are abandoned or superseded.
+### Status: Complete (2026-02-13)
+### Duration: ~30 minutes (vs. <1 hour estimated = on target)
+### Impact: Bugfix — Added "Cancelled" as a terminal status value (0%) for tasks that are abandoned or superseded.
 
 ### Problem Addressed
-
 Task 11 (secure argument parsing) was superseded by Task 57 (commands→skills) but had no appropriate status value. "Blocked" was inaccurate (it wasn't waiting on anything) and "Finished" was wrong (it never achieved its goals). A "Cancelled" terminal status was needed.
 
 ### Key Changes
-
 1. **Added `"Cancelled": 0`** to `cig-project.json` status-values
 2. **Updated `TaskState.pm`**: Renamed `_is_blocked_or_finished` → `_is_terminal`, added Cancelled to terminal check and default map
 3. **Updated both aggregators** (v2.0 and v2.1): Warning regex exempts Cancelled from "unknown 0% status" warnings
@@ -1572,28 +1460,22 @@ Task 11 (secure argument parsing) was superseded by Task 57 (commands→skills) 
 5. **Cancelled Task 11**: All 5 workflow files set to Cancelled with reason "Superseded by Task 57"
 
 ### Test Results
-
 - 12 test cases: 10 functional + 2 regression, all PASS
 - 0 failures, 0 deviations from plan
 
 ### BACKLOG Items Affected
-
 - **Removed**: "Rollout Task 11 - Secure Argument Parsing" (superseded)
-
----
 
 ## Task 57: Convert CIG Commands to Skills
 
-**Status**: Complete (2026-02-13)
-**Duration**: ~6-7 hours active (vs. 2-3 days estimated = -60% to -75% variance)
-**Impact**: Feature — Migrated all 17 CIG commands from `.claude/commands/` to `.claude/skills/` format, adopting the skills system for better tool permission control and eliminating injection syntax.
+### Status: Complete (2026-02-13)
+### Duration: ~6-7 hours active (vs. 2-3 days estimated = -60% to -75% variance)
+### Impact: Feature — Migrated all 17 CIG commands from `.claude/commands/` to `.claude/skills/` format, adopting the skills system for better tool permission control and eliminating injection syntax.
 
 ### Problem Addressed
-
 CIG commands used `!{bash}` and `!/path` context injection syntax which doesn't work in skills (Task 55 confirmed this empirically). Commands needed conversion to skills format with runtime tool call instructions to adopt the newer architecture and fix FR8 (permission error regression from injection syntax).
 
 ### Key Changes
-
 1. **Converted 17 commands to skills** in `.claude/skills/cig-*/SKILL.md` with YAML frontmatter
 2. **Replaced all context injection** with 3 patterns: Pattern A (context-manager location), Pattern B (task-context-inference), Pattern C (skill-specific mandatory instructions)
 3. **Accounted for all 15 Pattern C injections**: 10 converted to runtime instructions, 5 removed as provably redundant
@@ -1602,27 +1484,23 @@ CIG commands used `!{bash}` and `!/path` context injection syntax which doesn't 
 6. **Deleted all 17 command files** — clean cutover, no parallel operation
 
 ### Test Results
-
 - 14 test cases: 12 PASS, 2 conditional PASS (token budget 930 vs 850 target — accepted trade-off)
 - 0 functional or regression failures
 - All 18 skills have valid frontmatter (18/18)
 
 ### BACKLOG Items Affected
-
 - **Completed**: "Convert CIG Commands to Skills"
 
 ## Task 56: Refactor CIG Commands for Progressive Disclosure
 
-**Status**: Complete (2026-02-12)
-**Duration**: ~1 day (vs. 2-3 days estimated = -50% to -67% variance)
-**Impact**: Chore — Reduced 17 CIG commands from 1,914 total lines to 782 (59.1% reduction) by extracting shared patterns into 3 reference docs.
+### Status: Complete (2026-02-12)
+### Duration: ~1 day (vs. 2-3 days estimated = -50% to -67% variance)
+### Impact: Chore — Reduced 17 CIG commands from 1,914 total lines to 782 (59.1% reduction) by extracting shared patterns into 3 reference docs.
 
 ### Problem Addressed
-
 CIG's 17 commands embedded full workflow instructions inline (80-237 lines each), causing duplication and context pollution risk. This blocked skill conversion (Task 57) because auto-loading 17 bloated commands would consume ~26k+ tokens.
 
 ### Key Changes
-
 1. **Created 3 shared docs** in `.cig/docs/commands/`:
    - `workflow-preamble.md` (51 lines) — argument parsing, task validation, Steps 1-4
    - `checkpoint-commit.md` (23 lines) — commit template with trailer
@@ -1631,27 +1509,23 @@ CIG's 17 commands embedded full workflow instructions inline (80-237 lines each)
 3. **Consistent structure** across all 10 workflow commands: frontmatter, scope, context, workflow (shared doc refs), success criteria
 
 ### Test Results
-
 - 12 test cases: 10 PASS, 2 marginal FAIL (aspirational metrics targets)
 - 0 functional or regression failures
 
 ### BACKLOG Items Affected
-
 - **Completed**: "Refactor CIG Commands for Progressive Disclosure"
 - **Unblocked**: "Convert CIG Commands to Skills" — commands are now thin enough for skill conversion
 
 ## Task 55: Test Context Injection Syntax in SKILL.md Format
 
-**Status**: Complete (2026-02-12)
-**Duration**: ~30 minutes (vs. <1 hour estimated = -50% variance)
-**Impact**: Discovery — Empirically confirmed that `!{bash}` and `!` path shorthand context injection syntaxes are commands-only features that do not work in SKILL.md files.
+### Status: Complete (2026-02-12)
+### Duration: ~30 minutes (vs. <1 hour estimated = -50% variance)
+### Impact: Discovery — Empirically confirmed that `!{bash}` and `!` path shorthand context injection syntaxes are commands-only features that do not work in SKILL.md files.
 
 ### Problem Addressed
-
 Task 54 flagged context injection syntax as "unverified in SKILL.md format" — a key unknown blocking the command-to-skill migration decision. Rather than relying on documentation (which doesn't mention this limitation), this task tested it empirically.
 
 ### Key Findings
-
 1. **`!{bash}` block syntax**: FAIL — raw literal text in skill prompt, not expanded
 2. **`!` path shorthand**: FAIL — raw literal text in skill prompt, not expanded
 3. **Root cause**: Context injection is a feature of the `.claude/commands/` loader, not the `.claude/skills/` loader
@@ -1659,27 +1533,23 @@ Task 54 flagged context injection syntax as "unverified in SKILL.md format" — 
 5. **Alternative approaches**: 4 identified; recommended: `allowed-tools` with Bash + thin skill + doc reference (runtime tool calls instead of prompt-time expansion)
 
 ### Test Results
-
 - 6 test cases: 4 FAIL (injection syntax), 2 PASS (cleanup, isolation)
 - 100% coverage of identified injection patterns
 
 ### BACKLOG Items Affected
-
 - **Completed**: "Test Context Injection Syntax in SKILL.md Format"
 - **Informed**: "Refactor CIG Commands for Progressive Disclosure" and "Convert CIG Commands to Skills" — now know that skill conversion requires runtime tool calls, not injection syntax
 
 ## Task 54: Assess Current 2026 W6 Skills and Plugin Standards
 
-**Status**: Complete (2026-02-12)
-**Duration**: ~4-5 hours active work across 2 calendar days (vs. 2-3 days / 16-24 hours estimated = -70% to -80% variance)
-**Impact**: Discovery — Comprehensive ecosystem assessment informing CIG migration strategy. Reaffirms "Keep Commands" recommendation from Task 16.
+### Status: Complete (2026-02-12)
+### Duration: ~4-5 hours active work across 2 calendar days (vs. 2-3 days / 16-24 hours estimated = -70% to -80% variance)
+### Impact: Discovery — Comprehensive ecosystem assessment informing CIG migration strategy. Reaffirms "Keep Commands" recommendation from Task 16.
 
 ### Problem Addressed
-
 Task 16 (Jan 2026) recommended "Keep Commands" but the skills/plugin ecosystem was evolving rapidly. The BACKLOG "Migrate CIG to Hybrid Plugin Model" item assumed commands were deprecated and migration prerequisites were met. Task 54 assessed the current state to validate or update these assumptions.
 
 ### Key Findings
-
 **Research Output** (FR1-FR7):
 1. **API Evolution (FR1)**: 4 releases (v2.1.3-v2.1.34) with 2 breaking changes (`$ARGUMENTS` syntax, SDK rename). Commands merged into skills in v2.1.3.
 2. **User Feedback (FR2)**: 23 GitHub issues catalogued — critical bugs in hooks (#17688, 9 upvotes), SubagentStop (#22087, 34 upvotes), context pollution (#14851, 7 upvotes). AGENTS.md most-requested feature (2565 upvotes).
@@ -1692,22 +1562,19 @@ Task 16 (Jan 2026) recommended "Keep Commands" but the skills/plugin ecosystem w
 **Test Results**: 11/12 PASS, 1 PARTIAL (minor single-source caveat). Zero contradictions across independently-researched FR sections.
 
 ### Process Innovation
-
 - **Parallel research agents**: 6 agents ran simultaneously for FR1-FR6, compressing 14 hours of serial research into ~2 hours wall-clock time
 - **`gh` CLI enrichment**: After initial WebSearch-based research, `gh` structured searches and per-issue reaction data improved FR2 quality (flipped 2 test cases from PARTIAL to PASS)
 
 ### BACKLOG Items Affected
-
 - **Updated**: "Migrate CIG to Hybrid Plugin Model" — added Bug #17688 as critical blocker, updated context with Task 54 findings
 
 ## Task 53: Add Slug Generation to Template Copier
 
-**Status**: Complete (2026-02-10)
-**Duration**: ~0.5 hours (vs. 2-4 hours estimated = -75% to -87% variance)
-**Impact**: Bugfix - Eliminated permission prompts for normal template copying operations and simplified command invocations by making destination parameter optional.
+### Status: Complete (2026-02-10)
+### Duration: ~0.5 hours (vs. 2-4 hours estimated = -75% to -87% variance)
+### Impact: Bugfix - Eliminated permission prompts for normal template copying operations and simplified command invocations by making destination parameter optional.
 
 ### Problem Addressed
-
 Template-copier-v2.1 required destination path for every invocation and used inline bash slug generation that triggered permission prompts (ironic given the script's purpose of eliminating prompts). BACKLOG item "Create Slug Generator Helper Script" addressed via embedded solution.
 
 **Issues Fixed**:
@@ -1716,7 +1583,6 @@ Template-copier-v2.1 required destination path for every invocation and used inl
 3. No path auto-construction from task metadata (type, number, description)
 
 ### Changes Made
-
 **`.cig/scripts/command-helpers/template-copier-v2.1`**:
 - Added `generate_slug()` function (Perl port of bash algorithm: lowercase → remove special chars → hyphens → collapse → truncate 50)
 - Added `construct_destination()` function for config-based path construction (reads cig-project.json pattern)
@@ -1730,7 +1596,6 @@ Template-copier-v2.1 required destination path for every invocation and used inl
 - New: `c0c9d8ef1359dbb29f3c9eeaff5a24ae1db901fe75e4e6a207e90c8c8f31531c`
 
 ### Implementation Quality
-
 **Test Coverage**: 9/9 executed tests passed (100% pass rate)
 - Functional tests: 7/7 passed (slug generation, auto-construction, backward compatibility, integration)
 - Non-functional tests: 2/3 passed, 1 skipped (performance 20.75ms per op, compatibility across all 5 task types)
@@ -1740,7 +1605,6 @@ Template-copier-v2.1 required destination path for every invocation and used inl
 **Estimation Accuracy**: Task completed 75-87% faster than estimated due to clear design (pure functions) and straightforward scope
 
 ### Key Achievements
-
 1. **Permission prompt elimination**: Moved slug generation from inline bash to Perl function (no permission prompts)
 2. **Simplified invocations**: Destination now optional, auto-constructed from config pattern
 3. **Full backward compatibility**: Explicit destination parameter still works for testing/debugging
@@ -1749,12 +1613,11 @@ Template-copier-v2.1 required destination path for every invocation and used inl
 
 ## Task 52: Clean Up Obsolete BACKLOG Items
 
-**Status**: Complete (2026-02-10)
-**Duration**: ~1.75 hours elapsed (vs. <1 hour estimated = +75-133% variance)
-**Impact**: Chore - Removed 3 verified obsolete BACKLOG items that were already completed in previous tasks, improving BACKLOG accuracy and maintainability.
+### Status: Complete (2026-02-10)
+### Duration: ~1.75 hours elapsed (vs. <1 hour estimated = +75-133% variance)
+### Impact: Chore - Removed 3 verified obsolete BACKLOG items that were already completed in previous tasks, improving BACKLOG accuracy and maintainability.
 
 ### Problem Addressed
-
 BACKLOG.md accumulated 3 obsolete items that had already been completed in previous tasks but were never removed, causing confusion about what work remained and making the backlog less trustworthy as a project roadmap.
 
 **Issues Fixed**:
@@ -1763,7 +1626,6 @@ BACKLOG.md accumulated 3 obsolete items that had already been completed in previ
 3. "Add 'Create Task Branch' Step to Implementation Execution" - already implemented in cig-new-task (automatic branch creation in Step 6)
 
 ### Changes Made
-
 **`BACKLOG.md`**:
 - Removed "Update cig-status to Use --workflow Flag" (lines 1571-1607)
   - Evidence: `.claude/commands/cig-status.md` line 36 shows auto --workflow
@@ -1774,7 +1636,6 @@ BACKLOG.md accumulated 3 obsolete items that had already been completed in previ
 - Result: BACKLOG reduced from 42 to 39 tasks
 
 ### Implementation Quality
-
 **Test Coverage**: 7/7 tests passed (100%)
 - Verification tests: 5/5 passed (3 grep verifications, structure validation, markdown rendering)
 - Non-functional tests: 2/2 passed (completeness, formatting consistency)
@@ -1782,7 +1643,6 @@ BACKLOG.md accumulated 3 obsolete items that had already been completed in previ
 **Defect Rate**: 0 defects - all verification tests passed, no orphaned separators, BACKLOG structure intact
 
 ### Key Achievements
-
 1. **Evidence-based cleanup**: Each item verified with concrete code/test references before removal
 2. **Zero structural damage**: No orphaned separators, all 39 remaining tasks properly formatted
 3. **Comprehensive verification**: Multi-level validation (grep content, awk structure, task header counts)
@@ -1790,12 +1650,11 @@ BACKLOG.md accumulated 3 obsolete items that had already been completed in previ
 
 ## Task 51: Remove Dead Code from TaskContextInference.pm
 
-**Status**: Complete (2026-02-10)
-**Duration**: ~1.3 hours (vs. 1-2 hours estimated = -13% under midpoint)
-**Impact**: Bugfix - Removed 114 lines of confirmed dead code from TaskContextInference.pm, improving maintainability and reducing codebase confusion.
+### Status: Complete (2026-02-10)
+### Duration: ~1.3 hours (vs. 1-2 hours estimated = -13% under midpoint)
+### Impact: Bugfix - Removed 114 lines of confirmed dead code from TaskContextInference.pm, improving maintainability and reducing codebase confusion.
 
 ### Problem Addressed
-
 Dead code audit identified 4 unused functions in TaskContextInference.pm that were no longer called after Task 32 removed status signal functionality. Original audit also incorrectly flagged 2 functions in other modules, but pre-removal verification caught these errors.
 
 **Issues Fixed**:
@@ -1804,7 +1663,6 @@ Dead code audit identified 4 unused functions in TaskContextInference.pm that we
 3. Potential confusion for future developers reading deprecated code
 
 ### Changes Made
-
 **`.cig/lib/TaskContextInference.pm`**:
 - Removed `_get_status_signal()` (45 lines) - status signal removed per Task 32
 - Removed `_score_status()` (17 lines) - helper only called by dead function
@@ -1818,7 +1676,6 @@ Dead code audit identified 4 unused functions in TaskContextInference.pm that we
 - New: `93b4426e...513502de`
 
 ### Implementation Quality
-
 **Test Coverage**: 8/8 applicable tests passed (100%)
 - Verification tests: 3/3 passed (grep verification, hash verification, line count)
 - Regression tests: 3/3 passed (status aggregator, module imports, context inference)
@@ -1831,7 +1688,6 @@ Dead code audit identified 4 unused functions in TaskContextInference.pm that we
 - Verification process prevented breaking changes
 
 ### Key Achievements
-
 1. **Pre-removal verification caught errors**: Step 1 grep discovered 2 audit mistakes before any code was modified
 2. **Surgical removal**: Edit tool enabled precise function deletion without affecting code structure
 3. **Zero regressions**: All core CIG workflows (status aggregator, context inference) still work correctly
@@ -1839,12 +1695,11 @@ Dead code audit identified 4 unused functions in TaskContextInference.pm that we
 
 ## Task 50: Add "Skipped" Workflow Step Status (v2.1 Format Only)
 
-**Status**: Complete (2026-02-10)
-**Duration**: <1 day (vs. 1-2 days estimated = -50% to -100% variance)
-**Impact**: Feature - v2.1 format can now mark any workflow step as "Skipped" (N/A), excluded from progress calculation. Enables correct 100% completion when phases aren't applicable (e.g., maintenance for bugfixes).
+### Status: Complete (2026-02-10)
+### Duration: <1 day (vs. 1-2 days estimated = -50% to -100% variance)
+### Impact: Feature - v2.1 format can now mark any workflow step as "Skipped" (N/A), excluded from progress calculation. Enables correct 100% completion when phases aren't applicable (e.g., maintenance for bugfixes).
 
 ### Problem Addressed
-
 No way to mark workflow steps as "not applicable" without affecting progress calculation. Example: bugfix task with maintenance phase marked "Backlog" (0%) shows 90% complete (9/10 phases finished) instead of 100% (9/9 applicable phases finished). Users forced to mark N/A phases as "Finished" dishonestly or accept inaccurate progress metrics.
 
 **Issues Fixed**:
@@ -1854,7 +1709,6 @@ No way to mark workflow steps as "not applicable" without affecting progress cal
 4. Workflow documentation didn't clarify when phases can be skipped
 
 ### Changes Made
-
 **`implementation-guide/cig-project.json`**:
 - Added `"Skipped": null` to workflow.status-values (line 77)
 - Null value maps to Perl `undef` for clean filtering
@@ -1874,7 +1728,6 @@ No way to mark workflow steps as "not applicable" without affecting progress cal
 - Clarifies v2.1 requirement and distinction from Backlog/Finished
 
 ### Implementation Quality
-
 **Test Coverage**: 15/19 tests executed (79% execution rate)
 - 10/12 functional tests passed (TC-F5, TC-F6 deferred - core logic verified via TC-F3)
 - 5/7 NFR tests passed (TC-NFR1, TC-NFR2 deferred - existing patterns validated)
@@ -1884,7 +1737,6 @@ No way to mark workflow steps as "not applicable" without affecting progress cal
 - Lines 420-421: indicator ternary undef warnings (fixed immediately)
 
 ### Key Achievements
-
 1. **Null-value sentinel pattern**: Using JSON `null` (Perl `undef`) cleaner than magic numbers
 2. **Idiomatic Perl**: `grep defined` filter and ternary conditionals improve readability
 3. **Backward compatible**: v2.0 format unchanged, v2.1 tasks without "Skipped" work identically
@@ -1893,13 +1745,12 @@ No way to mark workflow steps as "not applicable" without affecting progress cal
 
 ## Task 49: Fix Checkpoints Branch Permissions Issue with Script
 
-**Status**: Complete (2026-02-10)
-**Duration**: ~1 hour (vs. 4 hours estimated = -75% variance - 3x faster)
-**Impact**: Bugfix - Created `checkpoints-branch-manager` script to eliminate Step 10 permission prompts. Deterministic git operations now in code, not LLM decisions.
-**BACKLOG Item Completed**: "Fix Retrospective Step 10 Permission Prompts" from Task 45
+### Status: Complete (2026-02-10)
+### Duration: ~1 hour (vs. 4 hours estimated = -75% variance - 3x faster)
+### Impact: Bugfix - Created `checkpoints-branch-manager` script to eliminate Step 10 permission prompts. Deterministic git operations now in code, not LLM decisions.
+### BACKLOG Item Completed: "Fix Retrospective Step 10 Permission Prompts" from Task 45
 
 ### Problem Addressed
-
 Task 45 retrospective identified that Step 10 of cig-retrospective workflow uses compound git commands with command substitution that trigger permission prompts despite individual commands being in frontmatter allowlist:
 - `git branch "$(git rev-parse --abbrev-ref HEAD)-checkpoints"` (10.1)
 - `git log --oneline --graph -20` (10.2 - missing from frontmatter)
@@ -1912,7 +1763,6 @@ Task 45 retrospective identified that Step 10 of cig-retrospective workflow uses
 4. Violates CIG principle: deterministic operations belong in code
 
 ### Changes Made
-
 **`.cig/scripts/command-helpers/checkpoints-branch-manager` (NEW)**:
 - **60 lines** Perl script with 3 subcommands (create, show-history [count], verify)
 - **Permissions**: 500 (r-x------)
@@ -1926,7 +1776,6 @@ Task 45 retrospective identified that Step 10 of cig-retrospective workflow uses
 - **Step 10.4**: Replaced `git log "$(git ...)"` with `checkpoints-branch-manager verify`
 
 ### Implementation Quality
-
 **Test Coverage**: 14/14 tests passed (100%)
 - TC-1 to TC-9: Functional tests (all subcommands, error handling) ✅
 - TC-10 (CRITICAL): No permission prompts from Step 10 ✅
@@ -1938,7 +1787,6 @@ Task 45 retrospective identified that Step 10 of cig-retrospective workflow uses
 **Defect Rate**: 1 minor issue found and fixed (permissions 700 after refactoring, corrected to 500)
 
 ### Key Achievements
-
 1. **Permission prompts eliminated**: Script in `.cig/scripts/command-helpers/*:*` allowlist
 2. **Code quality**: Refactored from 100 to 60 lines (-40%) with user-guided idiomatic Perl improvements
 3. **Comprehensive testing**: All edge cases covered (detached HEAD, branch exists, missing branch, invalid input)
@@ -1947,12 +1795,11 @@ Task 45 retrospective identified that Step 10 of cig-retrospective workflow uses
 
 ## Task 48: Fix nextAction Template Substitution in Template-Copier
 
-**Status**: Complete (2026-02-10)
-**Duration**: ~4 hours (vs. 2-3 hours estimated = 33% overrun)
-**Impact**: Bugfix - Template-copier now derives command names from template filenames, establishing directory structure as single source of truth. All 5 task types generate correct nextAction sequences.
+### Status: Complete (2026-02-10)
+### Duration: ~4 hours (vs. 2-3 hours estimated = 33% overrun)
+### Impact: Bugfix - Template-copier now derives command names from template filenames, establishing directory structure as single source of truth. All 5 task types generate correct nextAction sequences.
 
 ### Problem Addressed
-
 Task 47 discovered during rollout that `{{nextAction}}` template variable was not being deterministically substituted by template-copier-v2.1. Hardcoded `%PHASE_COMMANDS` mapping was incorrect (all commands shifted by 1 position), causing bugfix workflow g-testing-exec.md to show "Next Action: /cig-rollout" when correct action is "/cig-retrospective" (bugfix workflow has no h-rollout.md).
 
 **Issues Fixed**:
@@ -1962,7 +1809,6 @@ Task 47 discovered during rollout that `{{nextAction}}` template variable was no
 4. Future maintenance burden: any filename changes require updating hardcoded mapping
 
 ### Changes Made
-
 **`.cig/scripts/command-helpers/template-copier-v2.1`**:
 - **Removed**: 47 lines (entire `compute_next_action()` function + `%PHASE_COMMANDS` hash)
 - **Added**: 8 lines (`name_to_action()` helper function)
@@ -1972,7 +1818,6 @@ Task 47 discovered during rollout that `{{nextAction}}` template variable was no
 - **Future-proof**: Used `[a-z]` instead of `[a-j]` for forward compatibility
 
 ### Implementation Quality
-
 **Test Coverage**: 9/9 tests passed (100%)
 - TC-1: Bugfix g-testing-exec.md → "/cig-retrospective" (CRITICAL - original bug fixed) ✅
 - TC-2: Feature task (10 files) - all nextActions correct ✅
@@ -1987,7 +1832,6 @@ Task 47 discovered during rollout that `{{nextAction}}` template variable was no
 **Defect Rate**: 0 bugs found during testing or validation
 
 ### Key Achievements
-
 1. **Single source of truth**: Template symlink filenames now define command names (zero hardcoded mapping)
 2. **Code simplification**: Net -39 lines, significantly simpler logic
 3. **Idiomatic Perl**: User-guided refactoring to `while/shift` pattern, `//` operator, functional approach
@@ -1995,14 +1839,12 @@ Task 47 discovered during rollout that `{{nextAction}}` template variable was no
 5. **Zero regressions**: Template variables and permissions unchanged
 
 ### Benefits Delivered
-
 - **Deterministic routing**: nextAction automatically derived from directory structure
 - **Zero maintenance**: Filename changes automatically reflected in commands
 - **More maintainable**: 39 lines shorter, more idiomatic Perl
 - **Comprehensive validation**: 9 tests confirm all task types work correctly
 
 ### Lessons Learned
-
 **Technical Insights**:
 - Idiomatic Perl: `while (@array) { shift @array }` cleaner than indexed loops
 - Defined-or operator `//` cleaner than if/else for fallbacks
@@ -2020,12 +1862,11 @@ Task 47 discovered during rollout that `{{nextAction}}` template variable was no
 
 ## Task 47: Fix Variable Use in Commands to Avoid Bash Issues
 
-**Status**: Complete (2026-02-09)
-**Duration**: ~6 hours (vs. 2-3 hours estimated = 2x overrun)
-**Impact**: Bugfix - All 17 CIG command files now use `{placeholder}` syntax exclusively, eliminating LLM-generated bash wrappers that trigger permission prompts
+### Status: Complete (2026-02-09)
+### Duration: ~6 hours (vs. 2-3 hours estimated = 2x overrun)
+### Impact: Bugfix - All 17 CIG command files now use `{placeholder}` syntax exclusively, eliminating LLM-generated bash wrappers that trigger permission prompts
 
 ### Problem Addressed
-
 Commands using `$VARIABLE` and `<placeholder>` syntax were causing LLMs to generate unnecessary bash wrapper scripts around helper script calls, triggering permission prompts that interrupted workflow execution.
 
 **Issues Fixed**:
@@ -2035,7 +1876,6 @@ Commands using `$VARIABLE` and `<placeholder>` syntax were causing LLMs to gener
 4. Permission prompts interrupting command execution
 
 ### Changes Made
-
 **All 17 CIG Command Files** (`.claude/commands/cig-*.md`):
 - Frontmatter argument-hint fields: `<task-path>` → `{task-path}`, `<num>` → `{num}`, etc.
 - Command body placeholders: `$ARGUMENTS` → `{arguments}`, `$TYPE` → `{type}`, `$TASK_DIR` → `{task-dir}`, etc.
@@ -2048,7 +1888,6 @@ Commands using `$VARIABLE` and `<placeholder>` syntax were causing LLMs to gener
 - `cig-extract.md`, `cig-config.md`, `cig-security-check.md`, `cig-init.md`
 
 ### Implementation Quality
-
 **Test Coverage**: 7/7 must-pass tests passed (100%)
 - TC-1: Grep verification of `$VARIABLE` elimination (0 matches, 6 legitimate bash patterns preserved)
 - TC-2: Grep verification of `<placeholder>` elimination (0 matches)
@@ -2061,21 +1900,18 @@ Commands using `$VARIABLE` and `<placeholder>` syntax were causing LLMs to gener
 **Defect Rate**: 0 bugs in implementation, 1 critical bug discovered in template system during rollout
 
 ### Key Achievements
-
 1. **Systematic approach**: Pre-implementation grep audit cataloged all 120 instances before replacement
 2. **Clean implementation**: Two checkpoint commits preserve archaeological record (c457783, 23da701)
 3. **100% test pass rate**: All verification, functional, and regression tests passed
 4. **Bug discovery**: Found critical `{{nextAction}}` template substitution bug during rollout phase
 
 ### Benefits Delivered
-
 - **No permission prompts**: Commands execute without interrupting agent workflow
 - **Clearer syntax**: `{placeholder}` makes substitution points obvious to LLMs
 - **No behavioral changes**: Pure syntax refactoring, zero logic modifications
 - **Template bug identified**: Discovered `{{nextAction}}` not being deterministically substituted (requires Task 48 fix)
 
 ### Lessons Learned
-
 **Technical Insights**:
 - `$VARIABLE` triggers bash interpretation, `{placeholder}` does not
 - Legitimate bash patterns exist: `$?` (exit codes), `$(...)` (command sub), `${...}` (param expansion)
@@ -2092,12 +1928,11 @@ Commands using `$VARIABLE` and `<placeholder>` syntax were causing LLMs to gener
 
 ## Task 46: Add Checkpoint Commit Instructions to All Workflow Steps
 
-**Status**: Complete (2026-02-09)
-**Duration**: ~30 minutes (vs. not estimated = hotfix task)
-**Impact**: Hotfix - All 7 workflow command files now guide agents to create checkpoint commits after phase completion, enabling retrospective squashing workflow
+### Status: Complete (2026-02-09)
+### Duration: ~30 minutes (vs. not estimated = hotfix task)
+### Impact: Hotfix - All 7 workflow command files now guide agents to create checkpoint commits after phase completion, enabling retrospective squashing workflow
 
 ### Problem Addressed
-
 During Task 45 retrospective, discovered that zero checkpoint commits were made throughout workflow phases. User asked "did you add those BACKLOG changes to the -checkpoints branch as well?" and git log revealed the checkpoints branch was empty except for Task 44 commits. Root cause: Workflow documentation at `.cig/docs/workflow/workflow-steps.md` has checkpoint commit guidance, but actual CIG command files (cig-task-plan, cig-design-plan, etc.) don't include checkpoint commit instructions in their step-by-step workflows.
 
 **Issues Fixed**:
@@ -2107,7 +1942,6 @@ During Task 45 retrospective, discovered that zero checkpoint commits were made 
 4. Missing git permissions in frontmatter for checkpoint commits
 
 ### Changes Made
-
 **Workflow Command Files** (`.claude/commands/`):
 Added Step 8 "Create Checkpoint Commit" to all 7 workflow commands:
 - `cig-task-plan.md` - Added Step 8 after planning workflow, references a-task-plan.md
@@ -2133,7 +1967,6 @@ Added Step 8 "Create Checkpoint Commit" to all 7 workflow commands:
 - Renumbered "Suggest Next Steps" from Step 8 → Step 9 in all files
 
 ### Implementation Quality
-
 **Test Coverage**: 100% of planned tests (10/10 executed)
 - 7 functional tests (TC-1 through TC-7): Each command file validated for Step 8 presence, format, permissions
 - 3 non-functional tests (TC-8 through TC-10): Consistency, documentation references, permission specificity
@@ -2143,7 +1976,6 @@ Added Step 8 "Create Checkpoint Commit" to all 7 workflow commands:
 **Documentation Quality**: All 7 files updated with identical Step 8 structure, promoting consistency
 
 ### Key Achievements
-
 1. **Consistent pattern across 7 files**: Identical Step 8 structure reduces cognitive load
 2. **Token-efficient design**: Progressive disclosure pattern maintained (reference docs, don't duplicate)
 3. **Specific permissions**: Used `Bash(git add:*)` and `Bash(git commit:*)` instead of overly broad `Bash(git:*)`
@@ -2151,14 +1983,12 @@ Added Step 8 "Create Checkpoint Commit" to all 7 workflow commands:
 5. **Retroactive commit recreation**: Used git reflog to recreate 6 missing checkpoint commits after discovering they weren't made during execution
 
 ### Benefits Delivered
-
 - **Progress preservation**: Checkpoint commits now created after each phase completion
 - **Retrospective squashing enabled**: Checkpoints branch will have incremental commits to squash into one
 - **Agent guidance improved**: Explicit Step 8 instructions remove ambiguity about when/how to checkpoint
 - **Consistency**: Same checkpoint commit format across all workflow phases
 
 ### Lessons Learned
-
 **Technical Insights**:
 - Checkpoint commit format standardised: "Task N: Complete <phase> phase" + brief why + Co-developed-by trailer
 - Progressive disclosure effective: Reference `.cig/docs/workflow/workflow-steps.md#<phase>` keeps commands concise
@@ -2172,12 +2002,11 @@ Added Step 8 "Create Checkpoint Commit" to all 7 workflow commands:
 
 ## Task 45: Clarify BACKLOG/CHANGELOG Management in Retrospective Instructions
 
-**Status**: Complete (2026-02-09)
-**Duration**: ~1 hour (vs. 1-2 hours estimated = matched low estimate)
-**Impact**: Bugfix - Retrospective instructions now explicitly guide agents to update both CHANGELOG.md and BACKLOG.md with clear tool usage patterns
+### Status: Complete (2026-02-09)
+### Duration: ~1 hour (vs. 1-2 hours estimated = matched low estimate)
+### Impact: Bugfix - Retrospective instructions now explicitly guide agents to update both CHANGELOG.md and BACKLOG.md with clear tool usage patterns
 
 ### Problem Addressed
-
 Task 44 retrospective revealed that agents were skipping CHANGELOG.md updates during retrospective phase. Step 9 in `.claude/commands/cig-retrospective.md` only mentioned BACKLOG.md, used ambiguous language ("mark items complete"), and provided no tool usage guidance.
 
 **Issues Fixed**:
@@ -2187,7 +2016,6 @@ Task 44 retrospective revealed that agents were skipping CHANGELOG.md updates du
 4. Only staged BACKLOG.md, not CHANGELOG.md
 
 ### Changes Made
-
 **Retrospective Instructions** (`.claude/commands/cig-retrospective.md` Step 9):
 - Renamed Step 9 from "Update BACKLOG.md" to "Update CHANGELOG.md and BACKLOG.md"
 - Added Step 9.1: Update CHANGELOG.md with task completion (Read with limit, Edit tool, what to include, Task 40 example)
@@ -2202,7 +2030,6 @@ Task 44 retrospective revealed that agents were skipping CHANGELOG.md updates du
 - No new backlog items identified
 
 ### Implementation Quality
-
 **Test Coverage**: 100% of manual validation tests (9/9 executed, 1 integration test validated through actual use)
 - 5 functional tests: Step 9 structure, CHANGELOG instructions, BACKLOG cleanup, BACKLOG additions, git staging
 - 4 non-functional tests: Clarity, token efficiency, maintainability, regression
@@ -2213,7 +2040,6 @@ Task 44 retrospective revealed that agents were skipping CHANGELOG.md updates du
 **Documentation Quality**: All 4 substeps present with clear tool guidance and concrete examples
 
 ### Key Achievements
-
 1. **Explicit CHANGELOG guidance**: Agents now know WHEN and HOW to update CHANGELOG.md
 2. **Grep tool for efficiency**: Pattern `^## Task:` returns line numbers for quick BACKLOG navigation
 3. **Token-efficient patterns**: Read with limit, Grep for search, Edit for changes
@@ -2222,14 +2048,12 @@ Task 44 retrospective revealed that agents were skipping CHANGELOG.md updates du
 6. **Meta-validation success**: This retrospective successfully followed new Step 9 instructions
 
 ### Benefits Delivered
-
 - **Completeness**: CHANGELOG now captures completed work, BACKLOG tracks future work
 - **Token Efficiency**: Tool guidance promotes efficient patterns (Grep > Read entire file)
 - **Clarity**: No ambiguous language - explicit tool names and parameters
 - **Maintainability**: Examples reference specific tasks for easy verification
 
 ### Lessons Learned
-
 **Technical Insights**:
 - Grep with pattern returns line numbers - excellent for "table of contents" views
 - Progressive disclosure (read patterns, then match) more flexible than rigid templates
@@ -2243,12 +2067,11 @@ Task 44 retrospective revealed that agents were skipping CHANGELOG.md updates du
 
 ## Task 40: Complete Helper Script Migration to Trampoline Architecture
 
-**Status**: Complete (2026-02-08)
-**Duration**: 5.1 hours (vs. 3-4 hours estimated = **+28% to +70%**)
-**Impact**: Bugfix - Achieved zero permission prompts by migrating all helper scripts to trampoline/module architecture with wildcard frontmatter permissions
+### Status: Complete (2026-02-08)
+### Duration: 5.1 hours (vs. 3-4 hours estimated = **+28% to +70%**)
+### Impact: Bugfix - Achieved zero permission prompts by migrating all helper scripts to trampoline/module architecture with wildcard frontmatter permissions
 
 ### Problem Addressed
-
 Task 39 established the trampoline/module architecture pattern but only migrated one helper (context-manager with location subcommand). Six helper scripts remained as standalone executables, requiring individual frontmatter permission patterns and causing permission prompt friction for users.
 
 **Issues Fixed**:
@@ -2258,7 +2081,6 @@ Task 39 established the trampoline/module architecture pattern but only migrated
 4. Documentation referenced old standalone script names
 
 ### Changes Made
-
 **Architecture** (`.cig/scripts/command-helpers/`):
 - **Expanded context-manager** from 1 → 4 subcommands:
   - `context-manager location` (existing - git root detection)
@@ -2287,7 +2109,6 @@ Task 39 established the trampoline/module architecture pattern but only migrated
 - Added this entry documenting Task 40 completion
 
 ### Implementation Quality
-
 **Test Coverage**: 100% (18/18 test cases executed)
 - 12 functional tests: Trampolines, modules, integration, backward compatibility
 - 6 non-functional tests: Zero permission prompts, frontmatter, performance, errors, version routing, permissions
@@ -2308,7 +2129,6 @@ Task 39 established the trampoline/module architecture pattern but only migrated
 - Zero regressions introduced
 
 ### Key Achievements
-
 1. **Zero Permission Prompts**: Wildcard frontmatter pattern (`Bash(.cig/scripts/command-helpers/*:*)`) grants permission to all trampolines/modules with single pattern
 2. **Unified Architecture**: All helper scripts now use trampoline/module pattern (following Task 39's design)
 3. **Documentation Consistency**: 100% old script name removal - zero references to standalone scripts
@@ -2317,7 +2137,6 @@ Task 39 established the trampoline/module architecture pattern but only migrated
 6. **Version Routing Nuance**: Discovered workflow-control is version-agnostic (reads status field only, universal across v2.0/v2.1)
 
 ### Benefits Delivered
-
 - **User Experience**: Zero permission prompts for CIG command helper script calls
 - **Maintainability**: Single wildcard pattern vs 7+ individual patterns in frontmatter
 - **Architecture**: Consistent trampoline/module design across all helper scripts
@@ -2325,7 +2144,6 @@ Task 39 established the trampoline/module architecture pattern but only migrated
 - **Performance**: Negligible overhead (16ms) maintains responsiveness
 
 ### Lessons Learned
-
 **Technical Insights**:
 - Version routing is nuanced - understand WHAT a module does to determine IF it needs routing
 - Module consolidation opportunities exist - look for scripts with overlapping functionality
@@ -2342,7 +2160,6 @@ Task 39 established the trampoline/module architecture pattern but only migrated
 - Estimate testing conservatively: 1.5-2x normal time for tasks with extensive documentation changes
 
 ### Recommendations for Future Tasks
-
 **Process Improvements**:
 1. Add explicit test plan review step - verify test case wording is unambiguous ("0 matches" should specify "code + docs")
 2. Create documentation update checklist: (1) executable calls, (2) prose, (3) headers, (4) examples
@@ -2354,16 +2171,13 @@ Task 39 established the trampoline/module architecture pattern but only migrated
 2. Grep-based verification ("0 old references") is effective quality gate - standardize for rename/refactor tasks
 3. Atomic commit strategy (~30-minute cadence) makes git history valuable - maintain this discipline
 
----
-
 ## Task 38: Complete Deferred Documentation and Prevent Future Deferrals
 
-**Status**: Complete (2026-02-06)
-**Duration**: <1 hour (vs. 2-3 hours estimated = **67% under**)
-**Impact**: Bugfix - Completed Task 37's deferred documentation and implemented preventive measures to avoid future scope deferrals
+### Status: Complete (2026-02-06)
+### Duration: <1 hour (vs. 2-3 hours estimated = **67% under**)
+### Impact: Bugfix - Completed Task 37's deferred documentation and implemented preventive measures to avoid future scope deferrals
 
 ### Problem Addressed
-
 Task 37 deferred documentation updates and marked the task complete anyway, creating technical debt. This bugfix completes the deferred work and updates templates to prevent future tasks from repeating this mistake.
 
 **Issues Fixed**:
@@ -2372,7 +2186,6 @@ Task 37 deferred documentation updates and marked the task complete anyway, crea
 3. Templates lacked guidance against deferring implementation work
 
 ### Changes Made
-
 **Documentation Refactor** (`.cig/docs/context/state-tracking.md`):
 - Refactored from 655 → 177 lines (73% reduction, exceeded 70% target)
 - Added Task 37's new structured output formats in Quick Reference section
@@ -2401,7 +2214,6 @@ Task 37 deferred documentation updates and marked the task complete anyway, crea
 - Added to CHANGELOG.md (this entry)
 
 ### Implementation Quality
-
 **Test Coverage**: 100% (10/10 test cases passed)
 - 7 functional tests: Line count, output formats, structure, templates, variable substitution, compatibility
 - 3 non-functional tests: Readability, clarity, backwards compatibility
@@ -2414,7 +2226,6 @@ Task 37 deferred documentation updates and marked the task complete anyway, crea
 **Time Efficiency**: Completed in <1 hour vs 2-3 hour estimate (67% under)
 
 ### Key Achievements
-
 1. **Zero Scope Variance**: All original requirements delivered with no additions or deferrals
 2. **Zero Defects**: All tests passed on first execution with no rework
 3. **Exceeded Quality Targets**: 73% line reduction vs 70% target
@@ -2422,7 +2233,6 @@ Task 37 deferred documentation updates and marked the task complete anyway, crea
 5. **Complete Coverage**: All 4 task types validated with template-copier
 
 ### Benefits Delivered
-
 - Task 37's structured output format now properly documented
 - state-tracking.md 73% more compact and scannable
 - Output format examples immediately accessible in Quick Reference section
@@ -2431,7 +2241,6 @@ Task 37 deferred documentation updates and marked the task complete anyway, crea
 - Task 37 cautionary example makes guidance concrete and actionable
 
 ### Lessons Learned
-
 **What Went Well**:
 - Clear requirement definition from Task 37 retrospective eliminated ambiguity
 - Helper script (template-copier) streamlined template updates across all task types
@@ -2449,7 +2258,6 @@ Task 37 deferred documentation updates and marked the task complete anyway, crea
 - Template-copier ensures atomic, consistent updates across all task types
 
 ### Related Work
-
 **Completed BACKLOG Item**:
 - "Update state-tracking.md with New Inference Output Format" (identified in Task 37 retrospective)
 
@@ -2457,16 +2265,13 @@ Task 37 deferred documentation updates and marked the task complete anyway, crea
 - Original BACKLOG item only requested documenting new format
 - Task 38 also refactored for compactness (73% reduction) and updated templates to prevent future deferrals
 
----
-
 ## Task 37: Standardize Task Context Inference Output Format
 
-**Status**: Complete (2026-02-06)
-**Duration**: 3 hours (vs. 4-6 hours estimated = **on target**)
-**Impact**: Bugfix - Enabled programmatic parsing of inference output in all scenarios (conclusive, inconclusive, no_signals)
+### Status: Complete (2026-02-06)
+### Duration: 3 hours (vs. 4-6 hours estimated = **on target**)
+### Impact: Bugfix - Enabled programmatic parsing of inference output in all scenarios (conclusive, inconclusive, no_signals)
 
 ### Problem Addressed
-
 Task 32's TaskContextInference.pm outputted unparseable prose when signals disagreed, breaking LLM and script automation. Commands could not programmatically extract task numbers from inconclusive output.
 
 **Before (Conclusive - parseable)**:
@@ -2488,7 +2293,6 @@ Please specify task number explicitly or clarify context.
 ```
 
 ### Changes Made
-
 **Core Implementation** (`.cig/lib/TaskContextInference.pm`):
 - **Updated `infer_task_context()`**: Build proper context hashes for all scenarios
   - no_signals: Returns hash with plural fields set to safe defaults (`unknown`, `none`)
@@ -2543,7 +2347,6 @@ reasons: none
 - Added 4 follow-up tasks identified during retrospective
 
 ### Implementation Quality
-
 **Test Coverage**: 100% of output format code paths
 - **Functional**: 8/8 test cases PASS (28/28 assertions)
   - TC-1: Conclusive format (regression)
@@ -2565,7 +2368,6 @@ reasons: none
 **Performance**: 1000× faster than target (0.01ms vs 10ms)
 
 ### Key Learnings
-
 **Design-First Approach**: Spending 30 minutes on comprehensive output format specification eliminated implementation ambiguity and saved time.
 
 **Semantic Field Naming**: Using singular/plural field names (task_num vs task_nums) self-documents cardinality and improves parseability.
@@ -2577,7 +2379,6 @@ reasons: none
 **Backward Compatibility**: Using `current` field for version detection (vs tracking version numbers) provides cleaner migration path.
 
 ### Benefits Delivered
-
 - Commands/skills can parse output programmatically in all scenarios
 - Plural fields self-document multiple values
 - reasons field shows which signals contributed candidates
@@ -2587,27 +2388,22 @@ reasons: none
 - Performance excellent (~0.01ms for stress test)
 
 ### Process Improvements Identified
-
 **Added to BACKLOG**:
 1. Update `.cig/docs/context/state-tracking.md` with format specification
 2. Update Task 32 test expectations (TC-I2, TC-I3, TC-I4)
 3. Create integration test for inconclusive scenarios
 4. Update commands/skills to use new structured format
 
----
-
 ## Task 36: Add Git Root Detection to All CIG Commands
 
-**Status**: Complete (2026-02-06)
-**Duration**: 2 hours (vs. 2-3 hours estimated = **on target**)
-**Impact**: Bugfix - Enabled all CIG commands to work from any directory within repository
+### Status: Complete (2026-02-06)
+### Duration: 2 hours (vs. 2-3 hours estimated = **on target**)
+### Impact: Bugfix - Enabled all CIG commands to work from any directory within repository
 
 ### Problem Addressed
-
 CIG commands failed when executed from subdirectories because they used relative paths (`.cig/scripts/...`) that only worked from repository root. This broke workflows when Claude Code's working directory changed during task execution.
 
 ### Changes Made
-
 **Command File Updates**:
 - Modified all 17 command files in `.claude/commands/cig-*.md`
 - Added git root detection bash snippet to each file
@@ -2628,7 +2424,6 @@ echo "Working directory: $GIT_ROOT"
 - Marked "Fix CIG Commands to Work from Any Directory" as complete
 
 ### Implementation Quality
-
 **Test Coverage**: 100% verification (2 executed + 5 code-reviewed)
 - TC-5 PASS: Grep verification (17/17 files contain GIT_ROOT)
 - TC-6 PASS: Diff verification (consistent 12-line insertion per file)
@@ -2642,7 +2437,6 @@ echo "Working directory: $GIT_ROOT"
 - Bash logic validated through code inspection
 
 ### Key Learnings
-
 **Branch Creation Timing**: Creating branch after implementation (instead of at task start) required stashing and recreating branch structure. Future tasks should create branch immediately.
 
 **Verification > Live Testing**: For documentation/configuration changes, grep/diff verification is faster and safer than live functional testing while providing concrete evidence of correctness.
@@ -2652,7 +2446,6 @@ echo "Working directory: $GIT_ROOT"
 **Checkpoint Commits + Squashing**: Pattern of checkpoint commits → backup branch → squash worked well for clean history while preserving detailed development record.
 
 ### Process Improvements Identified
-
 Added 4 new BACKLOG items from retrospective:
 1. Add "Create Task Branch" as first step in implementation execution
 2. Document bugfix workflow differences (phase inclusion by type)
@@ -2660,29 +2453,23 @@ Added 4 new BACKLOG items from retrospective:
 4. Document checkpoint commit → squash workflow pattern
 
 ### Related Work
-
 Completed BACKLOG item "Fix CIG Commands to Work from Any Directory" (Priority: High)
-
----
 
 ## Task 35: Fix Incorrect Command References
 
-**Status**: Complete (2026-02-06)
-**Duration**: 45 minutes (vs. 15 minutes estimated = **200% over**)
-**Impact**: Bugfix - Corrected anachronistic `/cig-plan` references to `/cig-task-plan` in command files
+### Status: Complete (2026-02-06)
+### Duration: 45 minutes (vs. 15 minutes estimated = **200% over**)
+### Impact: Bugfix - Corrected anachronistic `/cig-plan` references to `/cig-task-plan` in command files
 
 ### Problem Addressed
-
 Found 2 outdated command references in command definition files that resulted from the `/cig-plan` → `/cig-task-plan` rename. Historical references in implementation guides were intentionally preserved as documentation artifacts.
 
 ### Changes Made
-
 **Command File Updates**:
 - `.claude/commands/cig-new-task.md:98` - Updated next-action reference to `/cig-task-plan`
 - `.claude/commands/cig-subtask.md:74` - Updated next-action reference to `/cig-task-plan`
 
 ### Implementation Quality
-
 **Test Coverage**: 100% (7/7 test cases passed)
 - 5 functional tests: File updates, scope verification, historical preservation
 - 2 non-functional tests: Readability, consistency
@@ -2695,7 +2482,6 @@ Found 2 outdated command references in command definition files that resulted fr
 - Clean git diff: 2 files changed, 2 insertions, 2 deletions
 
 ### Key Learnings
-
 **Time Estimation**: Initial 15-minute estimate was 3x under actual (45 minutes). Thorough documentation for each workflow phase added value but increased time. Future hotfix estimates should be 30-60 minutes when following full CIG workflow.
 
 **Baseline Verification**: Historical reference baseline (35) was inaccurate - actual was 52 total (35 excluding Task 35's docs). Pre-execution baseline verification would have prevented mid-stream test criteria adjustment.
@@ -2703,25 +2489,20 @@ Found 2 outdated command references in command definition files that resulted fr
 **Documentation ROI**: Even simple 2-line changes benefit from comprehensive documentation. The additional 30 minutes created clear audit trail and reusable learning artifacts.
 
 ### Related Work
-
 Partial completion of BACKLOG item "Audit Command References and Create Design-Alignment Conventions":
 - **Completed (Task 35)**: Fixed 2 command reference errors
 - **Remaining**: Create `docs/conventions/design-alignment.md` to prevent future inconsistencies
 
----
-
 ## Task 34: Task Stack Management System
 
-**Status**: Complete (2026-02-03)
-**Duration**: 6 hours (vs. 6-12 hours estimated = **met lower bound**)
-**Impact**: Major enhancement - LIFO task stack with 6 operations enables context-aware task switching and enhanced inference
+### Status: Complete (2026-02-03)
+### Duration: 6 hours (vs. 6-12 hours estimated = **met lower bound**)
+### Impact: Major enhancement - LIFO task stack with 6 operations enables context-aware task switching and enhanced inference
 
 ### Problem Addressed
-
 The BACKLOG requested "Implement Current Task Tracking" to reduce repetitive task number arguments in workflow commands. Task 34 delivered this as an enhanced task stack management system rather than simple single-task tracking.
 
 ### Features Delivered
-
 **Core Task Stack Script** (`.cig/scripts/command-helpers/task-stack`):
 - **6 Operations**: push, pop, peek, list, clear, size
 - **Atomic Operations**: flock(LOCK_EX) prevents race conditions
@@ -2750,7 +2531,6 @@ The BACKLOG requested "Implement Current Task Tracking" to reduce repetitive tas
 - Runbooks for daily operations and emergency procedures
 
 ### Implementation Quality
-
 - **Test Coverage**: 100% (22/22 tests passed)
 - **Defect Rate**: 0 bugs found during testing
 - **Performance**: 8x faster than requirements
@@ -2758,7 +2538,6 @@ The BACKLOG requested "Implement Current Task Tracking" to reduce repetitive tas
 - **Security**: Script hashes registered in security tracking
 
 ### Changes Implemented
-
 **New Files**:
 - `.cig/scripts/command-helpers/task-stack` (175 lines, 0755 permissions)
 - `.claude/skills/cig-current-task/SKILL.md` (skill definition)
@@ -2771,7 +2550,6 @@ The BACKLOG requested "Implement Current Task Tracking" to reduce repetitive tas
 - `script-hashes.json`: Updated security tracking
 
 ### Test Results
-
 - **Pass Rate**: 22/22 tests (100%)
 - **Functional Tests**: 7/7 PASS (push/pop/peek/list/clear/size operations)
 - **Non-Functional Tests**: 4/4 PASS (performance, concurrency, errors, validation)
@@ -2781,7 +2559,6 @@ The BACKLOG requested "Implement Current Task Tracking" to reduce repetitive tas
 - **Initialization Tests**: 2/2 PASS (cig-init integration, idempotency)
 
 ### Key Achievements
-
 1. **Zero Bugs**: All tests passed on first execution
 2. **Performance Excellence**: 8x faster than target (~12-13ms vs 100ms)
 3. **Enhanced Scope**: Delivered LIFO stack beyond simple current task tracking
@@ -2789,7 +2566,6 @@ The BACKLOG requested "Implement Current Task Tracking" to reduce repetitive tas
 5. **Seamless Integration**: Task 32 inference enhanced without breaking existing functionality
 
 ### Lessons Learned
-
 **What Went Well**:
 - Comprehensive planning (with code examples) eliminated implementation uncertainty
 - Test-driven design resulted in zero bugs
@@ -2808,14 +2584,12 @@ The BACKLOG requested "Implement Current Task Tracking" to reduce repetitive tas
 - Incremental testing catches issues early (format_dirname argument order)
 
 ### Recommendations
-
 1. Continue detailed implementation plans with code examples
 2. Standardize test-driven design approach
 3. Add API usage examples to module documentation
 4. Create concurrent test utilities for future file-based tools
 
 ### Usage
-
 ```bash
 # Push current task onto stack
 /cig-current-task push 34
@@ -2830,23 +2604,19 @@ The BACKLOG requested "Implement Current Task Tracking" to reduce repetitive tas
 /cig-current-task clear
 ```
 
----
-
 ## Task 30: Fix v2.0 Format Detection Bug in TaskPath.pm
 
-**Status**: Complete (2026-01-27)
-**Duration**: 2.5 hours (vs. 1-1.5 days estimated = **6x faster**)
-**Impact**: Critical bug fix - all v2.0 tasks were misdetecting as v1.0, breaking format-dependent script routing
+### Status: Complete (2026-01-27)
+### Duration: 2.5 hours (vs. 1-1.5 days estimated = **6x faster**)
+### Impact: Critical bug fix - all v2.0 tasks were misdetecting as v1.0, breaking format-dependent script routing
 
 ### Problem Discovered
-
 During user testing with Task 24, discovered all v2.0 tasks were misdetecting as v1.0 format:
 - **Root Cause**: Line 213 in CIG::TaskPath::detect_format() was checking for v2.1 file names (`a-task-plan.md`, `d-implementation-plan.md`) instead of v2.0 file names (`a-plan.md`, `d-implementation.md`)
 - **Impact**: hierarchy-resolver, status-aggregator, and context-inheritance trampolines all routed v2.0 tasks to wrong version-specific scripts
 - **Scope**: Affected majority of repository (Tasks 1-24 are v2.0 format)
 
 ### File Naming Confusion
-
 Task 29 renamed files for v2.1 format, creating two distinct naming conventions:
 - **v2.0 format** (8 files): `a-plan.md`, `d-implementation.md`, `e-testing.md`, etc. (shorter names)
 - **v2.1 format** (10 files): `a-task-plan.md`, `e-testing-plan.md`, `f-implementation-exec.md`, etc. (longer names)
@@ -2854,7 +2624,6 @@ Task 29 renamed files for v2.1 format, creating two distinct naming conventions:
 Detection logic must use **v2.0 names** when checking for v2.0 tasks, not v2.1 names.
 
 ### Changes Implemented
-
 **Phase 1: Core Detection Logic**
 - Added `detect_format()` function to CIG::TaskPath with header-based detection + file fallback
 - Fixed line 213 to check for correct v2.0 file names (`a-plan.md`, `d-implementation.md`)
@@ -2876,14 +2645,12 @@ Detection logic must use **v2.0 names** when checking for v2.0 tasks, not v2.1 n
 - Critical regression test TC-11 validates Task 24 now correctly detects as v2.0
 
 ### Test Results
-
 - **Pass Rate**: 17/17 executed tests (100%)
 - **Performance**: 12-13ms vs. 100ms target (**8.3x faster**)
 - **Coverage**: 100% of implemented functionality
 - **Bug Fix Validated**: Task 24 and all v2.0 tasks now correctly detect as v2.0
 
 ### Files Modified
-
 - 1 library: `.cig/lib/CIG/TaskPath.pm` (added detect_format, fixed line 213)
 - 2 trampolines: status-aggregator, context-inheritance (consolidated detection)
 - 8 templates: v2.1 templates updated to version 2.1
@@ -2893,30 +2660,25 @@ Detection logic must use **v2.0 names** when checking for v2.0 tasks, not v2.1 n
 **Total**: 25 files changed, 1577 insertions(+), 96 deletions(-)
 
 ### Key Learnings
-
 - **File naming is critical**: v2.0 vs v2.1 naming differences must be explicitly documented
 - **Test all version scenarios**: Regression tests should cover v1.0, v2.0 (migrated + native), and v2.1
 - **User testing is invaluable**: Real-world usage (Task 24) caught bug that systematic testing missed
 - **Status field standardization**: Custom status values ("In Progress (Updated...)") break status-aggregator parsing
 - **AI development velocity**: 2.5 hours actual vs. 8-12 hours estimated (6x speedup from AI-assisted development)
 
----
-
 ## Task 29: Fix v2.1 Workflow File Order and Next Step References
 
-**Status**: Complete (2026-01-26)
-**Impact**: Corrects v2.1 workflow to follow test-first principles, enabling test planning before implementation execution
-
 ### Philosophy: Test Planning as Thinking Tool
+### Status: Complete (2026-01-26)
+### Impact: Corrects v2.1 workflow to follow test-first principles, enabling test planning before implementation execution
+### Key insight: Test planning isn't about having tests ready to run - it's about understanding what "working" means before implementing. By forcing yourself to think through measurability, edge cases, and success criteria, you write better implementation code.
 
 Fixed critical workflow design flaw where implementation execution occurred before test planning. The corrected order (plan tests → execute implementation → execute tests) enables test planning to serve as a thinking tool that deepens understanding before code is written.
 
-**Key insight**: Test planning isn't about having tests ready to run - it's about understanding what "working" means before implementing. By forcing yourself to think through measurability, edge cases, and success criteria, you write better implementation code.
 
 **This is planning-driven development with TDD principles**, not traditional TDD. You're planning your test approach (not writing test code) to gain clarity about requirements and outcomes.
 
 ### File Order Correction
-
 **Old order** (incorrect):
 - d-implementation-plan.md → **e-implementation-exec.md** → **f-testing-plan.md** → g-testing-exec.md
 
@@ -2924,7 +2686,6 @@ Fixed critical workflow design flaw where implementation execution occurred befo
 - d-implementation-plan.md → **e-testing-plan.md** → **f-implementation-exec.md** → g-testing-exec.md
 
 ### Changes Implemented
-
 **Phase 1: Template Renaming**
 - Renamed 2 pool template files using git mv (preserves history)
 - Updated 10 symlinks across 5 task types (feature, bugfix, hotfix, chore, discovery)
@@ -2951,7 +2712,6 @@ Fixed critical workflow design flaw where implementation execution occurred befo
 - Zero breaking changes for existing workflows
 
 ### Testing Results
-
 Comprehensive testing validated all aspects of the fix:
 - **16/16 test cases passed** (13 functional + 3 non-functional)
 - **100% coverage** (all 11 components verified)
@@ -2963,7 +2723,6 @@ Comprehensive testing validated all aspects of the fix:
 - status-aggregator: 27ms (target <100ms, 3.7x faster)
 
 ### Documentation Updates
-
 **Philosophy Documentation**:
 - Added "Test Planning as Thinking Tool" section to workflow-overview.md
 - Explains why e before f (test planning deepens understanding before implementation)
@@ -2976,7 +2735,6 @@ Comprehensive testing validated all aspects of the fix:
 - Added version-aware guidance (e-testing-plan for v2.1, f-testing-plan for v2.0)
 
 ### Key Learnings
-
 **Systematic planning ROI**: 40 min planning investment saved 6+ hours (no rework, no debugging). 10-step implementation plan eliminated decision paralysis and enabled confident progress.
 
 **Checkpoint commits reduce risk**: 3 checkpoint commits during Phase 2 provided clean rollback points every 1.5-2 hours. Cost minimal (5 min per commit), benefit high (eliminated fear of breaking changes).
@@ -2986,7 +2744,6 @@ Comprehensive testing validated all aspects of the fix:
 **git mv preserves history automatically**: Using git mv instead of manual rename preserved full file history at 100% similarity, with no manual tracking needed.
 
 ### System Status
-
 - v2.1 workflow file order corrected systemwide
 - All templates create tasks with correct file names
 - All existing v2.1 tasks migrated successfully
@@ -2994,7 +2751,6 @@ Comprehensive testing validated all aspects of the fix:
 - Migration script available for any future file order changes
 - Zero regressions, 100% test coverage, all systems operational
 
----
 
 ## BACKLOG Task: hierarchy-resolver Trampoline Entry Point [Already Complete]
 
@@ -3002,7 +2758,6 @@ Comprehensive testing validated all aspects of the fix:
 **Impact**: Clarification of existing architecture
 
 ### Background
-
 A BACKLOG task "Create hierarchy-resolver Trampoline Entry Point" was identified, claiming hierarchy-resolver was missing its entry point. Investigation revealed this was incorrect:
 
 **Actual state**:
@@ -3016,7 +2771,6 @@ A BACKLOG task "Create hierarchy-resolver Trampoline Entry Point" was identified
 
 **Task 27** (Standardise Script Naming) renamed hierarchy-resolver.pl → hierarchy-resolver, completing the "Alternative (simpler)" approach mentioned in the BACKLOG task description.
 
----
 
 ## BACKLOG Task: Clarify That Requirements and Design Are Planning Steps [Already Complete]
 
@@ -3024,14 +2778,12 @@ A BACKLOG task "Create hierarchy-resolver Trampoline Entry Point" was identified
 **Impact**: Eliminated LLM confusion about planning vs execution phases
 
 ### Background
-
 A BACKLOG task "Clarify That Requirements and Design Are Planning Steps" was identified, describing LLM confusion where:
 - LLM would ask "should I exit plan mode?" when user ran `/cig-requirements` or `/cig-design`
 - LLM treated only `/cig-plan` as planning, misidentified requirements and design as execution
 - This created "very frustrating" user experience
 
 ### Already Fixed in Task 29
-
 **Task 29** (Fix v2.1 Workflow File Order) updated all workflow command files with **"Scope & Boundaries"** sections:
 
 **Example from cig-requirements-plan.md**:
@@ -3055,7 +2807,6 @@ A BACKLOG task "Clarify That Requirements and Design Are Planning Steps" was ide
 These sections clearly delineate what IS and IS NOT in scope for each phase, eliminating confusion about whether requirements/design are planning or execution.
 
 ### Verification
-
 **No issues observed since Task 29 changes** (2026-01-26 through 2026-01-27):
 - ✓ No "should I exit plan mode?" questions during requirements or design phases
 - ✓ LLM correctly treats requirements and design as planning activities
@@ -3065,7 +2816,6 @@ The BACKLOG task requested explicit "⚠️ PLANNING PHASE" warnings, but the "S
 
 **Conclusion**: Problem solved differently than BACKLOG task specified, but user confirms no issues observed since fix.
 
----
 
 ## BACKLOG Task: Fix Status Aggregator to Only Check Main Status Sections [Already Complete]
 
@@ -3073,14 +2823,12 @@ The BACKLOG task requested explicit "⚠️ PLANNING PHASE" warnings, but the "S
 **Impact**: No multiple Status sections exist in v2.1 format
 
 ### Background
-
 A BACKLOG task "Fix Status Aggregator to Only Check Main Status Sections" was identified, claiming:
 - c-design.md has 3 Status sections (main + embedded implementation plan + embedded testing plan)
 - status-aggregator showed 25% when task was actually complete due to not all Status sections being updated
 - Confusing which Status sections "count" toward task completion
 
 ### Already Solved by Task 25 Architecture
-
 **Task 25** (Implement v2.1 workflow with planning/execution separation) eliminated this problem entirely through **file separation**:
 
 **Old structure (hypothetical v2.0 concern)**:
@@ -3094,7 +2842,6 @@ A BACKLOG task "Fix Status Aggregator to Only Check Main Status Sections" was id
 Each planning file has exactly ONE `## Status` section, so there's no ambiguity about which section "counts" for status aggregation.
 
 ### Verification
-
 **Checked current codebase**:
 - ✓ All templates have exactly 1 `## Status` section per file
 - ✓ All actual task files checked have exactly 1 `## Status` section per file
@@ -3104,15 +2851,12 @@ Each planning file has exactly ONE `## Status` section, so there's no ambiguity 
 
 **Conclusion**: File separation architecture inherently prevents the problem this task was trying to solve. No code changes needed.
 
----
-
 ## Task 4: Migration Tools to Migrate v1.0 to v2.0
 
-**Status**: Complete
-**Impact**: Enables safe migration of existing v1.0 tasks to v2.0 hierarchical structure with rollback capability
+### Status: Complete
+### Impact: Enables safe migration of existing v1.0 tasks to v2.0 hierarchical structure with rollback capability
 
 ### Migration Scripts
-
 Automated migration tooling discovered issues with hardcoded status values and disconnected configuration. Extended implementation to include configuration-driven status validation system.
 
 **Three Migration Scripts**:
@@ -3130,7 +2874,6 @@ Automated migration tooling discovered issues with hardcoded status values and d
 - Dry-run mode for preview
 
 ### Configuration-Driven Status System
-
 During rollout discovered that status values were hardcoded and disconnected from configuration, with no LLM guidance on valid values. Enhanced to make status system self-documenting and configuration-driven.
 
 **Status System Features**:
@@ -3155,7 +2898,6 @@ During rollout discovered that status values were hardcoded and disconnected fro
 - Configuration format enables project customization of workflow stages
 
 ### Documentation Updates
-
 **Migration Documentation**:
 - Created comprehensive migration guide (`.cig/docs/migration.md`) covering why/how/safety
 - Migration guide explains v1.0 limitations vs v2.0 benefits
@@ -3168,7 +2910,6 @@ During rollout discovered that status values were hardcoded and disconnected fro
 - All 8 workflow commands include status field guidance
 
 ### Testing Results
-
 Comprehensive testing validated all aspects of migration and status systems:
 - 24/24 migration test cases passed (3 skipped: rollback, manual backup, edge cases)
 - Status loading from config: PASSED
@@ -3178,22 +2919,21 @@ Comprehensive testing validated all aspects of migration and status systems:
 - Workflow command instructions: PASSED (8/8 verified)
 
 ### System Status
-
 - Migration tools fully operational and tested
 - Status system self-documenting via configuration
 - Safe migration path from v1.0 to v2.0 with rollback capability
 - Git-first backup strategy provides instant rollback
 - Configuration-driven validation reduces LLM confusion
 
----
-
 ## Task 3: Hierarchical Workflow System with Dynamic Step Transitions
 
-**Status**: Complete
-**Impact**: Foundational change enabling infinite task nesting with 90% reduction in LLM context consumption
+### Task 2: Script-Based CIG Command Helpers
+### Task 1: CIG Commands Implementation
+### Task 0: Initial System Design
+### Status: Complete
+### Impact: Foundational change enabling infinite task nesting with 90% reduction in LLM context consumption
 
 ### Token-Efficient Context Inheritance
-
 Reduces LLM context consumption by 90% through structural maps that enable progressive disclosure. Instead of reading full parent files (500-1000 tokens each), LLM receives navigable document structure with headers and line ranges (50-100 tokens), preserving agency to decide what details matter.
 
 **Key Features**:
@@ -3204,7 +2944,6 @@ Reduces LLM context consumption by 90% through structural maps that enable progr
 - LLM can understand parent task decisions without drowning in irrelevant details
 
 ### Core Infrastructure
-
 Establishes foundation for infinite task nesting while maintaining LLM context efficiency through progressive disclosure.
 
 **Central Template Pool**:
@@ -3242,7 +2981,6 @@ Establishes foundation for infinite task nesting while maintaining LLM context e
 - Git-based version tracking
 
 ### Documentation and User-Facing Guides
-
 Finalizes v2.0 implementation with comprehensive workflow documentation and updated project guides. Users now have complete reference for 8-step workflow system, task decomposition principles, and migration from v1.0.
 
 **Workflow Documentation** (3200 words total):
@@ -3264,31 +3002,25 @@ Finalizes v2.0 implementation with comprehensive workflow documentation and upda
 - Security model and helper script descriptions
 
 ### Breaking Changes from v1.0
-
 - **`/cig-new-task`**: New signature `<num> <type> "description"` for hierarchical numbering (was `<type> <num> <description>`)
 - **`/cig-extract`**: Task-based paths instead of file paths (backward compatible during migration period)
 - **`/cig-subtask`**: Context inheritance via helper scripts, not manual reading
 
 ### System Status
-
 - Fully operational with complete documentation
 - Users can leverage hierarchical workflows, context inheritance, and structured task progression
 - 90% token reduction enables handling complex multi-level project structures
 - Breaking changes clearly documented with migration path
 
----
 
 ## Previous Tasks
 
-### Task 2: Script-Based CIG Command Helpers
 
 Complete script-based CIG command helpers implementation with security fixes.
 
-### Task 1: CIG Commands Implementation
 
 Complete CIG commands implementation with official Anthropic patterns.
 
-### Task 0: Initial System Design
 
 - CIG project configuration system and unified task commands
 - Comprehensive CIG command reference
