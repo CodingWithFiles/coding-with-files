@@ -1,5 +1,5 @@
 {
-  "last_updated" : "2026-05-06",
+  "last_updated" : "2026-05-07",
   "data" : {
     "install-manifest" : {
       "path" : ".cwf/install-manifest.json",
@@ -23,9 +23,13 @@
       "permissions" : "0444",
       "sha256" : "db2097dd4dccbf7c9320abdb6e8231f06910cda1d618a806e29ac9f0ed14f6b3"
     },
+    "CWF::Backlog" : {
+      "path" : ".cwf/lib/CWF/Backlog.pm",
+      "sha256" : "e59534df75adbc296adf0ae6a4d850723b0f88ec09a50e50d728b328b2baf7a8"
+    },
     "CWF::Common" : {
       "path" : ".cwf/lib/CWF/Common.pm",
-      "sha256" : "851ba3c8c0b1af09ec374d6473723713c013865f5b40ff1fc38a3089e1bd51b9"
+      "sha256" : "7fe39459c15ffee7962a8bb38924dcb2724d9b88e323a1af2b830717957f0e5d"
     },
     "CWF::ContextInheritance::Core" : {
       "path" : ".cwf/lib/CWF/ContextInheritance/Core.pm",
@@ -151,6 +155,11 @@
       "permissions" : "0700",
       "sha256" : "a7a6b8154021a02ec46e5ebba017c04814bed178123818ad249ecb09634e754c"
     },
+    "backlog-manager" : {
+      "path" : ".cwf/scripts/command-helpers/backlog-manager",
+      "permissions" : "0500",
+      "sha256" : "ca9f3d49f0f63c2f95dbe3b543ef81db89f3283627e9789a38aa148f2d69b742"
+    },
     "cwf-claude-settings-merge" : {
       "path" : ".cwf/scripts/command-helpers/cwf-claude-settings-merge",
       "permissions" : "0500",
@@ -249,7 +258,7 @@
     "template-copier-v2.1" : {
       "path" : ".cwf/scripts/command-helpers/template-copier-v2.1",
       "permissions" : "0700",
-      "sha256" : "2bfa724502d543dbd4961f08a1c04809c9589ce18b9c36cb7de42d4e27efccd7"
+      "sha256" : "14e29164871e767c81442787ac83f1c05f8e10c778575ebe46d06e6e2bf490ca"
     },
     "validate-migration.sh" : {
       "path" : ".cwf/scripts/validate-migration.sh",

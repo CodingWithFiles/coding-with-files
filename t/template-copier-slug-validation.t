@@ -14,6 +14,7 @@ use FindBin;
 use File::Spec;
 use File::Temp qw(tempdir);
 use lib File::Spec->catdir($FindBin::Bin, '..', '.cwf', 'lib');
+use CWF::Common qw(generate_slug);
 
 my $SCRIPT = File::Spec->catfile(
     $FindBin::Bin, '..', '.cwf', 'scripts', 'command-helpers', 'template-copier-v2.1'
@@ -101,7 +102,7 @@ subtest 'TC-test-6: leading/trailing hyphens stripped -> accepted' => sub {
     eval { main::parse_parameters(@args) };
     is($@, '', 'no die — outer hyphens are stripped, slug is "valid-content"');
     # Sanity: confirm generate_slug actually produces the trimmed form.
-    is(main::generate_slug('---valid-content---'), 'valid-content', 'generate_slug strips outer hyphens');
+    is(generate_slug('---valid-content---'), 'valid-content', 'generate_slug strips outer hyphens');
 };
 
 subtest 'TC-test-7: error message contents (overlong)' => sub {

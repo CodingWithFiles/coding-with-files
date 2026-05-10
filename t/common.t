@@ -9,7 +9,7 @@ use FindBin;
 use lib "$FindBin::Bin/../.cwf/lib";
 use lib "$FindBin::Bin/lib";
 
-BEGIN { use_ok('CWF::Common', qw(check_perl5opt format_error parse_semver version_cmp)) }
+BEGIN { use_ok('CWF::Common', qw(check_perl5opt format_error parse_semver version_cmp generate_slug)) }
 
 #==============================================================================
 # check_perl5opt()
@@ -129,6 +129,48 @@ subtest 'version_cmp() - works without v-prefix' => sub {
 
     is(version_cmp('1.0.113', '1.0.97'), 1, 'works on bare semver');
     is(version_cmp('v1.0.0',  '1.0.0'),  0, 'mixed prefix and bare');
+};
+
+#==============================================================================
+# generate_slug()
+#==============================================================================
+
+subtest 'generate_slug() - basic ASCII transformation' => sub {
+    plan tests => 4;
+    is(generate_slug('Hello World'),       'hello-world',     'lowercase + space-to-hyphen');
+    is(generate_slug('FooBarBaz'),         'foobarbaz',       'no spaces, just lowercase');
+    is(generate_slug('Add a Feature'),     'add-a-feature',   'multi-word');
+    is(generate_slug(''),                  '',                'empty input → empty output');
+};
+
+subtest 'generate_slug() - punctuation and special characters' => sub {
+    plan tests => 4;
+    is(generate_slug('Add Settings.json Merge'), 'add-settingsjson-merge',
+        'punctuation dropped (period inside settings.json)');
+    is(generate_slug('Foo! Bar? Baz.'),   'foo-bar-baz',     'trailing punctuation dropped');
+    is(generate_slug('Test (parens)'),    'test-parens',     'parens dropped');
+    is(generate_slug('A/B/C'),            'abc',             'slashes dropped, no separator added');
+};
+
+subtest 'generate_slug() - whitespace collapsing' => sub {
+    plan tests => 3;
+    is(generate_slug('Foo    Bar'),       'foo-bar',         'multiple spaces → single hyphen');
+    is(generate_slug('  Leading'),        'leading',         'leading whitespace stripped');
+    is(generate_slug('Trailing  '),       'trailing',        'trailing whitespace stripped');
+};
+
+subtest 'generate_slug() - hyphen handling' => sub {
+    plan tests => 4;
+    is(generate_slug('---foo---'),        'foo',             'leading/trailing hyphens stripped');
+    is(generate_slug('foo--bar'),         'foo-bar',         'consecutive hyphens collapsed');
+    is(generate_slug('foo - bar'),        'foo-bar',         'hyphen with surrounding spaces');
+    is(generate_slug('-'),                '',                'lone hyphen → empty');
+};
+
+subtest 'generate_slug() - non-ASCII characters dropped' => sub {
+    plan tests => 2;
+    is(generate_slug('Café Latte'),       'caf-latte',       'é dropped (not in [a-z0-9])');
+    is(generate_slug('foo — bar'),        'foo-bar',         'em-dash dropped, surrounding hyphens collapsed');
 };
 
 done_testing();

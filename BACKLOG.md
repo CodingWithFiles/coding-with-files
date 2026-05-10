@@ -4,37 +4,6 @@ Future tasks and improvements for the Coding with Files system.
 
 ---
 
-<!-- Completed: "Refactor CWF Commands for Progressive Disclosure" — Task 56 (2026-02-12) -->
-<!-- Completed: "Convert CWF Commands to Skills" — Task 57 (2026-02-13) -->
-
-<!-- Completed: "Fix Install Script / cwf-init Boundary and Post-Install UX" — Task 62 (2026-02-17) -->
-
-<!-- Completed: "Add Missing Checkpoint Commit Instructions to cwf-requirements-plan and cwf-maintenance" — Task 71 (2026-02-19) -->
-
-<!-- Completed: "Fix install.bash file:// Source Defaults to HEAD" — Task 80 (2026-02-21) -->
-
-<!-- Completed: "Enforce Single Canonical Task Type List Across CWF Modules" — Task 81 (2026-02-21) -->
-
----
-
-<!-- Completed: "Fix checkpoints-branch-manager verify emits die instead of warn on SIGPIPE" — Task 82 (2026-02-21) -->
-
----
-
-<!-- Completed: "Harden Install Script Pre-Flight Checks and Simplify Bootstrap" — Task 75 (2026-02-19) -->
-
-<!-- Completed: "Remove v1.0 Category Subdirectories from /cwf-init" — Task 68 (2026-02-18) -->
-
-<!-- Completed: "Improve CWF Skill Initialisation in /cwf-init" — Task 70 (2026-02-19) -->
-
----
-
-<!-- Completed: "Audit Perl-vs-Bash helper scripts and migrate where feasible" — Task 128 (2026-05-06): all 5 shell helpers were dead/trivial; deleted, with the one live caller (cwf-config skill) inlined -->
-
-<!-- Completed: "Security-review changeset construction is broken in three ways" — Task 129 (2026-05-06): replaced the inline pathspec with a single Perl helper (`security-review-changeset`); per-task baseline commit recorded as a markdown field in `a-task-plan.md`; CWF-internal-dir + shebang-sniff classification over the diff window. All three axes closed; 13 new subtests pass -->
-
----
-
 ## Task: Backfill **Baseline Commit** field in in-flight tasks' a-task-plan.md
 
 **Task-Type**: chore
@@ -71,10 +40,6 @@ The v1 anchored interpreter regex covers `perl|bash|sh|ksh|zsh|fish|python\d?|ru
 
 ---
 
-<!-- Completed: "Expand script-hashes.json integrity surface to command-helpers and hooks" — Task 125 (2026-05-03) -->
-
----
-
 ## Task: Tighten security-subagent prompt for sentinel-line compliance
 
 **Task-Type**: chore
@@ -90,12 +55,6 @@ The security subagent introduced in Task 123 returns three sentinel-prefixed sta
 **Trigger**: Defer until the classifier-versus-substance gap recurs in >2 of the next 5 feature tasks. If the rate stays acceptable, no action needed — the conservative classifier is doing its job.
 
 **Identified in**: Task 123 retrospective (j-retrospective.md § "What Could Be Improved")
-
----
-
-<!-- Completed: "Refresh .claude/settings.json on `cwf-manage update`" — superseded by Task 127 (broader: re-applies every cwf-init artefact, not just settings.json). -->
-
-<!-- Completed: "Sync cwf-init artefacts during upgrade with Debian-style config conflict resolution" — Task 127 (2026-05-05) -->
 
 ---
 
@@ -135,8 +94,6 @@ Task 127's testing covers `cwf-apply-artefacts` at the helper level and `cwf-man
 **Out of scope**: SIGKILL-during-rename atomicity (covered architecturally by same-dir-temp + rename), interactive D/A prompt branches (need expect-style harness — separate task if ever needed).
 
 **Identified in**: Task 127 retrospective (j-retrospective.md § "Recommendations § Future Work")
-
----
 
 ---
 
@@ -229,25 +186,6 @@ When `/cwf-new-task` or `/cwf-new-subtask` is invoked without a task type, the a
 
 ---
 
-<!-- Completed: "Update Branding and Documentation for Skills Architecture" — Task 79 (2026-02-20) -->
-
-<!-- Completed: "Audit /cwf-init for Obsolete Category Subdirectories" — Task 68 (2026-02-18) -->
-
-
-<!-- Completed: "Fix template-copier-v2.1 Uninitialized Variable Warnings" — Task 74 (2026-02-19) -->
-
-<!-- Completed: "Bug: /cwf-init Should Run Security Check and Fix Permissions" — Task 120 (2026-05-02) -->
-
----
-
-<!-- Completed: "Add Status Update Helper Script (cwf-set-status)" — Task 101 (2026-04-18) -->
-
----
-
-<!-- Completed: "Add Checkpoint Commit Helper Script (cwf-checkpoint-commit)" — Task 102 (2026-04-18) -->
-
----
-
 ## Task: Add Slug Generation Helper Script (`cwf-slug`)
 
 **Task-Type**: feature
@@ -311,10 +249,6 @@ Task 119's plan-review caught that `template-copier-v2.1`'s top-level execution 
 - Reference from the existing Tasks 115/116 test patterns
 
 **Identified in**: Task 119 retrospective (Process Learning)
-
----
-
-<!-- Completed: "Add Settings.json Merge Helper Script" — superseded by `.cwf/scripts/command-helpers/cwf-claude-settings-merge` (idempotent merge, nested keys, dedup, --dry-run; tests at t/cwf-claude-settings-merge.t). The helper is purpose-built for cwf-init's allowlist + Stop-hook merge rather than a generic (key-path, value) API. Removed in Task 130. -->
 
 ---
 
@@ -458,8 +392,6 @@ Template-copier automatically marks non-applicable phases as "Skipped" during ta
 
 ---
 
-<!-- Removed: "Create CWF Terminology Glossary" — Task 87 (2026-02-22) -->
-<!-- Reason: Completed — .cwf/docs/glossary.md created with 8 terms -->
 
 ## Task: Create Integration Test for Inconclusive Inference Scenarios
 
@@ -477,11 +409,6 @@ Create integration test harness that manipulates git state to produce real signa
 - Validate real TaskContextInference output matches expectations
 
 **Identified in**: Task 37 retrospective (j-retrospective.md)
-
----
-
-<!-- Removed: "Update Commands/Skills to Use New Inference Output Format" — Task 84 (2026-02-21) -->
-<!-- Reason: Moot — task-context-inference still uses singular task_num field; plural format was never adopted; skills work correctly as-is -->
 
 ---
 
@@ -554,11 +481,6 @@ Create reusable grep/diff verification patterns for multi-file update tasks.
 **Rationale**: Codifies effective verification approach from Task 36 for reuse.
 
 **Discovered**: Task 36 retrospective - grep/diff verification proved effective
-
----
-
-<!-- Removed: "Document Checkpoint Commit → Squash Workflow" — Task 84 (2026-02-21) -->
-<!-- Reason: Already documented in .cwf/docs/skills/retrospective-extras.md Step 10 ("Checkpoints Branch and Squash") with exact commands -->
 
 ---
 
@@ -650,155 +572,6 @@ Add explicit baseline verification step to implementation planning phase for tas
 
 ---
 
-<!-- Completed: "Add Status Field Review to Pre-Retrospective Checklist" — Task 69 (2026-02-18) — Root cause fixed: Implemented status removed entirely -->
-
-<!-- Completed: "Create Design-Alignment Conventions Document" — Task 122 (2026-05-02) -->
-
----
-
-## ~~Task: Standardize Task Context Inference Output Format~~ ✓ COMPLETED
-
-**Task-Type**: bugfix
-**Priority**: High
-**Status**: ✓ Completed in Task 37 (2026-02-06)
-
-Standardize task context inference output to always use structured, parseable format suitable for LLM consumption and script parsing, regardless of whether signals are conclusive or inconclusive.
-
-**Problem**: Task 32 implemented inference with inconsistent output formats:
-
-**Current Behavior (Conclusive)**:
-```
-task_num: 32
-task_slug: task-tracking-using-inference-scoring
-workflow_step: j-retrospective
-```
-
-**Current Behavior (Inconclusive - NOT PARSEABLE)**:
-```
-Signals disagree on current task.
-
-Top candidates:
-  - Task 14
-  - Task 32
-
-Please specify task number explicitly or clarify context.
-
-  branch:         task 32 (score: 100, top of 1)
-  worktree:       null
-  state:          null
-  recency:        task 32 (score: 49, top of 5)
-  progress:       task 14 (score: 0, top of 5)
-```
-
-**Original Specification (from planning)**:
-```
-task_num: {task_num}
-task_slug: {task_slug}
-workflow_step: {workflow_step}
-```
-
-**What's Missing**:
-1. No way to indicate conclusive vs inconclusive inference
-2. Inconclusive output is human-readable prose, not parseable
-3. No structured format for multiple candidate tasks
-4. LLMs and scripts can't reliably parse current output
-
-**Solution**: Implement structured output format for all scenarios.
-
-**Proposed Output Format**:
-
-**Conclusive (signals agree)**:
-```
-current: conclusive
-task_num: 32
-task_slug: task-tracking-using-inference-scoring
-workflow_step: j-retrospective
-confidence: correlated
-```
-
-**Inconclusive (signals disagree)**:
-```
-current: inconclusive
-task_num: 14,32
-task_slug: retrospective-suggest-updating-workflow-and-commit,task-tracking-using-inference-scoring
-workflow_step: unknown
-confidence: uncorrelated
-candidates: 2
-```
-
-**No signals**:
-```
-current: inconclusive
-task_num: unknown
-task_slug: unknown
-workflow_step: unknown
-confidence: no_signals
-candidates: 0
-```
-
-**Fields**:
-- `current`: conclusive|inconclusive (can inference determine single task?)
-- `task_num`: single number | comma-separated numbers | "unknown"
-- `task_slug`: single slug | comma-separated slugs | "unknown"
-- `workflow_step`: step name | "unknown"
-- `confidence`: correlated|uncorrelated|no_signals (from TaskContextInference.pm)
-- `candidates`: number of candidate tasks (0, 1, or N)
-
-**Scope**:
-
-1. **Update TaskContextInference.pm**:
-   - Modify `infer_task_context()` to always return structured format
-   - Add "current" field (conclusive/inconclusive)
-   - Add "candidates" count field
-   - When uncorrelated: return comma-separated task_num and task_slug lists
-   - When no signals: return "unknown" for fields
-
-2. **Update task-context-inference wrapper**:
-   - Default mode outputs structured format (always parseable)
-   - Keep `--verbose` flag for signal breakdown (debugging)
-   - Exit codes remain: 0=conclusive, 1=uncorrelated, 3=no_signals
-
-3. **Update skills**:
-   - `/current-task-wf` outputs structured format
-   - `/current-task-wf-verbose` adds signal breakdown after structured output
-   - Both parseable by LLMs and scripts
-
-4. **Update commands**:
-   - Commands parse structured output (extract task_num field)
-   - Commands check "current" field and handle inconclusive gracefully
-   - Commands prompt user when current=inconclusive
-
-5. **Update tests**:
-   - Verify structured output for all scenarios (conclusive, uncorrelated, no_signals)
-   - Parse output programmatically (validate format)
-   - Update TC-I2, TC-I3, TC-I4 test expectations
-
-**Benefits**:
-- Deterministic, parseable output in all scenarios
-- LLMs can reliably extract task context
-- Scripts can parse output without regex hacks
-- Consistent format whether signals agree or disagree
-- Backward compatible (commands can check "current" field)
-
-**Success Criteria**:
-- [ ] TaskContextInference.pm always returns structured format
-- [ ] Output includes current: conclusive|inconclusive
-- [ ] Inconclusive output has comma-separated candidates
-- [ ] Skills output parseable format
-- [ ] Commands handle both conclusive and inconclusive responses
-- [ ] Tests validate structured output format
-- [ ] Documentation updated with output format specification
-
-**Rationale**: Task 32 planning specified structured output (`task_num: {task_num}\ntask_slug: {task_slug}\nworkflow_step: {workflow_step}`) but implementation only provides this when signals agree. Inconclusive scenarios output human-readable prose that's not parseable by LLMs or scripts. This breaks automation and requires manual intervention. Standardizing to always output structured format enables reliable automation.
-
-**Original Specification Reference**: Task 32 a-task-plan.md specified "3-line output (task_num, task_slug, workflow_step)" but didn't account for inconclusive scenarios.
-
-**Real-World Impact**: Just encountered this issue - Task 32 is complete (100%) on feature branch, progress signal disagrees with branch signal, output is unparseable prose. Commands can't extract task number programmatically.
-
-**Related**: Task 32 (implementation incomplete for original output format specification)
-
----
-
 ## Task: Add Security Verification to Testing Workflow
 
 **Task-Type**: chore
@@ -840,11 +613,6 @@ Add instruction to include security integrity checks as a standard part of the t
 **Rationale**: Security verification is currently ad-hoc. Integrating it into the testing workflow ensures it's performed consistently for all tasks that modify security-sensitive files.
 
 **Related**: Task 32 (discovered during post-retrospective security check)
-
----
-
-<!-- Removed: "Create Permanent Security Verification Script" — Task 84 (2026-02-21) -->
-<!-- Reason: Superseded by `cwf-manage validate` / CWF::Validate::Security.pm — version-controlled, reads script-hashes.json, verifies SHA256 and permissions -->
 
 ---
 
@@ -1062,25 +830,10 @@ Create automated migration tools to upgrade existing v2.0 tasks (a-plan.md throu
 
 **Note**: v1.0→v2.0 migration tools already exist and are preserved by Task 25. This task creates equivalent v2.0→v2.1 migration capability.
 
----
-
-<!-- Removed: "Migrate CWF to Hybrid Plugin Model (Commands → Skills + Plugin)" — Task 84 (2026-02-21) -->
-<!-- Reason: Commands→Skills migration completed in Task 57; plugin hooks blocked by Bug #17688; Task 54 disproved core premise (commands not deprecated, "Keep Commands" confirmed at 85% confidence) -->
-
----
-
-<!-- Removed: "Create Automated Test Harness for CWF System" — Task 84 (2026-02-21) -->
-<!-- Reason: Done — t/ directory has 15+ test files covering all major modules (statusaggregator, workflowfiles, templatecopier, contextinheritance, taskpath, validate-*, etc.) -->
 - [ ] Runs in <2 minutes
 - [ ] Can run on any Perl 5.14+ system
 
 **Rationale**: Manual validation is sustainable for small changes but becomes bottleneck as system grows. Automated testing provides confidence and speed.
-
----
-
-
-<!-- Removed: "Design Task-Type-Specific Workflow Variants" — Task 84 (2026-02-21) -->
-<!-- Reason: Already implemented — task-workflow create produces type-specific file sets (feature=8, bugfix=5, hotfix=5, chore=4); workflow-overview.md documents variants -->
 
 ---
 
@@ -1134,10 +887,6 @@ Task completion percentage is calculated by aggregating the `## Status` field fr
 - [ ] Follows progressive disclosure (brief with pointers to details)
 
 **Rationale**: Users and LLM need to understand how task percentage is calculated, but full details belong in script documentation (DRY). Brief overview with references provides sufficient context.
-
----
-
-<!-- Removed: "Update Documentation References from status-aggregator to status-aggregator" — Task 130 (2026-05-07). Entry was incoherent: title and body both had source/target homogenised by an apparent search-replace; referenced .claude/commands/cwf-status.md which no longer exists post commands→skills migration (Task 57). The substantive intent — move docs from .pl-suffix references to entry-point references — was settled during the trampoline architecture rollout (Task 25). -->
 
 ---
 
@@ -1223,16 +972,6 @@ Analyse and standardise cross-document reference patterns used throughout CWF sy
 
 ---
 
-<!-- Removed: "Remove Decomposition Checks from Non-Planning Workflow Steps" — Task 86 (2026-02-22) -->
-<!-- Reason: Completed — Step 7 removed from cwf-rollout and cwf-maintenance SKILL.md files -->
-
-<!-- Removed: "Rollout Task 11 - Secure Argument Parsing" — Task 11 cancelled (superseded by Task 57, commands→skills bypasses $ARGUMENTS bug entirely). Removed in Task 58 retrospective. -->
-
-<!-- Removed: "Security Review and Hardening of CWF Bash Invocations" — Task 84 (2026-02-21) -->
-<!-- Reason: Moot — commands migrated to skills (Task 57), command-helpers are all Perl with no shell metacharacter exposure; $ARGUMENTS bug bypassed entirely -->
-
----
-
 ## Task: Extract CWF Argument Validation Pattern to Documentation
 
 **Task-Type**: feature
@@ -1284,77 +1023,7 @@ Improve error message in `status-aggregator` to clarify that it expects a task n
 
 ---
 
-## ✓ Task: Fix CWF Commands to Work from Any Directory
 
-**Task-Type**: bugfix
-**Priority**: High
-**Status**: ✓ Complete (Task 36 - 2026-02-06)
-
-Fixed CWF workflow commands to work regardless of current working directory by adding git root detection to all 17 command files.
-
-**Solution Implemented**: Added bash snippet to detect git repository root and cd to it before execution:
-```bash
-GIT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
-if [ -z "$GIT_ROOT" ]; then
-    echo "Error: Not in a git repository. CWF commands must be run from within a git repository."
-    exit 1
-fi
-cd "$GIT_ROOT"
-echo "Working directory: $GIT_ROOT"
-```
-
-**Results**:
-- All 17 command files updated (.claude/commands/cwf-*.md)
-- Commands now work from any directory within repository
-- Clear error handling for non-git directories
-- Working directory changes communicated to user/LLM
-
-**Completed by**: Task 36 (bugfix/36-fix-cig-commands-to-work-from-any-directory)
-
-**Solution Options**:
-
-**Option A: Dynamic Git Root Detection**
-- Commands find git root dynamically using `git rev-parse --show-toplevel`
-- Convert all relative paths to absolute paths based on git root
-- Pros: Works from any directory, no directory changes needed
-- Cons: Requires git, adds complexity to every command
-
-**Option B: Explicit CD to Git Root**
-- Commands explicitly `cd` to git root at start
-- Echo new working directory so LLM maintains context
-- Pros: Simple, matches existing relative path assumptions
-- Cons: Changes working directory (must communicate to LLM)
-
-**Recommended Approach**: Option B with clear communication
-```bash
-# At start of each CWF command
-GIT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
-if [ -z "$GIT_ROOT" ]; then
-    echo "Error: Not in a git repository"
-    exit 1
-fi
-
-cd "$GIT_ROOT"
-echo "Working directory: $GIT_ROOT"
-```
-
-**Scope**:
-- Update all CWF workflow commands (cig-plan, cig-requirements, cig-design, cig-implementation, cig-testing, cig-rollout, cig-maintenance, cig-retrospective)
-- Update utility commands (cig-new-task, cig-subtask, cig-status, cig-extract, cig-config, cig-init)
-- Add git root detection to command templates
-- Document working directory behavior in `.cwf/docs/`
-
-**Testing**:
-- Run commands from repository root (should work as before)
-- Run commands from task subdirectories (should work after fix)
-- Run commands from outside repository (should fail with clear error)
-
-**Rationale**: CWF commands should work reliably regardless of where Claude's current working directory is, preventing workflow interruptions and improving user experience.
-
----
-
-
-<!-- Completed: "Add Re-Execution Guidance to Implementation and Testing Exec Skills" — Task 76 (2026-02-19) -->
 ## Task: Implement Interface-Based Version Dispatch for status-aggregator
 
 **Task-Type**: refactor
@@ -1392,7 +1061,7 @@ Implement Go-style interface pattern using Perl dispatch tables:
 
 **Key Insight**: "The modules know about versions, the scripts shouldn't have to."
 
-#### Architecture
+**Architecture**:
 
 ```perl
 # CWF::WorkflowFiles::Dispatch
@@ -1455,7 +1124,7 @@ validate_interfaces();  # Compile-time-ish checking
 1;
 ```
 
-#### Usage in Unified Script
+**Usage in Unified Script**:
 
 ```perl
 # Single status-aggregator script (replaces v2.0 and v2.1 scripts)
@@ -1575,11 +1244,6 @@ This is a **significant refactor** touching the core status aggregation architec
 
 ---
 
-<!-- Removed: "Standardize Script Naming and Invocation (Remove Extensions)" — Task 84 (2026-02-21) -->
-<!-- Reason: Done — all command-helpers already use extensionless names (context-manager, task-workflow, workflow-manager, status-aggregator-v2.*, etc.); no .pl/.sh extensions present -->
-
----
-
 ## Task: Audit CWF Skills for Hardcoded Data
 
 **Task-Type**: chore
@@ -1619,22 +1283,6 @@ Create quick reference documentation for workflow phase sequences (which files a
 
 ---
 
-<!-- Completed: "Add Path-Scoped Rules for Workflow File Protection" — Task 98 (2026-04-17) -->
-
-<!-- Completed: "Add PreToolUse Hook for Rule Re-Injection" — Task 99 (2026-04-17) -->
-
----
-
-<!-- Completed: "Research Stop Event Hooks for Correctness, Quality, and Efficiency" — Task 103 (2026-04-19) -->
-
-<!-- Completed: "Consolidate Status Extraction to Single Canonical Module" — Task 105 (2026-04-19) -->
-
----
-
-<!-- Completed: "Build Stale Status Detector Stop Hook" — Task 104 (2026-04-19) -->
-
----
-
 ## Bug: Progress Signal Scores Completed Tasks Highest in Task Context Inference
 
 **Task-Type**: bugfix
@@ -1654,19 +1302,6 @@ The `_score_progress` function in `TaskContextInference.pm` uses a linear ramp (
 - Verify with mixed completed/in-progress task states
 
 **Identified in**: Task 104 session — inference returned inconclusive when only one task had remaining work
-
----
-
-<!-- Completed: "Build Uncommitted Changes Warning Stop Hook" — Task 113 (2026-04-25) -->
-
-<!-- Completed: "Discover Best Gotchas for Skills Based on LMM Memory Analysis" — Task 107 (2026-04-21) -->
-<!-- Produced 4 follow-up backlog items below -->
-
-<!-- Completed: "Add Gotchas to cwf-retrospective Skill" — Task 109 (2026-04-21) -->
-
-<!-- Completed: "Add Gotchas to cwf-implementation-exec Skill" — Task 117 (2026-04-29), with "rebrand" replaced by "rename or string substitution" after user prose review -->
-
-<!-- Completed: "Add Gotchas to cwf-implementation-plan Skill" and "Add Gotchas to cwf-design-plan Skill" — Task 111 (2026-04-22), unified into shared "measure twice, cut once" gotcha -->
 
 ---
 
@@ -1765,7 +1400,6 @@ Add a small regression test that exercises the `stop-uncommitted-changes-warning
 
 **Identified in**: Task 114 j-retrospective.md
 
-<!-- Coalesced into "Lightweight Rollout/Maintenance Templates for Internal/Developer-Tool Tasks" (above) — Task 130 (2026-05-07). -->
 
 ## Task: Resolve cwf-project.json version drift vs .cwf/version
 
@@ -1809,3 +1443,40 @@ Task 118 added a tool-selection rubric for CWF subagents (canonical doc + brief 
 
 **Identified in**: Task 118 j-retrospective.md (Future Work)
 
+---
+
+## Task: Resolve symlinks in validate_path_allowlist
+
+**Task-Type**: chore
+**Priority**: Low
+**Status**: Follow-up from Task 131
+
+`validate_path_allowlist` in `CWF::ArtefactHelpers` rejects absolute paths and `..` traversal but does not resolve symlinks before checking the allowlist. A symlink inside the repo pointing outside the allowed prefixes (e.g. `t/fixtures/escape -> /etc/passwd`) would slip through, allowing `--body-file=t/fixtures/escape` in `backlog-manager add` (and analogous flows in any other helper using `validate_path_allowlist`) to read arbitrary files.
+
+**Scope**:
+- Modify `validate_path_allowlist` to call `Cwd::realpath()` on the input and on each allowed prefix; reject if the resolved path doesn't begin with a resolved allowed prefix.
+- Audit existing callers (`cwf-apply-artefacts`, `cwf-claude-settings-merge`, `backlog-manager`) to confirm none rely on symlink-not-resolved behaviour.
+- Update `t/artefacthelpers.t` (or equivalent) with a symlink-escape regression test.
+
+**Risk**: low — the only known production callers operate on hard-coded repo paths, not user-supplied ones. The exposure is via `backlog-manager add --body-file` which is not yet wired into automation.
+
+**Identified in**: Task 131 c-design-plan plan-review (security agent)
+
+---
+
+## Task: Close TOCTOU window in atomic_write_text via O_NOFOLLOW
+
+**Task-Type**: chore
+**Priority**: Low
+**Status**: Follow-up from Task 131
+
+`atomic_write_text` in `CWF::ArtefactHelpers` uses `rename($tmp, $path)` which writes through symlinks. Helpers that defend against this (e.g. `backlog-manager retire`, the `write_backlog_file` / `write_changelog_file` wrappers in `CWF::Backlog`) check `-l $path` before invoking `atomic_write_text`. There is a TOCTOU window between the check and the rename: an attacker who can rewrite the directory between the two calls could swap the regular file for a symlink and have the rename traverse it.
+
+**Scope**:
+- Modify `atomic_write_text` to use `sysopen` with `O_NOFOLLOW` on the destination, OR perform the `-l` check inside the helper immediately before the rename (narrows but does not eliminate the window).
+- Considered alternative: `link()` + `unlink()` instead of `rename()` — gives atomic semantics on POSIX but would change the helper's semantics for callers that rely on inode preservation.
+- Update `t/artefacthelpers.t` to verify symlink targets are refused.
+
+**Risk**: very low — single-developer maintenance helpers; concurrent attacker access to the working tree is out of the documented threat model. Worth fixing for defense in depth, especially before any tool that takes user-supplied paths is exposed to multi-user scenarios.
+
+**Identified in**: Task 131 c-design-plan plan-review (security agent)

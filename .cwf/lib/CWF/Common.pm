@@ -11,7 +11,7 @@ use warnings;
 use utf8;
 use Exporter 'import';
 
-our @EXPORT_OK = qw(check_perl5opt format_error parse_semver version_cmp find_git_root);
+our @EXPORT_OK = qw(check_perl5opt format_error parse_semver version_cmp find_git_root generate_slug);
 
 # Check PERL5OPT environment configuration
 # Args: none
@@ -50,6 +50,43 @@ sub find_git_root {
     my $root = `git rev-parse --show-toplevel 2>/dev/null`;
     chomp $root;
     return length $root ? $root : undef;
+}
+
+# Generate a slug from a free-text description.
+#
+# Algorithm: lowercase, drop non-alphanumeric (preserving spaces and hyphens),
+# collapse whitespace runs into single hyphens, collapse hyphen runs into
+# single hyphens, strip leading/trailing hyphens.
+#
+# SHARED OWNERSHIP: this function is invoked by both `template-copier-v2.1`
+# (during task creation, to slug the user-supplied task description) and by
+# `backlog-manager` (to derive a stable identifier for BACKLOG entries from
+# their title). Changes MUST preserve idempotency across both contexts —
+# `cwf-new-task` slugging a title and `backlog-manager modify --id=<slug>`
+# matching against that title MUST produce the same slug.
+#
+# Args: $description (string)
+# Returns: slug string (may be empty if input contains no alphanumerics)
+sub generate_slug {
+    my ($description) = @_;
+
+    # Lowercase
+    $description = lc($description);
+
+    # Remove special characters (keep alphanumeric, spaces, hyphens)
+    $description =~ s/[^a-z0-9 -]//g;
+
+    # Replace spaces with hyphens
+    $description =~ s/ +/-/g;
+
+    # Collapse consecutive hyphens
+    $description =~ s/-+/-/g;
+
+    # Strip leading/trailing hyphens so "---foo---" becomes "foo".
+    $description =~ s/^-+//;
+    $description =~ s/-+$//;
+
+    return $description;
 }
 
 # Compare two version strings numerically component-by-component

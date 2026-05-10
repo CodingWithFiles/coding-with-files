@@ -1,0 +1,569 @@
+#!/usr/bin/perl -CDSL
+#
+# backlog-manager — Manage BACKLOG.md and CHANGELOG.md.
+#
+# Subcommands:
+#   validate    Check BACKLOG.md and CHANGELOG.md format
+#   list        Show active BACKLOG entries grouped by priority
+#   add         Append a new active entry
+#   modify      Edit an existing entry's priority (or other fields)
+#   delete      Remove an entry outright (requires --confirm)
+#   retire      Move an entry from BACKLOG to CHANGELOG (transactional)
+#
+# Run "backlog-manager <subcommand> --help" for subcommand-specific usage.
+#
+# See: .cwf/lib/CWF/Backlog.pm (parser, validator, mutators)
+#      implementation-guide/131-feature-add-backlog-management-helper-script/
+#
+use strict;
+use warnings;
+use utf8;
+use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use File::Spec;
+use CWF::Common qw(find_git_root);
+use CWF::ArtefactHelpers qw(validate_path_allowlist);
+use CWF::Backlog qw(
+    parse_backlog_file parse_changelog_file
+    write_backlog_file write_changelog_file
+    validate_backlog validate_changelog
+    find_active_by_slug find_active_by_title
+    find_changelog_task block_exists_in_retired append_retired_block
+    entry_title entry_metadata entry_body_start_index entry_slug
+    set_priority_field
+    list_active
+);
+
+#==============================================================================
+# Setup
+#==============================================================================
+
+sub repo_paths {
+    my $root = find_git_root() // die "[CWF] ERROR: backlog-manager: not in a git repository\n";
+    return (
+        File::Spec->catfile($root, 'BACKLOG.md'),
+        File::Spec->catfile($root, 'CHANGELOG.md'),
+    );
+}
+
+sub die_user    { die "[CWF] ERROR: backlog-manager: $_[0]\n"; }
+sub die_path    { die "[CWF] ERROR: backlog-manager: path: $_[0]\n"; }
+sub info        { warn "[CWF] INFO: backlog-manager: $_[0]\n"; }
+
+#==============================================================================
+# Argument parsing
+#==============================================================================
+
+sub parse_args {
+    my @args = @_;
+    my %opts;
+    for my $arg (@args) {
+        if ($arg =~ /^--([\w-]+)=(.*)$/s) {
+            $opts{$1} = $2;
+        }
+        elsif ($arg =~ /^--([\w-]+)$/) {
+            $opts{$1} = 1;
+        }
+        elsif ($arg eq '-h') {
+            $opts{help} = 1;
+        }
+        else {
+            die_user("unknown argument '$arg'");
+        }
+    }
+    return %opts;
+}
+
+#==============================================================================
+# Help
+#==============================================================================
+
+sub usage_main {
+    return <<'END';
+Usage: backlog-manager <subcommand> [options]
+
+Subcommands:
+  validate                  Check BACKLOG.md / CHANGELOG.md format
+  list                      List active entries grouped by priority
+  add                       Append a new active entry
+  modify                    Edit an existing entry
+  delete                    Remove an entry (requires --confirm)
+  retire                    Move BACKLOG entry to CHANGELOG (transactional)
+
+Run "backlog-manager <subcommand> --help" for subcommand-specific usage.
+END
+}
+
+sub usage_validate {
+    return <<'END';
+Usage: backlog-manager validate [--all]
+
+  Check BACKLOG.md and CHANGELOG.md against the format contract.
+  Default: print first error and exit 1.
+  --all:   print every error and exit 1 if any.
+END
+}
+
+sub usage_list {
+    return <<'END';
+Usage: backlog-manager list [--all-items]
+
+  Render active BACKLOG entries grouped by priority.
+  Default: top 20 items, but never split a priority band.
+  --all-items: show all entries.
+END
+}
+
+sub usage_add {
+    return <<'END';
+Usage: backlog-manager add --title=TITLE --task-type=TYPE --priority=PRI
+                           (--body=TEXT | --body-file=PATH)
+                           [--status=TEXT] [--identified-in=TEXT]
+
+  Append a new active entry to BACKLOG.md.
+  --task-type:    feature|bugfix|hotfix|chore|discovery
+  --priority:     Very High|High|Medium|Low|Very Low
+  --body-file:    repo-relative path; outside-repo paths rejected.
+END
+}
+
+sub usage_modify {
+    return <<'END';
+Usage: backlog-manager modify (--id=SLUG | --exact-title=TITLE)
+                              [--priority=PRI]
+
+  Edit an existing entry. v1 supports --priority only;
+  other fields can be edited manually until follow-up tasks add them.
+END
+}
+
+sub usage_delete {
+    return <<'END';
+Usage: backlog-manager delete (--id=SLUG | --exact-title=TITLE) --confirm
+
+  Remove an entry outright. Use retire instead unless this is a typo
+  cleanup. Refuses on inactive (struck-through) entries.
+END
+}
+
+sub usage_retire {
+    return <<'END';
+Usage: backlog-manager retire (--id=SLUG | --exact-title=TITLE)
+                              --task=N [--note=TEXT]
+
+  Move an entry from BACKLOG to CHANGELOG. Deletes the BACKLOG entry and
+  appends a `#### <title>` block (with the original body) under the
+  implementing task's `### Retired Backlog Items` subsection. The subsection
+  is created if absent. Optional --note adds an HTML-comment annotation
+  recording any implementation deviation from the original BACKLOG entry.
+END
+}
+
+#==============================================================================
+# Subcommand: validate
+#==============================================================================
+
+sub cmd_validate {
+    my %opts = @_;
+    if ($opts{help}) { print usage_validate(); return 0; }
+
+    my ($bl, $cl) = repo_paths();
+    my ($bl_sects,  $bl_global) = parse_backlog_file($bl);
+    my ($cl_sects,  $cl_global) = parse_changelog_file($cl);
+    my $bl_errs = validate_backlog($bl_sects);
+    my $cl_errs = validate_changelog($cl_sects);
+
+    my @all = (@$bl_global, @$cl_global, @$bl_errs, @$cl_errs);
+    return 0 unless @all;
+
+    # Partition into errors (severity unset or 'error') and warnings.
+    my @errors   = grep { ($_->{severity} // 'error') eq 'error' } @all;
+    my @warnings = grep { ($_->{severity} // '') eq 'warning' } @all;
+
+    # Always print warnings (informational).
+    warn "[CWF] WARN: $_->{file}:$_->{line} [$_->{rule}] $_->{message}\n" for @warnings;
+
+    return 0 unless @errors;
+
+    if ($opts{all}) {
+        warn "[CWF] ERROR: $_->{file}:$_->{line} [$_->{rule}] $_->{message}\n" for @errors;
+    } else {
+        my $e = $errors[0];
+        warn "[CWF] ERROR: $e->{file}:$e->{line} [$e->{rule}] $e->{message}\n";
+    }
+    exit 1;
+}
+
+#==============================================================================
+# Subcommand: list
+#==============================================================================
+
+sub cmd_list {
+    my %opts = @_;
+    if ($opts{help}) { print usage_list(); return 0; }
+
+    my ($bl, undef) = repo_paths();
+    my ($sects, $g_errs) = parse_backlog_file($bl);
+    my $actives = list_active($sects);
+
+    # Group by priority (file order preserved within band)
+    my @bands = ('Very High', 'High', 'Medium', 'Low', 'Very Low');
+    my %by_band;
+    for my $a (@$actives) {
+        my $p = entry_metadata($a)->{Priority} // '';
+        # Strip optional parenthetical annotation
+        $p =~ s/\s*\(.*\)\s*$//;
+        $p = 'Unknown' unless grep { $_ eq $p } @bands;
+        push @{$by_band{$p}}, $a;
+    }
+
+    my $cap_default = 20;
+    my $shown = 0;
+    my @output;
+
+    for my $band (@bands) {
+        my @entries = @{$by_band{$band} || []};
+        next unless @entries;
+
+        my $take;
+        if ($opts{'all-items'}) {
+            $take = scalar @entries;
+        }
+        elsif ($shown == 0 && @entries > $cap_default) {
+            # Soft cap: top band overflow → show entire band
+            $take = scalar @entries;
+        }
+        elsif ($shown + @entries <= $cap_default) {
+            $take = scalar @entries;
+        }
+        else {
+            $take = $cap_default - $shown;
+        }
+
+        push @output, "## $band (" . scalar(@entries) . ")";
+        for my $i (0 .. $take - 1) {
+            my $e = $entries[$i];
+            my $title = entry_title($e) // '<unknown>';
+            push @output, "  - $title";
+        }
+        $shown += $take;
+        last if !$opts{'all-items'} && $shown >= $cap_default && $take < @entries;
+    }
+
+    print join("\n", @output), "\n" if @output;
+    return 0;
+}
+
+#==============================================================================
+# Subcommand: add
+#==============================================================================
+
+sub cmd_add {
+    my %opts = @_;
+    if ($opts{help}) { print usage_add(); return 0; }
+
+    for my $req (qw(title task-type priority)) {
+        die_user("missing required --$req") unless defined $opts{$req};
+    }
+    die_user("must provide --body or --body-file")
+        unless defined $opts{body} || defined $opts{'body-file'};
+
+    my $title = $opts{title};
+
+    my $type = $opts{'task-type'};
+    die_user("invalid --task-type '$type'") unless $type =~ /^(?:feature|bugfix|hotfix|chore|discovery)$/;
+
+    my $priority = $opts{priority};
+    die_user("invalid --priority '$priority' (must be Very High|High|Medium|Low|Very Low)")
+        unless $priority =~ /^(?:Very High|High|Medium|Low|Very Low)$/;
+
+    my $body = '';
+    if (defined $opts{'body-file'}) {
+        my $path = $opts{'body-file'};
+        eval {
+            validate_path_allowlist($path, ['.cwf/', '.claude/', 'docs/', 'implementation-guide/', 't/']);
+        };
+        die_path($@) if $@;
+        die_path("body file does not exist: $path") unless -f $path;
+        open(my $fh, '<:encoding(UTF-8)', $path) or die_path("cannot read $path: $!");
+        local $/;
+        $body = <$fh>;
+        close $fh;
+    } else {
+        $body = $opts{body};
+    }
+
+    # Body must not contain ^---$ (BACKLOG-003) or ^#### (BACKLOG-006).
+    for my $bl (split /\n/, $body, -1) {
+        die_user("body line matches separator pattern '---'") if $bl eq '---';
+        die_user("body line matches '#### ' (reserved for retired-block headings)")
+            if $bl =~ /^####\s+/;
+    }
+
+    # Build raw_lines for the new section. Lead with a blank line so the
+    # serialised file has `\n---\n\n## Task: …` (matches existing style).
+    my @raw = ("\n", "## Task: $title\n", "\n",
+               "**Task-Type**: $type\n",
+               "**Priority**: $priority\n");
+    push @raw, "**Status**: $opts{status}\n" if defined $opts{status};
+    push @raw, "\n";
+    # Body
+    chomp $body while length($body) && substr($body, -1) eq "\n";
+    for my $bl (split /\n/, $body, -1) {
+        push @raw, "$bl\n";
+    }
+    push @raw, "\n";
+    if (defined $opts{'identified-in'}) {
+        push @raw, "**Identified in**: $opts{'identified-in'}\n";
+        push @raw, "\n";
+    }
+
+    my $new_section = {
+        kind               => 'active',
+        raw_lines          => [@raw],
+        trailing_separator => 0,    # last section: no trailing separator
+    };
+
+    my ($bl_path, undef) = repo_paths();
+    my ($sects, undef) = parse_backlog_file($bl_path);
+
+    # Ensure the previous last section has a separator before our new one,
+    # so the parser-on-read correctly splits them.
+    if (@$sects && !$sects->[-1]{trailing_separator}) {
+        $sects->[-1]{trailing_separator} = 1;
+    }
+
+    push @$sects, $new_section;
+
+    write_backlog_file($bl_path, $sects);
+    return 0;
+}
+
+#==============================================================================
+# Subcommand: modify
+#==============================================================================
+
+sub cmd_modify {
+    my %opts = @_;
+    if ($opts{help}) { print usage_modify(); return 0; }
+
+    die_user("must provide --id or --exact-title")
+        unless defined $opts{id} || defined $opts{'exact-title'};
+
+    my ($bl_path, undef) = repo_paths();
+    my ($sects, undef) = parse_backlog_file($bl_path);
+
+    my @hits;
+    if (defined $opts{id}) {
+        @hits = find_active_by_slug($sects, $opts{id});
+    } else {
+        @hits = find_active_by_title($sects, $opts{'exact-title'});
+    }
+
+    if (@hits == 0) {
+        die_user(sprintf("entry not found: %s",
+            $opts{id} ? "slug='$opts{id}'" : "title='$opts{'exact-title'}'"));
+    }
+    if (@hits > 1) {
+        my @titles = map { entry_title($_) // '<unknown>' } @hits;
+        die_user(sprintf("ambiguous slug '%s'; matches: %s; use --exact-title to disambiguate",
+            $opts{id} // '<n/a>', join('; ', @titles)));
+    }
+
+    my $target = $hits[0];
+    if (defined $opts{priority}) {
+        my $new = $opts{priority};
+        die_user("invalid --priority '$new' (must be Very High|High|Medium|Low|Very Low)")
+            unless $new =~ /^(?:Very High|High|Medium|Low|Very Low)$/;
+        set_priority_field($target, $new);
+    }
+    # (other fields are out of v1 scope; document as future work)
+
+    write_backlog_file($bl_path, $sects);
+    return 0;
+}
+
+#==============================================================================
+# Subcommand: delete
+#==============================================================================
+
+sub cmd_delete {
+    my %opts = @_;
+    if ($opts{help}) { print usage_delete(); return 0; }
+
+    die_user("must provide --id or --exact-title")
+        unless defined $opts{id} || defined $opts{'exact-title'};
+    die_user("delete requires --confirm flag (use retire for completed work)")
+        unless $opts{confirm};
+
+    my ($bl_path, undef) = repo_paths();
+    my ($sects, undef) = parse_backlog_file($bl_path);
+
+    my @hits;
+    if (defined $opts{id}) {
+        @hits = find_active_by_slug($sects, $opts{id});
+    } else {
+        @hits = find_active_by_title($sects, $opts{'exact-title'});
+    }
+
+    die_user("entry not found") if @hits == 0;
+    die_user("ambiguous match; use --exact-title") if @hits > 1;
+
+    my $target = $hits[0];
+    # Find target's index in @$sects and remove it (along with its trailing separator)
+    my $idx = -1;
+    for (my $i = 0; $i < @$sects; $i++) {
+        if ($sects->[$i] == $target) { $idx = $i; last; }
+    }
+    splice(@$sects, $idx, 1);
+
+    write_backlog_file($bl_path, $sects);
+    return 0;
+}
+
+#==============================================================================
+# Subcommand: retire
+#==============================================================================
+
+sub cmd_retire {
+    my %opts = @_;
+    if ($opts{help}) { print usage_retire(); return 0; }
+
+    die_user("must provide --id or --exact-title")
+        unless defined $opts{id} || defined $opts{'exact-title'};
+    die_user("missing required --task") unless defined $opts{task};
+
+    my $task = $opts{task};
+    die_user("invalid --task (must be integer)") unless $task =~ /^\d+$/;
+
+    my $note = $opts{note};
+    if (defined $note) {
+        die_user("--note must not be empty")            if $note eq '';
+        die_user("--note must be printable ASCII")      if $note !~ /^[\x20-\x7E]+$/;
+        die_user("--note must not contain '-->'")       if $note =~ /-->/;
+    }
+
+    my ($bl_path, $cl_path) = repo_paths();
+
+    # Symlink defence — belt-and-braces; atomic_write_text would otherwise
+    # rename through. A TOCTOU window remains between this check and the
+    # rename inside atomic_write_text; closing it properly requires
+    # O_NOFOLLOW in the helper (tracked as a follow-up BACKLOG item).
+    die_user("refusing symlink at $bl_path") if -l $bl_path;
+    die_user("refusing symlink at $cl_path") if -l $cl_path;
+
+    my ($bl_sects, undef) = parse_backlog_file($bl_path);
+    my ($cl_sects, undef) = parse_changelog_file($cl_path);
+
+    # 1. Find the target BACKLOG entry.
+    my @hits;
+    if (defined $opts{id}) {
+        @hits = find_active_by_slug($bl_sects, $opts{id});
+    } else {
+        @hits = find_active_by_title($bl_sects, $opts{'exact-title'});
+    }
+
+    if (@hits == 0) {
+        # Either already retired, or never existed. Idempotent no-op:
+        # verify the implementing task's CHANGELOG entry already has a
+        # matching `#### <title>` block — if so, treat as already done.
+        # Otherwise just inform and exit 0 so retries are safe.
+        info(sprintf("not found in BACKLOG (already retired?): %s",
+            $opts{id} ? "slug='$opts{id}'" : "title='$opts{'exact-title'}'"));
+        return 0;
+    }
+    die_user("ambiguous match; use --exact-title") if @hits > 1;
+
+    my $target  = $hits[0];
+    my $title   = entry_title($target);
+    my $body_start = entry_body_start_index($target);
+    my @body    = @{$target->{raw_lines}}[$body_start .. $#{$target->{raw_lines}}];
+
+    # 2. Find the implementing-task CHANGELOG entry. Missing = hard error
+    # (must run retrospective first to create the entry).
+    my $cl_entry = find_changelog_task($cl_sects, $task)
+        or die_user("Task $task has no CHANGELOG entry; create the entry first or pick a different --task");
+
+    # 3. Dedup: if the block already exists under the implementing task's
+    # `### Retired Backlog Items` subsection, skip the CHANGELOG write —
+    # this is the crash-recovery branch (CHANGELOG written, BACKLOG not).
+    my $need_cl_write = 1;
+    if (block_exists_in_retired($cl_entry, $title)) {
+        $need_cl_write = 0;
+        info(sprintf("'%s' already present under Task %d; skipping CHANGELOG write",
+            $title, $task));
+    } else {
+        append_retired_block($cl_entry, $title, \@body, $note);
+    }
+
+    # 4. Drop the BACKLOG entry from the in-memory section list.
+    my @new_bl;
+    for my $s (@$bl_sects) {
+        next if $s == $target;
+        push @new_bl, $s;
+    }
+    # Last surviving section must not have a trailing_separator (otherwise
+    # round-trip emits a stray `---` at end of file).
+    $new_bl[-1]{trailing_separator} = 0 if @new_bl;
+
+    # 5. Atomic writes. CHANGELOG first so a crash leaves the recoverable
+    # state "CHANGELOG-has-block, BACKLOG-still-active" — re-running retire
+    # detects the existing block via dedup and only rewrites BACKLOG.
+    write_changelog_file($cl_path, $cl_sects) if $need_cl_write;
+    write_backlog_file($bl_path, \@new_bl);
+
+    return 0;
+}
+
+#==============================================================================
+# Dispatcher
+#==============================================================================
+
+my %DISPATCH = (
+    validate => \&cmd_validate,
+    list     => \&cmd_list,
+    add      => \&cmd_add,
+    modify   => \&cmd_modify,
+    delete   => \&cmd_delete,
+    retire   => \&cmd_retire,
+);
+
+sub classify_exit_code {
+    my ($msg) = @_;
+    return 2 if $msg =~ /\bpath:\s*/;
+    return 3 if $msg =~ /\binternal:\s*/;
+    return 1;
+}
+
+sub main {
+    my @args = @ARGV;
+
+    # Handle top-level --help
+    if (@args && ($args[0] eq '--help' || $args[0] eq '-h')) {
+        print usage_main();
+        exit 0;
+    }
+    if (!@args) {
+        warn "[CWF] ERROR: backlog-manager: missing subcommand. Run with --help for usage.\n";
+        exit 1;
+    }
+
+    my $sub = shift @args;
+    my $handler = $DISPATCH{$sub}
+        or do {
+            warn "[CWF] ERROR: backlog-manager: unknown subcommand '$sub'. Run with --help for usage.\n";
+            exit 1;
+        };
+
+    my $rc = eval {
+        my %opts = parse_args(@args);
+        return $handler->(%opts);
+    };
+    if ($@) {
+        warn $@;
+        exit classify_exit_code($@);
+    }
+    exit ($rc // 0);
+}
+
+main() unless caller();

@@ -2,6 +2,31 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 131: Add backlog management helper script
+
+**Status**: Complete (2026-05-10)
+**Duration**: ~3 sessions (Pass 1 + Pass 2 re-plan/re-exec); estimate 1–2 days; variance +25–50% from the marker-tombstone re-plan cycle.
+**Impact**: Feature — `.cwf/scripts/command-helpers/backlog-manager` (six subcommands: `add`, `delete`, `modify`, `list`, `validate`, `retire`) plus shared `CWF::Backlog` library codify a strict separation: **BACKLOG holds active work only; CHANGELOG holds history**. `retire` *moves* an entry across the boundary into the implementing task's CHANGELOG `### Retired Backlog Items` block; nothing is ever marked-in-place. Validator (BACKLOG-001..006, CHANGELOG-001..003, GLOBAL-001) enforces the contract by construction. As part of rollout, 61 legacy `<!-- Completed: -->` / `<!-- Removed: -->` markers were migrated out of BACKLOG.md (1646 → 1482 lines, -10%); two `^####` body headings demoted to bold-paragraph per BACKLOG-006. `prove t/` 408/408 PASS; `cwf-manage validate` clean. j-retrospective Step 8 onwards can invoke `backlog-manager retire` instead of hand-editing both files.
+
+### Changes
+- Added: `.cwf/scripts/command-helpers/backlog-manager` (~700 lines Perl, perms `0500`). Six subcommands; printable-ASCII + `-->`-rejection on `--note`; atomic two-file write (CHANGELOG first, BACKLOG second; dedup via `block_exists_in_retired` for crash recovery).
+- Added: `.cwf/lib/CWF/Backlog.pm` (~900 lines, perms `0444`). Section-based two-pass parser with byte-preserving `raw_lines`, on-demand metadata extraction, shared `_build_fence_map($lines)` consumed by all four validator rules and both retired-subsection mutators (`find_changelog_task`, `find_retired_subsection`, `block_exists_in_retired`, `append_retired_block`).
+- Added: `t/backlog.t`, `t/backlog-manager.t` — TC-AC1..AC17 + TC-LIB-1..LIB-9 including a fence-parity invariant test (TC-LIB-9) asserting all four validator rules silent on a single fixture with `<!-- -->`, `## ~~`, `^####`, and `### Changes` ALL inside one fenced code block.
+- Modified: `BACKLOG.md` — bulk migration removed 61 HTML-comment markers via one-shot `/tmp/task-131/migrate-markers.pl` (throwaway); pre-migration snapshot at `/tmp/task-131/BACKLOG.md.before`. Two `#### ` body headings demoted to `**…**:` form per BACKLOG-006.
+- Modified: `.cwf/lib/CWF/Common.pm` — `generate_slug` lifted from `template-copier-v2.1` (Pass 1 work that survived Pass 2).
+- Modified: `.cwf/security/script-hashes.json` — registers `backlog-manager` (script) and `CWF::Backlog` (lib); refreshes `template-copier-v2.1` and `CWF::Common` after the slug lift.
+
+### Notable
+- **Marker-tombstone model rejected on review; re-plan with amend, not rewrite.** Pass 1 shipped retire-as-marker (`<!-- Completed: -->` left in BACKLOG, one-line bullet appended to CHANGELOG). User pushback: "BACKLOG shouldn't be a dumping ground … if it's finished it's in the changelog." Pass 2 re-planned the validator + retire flow + tests against the move-not-mark model while keeping ~half the Pass 1 code (parser, mutators, atomic-write, slug lift, fence-tracking). Saved one full rebuild cycle.
+- **Plan-review subagents earned their keep on the re-plan too.** d-impl-plan review caught (a) Pass 2 Step 1 originally deleted `make_completed_marker`/`insert_changelog_bullet` while `cmd_retire` still called them — re-ordered to add-fence-helper → add-mutators → rewrite-cmd_retire → trim-marker-code; (b) the d-impl text still referenced the old `historical`/`struckthrough_*` classifier names. Both caught pre-code; zero rework in Pass 2 exec.
+- **Shared fence-map as a parser invariant, not a per-rule concern.** One `_build_fence_map($lines)` helper, four validator rules + two mutators consume it, TC-LIB-9 asserts the invariant. Centralising fence-aware indexing is what makes "any HTML comment in BACKLOG" enforceable without breaking content that legitimately lives inside fenced code blocks.
+- **Two-file atomicity via dedup-on-retry, not flock.** CHANGELOG written first (idempotent target), BACKLOG written second; crash recovery is "re-run the same retire command" because `block_exists_in_retired` detects the already-written block by title. Single-developer threat model justified skipping the lock.
+- **`-->` rejection regex was a footgun.** The printable-ASCII validator `^[\x20-\x7E]+$` accepts `-->` (each char printable). Caught by AC13b test; explicit `die_user("--note must not contain '-->'")` second check added. General lesson: when validating against a control-character set, also enumerate the structural substrings being rejected.
+- **TODO-wrapped live-file assertions order rollout against test changes cleanly.** AC1 (live BACKLOG passes validate) needed the migration to land first; wrapping it in `TODO {}` during f/g and lifting the wrapper in h kept the suite green throughout, made the migration's rollout-readiness machine-verifiable, and the lift itself was a one-line per-file edit.
+- **Migration was reversible end-to-end.** `/tmp/task-131/BACKLOG.md.before` snapshot + `git revert` of the migration commit + `git revert` of the Pass 2 squash — three independent rollback points.
+
+---
+
 ## Task 130: Refactor BACKLOG to match current code state
 
 **Status**: Complete (2026-05-07)
