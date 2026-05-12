@@ -2,6 +2,31 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 133: Infer task type from required wf steps
+
+### Status: Complete (2026-05-12)
+### Duration: 1 session; estimate 1–2 days; landed inside the band.
+### Impact: Feature — `/cwf-new-task` and `/cwf-new-subtask` now accept a 2-arg form (`<num> "description"`) and infer the closest-fit supported task type by first reasoning about which wf steps the work needs. The inference rubric lives at `.cwf/docs/skills/task-type-inference.md` and is referenced by hard-coded path from both SKILL.md files. The 3-arg explicit-type form is unchanged. Resolution is silent on exact distance-0 matches and prompts the user when no exact canonical type fits. Drift between the rubric's canonical-step-set table and the actual `.cwf/templates/<type>/` directories is enforced by `t/task-type-inference-rubric.t` (29 assertions). `prove t/` 441/441 PASS; `cwf-manage validate` clean.
+
+### Changes
+- Added: `.cwf/docs/skills/task-type-inference.md` — rubric doc with step semantics, discriminating questions for `(b,c,h,i)`, canonical-step-set table for all five supported types, resolution algorithm, ambiguity-prompt format, and a three-step "adding a new task type" procedure.
+- Modified: `.claude/skills/cwf-new-task/SKILL.md` — argument grammar relaxed to `<num> [<type>] "description"`. Disambiguation rule: a positional token matching `cwf-project.json:supported-task-types` is treated as `<type>`; otherwise inference runs. Type Inference subsection links to the rubric by hard-coded literal path and lists the four LLM steps (read rubric → infer S → compute symmetric-difference distances → silent pick or prompt).
+- Modified: `.claude/skills/cwf-new-subtask/SKILL.md` — mirror of the new-task changes; positional layout `<parent-path> <num> [<type>] "description"`. Also added `discovery` to the argument-list comment (it was missing from the original prose despite being in `supported-task-types`).
+- Added: `t/task-type-inference-rubric.t` — 29 Perl assertions across 5 invariants: (1) rubric file readable; (2) required headings present; (3) canonical-step-set table parses cleanly and matches the actual `.cwf/templates/<type>/*.template` filename letters for every type listed in `cwf-project.json:supported-task-types`; (4) neither SKILL.md inlines the `(b,c,h,i)` tuple or a canonical-table row; (5) both SKILL.md files reference the rubric path as a literal string.
+
+### Notable
+- **Inferred step set is more principled than inferred type label.** The reframing — "decide which wf steps the work needs, then let type fall out as packaging" — makes the Task 59 misclassification structurally less harmful: wrong type with the right steps is still workable, but the converse (right type, wrong steps) leaves the docs incomplete. Inference now answers four yes/no questions (`b`, `c`, `h`, `i`) and the four-bit tuple maps to exactly one of five canonical types, or prompts when no exact match exists.
+- **FR6 contract relaxed deliberately during design.** Original FR6 said the step-set-per-type mapping is "derived at runtime from template directories" so adding a new type requires no skill change. Design review converged from three angles (security: Bash glob over `.cwf/templates/*/` is a threat-(a) anti-pattern; simplicity: the rubric must already be updated when a new type is added — runtime FS-scan adds a second source of truth; determinism: a static table is trivially auditable) on a static markdown table inside the rubric. The intent (no skill code changes when types are added) is preserved by the drift-detection test. Adding a type now requires three coordinated data edits: `.cwf/templates/<type>/` symlinks + `cwf-project.json` entry + rubric row. Documented as Decision 3 in c-design-plan.md.
+- **Failure mode FM-3 (distance ≥ 3) is structurally unreachable under the current taxonomy.** Because every canonical step set contains the six always-required steps, the symmetric-difference distance is bounded by overlap on the four discriminating letters `(b,c,h,i)`. The five canonical points cover `(0,0,0,0)`, `(0,0,1,0)`, `(0,1,0,0)`, `(1,1,0,0)`, `(1,1,1,1)` — the maximum nearest-neighbour distance from any of the 11 uncovered points is 2. The design's distance-≥3 paragraph remains as a safety net but is dead code today. Surfaced in g-testing-exec.md for future taxonomy expansion.
+- **Security review subagent twice failed sentinel-first protocol; bodies were clean.** Both phases (f and g) classified `findings` via the numbered-list fallback rule, but the actual content was 5×`Status: CLEAR` plus one pattern-risk in g (`discover_steps()` path interpolation; safe-here because `$type` is from JSON, audit reuse). Recorded verbatim per the strict classification.
+
+### Retired Backlog Items
+#### Infer Task Type When Not Specified in new-task and subtask Skills
+
+When `/cwf-new-task` or `/cwf-new-subtask` is invoked without a task type, the agent should infer the appropriate type based on the task description and complexity rather than failing with a validation error. If the inference is ambiguous, ask the user to choose. This prevents misclassification — e.g., a task with unclear requirements being created as a chore (no design phase) when it should be a feature.
+
+<!-- Note: Reframed as 'infer required wf steps first, then map to closest-fit task type'. Five canonical types unchanged. Rubric at .cwf/docs/skills/task-type-inference.md; drift detection test t/task-type-inference-rubric.t. AC6 (stub-type selectability) verified by inspection of the table-driven mechanism rather than runtime fixture; FM-3 (distance >= 3 degenerate path) found to be structurally unreachable under current 5-type taxonomy. -->
+
 ## Task 132: Refactor BACKLOG/CHANGELOG to heading-tree model
 
 ### Status: Complete (2026-05-10)

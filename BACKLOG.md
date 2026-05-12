@@ -172,15 +172,6 @@ Add a `/cwf-delete-task <num>` skill that cleanly removes a task: deletes the ta
 - Refuse to delete if task has subtasks (safety check)
 - Support `--force` flag to skip confirmation
 
-## Task: Infer Task Type When Not Specified in new-task and subtask Skills
-
-### Task-Type: feature
-### Priority: Medium
-### Inference guidance: Consider whether requirements/design phases are needed (feature), whether this fixes a defect (bugfix/hotfix), whether it's mechanical with no ambiguity (chore), or whether it's exploratory (discovery).
-### Identified in: Task 59 (agent chose chore for a task with unclear requirements, required delete/recreate as feature)
-
-When `/cwf-new-task` or `/cwf-new-subtask` is invoked without a task type, the agent should infer the appropriate type based on the task description and complexity rather than failing with a validation error. If the inference is ambiguous, ask the user to choose. This prevents misclassification — e.g., a task with unclear requirements being created as a chore (no design phase) when it should be a feature.
-
 ## Task: Add Slug Generation Helper Script (`cwf-slug`)
 
 ### Task-Type: feature

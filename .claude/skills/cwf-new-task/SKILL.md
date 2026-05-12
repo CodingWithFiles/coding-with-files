@@ -21,18 +21,51 @@ allowed-tools:
 
 ## Workflow
 
-**Parse arguments**: `<num> <type> "description"`
+**Parse arguments**: `<num> [<type>] "description"`
 - num: Task number in decimal notation (1, 1.1, 1.1.1, etc.)
-- type: feature|bugfix|hotfix|chore|discovery
+- type: feature|bugfix|hotfix|chore|discovery (optional — see Type Inference)
 - description: Brief task description (will be slugified)
 
+**Disambiguation rule**: if a token between `<num>` and the quoted
+description matches a value in `cwf-project.json:supported-task-types`,
+treat it as `<type>` and proceed with the existing 3-arg flow (no
+inference). Otherwise `<type>` is treated as omitted and Type Inference
+runs. To use a bare type-name word as the description, provide `<type>`
+explicitly.
+
 **Examples**:
-- `/cwf-new-task 1 feature "Add user authentication"`
-- `/cwf-new-task 1.1 chore "Setup database schema"`
+- `/cwf-new-task 1 feature "Add user authentication"` (explicit type)
+- `/cwf-new-task 1.1 chore "Setup database schema"` (explicit type)
+- `/cwf-new-task 2 "Migrate Bash helpers to Perl"` (type inferred)
+
+### Type Inference (only when `<type>` is omitted)
+
+When `<type>` is not supplied, infer it before validation:
+
+1. Read the rubric at the literal path
+   `.cwf/docs/skills/task-type-inference.md` using the Read tool.
+2. Apply the rubric's Discriminating Questions to the description to
+   produce an inferred step set `S`, always including the
+   always-required steps the rubric names.
+3. For each candidate type `T` listed in the rubric's Canonical Step
+   Sets table, compute the symmetric-difference distance
+   `|S Δ C_T|` between `S` and the canonical step set `C_T` of `T`.
+4. If exactly one type has distance `0`, use it silently as the
+   resolved `<type>` and continue to step 1 of the normal flow.
+   Otherwise show the rubric's Ambiguity Prompt Format with the top
+   candidates, let the user pick, and use the picked type. Cancel
+   (no directory, no branch) on any non-numeric or out-of-range
+   response.
+
+If the rubric file is unreadable, or the minimum distance across all
+candidate types is `>= 3`, refuse the 2-arg form and tell the user to
+rerun with explicit `<type>`. No directory creation, no branch
+checkout in either failure path.
 
 ### 1. Validate Arguments
 - Verify `num` is valid decimal notation (numbers and dots only)
 - Verify `type` is in supported-task-types from `cwf-project.json`
+  (either supplied explicitly or resolved by Type Inference above)
 - Verify `description` is provided
 
 ### 2. Generate Slug and Directory Path
