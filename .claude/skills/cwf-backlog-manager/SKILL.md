@@ -1,6 +1,6 @@
 ---
 name: cwf-backlog-manager
-description: Add, modify, list, validate, retire, or delete BACKLOG.md / CHANGELOG.md entries via the heading-tree helper.
+description: "Show or manipulate the project backlog/changelog. Examples: \"what's in the backlog\", \"add a backlog entry for X\", \"retire item Y for task N\"."
 user-invocable: true
 allowed-tools:
   - Bash

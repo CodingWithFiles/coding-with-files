@@ -2,6 +2,27 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 134: Intent-CTA skill descriptions with reference docs
+
+### Status: Complete (2026-05-12)
+### Duration: 1 session; estimate 0.5 days; on-target.
+### Impact: Chore — replaces the verb-list-style frontmatter `description` on `cwf-backlog-manager` with an intent-CTA shape that names the user-facing domain ("the backlog/changelog") and embeds 2-3 verbatim user phrasings ("what's in the backlog", ...). The previous shape was a man-page synopsis and missed the obvious intent match. Establishes a convention at `.cwf/docs/skills/skill-reference-convention.md` for short per-skill reference docs at `.cwf/docs/skills/reference/<skill>.md`, so future skills can share a decision aid for LLM-side selection without inviting the agent to Read+follow `SKILL.md` outside the Skill-tool harness (which would bypass `allowed-tools` and user-confirmation controls). One worked instance at `.cwf/docs/skills/reference/cwf-backlog-manager.md` validates the convention before rollout. `prove t/` 441/441 PASS; `cwf-manage validate` clean.
+
+### Changes
+- Added: `.cwf/docs/skills/skill-reference-convention.md` — defines location rule (instances MUST live at `.cwf/docs/skills/reference/<skill>.md`, NOT at the top level), description shape (≤ 30 words, intent-CTA, names the domain, 2-3 example phrasings), reference-doc instance shape (≤ 30 lines, 3-5 example phrasings, no operational instructions, no `SKILL.md` links), the security rule that example phrasings MUST be author-curated hardcoded strings (not derived from BACKLOG titles / branch names / etc., to avoid prompt-injection via documentation), and the YAML-validity expectation (explicit double-quoting required when the value contains `Examples: "..."` patterns — the Claude Code harness parses leniently but `YAML::XS`/libyaml rejects the unquoted form with "mapping values are not allowed in this context"). Meta-guidance doc, exempt from the 30-line per-instance budget.
+- Added: `.cwf/docs/skills/reference/cwf-backlog-manager.md` — first worked instance, 19 lines. 1-paragraph purpose, 5 example user phrasings (within the 3-5 budget), 2-line "Not this skill" near-miss disambiguation. Zero `SKILL.md` mentions (verified `grep -nE '\bSKILL\.md\b'` exit 1).
+- Modified: `.claude/skills/cwf-backlog-manager/SKILL.md` — frontmatter `description` only, rewritten to intent-CTA shape: `"Show or manipulate the project backlog/changelog. Examples: \"what's in the backlog\", \"add a backlog entry for X\", \"retire item Y for task N\"."`. 23 words. Double-quoted YAML with `\"` for internal double quotes; verified by loading through `YAML::XS`. Body unchanged.
+
+### Notable
+- **Mid-exec D6 amendment: unquoted YAML form fails strict parsers.** Initial implementation followed the same unquoted plain-scalar pattern as `update-config` and `keybindings-help` in the Anthropic skill set, which the Claude Code harness parses correctly. `YAML::XS` (libyaml) rejects this form because the embedded `Examples: "..."` introduces a colon-space sequence inside a plain scalar — the parser interprets it as a nested mapping start. Both single-quoted (with `''` doubled) and double-quoted (with `\"` escaped) forms parse cleanly; chose double-quoted for readability. The d-plan plan-review's robustness subagent flagged this risk preemptively before the empirical failure confirmed it.
+- **The 4-subagent map/reduce plan review delivered measurable value.** Caught the YAML quoting risk (substantive), a filename inconsistency (`skill-reference-doc-convention.md` vs `skill-reference-convention.md`), and tightened D5 to mandate hardcoded examples (security framing). Wall-clock cost ~30 seconds.
+- **Security-review subagent twice failed sentinel-first protocol; bodies were clean.** Both phases (f and g) produced substantively clean reviews ("no findings." in body, all five threat categories explicitly cleared) but did not lead with the required `findings:` / `no findings` / `error:` sentinel. The three-tier classification rule classified them as `error` (f-phase) and `findings` (g-phase, numbered-list fallback fired on the file enumeration). Filed as a follow-up backlog entry.
+- **`security-review-changeset` anchors at `anchor..HEAD` (commits only), not the working tree.** To give the subagent a non-empty changeset, implementation work was committed as `ef9a623` before the f-checkpoint commit. Functionally correct but breaks the "one checkpoint = one phase" pattern; noted as a workflow papercut for future consideration.
+
+### New Backlog Items
+- Roll intent-CTA description convention to remaining skills (Low) — validate the convention on `cwf-backlog-manager` first; remaining ~20 user-invocable skills get the same treatment in a follow-up task.
+- Enforce sentinel-first output in security-review subagent prompt (Low) — strengthen the prompt's "no preamble" instruction and consider a `last-line "no findings."` classifier fallback for substance-clear malformed responses.
+
 ## Task 133: Infer task type from required wf steps
 
 ### Status: Complete (2026-05-12)

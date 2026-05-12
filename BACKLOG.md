@@ -1332,3 +1332,19 @@ Task 118 added a tool-selection rubric for CWF subagents (canonical doc + brief 
 - Modify `atomic_write_text` to use `sysopen` with `O_NOFOLLOW` on the destination, OR perform the `-l` check inside the helper immediately before the rename (narrows but does not eliminate the window).
 - Considered alternative: `link()` + `unlink()` instead of `rename()` — gives atomic semantics on POSIX but would change the helper's semantics for callers that rely on inode preservation.
 - Update `t/artefacthelpers.t` to verify symlink targets are refused.
+
+## Task: Roll intent-CTA description convention to remaining skills
+
+### Task-Type: chore
+### Priority: Low
+### Identified in: 134
+
+Task 134 established the skill-reference-doc convention at .cwf/docs/skills/skill-reference-convention.md and produced one instance for cwf-backlog-manager. Roll the same treatment to the remaining ~20 user-invocable skills: rewrite each frontmatter description to intent-CTA shape (name domain + 2-3 example user phrasings, <=30 words, double-quoted YAML form) and add a per-skill reference doc at .cwf/docs/skills/reference/<skill>.md (<=30 lines, 3-5 example phrasings, no SKILL.md links).
+
+## Task: Enforce sentinel-first output in security-review subagent prompt
+
+### Task-Type: chore
+### Priority: Low
+### Identified in: 134
+
+The exec-phase security-review subagent (cwf-implementation-exec, cwf-testing-exec) is supposed to begin its response with the literal sentinel "findings:" / "no findings" / "error:" per .cwf/docs/skills/security-review.md, but the current prompt template does not enforce this strongly enough. In Task 134 both invocations produced substantively clean reviews ("no findings." in body) yet failed the primary classification, falling back to "error" (f-phase) and "findings" (g-phase, numbered-list fallback fired on the file enumeration). Strengthen the prompt with a hard "no preamble" instruction and consider extending the classifier with a "last-line `no findings.`" rule for substance-clear malformed responses. Out of scope for Task 134 because the convention task should not also rewrite the security-review prompt.
