@@ -2,6 +2,29 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 135: Preserve template symlinks in cwf-manage
+
+### Status: Complete (2026-05-13)
+### Duration: 1 session; estimate 1-2 days; on-target.
+### Impact: Bugfix — two coupled bugs in `cwf-manage` that combined to silently inline every `.cwf/templates/<type>/*.template` symlink on update. `update` used `File::Copy::copy` which dereferences symlinks; `validate` had no check for the resulting symlink-vs-regular-file mismatch, so the corruption was invisible. After this task, `cwf-manage update` preserves symlinks (refusing absolute and escaping targets), `cwf-manage validate` reports the mismatch with `category=TEMPLATES`, and re-running `update` heals an already-broken install. `prove -r t/` 458/458 PASS; `cwf-manage validate` clean.
+
+### Changes
+- Added: `.cwf/lib/CWF/Validate/Templates.pm` — new validator (`CWF::Validate::Templates::validate($git_root)`) iterating `CWF::WorkflowFiles::V21::supported_types()` and asserting every entry under `.cwf/templates/<type>/` is a symlink with exact target `../pool/<basename>`. Single exact-pattern check subsumes type-mismatch, dangling-target, wrong-pool-name, escape, and absolute-target detection. Returns violation hashrefs with `category => 'TEMPLATES'`.
+- Modified: `.cwf/scripts/cwf-manage` — `copy_tree` now `lstat`s entries and recreates symlinks at the destination (preserving relative targets) instead of dereferencing them. New `_escapes_src($entry, $link, $src)` gate refuses absolute or out-of-tree-escaping symlink targets at copy time; uses `$File::Find::name` (not `$_`) so safety does not depend on File::Find's chdir default. New `_collapse_dotdot($path)` lexical canonicaliser (POSIX-only, core-Perl) is the reference helper for path-escape checks where `File::Spec->abs2rel` would leak un-collapsed `..` segments. Wired `CWF::Validate::Templates` into `cmd_validate`. Added `main() unless caller;` guard at the bottom to make the script `require`-able from tests. Added `use File::Spec ();` to the use block.
+- Modified: `.cwf/security/script-hashes.json` — registered the new module and updated the cwf-manage hash. Hand-updated; `fix-security` deliberately does not auto-rewrite drift (see Notable §1).
+- Added: `t/validate-templates.t` — 10 unit subtests covering every validator branch (happy path, type/regular-file, type/directory, target/dangling, pool-name, absolute target, escape, multi-violation ordering, `pool/` ignored, missing type-dir).
+- Modified: `t/cwf-manage-update.t` — 6 new subtests over `copy_tree` and `_escapes_src` (relative symlink preserved, pool-pointing symlink preserved, absolute target → die, escape target → die, in-tree non-pool allowed, nested escape regression guard, plus 5 direct `_escapes_src` unit assertions).
+
+### Notable
+- **Integrity-check friction is the feature; never smooth it (commit `14f4025`).** `cwf-manage fix-security` reports sha256 drift as `UNFIXABLE` and refuses to auto-update the recorded hash. The original f-implementation-exec lessons proposed a `cwf-manage recompute-hashes` subcommand to ease the manual update step; that proposal was withdrawn and replaced with the principle. A one-button "reconcile recorded hashes with actual content" command would turn the integrity signal into a no-op that an agent — including a compromised one — would invoke to paper over tampering. Recovery requires manually pasting the new hash, computed by an *independent* implementation (`sha256sum` from coreutils, not `Digest::SHA` which is what the rest of the cwf-manage tooling uses) — verifier/producer implementation diversity is the property that makes the check catch anything.
+- **Testing-phase security review caught a real pattern risk.** First `copy_tree` implementation passed `$_` (File::Find basename) to `_escapes_src`, which expects a path for `dirname()` extraction. Worked by accident because File::Find's default `chdir` made `dirname('.')` resolve correctly against cwd. Subagent flagged the pattern; commit `544956d` switched to `$File::Find::name` and added a nested-escape test (TC-C6, `feature/escape -> ../../etc/passwd`) that the original $_-version would not have caught at depth.
+- **`File::Spec->abs2rel` is a lexical prefix-strip, not a canonicaliser.** For a symlink target like `../../etc/passwd` from a nested entry (`$src/feature/x`), `abs2rel` produces `feature/../../etc/passwd` — the leading-`..` regex doesn't match, the escape would have been admitted. `_collapse_dotdot` is the in-repo fix for this; future callers should reuse it rather than re-derive.
+- **`anchor..HEAD` means commit-then-review in exec phases.** `security-review-changeset` diffs against the baseline commit and stops at HEAD; uncommitted working-tree changes are invisible. Each exec phase needed a commit-then-review-then-amend (or follow-up commit) dance. Worth noting in the exec-phase docs so future implementers don't trip on it.
+- **The testing-phase changeset hit the 500-line review cap.** 514 lines (490 already-reviewed implementation + 24-line fix from `544956d`). Per skill protocol, recorded `state: error` with the verbatim cap-message plus a manual review note explaining the delta over the prior subagent review.
+
+### New Backlog Items
+None.
+
 ## Task 134: Intent-CTA skill descriptions with reference docs
 
 ### Status: Complete (2026-05-12)

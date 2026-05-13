@@ -21,6 +21,7 @@ use File::Temp qw(tempdir);
 use File::Path qw(rmtree make_path);
 use File::Find;
 use File::Copy qw(copy);
+use File::Spec ();
 use Cwd qw(getcwd);
 use Fcntl qw(:flock O_RDWR O_CREAT O_NOFOLLOW);
 use Digest::SHA qw(sha256_hex);
@@ -35,6 +36,7 @@ use CWF::Validate::Workflow         ();
 use CWF::Validate::Consistency      ();
 use CWF::Validate::Security         ();
 use CWF::Validate::PerlConventions  ();
+use CWF::Validate::Templates        ();
 
 # --- Helpers ------------------------------------------------------------------
 
@@ -431,13 +433,65 @@ sub update_subtree {
     return;
 }
 
+# _escapes_src — single gate for symlink-target safety in copy_tree.
+# Returns true if $link (the readlink value of an entry whose path is
+# $entry, walked from source root $src) is either absolute or resolves
+# outside $src after collapsing parent-dir (..) segments. Refuses
+# upstream symlinks that would write out-of-tree references into the
+# installed .cwf/.
+#
+# Note: only the symlink *target* string is canonicalised; no path on
+# disk is followed. $src is the upstream clone and trusted not to
+# embed symlinks-in-paths.
+sub _escapes_src {
+    my ($entry, $link, $src) = @_;
+    return 1 if File::Spec->file_name_is_absolute($link);
+    my $entry_dir = File::Basename::dirname($entry);
+    my $combined  = File::Spec->rel2abs($link, $entry_dir);
+    my $canon     = _collapse_dotdot($combined);
+    my $src_canon = _collapse_dotdot(File::Spec->rel2abs($src));
+    return 1 if $canon eq $src_canon;
+    return 0 if index($canon, "$src_canon/") == 0;
+    return 1;
+}
+
+# Collapse '.' and '..' segments lexically (no disk access). POSIX-only.
+sub _collapse_dotdot {
+    my ($p) = @_;
+    my $abs = $p =~ m{^/};
+    my @parts = split m{/+}, $p;
+    my @out;
+    for my $part (@parts) {
+        next if $part eq '' || $part eq '.';
+        if ($part eq '..') {
+            if (@out && $out[-1] ne '..') { pop @out; }
+            elsif (!$abs)                 { push @out, '..'; }
+            # absolute root: '..' at top is dropped
+        } else {
+            push @out, $part;
+        }
+    }
+    return $abs ? '/' . join('/', @out) : (@out ? join('/', @out) : '.');
+}
+
 sub copy_tree {
     my ($src, $dst) = @_;
     find(sub {
         my $rel = $File::Find::name;
         $rel =~ s/^\Q$src\E//;
         my $target = "$dst$rel";
-        if (-d) {
+        lstat($_);
+        if (-l _) {
+            my $link = readlink($_)
+                // die_msg("readlink failed on $_: $!");
+            # Pass the full path ($File::Find::name) rather than $_
+            # (basename): the safety calculation must not depend on
+            # File::Find's chdir-into-each-directory default.
+            die_msg("refusing escaping symlink target: $File::Find::name -> $link")
+                if _escapes_src($File::Find::name, $link, $src);
+            symlink($link, $target)
+                or die_msg("Failed to create symlink $target -> $link: $!");
+        } elsif (-d _) {
             make_path($target) unless -d $target;
         } else {
             copy($_, $target)
@@ -513,6 +567,7 @@ sub cmd_validate {
         CWF::Validate::Security::validate($git_root),
         CWF::Validate::Security::validate_install_manifest($git_root),
         CWF::Validate::PerlConventions::validate($git_root),
+        CWF::Validate::Templates::validate($git_root),
     );
 
     if (!@all_violations) {
@@ -741,4 +796,4 @@ sub main {
     return;
 }
 
-main();
+main() unless caller;
