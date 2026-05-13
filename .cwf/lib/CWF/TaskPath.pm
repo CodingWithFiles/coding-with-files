@@ -19,7 +19,7 @@ our @EXPORT_OK = qw(
     format_dirname parse_dirname format_branch parse_branch
     task_exists branch_exists
     find_parent find_children find_siblings find_ancestors find_descendants
-    find_first_free
+    find_first_free version_compare
 );
 
 # Find the implementation-guide base directory

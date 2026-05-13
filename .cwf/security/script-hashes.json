@@ -53,7 +53,7 @@
     },
     "CWF::TaskPath" : {
       "path" : ".cwf/lib/CWF/TaskPath.pm",
-      "sha256" : "eb38014e2d654ee483601c68d717163c17b084f3cbc6b566e27fde90d89583a5"
+      "sha256" : "bfc9e4b9d6ebd3e128122660043b2439b421853930fd278bd8ba6ffe8024a842"
     },
     "CWF::TaskState" : {
       "path" : ".cwf/lib/CWF/TaskState.pm",
@@ -242,12 +242,17 @@
     "task-workflow" : {
       "path" : ".cwf/scripts/command-helpers/task-workflow",
       "permissions" : "0500",
-      "sha256" : "6678352e66e0ecdf95d0dd8b74428dc5b3566d3da7562ca076ee8cfcea889dcb"
+      "sha256" : "9e9ef1394198aad9bddc954a9e93a421aee973c25de20820e7cc69ab368c4a57"
     },
     "task-workflow.d/create" : {
       "path" : ".cwf/scripts/command-helpers/task-workflow.d/create",
       "permissions" : "0500",
       "sha256" : "62d31a1dd84bc5c5806a4bfaa52bb8f7e6d5e2f77c75abd749b458192930d173"
+    },
+    "task-workflow.d/delete" : {
+      "path" : ".cwf/scripts/command-helpers/task-workflow.d/delete",
+      "permissions" : "0500",
+      "sha256" : "71c16b188a91c9a750bb2a6e9a841094a8338823f5b139e82fe633d2cbc7168c"
     },
     "template-copier-v2.0" : {
       "path" : ".cwf/scripts/command-helpers/template-copier-v2.0",

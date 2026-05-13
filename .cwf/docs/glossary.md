@@ -11,6 +11,7 @@ Terms already defined in other docs are NOT repeated here — see cross-referenc
 
 ## Index
 
+- [archaeological main](#archaeological-main)
 - [CWF](#cwf)
 - [cwf- prefix](#cwf--prefix)
 - [checkpoint commit](#checkpoint-commit)
@@ -23,6 +24,25 @@ Terms already defined in other docs are NOT repeated here — see cross-referenc
 - [squash commit](#squash-commit)
 - [task branch](#task-branch)
 - [wf](#wf)
+
+---
+
+## archaeological main
+
+The methodology CWF uses for its own main branch: a squashed linear history where each
+task lands as a single commit, with the full per-phase reasoning preserved off-main on
+the task's checkpoints branch. Compactness on main, full history off-main.
+
+Consequences:
+- Main is treated as immutable history. Once a task is merged, its squash commit is
+  not edited, reverted, or removed by tooling — only by deliberate human action.
+- Per-phase checkpoint commits (the "archaeological record") live on the checkpoints
+  branch, not main.
+- Operations that would alter merged history (e.g. deleting a finished task) are
+  refused.
+
+**See**: [squash commit](#squash-commit), [checkpoints branch](#checkpoints-branch),
+[task branch](#task-branch)
 
 ---
 

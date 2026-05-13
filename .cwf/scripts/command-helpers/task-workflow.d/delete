@@ -1,0 +1,336 @@
+#!/usr/bin/env perl
+#
+# delete - Delete the most-recent task (reverse of /cwf-new-task).
+#
+# Refuses non-most-recent, already-merged, non-leaf, or tasks whose branch
+# carries non-checkpoint work (unless --force).
+#
+# Usage: delete <task-path> [--force]
+#
+# Exit codes:
+#   0 — deleted successfully
+#   1 — refusal (specific reason on STDERR)
+#   2 — partial-state cleanup; re-run to complete
+#
+
+use strict;
+use warnings;
+use utf8;
+use FindBin;
+use lib "$FindBin::Bin/../../../lib";
+use Cwd qw(abs_path);
+use File::Basename qw(basename);
+use File::Path qw(remove_tree);
+use CWF::Common  qw(check_perl5opt);
+use CWF::TaskPath qw(
+    validate resolve_num find_base_dir find_siblings find_children
+    format_dirname format_branch branch_exists version_compare
+);
+
+check_perl5opt();
+
+my $PROG = 'task-workflow delete';
+
+sub die_err     { warn "[CWF] ERROR: $_[0]\n";   exit 1 }
+sub die_partial { warn "[CWF] WARNING: $_[0]\n"; exit 2 }
+
+sub usage {
+    warn "Usage: task-workflow delete <task-path> [--force]\n";
+    warn "  --force overrides the unmerged-work check only (not FR3/4/5/7/8).\n";
+    exit 1;
+}
+
+# Run a command, suppressing its stdout/stderr. Returns the child's exit code.
+sub run_quiet {
+    my @cmd = @_;
+    my $pid = fork();
+    return -1 unless defined $pid;
+    if ($pid == 0) {
+        open(STDIN,  '<', '/dev/null');
+        open(STDOUT, '>', '/dev/null');
+        open(STDERR, '>', '/dev/null');
+        exec(@cmd) or exit 127;
+    }
+    waitpid($pid, 0);
+    return $? >> 8;
+}
+
+# ---------------------------------------------------------------------------
+# Argument parsing
+# ---------------------------------------------------------------------------
+my $num;
+my $force = 0;
+for my $arg (@ARGV) {
+    if    ($arg eq '--force') { $force = 1 }
+    elsif ($arg =~ /^--/)     { die_err("unknown option: $arg") }
+    elsif (!defined $num)     { $num = $arg }
+    else                      { die_err("unexpected positional argument: $arg") }
+}
+usage() unless defined $num;
+
+# ---------------------------------------------------------------------------
+# Check 1: argument format
+# ---------------------------------------------------------------------------
+unless (validate($num)) {
+    die_err("invalid task path: $num");
+}
+
+# ---------------------------------------------------------------------------
+# Check 2: resolution
+# ---------------------------------------------------------------------------
+my $base_dir = find_base_dir()
+    or die_err("cannot locate implementation-guide/ from current directory");
+
+my $task = resolve_num($num, $base_dir);
+die_err("task not found: $num") unless $task;
+
+my $full_path          = $task->{full_path};
+my $dirname            = format_dirname($task->{num}, $task->{type}, $task->{slug});
+my $task_branch        = format_branch ($task->{num}, $task->{type}, $task->{slug});
+my $checkpoints_branch = "$task_branch-checkpoints";
+
+# ---------------------------------------------------------------------------
+# Check 3: realpath containment (symlink-escape guard)
+# ---------------------------------------------------------------------------
+sub check_realpath_contained {
+    my ($path, $base) = @_;
+    my $rp = abs_path($path);
+    my $rb = abs_path($base);
+    return (0, "task directory resolves outside implementation-guide: " . ($rp // '<undef>'))
+        unless defined $rp && defined $rb;
+    return (0, "task directory resolves outside implementation-guide: $rp")
+        unless $rp eq $rb || index($rp, "$rb/") == 0;
+    return (1, undef);
+}
+{
+    my ($ok, $err) = check_realpath_contained($full_path, $base_dir);
+    die_err($err) unless $ok;
+}
+
+# ---------------------------------------------------------------------------
+# Check 4: most-recent (FR3)
+# ---------------------------------------------------------------------------
+{
+    my @sibs = find_siblings($num, $base_dir);
+    my $highest;
+    for my $s (@sibs) {
+        next unless version_compare($s->{num}, $num) > 0;
+        if (!$highest || version_compare($s->{num}, $highest->{num}) > 0) {
+            $highest = $s;
+        }
+    }
+    if ($highest) {
+        die_err("task $num is not most-recent; task $highest->{num} exists");
+    }
+}
+
+# ---------------------------------------------------------------------------
+# Check 5: leaf (FR4)
+# ---------------------------------------------------------------------------
+{
+    my @kids = find_children($num, $base_dir);
+    if (@kids) {
+        my $list = join(', ', map { $_->{num} } @kids);
+        die_err("task $num has surviving subtasks: $list");
+    }
+}
+
+# ---------------------------------------------------------------------------
+# Check 6: branch-name format (hoisted from cleanup so a malformed name
+# cannot cause partial-state cleanup)
+# ---------------------------------------------------------------------------
+for my $b ($task_branch, $checkpoints_branch) {
+    my $rc = run_quiet('git', 'check-ref-format', '--branch', $b);
+    if ($rc != 0) {
+        die_err("branch name failed git check-ref-format: $b");
+    }
+}
+
+# ---------------------------------------------------------------------------
+# Check 7: worktree (other worktrees only; our own is handled by cleanup A)
+# ---------------------------------------------------------------------------
+{
+    my $self_wt = `git rev-parse --show-toplevel 2>/dev/null`;
+    chomp $self_wt;
+    my $self_rp = abs_path($self_wt);
+
+    open(my $fh, '-|', 'git', 'worktree', 'list', '--porcelain')
+        or die_err("git worktree list failed: $!");
+    my $current_wt;
+    my %on_branch;
+    while (my $line = <$fh>) {
+        chomp $line;
+        if    ($line =~ /^worktree (.+)$/)             { $current_wt = $1 }
+        elsif ($line =~ /^branch refs\/heads\/(.+)$/)  { $on_branch{$1} = $current_wt if defined $current_wt }
+    }
+    close $fh;
+    for my $b ($task_branch, $checkpoints_branch) {
+        my $wt = $on_branch{$b} or next;
+        my $wt_rp = abs_path($wt);
+        next if defined $self_rp && defined $wt_rp && $wt_rp eq $self_rp;
+        die_err("task branch '$b' is checked out in worktree $wt; remove the worktree before deleting");
+    }
+}
+
+# ---------------------------------------------------------------------------
+# Check 8: already-merged (FR5)
+# ---------------------------------------------------------------------------
+if (branch_exists($task_branch)) {
+    my $rc = run_quiet('git', 'merge-base', '--is-ancestor', $task_branch, 'main');
+    if ($rc == 0) {
+        my $sha = `git rev-parse $task_branch 2>/dev/null`;
+        chomp $sha;
+        die_err("task already merged to main (squash commit $sha); archaeological main is immutable — see .cwf/docs/glossary.md#archaeological-main");
+    }
+}
+
+# ---------------------------------------------------------------------------
+# Check 9: unmerged work (FR6)
+# Baseline SHA also used by cleanup step A.
+# ---------------------------------------------------------------------------
+my $baseline_sha;
+if (branch_exists($task_branch)) {
+    my $plan = "$full_path/a-task-plan.md";
+    unless (-f $plan) {
+        die_err("baseline commit not recorded or malformed in a-task-plan.md; cannot determine FR6 anchor — refusing to delete");
+    }
+    open(my $fh, '<:encoding(UTF-8)', $plan)
+        or die_err("cannot read $plan: $!");
+    while (my $line = <$fh>) {
+        if ($line =~ /^- \*\*Baseline Commit\*\*:\s+([0-9a-f]{40})\s*$/) {
+            $baseline_sha = $1;
+            last;
+        }
+    }
+    close $fh;
+    unless (defined $baseline_sha) {
+        die_err("baseline commit not recorded or malformed in a-task-plan.md; cannot determine FR6 anchor — refusing to delete");
+    }
+    my $rc = run_quiet('git', 'rev-parse', '--verify', '--quiet', "${baseline_sha}^{commit}");
+    if ($rc != 0) {
+        die_err("baseline commit $baseline_sha not reachable in this repo — refusing to delete");
+    }
+
+    open(my $lfh, '-|', 'git', 'log', '-z', '--format=%H%x00%s', "$baseline_sha..$task_branch")
+        or die_err("git log failed: $!");
+    local $/ = undef;
+    my $blob = <$lfh>;
+    close $lfh;
+    $blob = '' unless defined $blob;
+
+    my @parts = split /\0/, $blob, -1;
+    pop @parts while @parts && $parts[-1] eq '';
+
+    my @non_checkpoint;
+    while (@parts >= 2) {
+        my (undef, $subject) = (shift @parts, shift @parts);
+        next if $subject =~ /^Task \Q$num\E: Complete .+ phase$/;
+        push @non_checkpoint, $subject;
+    }
+
+    if (@non_checkpoint) {
+        my $n    = scalar @non_checkpoint;
+        my $list = join('', map { "\n  - $_" } @non_checkpoint);
+        if ($force) {
+            warn "[CWF] WARNING: --force: $n non-checkpoint commit(s) will be lost:$list\n";
+        } else {
+            die_err("task branch has $n non-checkpoint commit(s) that would be lost:$list\nRe-run with --force to delete anyway.");
+        }
+    }
+}
+
+# ---------------------------------------------------------------------------
+# Check 10: topmost-stack (FR8)
+# ---------------------------------------------------------------------------
+my $pop_stack  = 0;
+my $stack_file = '.cwf/task-stack';
+if (-f $stack_file) {
+    open(my $fh, '<', $stack_file)
+        or die_err("cannot read $stack_file: $!");
+    my @lines;
+    while (my $l = <$fh>) { chomp $l; push @lines, $l }
+    close $fh;
+    if (@lines) {
+        my @matches = grep { $lines[$_] eq $dirname } 0..$#lines;
+        if (@matches) {
+            my $last_idx = $#lines;
+            unless (@matches == 1 && $matches[0] == $last_idx) {
+                die_err("task $num is on $stack_file but not topmost; topmost is $lines[$last_idx]");
+            }
+            $pop_stack = 1;
+        }
+    }
+}
+
+# ---------------------------------------------------------------------------
+# All checks passed. Cleanup sequence A-E.
+# Each step is idempotent: re-running after partial state completes cleanup.
+# ---------------------------------------------------------------------------
+
+my @removed;
+
+# A: switch off task branch (detached HEAD on baseline)
+{
+    my $head = `git rev-parse --abbrev-ref HEAD 2>/dev/null`;
+    chomp $head;
+    if ($head eq $task_branch) {
+        unless (defined $baseline_sha) {
+            die_partial("cannot detach HEAD: baseline SHA not available");
+        }
+        my $rc = run_quiet('git', 'checkout', '--detach', $baseline_sha);
+        if ($rc != 0) {
+            die_partial("failed to detach HEAD from $task_branch; rerun to complete cleanup");
+        }
+    }
+}
+
+# B: pop stack
+if ($pop_stack) {
+    my $helper = "$FindBin::Bin/../task-stack";
+    my $rc = run_quiet($helper, 'pop');
+    if ($rc != 0) {
+        die_partial("task-stack pop failed; rerun to complete cleanup");
+    }
+    push @removed, "stack entry";
+}
+
+# C: delete checkpoints branch
+if (branch_exists($checkpoints_branch)) {
+    my $rc = run_quiet('git', 'branch', '-D', $checkpoints_branch);
+    if ($rc != 0) {
+        die_partial("git branch -D $checkpoints_branch failed; rerun to complete cleanup");
+    }
+    push @removed, "checkpoints branch";
+}
+
+# D: delete task branch
+if (branch_exists($task_branch)) {
+    my $rc = run_quiet('git', 'branch', '-D', $task_branch);
+    if ($rc != 0) {
+        die_partial("git branch -D $task_branch failed; rerun to complete cleanup");
+    }
+    push @removed, "task branch";
+}
+
+# E: remove task directory (re-verify realpath, safe => 1)
+if (-d $full_path) {
+    my ($ok, $err) = check_realpath_contained($full_path, $base_dir);
+    die_partial($err) unless $ok;
+
+    my $remove_err;
+    remove_tree($full_path, { safe => 1, error => \$remove_err });
+    if ($remove_err && @$remove_err) {
+        my @msgs;
+        for my $e (@$remove_err) {
+            for my $f (keys %$e) {
+                push @msgs, "$f: $e->{$f}";
+            }
+        }
+        die_partial("failed to remove task directory: " . join('; ', @msgs) . "; rerun to complete cleanup");
+    }
+    push @removed, "directory";
+}
+
+my $summary = @removed ? join(', ', @removed) : 'nothing (already clean)';
+print "[CWF] deleted task $num ($summary)\n";
+exit 0;

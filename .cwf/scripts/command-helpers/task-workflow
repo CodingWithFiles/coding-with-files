@@ -4,11 +4,12 @@ use warnings;
 use utf8;
 use File::Basename;
 
-my $subcommand = shift @ARGV or die "Usage: task-workflow {create}\n";
+my $subcommand = shift @ARGV or die "Usage: task-workflow {create|delete}\n";
 my $script_dir = dirname(__FILE__);
 
 my %commands = (
     create => "$script_dir/task-workflow.d/create",
+    delete => "$script_dir/task-workflow.d/delete",
 );
 
 die "Unknown subcommand: $subcommand\n" unless exists $commands{$subcommand};

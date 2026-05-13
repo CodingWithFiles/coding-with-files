@@ -1348,3 +1348,30 @@ Task 134 established the skill-reference-doc convention at .cwf/docs/skills/skil
 ### Identified in: 134
 
 The exec-phase security-review subagent (cwf-implementation-exec, cwf-testing-exec) is supposed to begin its response with the literal sentinel "findings:" / "no findings" / "error:" per .cwf/docs/skills/security-review.md, but the current prompt template does not enforce this strongly enough. In Task 134 both invocations produced substantively clean reviews ("no findings." in body) yet failed the primary classification, falling back to "error" (f-phase) and "findings" (g-phase, numbered-list fallback fired on the file enumeration). Strengthen the prompt with a hard "no preamble" instruction and consider extending the classifier with a "last-line `no findings.`" rule for substance-clear malformed responses. Out of scope for Task 134 because the convention task should not also rewrite the security-review prompt.
+
+## Task: Improve security-review-changeset feedback on empty-from-uncommitted changesets
+
+### Task-Type: chore
+### Priority: Low
+### Status: Follow-up from Task 136
+### Identified in: Task 136 retrospective (j-retrospective.md)
+
+When `security-review-changeset --phase=<phase>` returns empty because all phase work is still uncommitted at the time of the security review, the helper currently emits nothing — the workflow skill then records `no findings: empty changeset` even though there *is* a changeset, it just hasn't been committed yet. Improve the helper to detect this case (e.g., compare `anchor..HEAD` to `git status --porcelain` size) and emit a hint pointing to the `git add -N` + manual-diff workaround, or exit with a distinct status the skill can interpret as "uncommitted work — review postponed". Surfaced during Task 136 implementation-exec security review.
+
+## Task: Consider `internal-feature` template variant for service-less CLI helpers
+
+### Task-Type: chore
+### Priority: Low
+### Status: Follow-up from Task 136
+### Identified in: Task 136 retrospective (j-retrospective.md)
+
+For tasks whose deliverable is a local CLI helper with no service surface, no users, and no telemetry, the v2.1 template's `h-rollout.md` and `i-maintenance.md` sections (monitoring, alerting, phased-rollout, scaling, SLOs) collapse to mostly-N/A. Consider a slimmer template variant — perhaps `internal-feature` or extending `chore` — that drops these vestigial sections. Optional; no functional gap, just a paperwork-reduction opportunity. Surfaced during Task 136 rollout + maintenance phases.
+
+## Task: `/cwf-delete-task` no-arg form — default to topmost stack entry
+
+### Task-Type: feature
+### Priority: Low
+### Status: Follow-up from Task 136
+### Identified in: Task 136 retrospective (j-retrospective.md)
+
+Let `/cwf-delete-task` default to the topmost entry on `.cwf/task-stack` when invoked with no `<task-path>` argument — the common case is "undo what I just did", which is by definition the topmost stack entry. Would need its own FR set covering: (a) empty-stack behaviour (refuse with a useful message), (b) interaction with the existing positional `<task-path>` (no-arg form is distinct, not an alias), (c) `--force` semantics (unchanged). Out of scope for Task 136 which deliberately required an explicit task path.

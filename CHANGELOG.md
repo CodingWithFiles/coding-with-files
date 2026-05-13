@@ -2,6 +2,34 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 136: Delete most-recent task only
+
+### Status: Complete (2026-05-13)
+### Duration: ~1 session; estimate 1-2 days; landed at the optimistic end.
+### Impact: Feature — `/cwf-delete-task <task-path> [--force]` provides a single-shot way to undo `/cwf-new-task`, restricted to the most-recent task so no renumbering, gap-filling, or task re-stacking is ever required. The helper enforces a 10-check refusal pipeline (argument shape, resolve, realpath containment, most-recent, leaf, branch-name format, worktree, already-merged-to-main, unmerged-work, stack-topmost) and a 5-step idempotent cleanup A–E (detach HEAD, pop stack, delete checkpoints branch, delete task branch, remove directory). `--force` only relaxes the unmerged-work check; all other refusals are absolute. 28 functional + 2 non-functional test cases pass; `cwf-manage validate` clean.
+
+### Changes
+- Added: `.cwf/scripts/command-helpers/task-workflow.d/delete` — 336-line Perl helper implementing the 10-check refusal pipeline and idempotent cleanup A–E. Uses `File::Path::remove_tree({ safe => 1 })` for symlink-aware deletion, list-form `system()`/`open '-|', 'git', ...` to avoid shell injection, and NUL-separated `git log -z --format='%H%x00%s'` to enumerate non-checkpoint commits without subject-collision risk. Self-worktree exclusion in check 7 lets the helper delete the task whose worktree it's invoked from (cleanup A handles HEAD-on-task-branch via `git checkout --detach <baseline>`).
+- Added: `.claude/skills/cwf-delete-task/SKILL.md` — thin user-invocable skill (allowed-tools: Bash) that shells out to `task-workflow delete <task-path> [--force]`. Documents exit codes (0 deleted, 1 refusal, 2 partial-state) and the full refusal-case list.
+- Modified: `.cwf/scripts/command-helpers/task-workflow` — dispatcher gained `delete` entry alongside `create`; usage updated.
+- Modified: `.cwf/lib/CWF/TaskPath.pm` — added `version_compare` to `@EXPORT_OK` (required by the delete helper for sibling-version comparison).
+- Modified: `.cwf/security/script-hashes.json` — registered `task-workflow.d/delete` (perms 0500) and refreshed hashes for `task-workflow` and `CWF::TaskPath`.
+- Modified: `CLAUDE.md` — added `/cwf-delete-task` to the Core Skills list.
+
+### Notable
+- **Refusal-list-driven design**. The 10-check enumeration was done up-front in c-design-plan.md; implementation was largely "translate the enumeration into code". Tests fell out naturally — one test case per refusal check.
+- **Hoisting check 6 (branch-name format) out of cleanup**. Original design placed it inside cleanup step A; moving it to the pre-cleanup phase guarantees a malformed name cannot cause partial-state. One-line code change, meaningful contract improvement.
+- **Self-worktree exclusion bug caught in smoke**. First end-to-end run inside a disposable worktree refused to delete its own task — exactly the case cleanup A handles. Caught and fixed before commit by comparing each worktree's `abs_path` against the helper's own `git rev-parse --show-toplevel`.
+- **Idempotent cleanup A–E**. Re-running after partial state completes cleanup; each step guards with an existence check. TC-CLN1..CLN5 verify this directly. Right shape for a destructive CLI: lean into recovery, not transactions.
+- **TC-FR8b first-pass failure was test setup, not code**. Original setup tripped check 4 (most-recent) before reaching check 10 (stack); fix was to hand-craft a stack with a phantom topmost so earlier checks passed. For future refusal-pipeline tests, the test plan should explicitly call out which earlier checks each case must bypass.
+- **Testing-phase security-review false positive (`-CDSL` shebang) rebutted with the actual validator source**. Agent flagged shebang as a "non-negotiable" rule violation; `PerlConventions.pm:49` shows the rule is conditional on `$PATH_CMDS = qr/status|diff|ls-files|diff-tree|diff-index/` — none of the helper's git subcommands match. `cwf-manage validate` confirms `OK`. Full rebuttal recorded in g-testing-exec.md.
+- **`security-review-changeset --phase=implementation` returns empty when work is uncommitted at security-review time**. Helper diffs `anchor..HEAD`; working-tree changes are invisible. Workaround for this task was `git add -N` + manual `git diff <anchor> -- <CWF-internal paths>`. Worth surfacing in the helper as a warning.
+
+### New Backlog Items
+- Improve `security-review-changeset` empty-changeset feedback (Low) — when changeset is empty because of uncommitted work, log a hint pointing to the `git add -N` + manual-diff workaround rather than silently returning empty.
+- Consider `internal-feature` template variant (Low) — `h-rollout.md` and `i-maintenance.md` collapse to mostly-N/A for local CLI helpers with no service surface; a slimmer variant would reduce noise on this class of task.
+- Consider `/cwf-delete-task` no-arg form (Low) — let the helper default to the topmost-stack entry. Would need its own FR set; out of scope for this task.
+
 ## Task 135: Preserve template symlinks in cwf-manage
 
 ### Status: Complete (2026-05-13)
