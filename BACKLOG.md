@@ -1524,3 +1524,12 @@ Semantics:
 
 ### Dependencies
 Strictly downstream of the "Split validate_path_allowlist into write/read/temp variants" task. No point landing this without that one first.
+
+## Task: Investigate whether cwf-init GIT_ROOT capture is redundant
+
+### Task-Type: discovery
+### Priority: Low
+### Status: Follow-up from Task 138
+### Identified in: Task 138 j-retrospective.md
+
+Task 138 removed the `cd "$(git rev-parse --show-toplevel)" && ` prefix from `cwf-backlog-manager`'s SKILL.md examples on the basis that the relative path `.cwf/scripts/command-helpers/backlog-manager` is self-anchoring via kernel ENOENT. The Task-138 scope explicitly excluded `.claude/skills/cwf-init/SKILL.md:87` because its use is *different* — it captures `GIT_ROOT` into a shell variable and passes it as an *argument* to `cwf-apply-artefacts`. Investigate whether that argument is actually load-bearing: most CWF helpers resolve the git root internally via `find_git_root()` in `CWF::Common`. If `cwf-apply-artefacts` already does so (or can trivially be changed to), the `GIT_ROOT=$(...)` capture and the two-argument call form can be dropped, leaving a bare `.cwf/scripts/command-helpers/cwf-apply-artefacts --bootstrap-init`. ~30 min investigation; the resolution may be "no change" if the helper genuinely needs the argument distinct from its internal git root resolution (e.g. for cross-repo bootstrap scenarios).
