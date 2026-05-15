@@ -1,4 +1,4 @@
-#!/usr/bin/perl -CDSL
+#!/usr/bin/perl -CDSLA
 #
 # backlog-manager — Manage BACKLOG.md and CHANGELOG.md.
 #

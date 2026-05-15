@@ -1,4 +1,4 @@
-#!/usr/bin/perl -CDSL
+#!/usr/bin/perl -CDSLA
 #
 # security-review-changeset - Construct the changeset reviewed by the
 # exec-phase security-review subagent.

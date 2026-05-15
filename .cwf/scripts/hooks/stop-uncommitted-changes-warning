@@ -1,4 +1,4 @@
-#!/usr/bin/perl -CDSL
+#!/usr/bin/perl -CDSLA
 #
 # stop-uncommitted-changes-warning — Stop event hook for CWF
 #

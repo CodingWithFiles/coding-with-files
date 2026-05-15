@@ -108,11 +108,11 @@ sub _check_file {
         );
     }
 
-    if (@captures && $first_line ne '#!/usr/bin/perl -CDSL') {
+    if (@captures && $first_line ne '#!/usr/bin/perl -CDSLA') {
         push @$violations, _violation(
             $rel, 'shebang',
-            $first_line, '#!/usr/bin/perl -CDSL',
-            "Change shebang to '#!/usr/bin/perl -CDSL' in $rel — scripts that consume git path output must enable Perl I/O UTF-8 decoding.",
+            $first_line, '#!/usr/bin/perl -CDSLA',
+            "Change shebang to '#!/usr/bin/perl -CDSLA' in $rel — scripts that consume git path output must enable Perl I/O UTF-8 decoding.",
         );
     }
 

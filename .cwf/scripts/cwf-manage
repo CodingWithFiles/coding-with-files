@@ -1,4 +1,4 @@
-#!/usr/bin/perl -CDSL
+#!/usr/bin/perl -CDSLA
 #
 # CWF Management Script
 # Manage an installed CWF instance: status, list-releases, update, rollback.

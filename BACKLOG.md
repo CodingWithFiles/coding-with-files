@@ -1375,3 +1375,152 @@ For tasks whose deliverable is a local CLI helper with no service surface, no us
 ### Identified in: Task 136 retrospective (j-retrospective.md)
 
 Let `/cwf-delete-task` default to the topmost entry on `.cwf/task-stack` when invoked with no `<task-path>` argument — the common case is "undo what I just did", which is by definition the topmost stack entry. Would need its own FR set covering: (a) empty-stack behaviour (refuse with a useful message), (b) interaction with the existing positional `<task-path>` (no-arg form is distinct, not an alias), (c) `--force` semantics (unchanged). Out of scope for Task 136 which deliberately required an explicit task path.
+
+## Task: Re-align Perl-Script Convention to Task-27 Form and Anchor in CLAUDE.md
+
+### Task-Type: chore
+### Priority: Very High
+### Status: Open
+### Identified in: Task 137 implementation-exec (2026-05-13)
+
+Re-align CWF's Perl-script conventions to their original Task-27 form, and re-anchor the convention docs in CLAUDE.md so future drift is visible. Two intertwined concerns:
+
+### 1. Perl invocation shape
+The originally-decided convention (commit 1db1f77, Task 27, 2026-01-23) was:
+
+- Shebang: `#!/usr/bin/env perl` — portable; no kernel-shebang-argv-parsing fragility.
+- Runtime flags: `PERL5OPT=-CDSLA` set in `~/.claude/settings.json` — one source of truth, single place for users to update.
+- Source pragma: `use utf8;` on every Perl file.
+
+The convention drifted in Tasks 113 (a63ecdc, 2026-04-26), 115 (876b144, 2026-04-27), and 124 (91a7a86, 2026-05-03), each compounding the previous without acknowledgement. Current state: 22 scripts on `env perl`, 11 scripts on hardcoded `#!/usr/bin/perl -CDSL`, validator (`CWF::Validate::PerlConventions`) enforces the drifted form on git-path-emitting scripts.
+
+The hardcoded-flag shebang has two concrete failure modes:
+
+- **`Too late for -CDSLA`**: when `PERL5OPT` already supplies some `-C` flags and the shebang tries to add `A` (the flag that decodes `@ARGV` — see Task 137), perl rejects post-init flag additions. Empirically verified 2026-05-13.
+- **Kernel shebang-argv parsing variance**: Linux pre-5.10, macOS, and several BSDs differ on whether `-CDSL` is passed as one token or split. `env perl` plus `PERL5OPT` bypasses this entirely.
+
+Work to do:
+
+- Revert all 11 `#!/usr/bin/perl -CDSL` shebangs to `#!/usr/bin/env perl`.
+- Update `PERL5OPT` recommendation to `-CDSLA` (the `A` flag is what fixes the Task 137 bug; it can only be set via `PERL5OPT`, not shebang).
+- Rewrite the validator to require `env perl` and **reject** hardcoded `-C` shebangs.
+- Update `t/validate-perl-conventions.t` fixtures and `t/common.t`.
+
+### 2. Convention docs structure and CLAUDE.md anchoring
+Today `docs/conventions/perl-git-paths.md` mixes:
+
+- Universal rules: every Perl file uses `env perl` + `use utf8;` + recommends `PERL5OPT`.
+- Niche rules: scripts that capture path-emitting git output use `-z` and `split /\0/`.
+
+The filename advertises only the niche rules, so a reader looking for "how do we write Perl in this project?" never opens it. CLAUDE.md does not reference the file at all. The `## Conventions` section lists `commit-messages.md` and `design-alignment.md` only. That structural gap is what allowed Tasks 113 / 124 to silently codify a drifted form — no agent reading CLAUDE.md from the top would discover the prior convention.
+
+Work to do:
+
+- Split `docs/conventions/perl-git-paths.md` into two files:
+  - `docs/conventions/perl.md` — universal Perl rules (shebang, PERL5OPT, `use utf8;`).
+  - `docs/conventions/git-path-output.md` — git-specific rules (`-z`, `split /\0/`, NUL-handling).
+- Cross-reference between the two.
+- Add two bullets to CLAUDE.md `## Conventions` (around line 50), pointing at each new doc, so both are progressively discoverable from the project entry point.
+- Audit every project entry point (CLAUDE.md, README.md, INSTALL.md, `.claude/rules/*`) and add references where the conventions are load-bearing for an agent or human reading from the top.
+
+### Why "Very High"
+This is the root cause of Task 137 (the user-reported `→` mojibake in `backlog-manager add`). The bug surfaced through a specific symptom, but the **structural failure** — un-anchored conventions drifting silently across three tasks — is what allowed the bug class to exist. Fixing only the symptom leaves the drift mechanism in place. The fix should be the convention re-alignment; the `@ARGV` bug becomes a side-effect of doing it correctly.
+
+### Suggested task split
+If decomposed:
+
+- Task A (`chore`): split + rename convention docs, add CLAUDE.md anchors. Low risk.
+- Task B (`bugfix`): revert hardcoded shebangs, update validator, update `PERL5OPT` recommendation, update test fixtures. Subsumes Task 137. Higher risk (validator changes, hash regeneration, breaks anyone on stale `PERL5OPT`).
+
+Task A is a prerequisite for Task B because the new validator should cite the new doc paths.
+
+## Task: Split validate_path_allowlist into write/read/temp variants
+
+### Task-Type: chore
+### Priority: Very High
+### Status: Open
+### Identified in: Task 137 implementation-exec (2026-05-13)
+
+Split `CWF::ArtefactHelpers::validate_path_allowlist` into three semantically-distinct functions, each with its own allowlist and rejection rules tailored to the actual threat model of the caller. Today's single function is cargo-culted across callers with different threat models, producing both over-restriction (rejecting legitimate `/tmp` use) and under-protection (no distinction between write and read paths).
+
+### Background
+`validate_path_allowlist` was introduced in Task 127 (`215cbf7`) for `cwf-apply-artefacts` — a tool that **writes** artefact files into the user's tree from a JSON manifest. There the allowlist defends a real threat: a tampered manifest must not be able to write to arbitrary locations (`/etc/passwd`, `~/.ssh/authorized_keys`, etc.).
+
+In Task 131 (`13215d6`) the same function was lifted into `backlog-manager --body-file` — a tool that **reads** a body file and copies its content into BACKLOG.md. The threat model is completely different: the invoker already has shell access and read permission on the source path; restricting where the body file may live defends against nothing. The friction it imposes ("write your temp file inside the repo, then remember to delete it") is pure ceremony and has already pushed callers to bypass the helper entirely (Task 136 retrospective: "Fix at the time: edited BACKLOG.md directly with the Edit tool").
+
+A single function cannot serve both call sites correctly because the underlying questions are different:
+
+- **Write paths**: "Is this a safe destination for content I am about to overwrite?" — defends against directory traversal, absolute paths into sensitive locations, manifest tampering.
+- **Read paths**: "Is this a valid existing source I can read from?" — defends against nothing beyond what the filesystem permissions already enforce. Restricting source paths is anti-feature: the user has already chosen what to read.
+- **Temporary paths**: "Is this a transient file in a scratch location?" — should *encourage* `/tmp/<task>/...` (the project convention), reject paths under tracked roots that would risk accidental commit.
+
+### Proposed split
+Three functions in `CWF::ArtefactHelpers`:
+
+1. **`validate_write_path_allowlist($path, \@allowed_prefixes)`** — current behaviour, renamed. Used by `cwf-apply-artefacts` and `cwf-claude-settings-merge`. Rejects absolute paths, `..` segments, and anything outside the caller-supplied allowlist. This is the only call site where the threat model matches the implementation.
+
+2. **`validate_read_path_allowlist($path)`** — minimal check: `-f` exists, `-r` readable. No prefix allowlist. Used by `backlog-manager --body-file`. Permits any readable file the invoker chooses, including absolute paths under `/tmp/`.
+
+3. **`validate_temp_path_allowlist($path)`** — *encourages* scratch locations. Accepts `/tmp/`, `$TMPDIR/`, and the system temp dir. Rejects paths under `.cwf/`, `.claude/`, `docs/`, `implementation-guide/`, `t/`, or anything else inside the git tree. Used when a caller needs to write a transient file that must not be tracked. (Identify call sites during design — `cwf-checkpoint-commit` writes message scratch files; security-review-changeset writes intermediate state; both should use this.)
+
+### Work to do
+- Add the three new functions to `CWF::ArtefactHelpers`. Export each individually.
+- Update `cwf-apply-artefacts` (`.cwf/scripts/command-helpers/cwf-apply-artefacts:208`) to use `validate_write_path_allowlist`.
+- Update `cwf-claude-settings-merge` (`.cwf/scripts/command-helpers/cwf-claude-settings-merge:63`) to use `validate_write_path_allowlist`.
+- Update `backlog-manager` (`.cwf/scripts/command-helpers/backlog-manager:304`) to use `validate_read_path_allowlist`. Drop the prefix list.
+- Audit other helpers for path-validation needs; switch to `validate_temp_path_allowlist` where the file is genuinely transient.
+- Update tests (`t/artefacthelpers.t`, `t/backlog-manager.t`) for the new function shape.
+- Remove `validate_path_allowlist` from the module's `@EXPORT_OK` list once all callers have migrated.
+
+### Why "Very High"
+This is the second structural defect surfaced by Task 137 (alongside the un-anchored Perl convention). The two are independent and should not be bundled, but both block clean re-use of the helper interfaces. Friction has already produced workaround behaviour (direct `Edit` of `BACKLOG.md`), which is the worst outcome for a validator: not "correct" or "incorrect", but "bypassed".
+
+### Suggested sequencing
+Independent of the Perl-convention re-alignment item; can be done in parallel. Single task, no decomposition needed.
+
+## Task: Make path-allowlists overridable in cwf-project.json
+
+### Task-Type: chore
+### Priority: Low
+### Status: Open
+### Identified in: Task 137 implementation-exec (2026-05-13)
+
+Once `validate_path_allowlist` is split into `validate_write_path_allowlist`, `validate_read_path_allowlist`, and `validate_temp_path_allowlist` (see the "Very High" backlog item from Task 137), make each list overridable in `implementation-guide/cwf-project.json` so adopters can extend or replace the defaults without forking the helper modules.
+
+### Why
+The three allowlists encode CWF's opinions about safe project paths. Reasonable defaults will not fit every adopter:
+
+- An adopter with a non-default `implementation-guide/` base-path needs to relocate the write allowlist.
+- An adopter who wants `--body-file` to *only* accept paths under a curated location can tighten the read list.
+- An adopter on a platform with non-standard temp roots (CI runners using `$RUNNER_TEMP`) needs to extend the temp list.
+
+Today the lists are hardcoded inside `CWF::ArtefactHelpers.pm`. Forking is the only override path.
+
+### Proposed shape
+Add a `path-allowlists` block to `cwf-project.json`:
+
+```json
+{
+  "path-allowlists" : {
+    "write" : [".cwf/", ".claude/", "docs/", "implementation-guide/", "t/"],
+    "read"  : [],
+    "temp"  : ["/tmp/", "$TMPDIR/"]
+  }
+}
+```
+
+Semantics:
+
+- Each list is **optional**. Absent keys inherit the module default.
+- `"read": []` means "no prefix constraint" (matches the proposed default after the split — read sources should be unrestricted).
+- Each helper function reads its list at call time via the existing `cwf-project.json` loader, falling back to the hardcoded default when the file or the key is absent.
+- Environment-variable expansion (`$TMPDIR`, `$HOME`) handled in the loader, not in the validator.
+
+### Work to do
+- After the validator-split task lands: extend the `cwf-project.json` loader to parse the new block.
+- Thread the loaded lists through each helper's call sites; remove the hardcoded defaults from `CWF::ArtefactHelpers` (or keep them as a fallback).
+- Document the block in `docs/conventions/design-alignment.md` or a new config doc.
+- Update tests to cover override + fallback behaviour.
+
+### Dependencies
+Strictly downstream of the "Split validate_path_allowlist into write/read/temp variants" task. No point landing this without that one first.

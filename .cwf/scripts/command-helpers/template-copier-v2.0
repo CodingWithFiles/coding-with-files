@@ -1,4 +1,4 @@
-#!/usr/bin/perl -CDSL
+#!/usr/bin/perl -CDSLA
 #
 # template-copier - Copy and populate template files for CIG tasks
 #

@@ -85,7 +85,7 @@ subtest 'TC-U3: script captures git status without -z fails git-z' => sub {
     plan tests => 2;
     my $root = fresh_root();
     write_fixture($root, '.cwf/scripts/s3', <<'PERL');
-#!/usr/bin/perl -CDSL
+#!/usr/bin/perl -CDSLA
 use strict;
 use warnings;
 use utf8;
@@ -100,7 +100,7 @@ subtest 'TC-U4: script captures git status with -z passes' => sub {
     plan tests => 1;
     my $root = fresh_root();
     write_fixture($root, '.cwf/scripts/s4', <<'PERL');
-#!/usr/bin/perl -CDSL
+#!/usr/bin/perl -CDSLA
 use strict;
 use warnings;
 use utf8;
@@ -114,7 +114,7 @@ subtest 'TC-U4b: script uses open(-|, git, ...status, -z) passes' => sub {
     plan tests => 1;
     my $root = fresh_root();
     write_fixture($root, '.cwf/scripts/s4b', <<'PERL');
-#!/usr/bin/perl -CDSL
+#!/usr/bin/perl -CDSLA
 use strict;
 use warnings;
 use utf8;
@@ -129,7 +129,7 @@ subtest 'TC-U4c: bareword open my $fh, -|, git, ..., -z passes (no parens)' => s
     plan tests => 1;
     my $root = fresh_root();
     write_fixture($root, '.cwf/scripts/s4c', <<'PERL');
-#!/usr/bin/perl -CDSL
+#!/usr/bin/perl -CDSLA
 use strict;
 use warnings;
 use utf8;
@@ -144,7 +144,7 @@ subtest 'TC-U4d: bareword open my $fh, -|, git, ...status (no -z) fails' => sub 
     plan tests => 2;
     my $root = fresh_root();
     write_fixture($root, '.cwf/scripts/s4d', <<'PERL');
-#!/usr/bin/perl -CDSL
+#!/usr/bin/perl -CDSLA
 use strict;
 use warnings;
 use utf8;
@@ -160,7 +160,7 @@ subtest 'TC-U5: offending pattern only inside POD passes' => sub {
     plan tests => 1;
     my $root = fresh_root();
     write_fixture($root, '.cwf/scripts/s5', <<'PERL');
-#!/usr/bin/perl -CDSL
+#!/usr/bin/perl -CDSLA
 use strict;
 use warnings;
 use utf8;
@@ -181,7 +181,7 @@ subtest 'TC-U6: system(git, log, --, $path) without captured output passes' => s
     plan tests => 1;
     my $root = fresh_root();
     write_fixture($root, '.cwf/scripts/s6', <<'PERL');
-#!/usr/bin/perl -CDSL
+#!/usr/bin/perl -CDSLA
 use strict;
 use warnings;
 use utf8;
@@ -194,6 +194,22 @@ PERL
 #==============================================================================
 # Shebang assertion (scripts that capture git path output)
 #==============================================================================
+
+subtest 'TC-U3c: shebang with old -CDSL flag set is flagged (post-Task-137)' => sub {
+    plan tests => 3;
+    my $root = fresh_root();
+    write_fixture($root, '.cwf/scripts/s3c', <<'PERL');
+#!/usr/bin/perl -CDSL
+use strict;
+use warnings;
+use utf8;
+my $out = qx{git status --porcelain -z};
+PERL
+    my @v = validate($root);
+    is(scalar @v, 1, 'exactly one violation: shebang lacks -A');
+    is($v[0]{field}, 'shebang', 'violation field = shebang');
+    is($v[0]{expected}, '#!/usr/bin/perl -CDSLA', 'expected literal = -CDSLA');
+};
 
 subtest 'TC-U3b: capturing script with env shebang fails shebang assertion too' => sub {
     plan tests => 2;

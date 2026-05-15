@@ -1,4 +1,4 @@
-#!/usr/bin/perl -CDSL
+#!/usr/bin/perl -CDSLA
 #
 # cwf-apply-artefacts — Apply CWF non-script artefacts (CLAUDE.md preamble,
 # .gitignore lines, .cwf-rules/ tree, .cwf/rules-inject.txt, .claude/rules/
