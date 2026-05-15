@@ -85,7 +85,7 @@ subtest 'TC-U3: script captures git status without -z fails git-z' => sub {
     plan tests => 2;
     my $root = fresh_root();
     write_fixture($root, '.cwf/scripts/s3', <<'PERL');
-#!/usr/bin/perl -CDSLA
+#!/usr/bin/env perl
 use strict;
 use warnings;
 use utf8;
@@ -100,7 +100,7 @@ subtest 'TC-U4: script captures git status with -z passes' => sub {
     plan tests => 1;
     my $root = fresh_root();
     write_fixture($root, '.cwf/scripts/s4', <<'PERL');
-#!/usr/bin/perl -CDSLA
+#!/usr/bin/env perl
 use strict;
 use warnings;
 use utf8;
@@ -114,7 +114,7 @@ subtest 'TC-U4b: script uses open(-|, git, ...status, -z) passes' => sub {
     plan tests => 1;
     my $root = fresh_root();
     write_fixture($root, '.cwf/scripts/s4b', <<'PERL');
-#!/usr/bin/perl -CDSLA
+#!/usr/bin/env perl
 use strict;
 use warnings;
 use utf8;
@@ -129,7 +129,7 @@ subtest 'TC-U4c: bareword open my $fh, -|, git, ..., -z passes (no parens)' => s
     plan tests => 1;
     my $root = fresh_root();
     write_fixture($root, '.cwf/scripts/s4c', <<'PERL');
-#!/usr/bin/perl -CDSLA
+#!/usr/bin/env perl
 use strict;
 use warnings;
 use utf8;
@@ -144,7 +144,7 @@ subtest 'TC-U4d: bareword open my $fh, -|, git, ...status (no -z) fails' => sub 
     plan tests => 2;
     my $root = fresh_root();
     write_fixture($root, '.cwf/scripts/s4d', <<'PERL');
-#!/usr/bin/perl -CDSLA
+#!/usr/bin/env perl
 use strict;
 use warnings;
 use utf8;
@@ -160,7 +160,7 @@ subtest 'TC-U5: offending pattern only inside POD passes' => sub {
     plan tests => 1;
     my $root = fresh_root();
     write_fixture($root, '.cwf/scripts/s5', <<'PERL');
-#!/usr/bin/perl -CDSLA
+#!/usr/bin/env perl
 use strict;
 use warnings;
 use utf8;
@@ -181,7 +181,7 @@ subtest 'TC-U6: system(git, log, --, $path) without captured output passes' => s
     plan tests => 1;
     my $root = fresh_root();
     write_fixture($root, '.cwf/scripts/s6', <<'PERL');
-#!/usr/bin/perl -CDSLA
+#!/usr/bin/env perl
 use strict;
 use warnings;
 use utf8;
@@ -192,26 +192,26 @@ PERL
 };
 
 #==============================================================================
-# Shebang assertion (scripts that capture git path output)
+# Shebang assertion (universal — every Perl script in scan roots)
 #==============================================================================
 
-subtest 'TC-U3c: shebang with old -CDSL flag set is flagged (post-Task-137)' => sub {
+subtest 'TC-U3c: hardcoded -C shebang rejected regardless of trailing flags' => sub {
     plan tests => 3;
     my $root = fresh_root();
     write_fixture($root, '.cwf/scripts/s3c', <<'PERL');
-#!/usr/bin/perl -CDSL
+#!/usr/bin/perl -CDSLA
 use strict;
 use warnings;
 use utf8;
 my $out = qx{git status --porcelain -z};
 PERL
     my @v = validate($root);
-    is(scalar @v, 1, 'exactly one violation: shebang lacks -A');
+    is(scalar @v, 1, 'exactly one violation (shebang); -z is present so no git_z complaint');
     is($v[0]{field}, 'shebang', 'violation field = shebang');
-    is($v[0]{expected}, '#!/usr/bin/perl -CDSLA', 'expected literal = -CDSLA');
+    is($v[0]{expected}, '#!/usr/bin/env perl', 'expected literal = env perl');
 };
 
-subtest 'TC-U3b: capturing script with env shebang fails shebang assertion too' => sub {
+subtest 'TC-U3b: capturing script with env shebang passes shebang; only -z violation' => sub {
     plan tests => 2;
     my $root = fresh_root();
     write_fixture($root, '.cwf/scripts/s3b', <<'PERL');
@@ -222,16 +222,15 @@ use utf8;
 my $out = qx{git status --porcelain};
 PERL
     my @v = validate($root);
-    my %fields = map { $_->{field} => 1 } @v;
-    ok($fields{git_z},   'flagged for missing -z');
-    ok($fields{shebang}, 'flagged for non-conformant shebang');
+    is(scalar @v, 1, 'env shebang passes; only -z violation remains');
+    is($v[0]{field}, 'git_z', 'sole violation field = git_z');
 };
 
 #==============================================================================
 # Allowlist
 #==============================================================================
 
-subtest 'TC-U7: grandfathered file skips git-z and shebang but not source-pragma' => sub {
+subtest 'TC-U7: grandfathered file skips git-z but not shebang or source-pragma' => sub {
     plan tests => 3;
     my $root = fresh_root();
     my $rel  = '.cwf/scripts/hooks/legacy-hook';
@@ -244,9 +243,43 @@ my $em = "—";
 PERL
     local @CWF::Validate::PerlConventions::GRANDFATHERED = ($rel);
     my @v = validate($root);
-    is(scalar @v, 1, 'exactly one violation (use_utf8) — git-z and shebang skipped');
+    is(scalar @v, 1, 'exactly one violation (use_utf8) — git-z skipped by grandfathering, shebang already env perl');
     is($v[0]{field}, 'use_utf8', 'allowlist does not silence source-pragma');
     like($v[0]{file}, qr/legacy-hook$/, 'violation cites the grandfathered file');
+};
+
+#==============================================================================
+# New universal shebang rule coverage
+#==============================================================================
+
+subtest 'TC-U9: env perl + -z + use utf8; passes with zero violations' => sub {
+    plan tests => 1;
+    my $root = fresh_root();
+    write_fixture($root, '.cwf/scripts/s9', <<'PERL');
+#!/usr/bin/env perl
+use strict;
+use warnings;
+use utf8;
+my $out = qx{git status --porcelain -z};
+PERL
+    my @v = validate($root);
+    is(scalar @v, 0, 'canonical-form script has no violations');
+};
+
+subtest 'TC-U10: hardcoded -CDSLA shebang rejected even with -z present' => sub {
+    plan tests => 3;
+    my $root = fresh_root();
+    write_fixture($root, '.cwf/scripts/s10', <<'PERL');
+#!/usr/bin/perl -CDSLA
+use strict;
+use warnings;
+use utf8;
+my $out = qx{git status --porcelain -z};
+PERL
+    my @v = validate($root);
+    is(scalar @v, 1, '-z is present so no git_z; only shebang violation');
+    is($v[0]{field}, 'shebang', 'violation field = shebang');
+    is($v[0]{expected}, '#!/usr/bin/env perl', 'expected literal = env perl');
 };
 
 #==============================================================================

@@ -161,7 +161,8 @@ Helper scripts using the `<name>.d/` subcommand pattern:
 - `workflow-manager` + `workflow-manager.d/control`
 
 Conventions doc style this file follows:
-- `docs/conventions/perl-git-paths.md`
+- `docs/conventions/perl.md`
+- `docs/conventions/git-path-output.md`
 - `docs/conventions/commit-messages.md`
 
 Validation tool used by §3 step 3:

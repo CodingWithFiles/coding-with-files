@@ -28,7 +28,7 @@ subtest 'check_perl5opt() - warns when PERL5OPT missing -C' => sub {
 subtest 'check_perl5opt() - no warning when PERL5OPT contains -C' => sub {
     plan tests => 1;
 
-    local $ENV{PERL5OPT} = '-CDSL';
+    local $ENV{PERL5OPT} = '-CDSLA';
     my @warnings;
     local $SIG{__WARN__} = sub { push @warnings, @_ };
     CWF::Common::check_perl5opt();

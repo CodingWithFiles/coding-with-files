@@ -1,4 +1,4 @@
-#!/usr/bin/perl -CDSLA
+#!/usr/bin/env perl
 #
 # status-aggregator - Calculate task progress from status markers
 #

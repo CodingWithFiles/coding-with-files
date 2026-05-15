@@ -71,7 +71,7 @@ Five categories the subagent must cover. Each carries (i) a one-line definition,
       ...
   }
   ```
-- **Do instead**: `docs/conventions/perl-git-paths.md` — use `#!/usr/bin/perl -CDSL`, `git ls-files -z`, and `split /\0/`. Existing CWF helpers (`context-manager.d/*`, `template-copier-v2.1`) follow this convention.
+- **Do instead**: `docs/conventions/git-path-output.md` — use `git ls-files -z` and `split /\0/`. The universal Perl rules (`#!/usr/bin/env perl`, `PERL5OPT=-CDSLA`, `use utf8;`) live in `docs/conventions/perl.md`. Existing CWF helpers (`context-manager.d/*`, `template-copier-v2.1`) follow both conventions.
 
 ### (c) Prompt injection via user-supplied strings
 

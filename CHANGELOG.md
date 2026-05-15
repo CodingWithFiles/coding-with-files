@@ -2,11 +2,99 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
-## Task 138: Remove cd to git root from cwf-backlog-manager skill
+## Task 139: Re-align Perl-script conventions to Task-27 form
 
+### Status: Complete (2026-05-15)
+### Duration: 1 session, ~half a day against a 1-day estimate; under-budget.
+### Impact: Bugfix / structural cleanup — reverts 11 hardcoded `#!/usr/bin/perl -CDSLA` shebangs to the original Task-27 form (`#!/usr/bin/env perl` + `PERL5OPT=-CDSLA`), tightens `CWF::Validate::PerlConventions` to enforce the canonical shebang universally (not just on git-capturing scripts), splits `docs/conventions/perl-git-paths.md` into `perl.md` (universal: shebang, PERL5OPT, `use utf8;`) and `git-path-output.md` (niche: `-z`, `split /\0/`, NUL-handling), anchors both in CLAUDE.md `## Conventions`, and updates INSTALL.md's `PERL5OPT` recommendation from `-CDSL` to `-CDSLA` with Task-137 rationale. Restores the original convention that Task 113/115/124 silently drifted away from. Eliminates the "Too late for -CDSLA" kernel-shebang-vs-PERL5OPT failure mode Task 137 surfaced.
 ### Status: Complete (2026-05-15)
 ### Duration: 1 session; estimate <0.5 day; on-target.
 ### Impact: Bugfix / cargo-cult cleanup — `.claude/skills/cwf-backlog-manager/SKILL.md` previously prefixed every helper example with `cd "$(git rev-parse --show-toplevel)" && ` and carried a paragraph framing the prefix as a security guard against working-directory pivots. The threat model was incoherent: the actor described (something that "changes cwd to /tmp and stages /tmp/.cwf/scripts/...") is the same Claude that would also follow the guard — they share a trust boundary. More importantly, the relative path `.cwf/scripts/command-helpers/backlog-manager` is self-anchoring via kernel ENOENT: it only resolves to a real file when cwd already contains `.cwf/`, so the kernel's path resolution at the call site enforces "must run from repo root" without help from the prefix. Task strips the prefix from all 8 example fences in one `replace_all` Edit, deletes the threat-model paragraph, deletes the stale `## Success Criteria` checkbox referencing the cd. 9/10 test cases PASS, 1 N/A; negative test (run from `/tmp`, expect exit 127 + "No such file or directory") empirically confirms the self-anchoring claim.
+
+### Changes
+- Created: `docs/conventions/perl.md`, `docs/conventions/git-path-output.md`. Cross-referenced.
+- Deleted: `docs/conventions/perl-git-paths.md`.
+- Modified: `CLAUDE.md` — 2 new bullets under `## Conventions` (parallel to commit-messages.md and design-alignment.md anchors).
+- Modified: `.cwf/lib/CWF/Validate/PerlConventions.pm` — replaced capture-conditional shebang check with a universal positive-form check `$first_line !~ m{\A\#!/usr/bin/env perl\s*\z}`; moved grandfather skip after shebang check so grandfathered files still satisfy the shebang rule (only `-z` is exempted now); updated `git_z` error message to cite `git-path-output.md`; rewrote file-header pod block.
+- Modified: 11 script shebangs from `#!/usr/bin/perl -CDSLA` to `#!/usr/bin/env perl` — `cwf-manage`, `backlog-manager`, `cwf-apply-artefacts`, `security-review-changeset`, `context-inheritance-v2.0`/`v2.1`, `template-copier-v2.0`/`v2.1`, `status-aggregator-v2.0`/`v2.1`, `stop-uncommitted-changes-warning`.
+- Modified: `.cwf/security/script-hashes.json` — 12 SHA256s regenerated via `sha256sum` + manual splice (11 scripts + `PerlConventions.pm`); second-pass regen for `Common.pm` and re-amended `PerlConventions.pm` after the audit-driven updates. `last_updated` bumped to 2026-05-15.
+- Modified: `INSTALL.md` — `-CDSL` → `-CDSLA` at lines 259 and 311; expanded the explanation to cover `@ARGV` decoding and Task-137 context.
+- Modified: `.cwf/lib/CWF/Common.pm` — `check_perl5opt` warning now recommends `-CDSLA` (not `-CDSL`).
+- Modified: `.claude/skills/cwf-init/SKILL.md` — installed-skill template recommends `-CDSLA`.
+- Modified: `.cwf/docs/skills/security-review.md` — replaced `perl-git-paths.md` reference with two refs (`git-path-output.md` for `-z`, `perl.md` for universal rules).
+- Modified: `docs/conventions/design-alignment.md` — conventions index updated.
+- Modified: `t/validate-perl-conventions.t` — 10 fixture shebangs flipped to `env perl`; TC-U3c, TC-U3b, TC-U7 rewritten for the new semantics; new TC-U9 (canonical-form passes) and TC-U10 (hardcoded `-CDSLA` rejected even with `-z`).
+- Modified: `t/backlog-manager-argv-utf8.t` — re-pinned the Task-137 regression cover to the new contract. Helper renamed `run_bm_shebang_only` → `run_bm_with_perl5opt`; sets `$ENV{PERL5OPT} = '-CDSLA'` in child env instead of deleting `PERL5OPT`. Same assertions.
+- Modified: `t/common.t` — fixture `PERL5OPT='-CDSL'` → `-CDSLA` for narrative consistency.
+
+### Notable
+- **Positive-form shebang rule beats negative-regex rule.** Plan reviews surfaced regex-edge-case ambiguity in the original "reject `-C*`" framing (three of four subagents flagged it independently). Reframing the check as "must match `#!/usr/bin/env perl`" — a positive-form assertion — eliminated every variant-handling concern at once. When the spec is "must look like X", assert X, don't enumerate not-X.
+- **Validate-first gate between mechanical edit and hash regen.** After the 11 shebang reverts and the validator amendment, `cwf-manage validate` reported exactly 12 SHA mismatches: 11 scripts + `PerlConventions.pm`. No surprise entries; no missed files. The gate generalises: any deterministic transformation followed by a non-deterministic step (here: hash regen against transformed bytes) benefits from an integrity check in between that doesn't depend on the transformation being perfect.
+- **Final repo-wide grep caught three live surfaces the design plan missed.** Design enumerated four inbound-reference surfaces (INSTALL.md, security-review.md, design-alignment.md, BACKLOG.md). The final `git grep -- '-CDSL\b'` outside frozen scope found three additional live hits — the user-facing `check_perl5opt` warning, the installed-skill template, and a test fixture. Lesson: design-time enumeration is necessary but not sufficient for any audit; always pair it with a recipe-based final check.
+- **Changing a fix's mechanism requires re-pinning tests that test the mechanism.** Task 137's regression cover explicitly deleted `PERL5OPT` from the child env to prove the shebang was the contract. Task 139 moves that contract to `PERL5OPT`. Foreseeable, but not planned for — added to the recommendations list. Worth a mental rule: when changing *how* a fix works (not just *what* it does), audit tests that pin the mechanism.
+- **`security-review-changeset` blind to uncommitted work, bit again.** The implementation-phase security review ran before the f-phase checkpoint; the helper diffs `anchor..HEAD` and saw zero files. Recorded as `error` with a manual per-category analysis (FR4 a–e) in `f-implementation-exec.md`. After the f-phase commit, the testing-phase subagent ran on a real 485-line diff and returned `no findings`. Same trap that bit Tasks 137 and 138 — this is the third time. Backlog entry created.
+- **Surface-don't-smooth invariant preserved.** Manual `sha256sum` + 12 individual Edit operations to splice the new hashes into `.cwf/security/script-hashes.json`. Tedious by design. `cwf-manage fix-security` deliberately does not regenerate SHAs (it only repairs permissions when SHA still matches) for exactly this reason; preserved that property.
+- **The `-A` flag is the load-bearing detail.** `PERL5OPT=-CDSL` (which INSTALL.md previously recommended) and `PERL5OPT=-CDSLA` are visually one character apart but produce completely different `@ARGV` behaviour. The `A` decodes `@ARGV`; without it, non-ASCII bytes passed as CLI arguments become mojibake (Task 137). Both INSTALL.md and the `check_perl5opt` warning had drifted to the wrong recommendation; Task 137 added `-A` to the shebangs but didn't propagate it to user-facing docs. Task 139 closes the loop.
+- **Grandfather list semantics flipped.** Pre-139 grandfathering exempted the file from both `-z` and shebang rules. Post-139 grandfathering exempts only `-z` — `env perl` is universal. The sole grandfathered file (`stop-stale-status-detector`) already used `env perl`, so the policy change costs nothing.
+
+### New Backlog Items
+- Low: `security-review-changeset` blind to uncommitted work. Helper diffs `anchor..HEAD`; running it before the phase's checkpoint commit returns `reviewed 0 files` silently. Skill's "empty changeset → no findings" path then skips a real review. Third task to trip on this (137, 138, 139). Fix options: (a) helper diffs working tree against anchor, (b) helper warns when staged/working-tree changes exist, (c) workflow docs explicitly say "checkpoint first then review". Pick one.
+
+### Retired Backlog Items
+#### Re-align Perl-Script Convention to Task-27 Form and Anchor in CLAUDE.md
+
+Re-align CWF's Perl-script conventions to their original Task-27 form, and re-anchor the convention docs in CLAUDE.md so future drift is visible. Two intertwined concerns:
+
+### 1. Perl invocation shape
+The originally-decided convention (commit 1db1f77, Task 27, 2026-01-23) was:
+
+- Shebang: `#!/usr/bin/env perl` — portable; no kernel-shebang-argv-parsing fragility.
+- Runtime flags: `PERL5OPT=-CDSLA` set in `~/.claude/settings.json` — one source of truth, single place for users to update.
+- Source pragma: `use utf8;` on every Perl file.
+
+The convention drifted in Tasks 113 (a63ecdc, 2026-04-26), 115 (876b144, 2026-04-27), and 124 (91a7a86, 2026-05-03), each compounding the previous without acknowledgement. Current state: 22 scripts on `env perl`, 11 scripts on hardcoded `#!/usr/bin/perl -CDSL`, validator (`CWF::Validate::PerlConventions`) enforces the drifted form on git-path-emitting scripts.
+
+The hardcoded-flag shebang has two concrete failure modes:
+
+- **`Too late for -CDSLA`**: when `PERL5OPT` already supplies some `-C` flags and the shebang tries to add `A` (the flag that decodes `@ARGV` — see Task 137), perl rejects post-init flag additions. Empirically verified 2026-05-13.
+- **Kernel shebang-argv parsing variance**: Linux pre-5.10, macOS, and several BSDs differ on whether `-CDSL` is passed as one token or split. `env perl` plus `PERL5OPT` bypasses this entirely.
+
+Work to do:
+
+- Revert all 11 `#!/usr/bin/perl -CDSL` shebangs to `#!/usr/bin/env perl`.
+- Update `PERL5OPT` recommendation to `-CDSLA` (the `A` flag is what fixes the Task 137 bug; it can only be set via `PERL5OPT`, not shebang).
+- Rewrite the validator to require `env perl` and **reject** hardcoded `-C` shebangs.
+- Update `t/validate-perl-conventions.t` fixtures and `t/common.t`.
+
+### 2. Convention docs structure and CLAUDE.md anchoring
+Today `docs/conventions/perl-git-paths.md` mixes:
+
+- Universal rules: every Perl file uses `env perl` + `use utf8;` + recommends `PERL5OPT`.
+- Niche rules: scripts that capture path-emitting git output use `-z` and `split /\0/`.
+
+The filename advertises only the niche rules, so a reader looking for "how do we write Perl in this project?" never opens it. CLAUDE.md does not reference the file at all. The `## Conventions` section lists `commit-messages.md` and `design-alignment.md` only. That structural gap is what allowed Tasks 113 / 124 to silently codify a drifted form — no agent reading CLAUDE.md from the top would discover the prior convention.
+
+Work to do:
+
+- Split `docs/conventions/perl-git-paths.md` into two files:
+  - `docs/conventions/perl.md` — universal Perl rules (shebang, PERL5OPT, `use utf8;`).
+  - `docs/conventions/git-path-output.md` — git-specific rules (`-z`, `split /\0/`, NUL-handling).
+- Cross-reference between the two.
+- Add two bullets to CLAUDE.md `## Conventions` (around line 50), pointing at each new doc, so both are progressively discoverable from the project entry point.
+- Audit every project entry point (CLAUDE.md, README.md, INSTALL.md, `.claude/rules/*`) and add references where the conventions are load-bearing for an agent or human reading from the top.
+
+### Why "Very High"
+This is the root cause of Task 137 (the user-reported `→` mojibake in `backlog-manager add`). The bug surfaced through a specific symptom, but the **structural failure** — un-anchored conventions drifting silently across three tasks — is what allowed the bug class to exist. Fixing only the symptom leaves the drift mechanism in place. The fix should be the convention re-alignment; the `@ARGV` bug becomes a side-effect of doing it correctly.
+
+### Suggested task split
+If decomposed:
+
+- Task A (`chore`): split + rename convention docs, add CLAUDE.md anchors. Low risk.
+- Task B (`bugfix`): revert hardcoded shebangs, update validator, update `PERL5OPT` recommendation, update test fixtures. Subsumes Task 137. Higher risk (validator changes, hash regeneration, breaks anyone on stale `PERL5OPT`).
+
+Task A is a prerequisite for Task B because the new validator should cite the new doc paths.
+
+<!-- Note: Implemented as a single combined task; the entry suggested splitting Task A/B but combined was right call - milestones share validator-doc dependency -->
 
 ### Changes
 - Modified: `.claude/skills/cwf-backlog-manager/SKILL.md` — removed lines 18-24 (the "Mandatory pre-step" paragraph including the fenced example and the threat-model paragraph, plus the trailing blank that would otherwise have collapsed into a double-blank before `## Subcommands`). Stripped `cd "$(git rev-parse --show-toplevel)" && ` from all 8 subcommand example fences (`validate`, `list`, `add`, `modify`, `delete`, `normalise` ×2, `retire`) via one `replace_all` Edit. Deleted the `- [ ] Subcommand invoked from git-root via cd "$(...)"` checkbox from `## Success Criteria`, leaving the two genuine correctness checkboxes (list-form args, exit-code observation). Net diff: −16 lines, +0 lines.

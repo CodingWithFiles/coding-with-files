@@ -5,10 +5,12 @@
 # bytes (not double-encoded mojibake) and that `normalise` preserves
 # pre-existing non-ASCII bytes byte-for-byte.
 #
-# The fix relies on the script's shebang carrying `-CDSLA` (the `A`
-# decodes @ARGV as UTF-8). To prove the shebang is the contract, the
-# child process is spawned with PERL5OPT explicitly unset: the parent
-# session's PERL5OPT must not be what fixes the bug.
+# The fix relies on PERL5OPT=-CDSLA being set in the environment (the
+# `A` decodes @ARGV as UTF-8). Task 27 / Task 139 moved this contract
+# off the kernel shebang line and onto PERL5OPT — the shebang itself
+# is now plain `#!/usr/bin/env perl`. To prove PERL5OPT is the contract,
+# the child process is spawned with PERL5OPT explicitly set, regardless
+# of what the parent session has.
 #
 use strict;
 use warnings;
@@ -49,15 +51,15 @@ sub make_isolated {
     return $dir;
 }
 
-# Spawn backlog-manager with PERL5OPT stripped, so the shebang is the
-# sole source of -C flags. List-form exec — no shell, no quoting.
-# @args must contain UTF-8 octet strings (no Perl character strings).
-sub run_bm_shebang_only {
+# Spawn backlog-manager with PERL5OPT=-CDSLA forced in the child env, so the
+# env var is the sole source of -C flags. List-form exec — no shell, no
+# quoting. @args must contain UTF-8 octet strings (no Perl character strings).
+sub run_bm_with_perl5opt {
     my ($dir, @args) = @_;
     my $pid = fork;
     die "fork: $!" unless defined $pid;
     if ($pid == 0) {
-        delete $ENV{PERL5OPT};
+        $ENV{PERL5OPT} = '-CDSLA';
         chdir $dir or die "chdir $dir: $!";
         open STDERR, '>', "$dir/.stderr" or die "redirect stderr: $!";
         open STDOUT, '>', "$dir/.stdout" or die "redirect stdout: $!";
@@ -107,7 +109,7 @@ subtest 'TC-F1: add with non-ASCII argv writes clean UTF-8 bytes' => sub {
     );
     my $title_bytes = "Smoke 137: $ARROW $SECTION $EMDASH";
     my $body_bytes  = "non-ascii body: $ARROW $SECTION $EMDASH";
-    my ($rc, $err) = run_bm_shebang_only(
+    my ($rc, $err) = run_bm_with_perl5opt(
         $dir, 'add',
         '--priority=Low',
         '--task-type=chore',
@@ -154,7 +156,7 @@ END
         'BACKLOG.md'   => $backlog_with_unicode,
         'CHANGELOG.md' => $VALID_CHANGELOG,
     );
-    my ($rc, $err) = run_bm_shebang_only($dir, 'normalise');
+    my ($rc, $err) = run_bm_with_perl5opt($dir, 'normalise');
     is($rc, 0, "normalise exit 0 (err: $err)")
         or diag("backlog-manager normalise stderr: $err");
 

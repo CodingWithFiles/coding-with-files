@@ -61,6 +61,15 @@ The Coding with Files (CWF) system v2.0 is **implemented and operational**. Core
 - Deprecation policy (in-repo vs `cwf-manage`)
 - Cross-document reference conventions
 
+**Perl Conventions**: Universal rules for every Perl file under `.cwf/`. See `docs/conventions/perl.md` for:
+- Shebang: `#!/usr/bin/env perl`
+- `PERL5OPT=-CDSLA` for UTF-8 I/O and `@ARGV` decoding
+- `use utf8;` source pragma (unconditional)
+
+**Git Path Handling**: NUL-separated path output from `git`. See `docs/conventions/git-path-output.md` for:
+- `-z` flag on path-emitting git subcommands
+- `split /\0/` parsing of NUL-separated records
+
 ## Architecture Overview
 
 **Hierarchical Workflow System (v2.0)**: Eight lettered workflow steps (a-h) guide tasks from planning through retrospective. Non-linear state machine with dynamic transitions based on step outcomes. Universal decomposition signals (5 criteria) guide task breakdown into subtasks.

@@ -1,24 +1,30 @@
 package CWF::Validate::PerlConventions;
 #
-# CWF::Validate::PerlConventions - Perl + git path-handling convention checker
+# CWF::Validate::PerlConventions - Perl convention checker
 #
-# Walks .cwf/scripts/ and .cwf/lib/CWF/ and asserts the conventions in
-# docs/conventions/perl-git-paths.md:
+# Walks .cwf/scripts/ and .cwf/lib/CWF/ and asserts the conventions in:
+#
+#   - Universal Perl rules:  docs/conventions/perl.md
+#   - Git path-handling:     docs/conventions/git-path-output.md
+#
+# Rules:
 #
 #   - Source-pragma:  every Perl file (script or module) declares 'use utf8;'
-#                     unconditionally. Stricter than the bare convention doc:
-#                     enforced on all files, regardless of whether non-ASCII
-#                     bytes are currently present, so that adding a literal
-#                     later cannot silently produce double-encoded output
-#                     under PERL5OPT=-CDSL (the Task 115 failure mode).
+#                     unconditionally. Enforced on all files, regardless of
+#                     whether non-ASCII bytes are currently present, so that
+#                     adding a literal later cannot silently produce double-
+#                     encoded output under PERL5OPT=-CDSLA (the Task 115
+#                     failure mode).
+#   - Shebang:        every Perl script in scan roots uses '#!/usr/bin/env perl'.
+#                     Hardcoded '-C' flags on the kernel shebang line are
+#                     rejected. Runtime I/O flags belong in PERL5OPT
+#                     (the canonical value is '-CDSLA').
 #   - Git -z:         any script that *captures* output from a path-emitting
 #                     git subcommand (status, diff, ls-files, diff-tree,
 #                     diff-index) passes -z to that invocation.
-#   - Shebang:        any script flagged by the Git -z rule has shebang
-#                     '#!/usr/bin/perl -CDSL' so I/O is decoded as UTF-8.
 #
-# Files in @GRANDFATHERED are exempted from the Git -z and shebang rules
-# (but never from the source-pragma rule). The allowlist is hard-coded to
+# Files in @GRANDFATHERED are exempted from the Git -z rule only (not from
+# the source-pragma or shebang rules). The allowlist is hard-coded to
 # prevent comment-marker bypass — adding entries requires editing this file
 # and is therefore visible in code review.
 #
@@ -90,29 +96,35 @@ sub _check_file {
         push @$violations, _violation(
             $rel, 'use_utf8',
             '(missing)', 'use utf8;',
-            "Add 'use utf8;' after 'use strict; use warnings;' in $rel — every CWF Perl file declares the source pragma unconditionally so future non-ASCII literals cannot silently double-encode under PERL5OPT=-CDSL.",
+            "Add 'use utf8;' after 'use strict; use warnings;' in $rel — every CWF Perl file declares the source pragma unconditionally so future non-ASCII literals cannot silently double-encode under PERL5OPT=-CDSLA.",
+        );
+    }
+
+    return unless $is_script;
+
+    # Shebang: every Perl script in scan roots uses '#!/usr/bin/env perl'.
+    # Hardcoded -C flags on the kernel shebang line fail two ways: kernel
+    # shebang-argv parsing variance across platforms, and "too late for
+    # -CDSLA" when PERL5OPT already supplies some -C flags (Task 137).
+    # Runtime I/O flags belong in PERL5OPT.
+    if ($first_line !~ m{\A\#!/usr/bin/env perl\s*\z}) {
+        push @$violations, _violation(
+            $rel, 'shebang',
+            $first_line, '#!/usr/bin/env perl',
+            "Change shebang to '#!/usr/bin/env perl' in $rel — kernel-line -C flags are unportable across kernels and conflict with PERL5OPT. Set PERL5OPT=-CDSLA in your environment for UTF-8 I/O and \@ARGV decoding (see docs/conventions/perl.md).",
         );
     }
 
     return if $allow->{$rel};
-    return unless $is_script;
 
-    # Git output-capture: scripts only.
+    # Git output-capture: scripts only. Grandfathered files bypass this rule.
     my @captures = _find_git_captures($code);
     for my $cap (@captures) {
         next if _has_z($cap);
         push @$violations, _violation(
             $rel, 'git_z',
             _summarise($cap), 'invocation including -z',
-            "Add '-z' to the git invocation in $rel; path-emitting git subcommands must be NUL-separated (see docs/conventions/perl-git-paths.md).",
-        );
-    }
-
-    if (@captures && $first_line ne '#!/usr/bin/perl -CDSLA') {
-        push @$violations, _violation(
-            $rel, 'shebang',
-            $first_line, '#!/usr/bin/perl -CDSLA',
-            "Change shebang to '#!/usr/bin/perl -CDSLA' in $rel — scripts that consume git path output must enable Perl I/O UTF-8 decoding.",
+            "Add '-z' to the git invocation in $rel; path-emitting git subcommands must be NUL-separated (see docs/conventions/git-path-output.md).",
         );
     }
 

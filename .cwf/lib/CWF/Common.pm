@@ -20,7 +20,7 @@ sub check_perl5opt {
     unless ($ENV{PERL5OPT} && $ENV{PERL5OPT} =~ /-C/) {
         warn "WARNING: PERL5OPT not configured for Unicode handling.\n";
         warn "Add the following to ~/.claude/settings.json:\n";
-        warn "  \"env\": { \"PERL5OPT\": \"-CDSL\" }\n\n";
+        warn "  \"env\": { \"PERL5OPT\": \"-CDSLA\" }\n\n";
     }
 }
 

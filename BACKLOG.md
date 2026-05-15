@@ -1376,64 +1376,6 @@ For tasks whose deliverable is a local CLI helper with no service surface, no us
 
 Let `/cwf-delete-task` default to the topmost entry on `.cwf/task-stack` when invoked with no `<task-path>` argument — the common case is "undo what I just did", which is by definition the topmost stack entry. Would need its own FR set covering: (a) empty-stack behaviour (refuse with a useful message), (b) interaction with the existing positional `<task-path>` (no-arg form is distinct, not an alias), (c) `--force` semantics (unchanged). Out of scope for Task 136 which deliberately required an explicit task path.
 
-## Task: Re-align Perl-Script Convention to Task-27 Form and Anchor in CLAUDE.md
-
-### Task-Type: chore
-### Priority: Very High
-### Status: Open
-### Identified in: Task 137 implementation-exec (2026-05-13)
-
-Re-align CWF's Perl-script conventions to their original Task-27 form, and re-anchor the convention docs in CLAUDE.md so future drift is visible. Two intertwined concerns:
-
-### 1. Perl invocation shape
-The originally-decided convention (commit 1db1f77, Task 27, 2026-01-23) was:
-
-- Shebang: `#!/usr/bin/env perl` — portable; no kernel-shebang-argv-parsing fragility.
-- Runtime flags: `PERL5OPT=-CDSLA` set in `~/.claude/settings.json` — one source of truth, single place for users to update.
-- Source pragma: `use utf8;` on every Perl file.
-
-The convention drifted in Tasks 113 (a63ecdc, 2026-04-26), 115 (876b144, 2026-04-27), and 124 (91a7a86, 2026-05-03), each compounding the previous without acknowledgement. Current state: 22 scripts on `env perl`, 11 scripts on hardcoded `#!/usr/bin/perl -CDSL`, validator (`CWF::Validate::PerlConventions`) enforces the drifted form on git-path-emitting scripts.
-
-The hardcoded-flag shebang has two concrete failure modes:
-
-- **`Too late for -CDSLA`**: when `PERL5OPT` already supplies some `-C` flags and the shebang tries to add `A` (the flag that decodes `@ARGV` — see Task 137), perl rejects post-init flag additions. Empirically verified 2026-05-13.
-- **Kernel shebang-argv parsing variance**: Linux pre-5.10, macOS, and several BSDs differ on whether `-CDSL` is passed as one token or split. `env perl` plus `PERL5OPT` bypasses this entirely.
-
-Work to do:
-
-- Revert all 11 `#!/usr/bin/perl -CDSL` shebangs to `#!/usr/bin/env perl`.
-- Update `PERL5OPT` recommendation to `-CDSLA` (the `A` flag is what fixes the Task 137 bug; it can only be set via `PERL5OPT`, not shebang).
-- Rewrite the validator to require `env perl` and **reject** hardcoded `-C` shebangs.
-- Update `t/validate-perl-conventions.t` fixtures and `t/common.t`.
-
-### 2. Convention docs structure and CLAUDE.md anchoring
-Today `docs/conventions/perl-git-paths.md` mixes:
-
-- Universal rules: every Perl file uses `env perl` + `use utf8;` + recommends `PERL5OPT`.
-- Niche rules: scripts that capture path-emitting git output use `-z` and `split /\0/`.
-
-The filename advertises only the niche rules, so a reader looking for "how do we write Perl in this project?" never opens it. CLAUDE.md does not reference the file at all. The `## Conventions` section lists `commit-messages.md` and `design-alignment.md` only. That structural gap is what allowed Tasks 113 / 124 to silently codify a drifted form — no agent reading CLAUDE.md from the top would discover the prior convention.
-
-Work to do:
-
-- Split `docs/conventions/perl-git-paths.md` into two files:
-  - `docs/conventions/perl.md` — universal Perl rules (shebang, PERL5OPT, `use utf8;`).
-  - `docs/conventions/git-path-output.md` — git-specific rules (`-z`, `split /\0/`, NUL-handling).
-- Cross-reference between the two.
-- Add two bullets to CLAUDE.md `## Conventions` (around line 50), pointing at each new doc, so both are progressively discoverable from the project entry point.
-- Audit every project entry point (CLAUDE.md, README.md, INSTALL.md, `.claude/rules/*`) and add references where the conventions are load-bearing for an agent or human reading from the top.
-
-### Why "Very High"
-This is the root cause of Task 137 (the user-reported `→` mojibake in `backlog-manager add`). The bug surfaced through a specific symptom, but the **structural failure** — un-anchored conventions drifting silently across three tasks — is what allowed the bug class to exist. Fixing only the symptom leaves the drift mechanism in place. The fix should be the convention re-alignment; the `@ARGV` bug becomes a side-effect of doing it correctly.
-
-### Suggested task split
-If decomposed:
-
-- Task A (`chore`): split + rename convention docs, add CLAUDE.md anchors. Low risk.
-- Task B (`bugfix`): revert hardcoded shebangs, update validator, update `PERL5OPT` recommendation, update test fixtures. Subsumes Task 137. Higher risk (validator changes, hash regeneration, breaks anyone on stale `PERL5OPT`).
-
-Task A is a prerequisite for Task B because the new validator should cite the new doc paths.
-
 ## Task: Split validate_path_allowlist into write/read/temp variants
 
 ### Task-Type: chore
@@ -1533,3 +1475,33 @@ Strictly downstream of the "Split validate_path_allowlist into write/read/temp v
 ### Identified in: Task 138 j-retrospective.md
 
 Task 138 removed the `cd "$(git rev-parse --show-toplevel)" && ` prefix from `cwf-backlog-manager`'s SKILL.md examples on the basis that the relative path `.cwf/scripts/command-helpers/backlog-manager` is self-anchoring via kernel ENOENT. The Task-138 scope explicitly excluded `.claude/skills/cwf-init/SKILL.md:87` because its use is *different* — it captures `GIT_ROOT` into a shell variable and passes it as an *argument* to `cwf-apply-artefacts`. Investigate whether that argument is actually load-bearing: most CWF helpers resolve the git root internally via `find_git_root()` in `CWF::Common`. If `cwf-apply-artefacts` already does so (or can trivially be changed to), the `GIT_ROOT=$(...)` capture and the two-argument call form can be dropped, leaving a bare `.cwf/scripts/command-helpers/cwf-apply-artefacts --bootstrap-init`. ~30 min investigation; the resolution may be "no change" if the helper genuinely needs the argument distinct from its internal git root resolution (e.g. for cross-repo bootstrap scenarios).
+
+## Task: security-review-changeset blind to uncommitted work
+
+### Task-Type: bugfix
+### Priority: Low
+### Identified in: Task 139 retrospective (2026-05-15)
+
+`.cwf/scripts/command-helpers/security-review-changeset` diffs `anchor..HEAD` only. When invoked by the f-implementation-exec or g-testing-exec skill before the phase's checkpoint commit lands, HEAD does not yet contain the phase's changes and the helper returns `reviewed 0 files, 0 lines`. The exec skill's "empty changeset -> no findings" fallback then silently skips a real security review.
+
+### Evidence
+- Task 137 retrospective (`f-implementation-exec.md`): "first run reported 0 files; commit first then re-run".
+- Task 138 retrospective (CHANGELOG): "security-review-changeset blind to uncommitted work bit again".
+- Task 139 retrospective (this task, f-implementation-exec.md Security Review section): forced to record `error` with a manual per-category analysis instead of running the subagent on a real diff, because the helper saw zero.
+
+Third task in a row to trip on this. The trap will keep biting until either the helper warns or the workflow doc says "checkpoint first" explicitly.
+
+### Fix options
+- **(a)** Helper diffs working tree against the anchor (`git diff <anchor>` instead of `git diff <anchor>..HEAD`). Picks up staged + unstaged changes. Side-effect: changes the meaning of "changeset" mid-phase, which is fine for the review's purpose.
+- **(b)** Helper detects staged or working-tree changes (`git status --porcelain`) and emits a warning if any exist while the diff is empty: "uncommitted changes present but not in the changeset; commit first or run with --include-worktree".
+- **(c)** Workflow docs (the exec-phase skill templates) state explicitly: "checkpoint the phase changes first, then run security review". Add the ordering to the SKILL.md steps.
+
+Option (a) or (b) is preferred; (c) trains every future agent to remember a non-obvious ordering. (a) is the smallest change and best aligns with how an interactive reviewer would think about "what's changing".
+
+### Why Low priority
+- Workaround exists: commit phase changes first, then run the review. Three tasks have used it; none missed a real security issue as a result.
+- The skill's three-tier classification (primary sentinel / numbered-list fallback / conservative `error`) is sound; the helper limitation triggers `no findings: empty changeset` which is technically faithful to the helper's output.
+- Not a security failure per se — agents have flagged the limitation in retrospectives and provided manual analyses when warranted.
+
+### Scope
+~30-60 min. Single helper edit (option a) or message tweak (option b). Add a regression test verifying behaviour against an uncommitted working tree.

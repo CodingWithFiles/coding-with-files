@@ -256,12 +256,17 @@ Add `PERL5OPT` to your Claude Code settings (`~/.claude/settings.json`):
 ```json
 {
   "env": {
-    "PERL5OPT": "-CDSL"
+    "PERL5OPT": "-CDSLA"
   }
 }
 ```
 
-This enables Unicode handling in Perl helper scripts. Without it, scripts will issue warnings but continue to work.
+This enables Unicode handling in Perl helper scripts (STDIN/STDOUT/STDERR
+plus `@ARGV` decoding). Without it, scripts will issue warnings, and any
+non-ASCII characters passed on the command line will be misinterpreted as
+Latin-1 — producing mojibake (e.g. `→` becomes `â†'`). The `A` flag is what
+fixes `@ARGV` decoding; it can only be set via `PERL5OPT`, not via the
+script shebang.
 
 ## Verification
 
@@ -308,4 +313,4 @@ If skills still don't appear, restart Claude Code to pick up new skill definitio
 
 ### Unicode warnings from Perl scripts
 
-Set `PERL5OPT="-CDSL"` as described in Post-Install Setup step 3. These warnings are cosmetic and don't affect functionality.
+Set `PERL5OPT="-CDSLA"` as described in Post-Install Setup step 3. These warnings are cosmetic and don't affect functionality.

@@ -146,7 +146,7 @@ Run, using the Bash tool:
   ```json
   {
     "env": {
-      "PERL5OPT": "-CDSL"
+      "PERL5OPT": "-CDSLA"
     }
   }
   ```
