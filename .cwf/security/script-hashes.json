@@ -29,7 +29,7 @@
     },
     "CWF::Common" : {
       "path" : ".cwf/lib/CWF/Common.pm",
-      "sha256" : "aaf1390ea675b8f8871cc5ef0904a2696f9d925a644a2fc15f43ec4c8bf4c18c"
+      "sha256" : "749e851132e7e3ea493ab489d6aeee7b5b7da37f6f21857b3adcda70d6254ba3"
     },
     "CWF::ContextInheritance::Core" : {
       "path" : ".cwf/lib/CWF/ContextInheritance/Core.pm",
@@ -267,7 +267,7 @@
     "template-copier-v2.1" : {
       "path" : ".cwf/scripts/command-helpers/template-copier-v2.1",
       "permissions" : "0700",
-      "sha256" : "94d4b0a907bd7a662233abaaa2088b45381b43b7d68fdc20a41d4bdd30ef45bc"
+      "sha256" : "3e34496f32be254e286cd2af5ae09cae330ea5e3b75fa8ef6a42525a68662d4e"
     },
     "validate-migration.sh" : {
       "path" : ".cwf/scripts/validate-migration.sh",

@@ -11,7 +11,7 @@ use warnings;
 use utf8;
 use Exporter 'import';
 
-our @EXPORT_OK = qw(check_perl5opt format_error parse_semver version_cmp find_git_root generate_slug);
+our @EXPORT_OK = qw(check_perl5opt format_error parse_semver version_cmp find_git_root resolve_head_sha generate_slug);
 
 # Check PERL5OPT environment configuration
 # Args: none
@@ -50,6 +50,16 @@ sub find_git_root {
     my $root = `git rev-parse --show-toplevel 2>/dev/null`;
     chomp $root;
     return length $root ? $root : undef;
+}
+
+# Resolve the SHA of HEAD in the current git repository.
+# Returns: 40-char lowercase hex string, or undef if HEAD cannot be resolved
+# (not inside a repo, empty repo with no commits, git unavailable).
+# git rev-parse outputs lowercase hex on all platforms, so the regex is anchored.
+sub resolve_head_sha {
+    my $sha = `git rev-parse HEAD 2>/dev/null`;
+    chomp $sha;
+    return $sha =~ /^[0-9a-f]{40}$/ ? $sha : undef;
 }
 
 # Generate a slug from a free-text description.

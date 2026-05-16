@@ -81,14 +81,14 @@ security-review-changeset helper uses it as the anchor for diffing. Detached HEA
 branching off another task's branch is allowed but the user owns that decision.
 
 ```bash
-BASELINE_COMMIT=$(git rev-parse HEAD)
 .cwf/scripts/command-helpers/task-workflow create \
   --task-type="{type}" --destination="{task-dir}" \
-  --task-num="{num}" --description="{description}" \
-  --baseline-commit="$BASELINE_COMMIT"
+  --task-num="{num}" --description="{description}"
 ```
 Creates directory automatically, copies templates, substitutes variables (including
-`{{baselineCommit}}` in `a-task-plan.md`), sets permissions.
+`{{baselineCommit}}` in `a-task-plan.md`, resolved to current HEAD by the helper),
+sets permissions. To pin a specific non-HEAD baseline, pass
+`--baseline-commit=<40-char-sha>` explicitly.
 
 ### 4. Create Git Branch
 ```bash

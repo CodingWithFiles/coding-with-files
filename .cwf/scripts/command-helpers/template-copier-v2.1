@@ -13,8 +13,9 @@
 #   --destination=PATH   Full path to task directory (optional, auto-constructed if omitted)
 #   --task-num=NUM       Task number (e.g., "17", "1.2.3")
 #   --description=DESC   Task description/slug
-#   --baseline-commit=SHA Optional 40-char git SHA recorded in a-task-plan.md as the
-#                        anchor for security-review changeset construction
+#   --baseline-commit=SHA Optional; defaults to HEAD (resolved internally). 40-char git SHA
+#                        recorded in a-task-plan.md as the anchor for security-review
+#                        changeset construction. Explicit values pass through verbatim.
 #   --format=FORMAT      Output format: markdown (default) or json
 #   --help               Show this help message
 #
@@ -39,7 +40,7 @@ use File::Path qw(make_path);
 use Cwd qw(abs_path);
 use CWF::TaskPath qw(validate get_parent resolve_num);
 use CWF::WorkflowFiles qw(load_config);
-use CWF::Common qw(generate_slug);
+use CWF::Common qw(generate_slug resolve_head_sha);
 
 sub die_msg {
     print STDERR "[CWF] ERROR: @_\n";
@@ -133,8 +134,9 @@ Parameters:
   --destination=PATH   Full path to task directory
   --task-num=NUM       Task number (e.g., "17", "1.2.3")
   --description=DESC   Task description/slug
-  --baseline-commit=SHA Optional 40-char git SHA recorded in a-task-plan.md as the
-                       anchor for security-review changeset construction
+  --baseline-commit=SHA Optional; defaults to HEAD (resolved internally). 40-char git SHA
+                       recorded in a-task-plan.md as the anchor for security-review
+                       changeset construction. Explicit values pass through verbatim.
   --format=FORMAT      Output format: markdown (default) or json
   --help               Show this help message
 
@@ -396,7 +398,16 @@ sub compute_variables {
     # Add new template variables
     $vars{taskNum} = $params->{task_num};
     $vars{taskType} = $params->{task_type};
-    $vars{baselineCommit} = $params->{baseline_commit} // '';
+    if (defined $params->{baseline_commit} && length $params->{baseline_commit}) {
+        $vars{baselineCommit} = $params->{baseline_commit};
+    } else {
+        my $sha = resolve_head_sha();
+        die_msg("Could not resolve HEAD as baseline commit. "
+              . "Run inside a git repository with at least one commit, "
+              . "or pass --baseline-commit=<sha> explicitly.")
+            unless defined $sha;
+        $vars{baselineCommit} = $sha;
+    }
 
     return %vars;
 }

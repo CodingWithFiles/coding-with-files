@@ -2,6 +2,69 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 142: Default task-workflow --baseline-commit to HEAD
+
+### Status: Complete (2026-05-16)
+### Duration: 1 session, ~0.5 day against a 0.5-day estimate; on-target.
+### Impact: Chore / friction-removal — `/cwf-new-task` and `/cwf-new-subtask` SKILL examples instructed models to run `BASELINE_COMMIT=$(git rev-parse HEAD)` before invoking `task-workflow create`. The `$(...)` shell substitution fired a Claude Code permission prompt ("Contains shell syntax that cannot be statically analyzed") on every task creation. The fix moves HEAD resolution into the helper itself via a new `CWF::Common::resolve_head_sha()` function, and updates the SKILL examples to omit the flag entirely. The explicit-SHA expert path (`--baseline-commit=<40-char-sha>` for branching off a non-HEAD commit) keeps working bit-for-bit — the new behaviour is pure superset. 478/478 existing tests pass; 5 new tests cover the resolver branches and the helper's call shapes.
+
+### Changes
+- Modified: `.cwf/lib/CWF/Common.pm` — added `resolve_head_sha()` to `@EXPORT_OK` and as a new subroutine adjacent to `find_git_root` (same backtick + chomp + regex-validate shape). Returns 40-char lowercase hex on success, `undef` on failure (no repo, empty repo with no commits, git unavailable).
+- Modified: `.cwf/scripts/command-helpers/template-copier-v2.1` — imported `resolve_head_sha` alongside the existing `generate_slug`; the `$vars{baselineCommit} = $params->{baseline_commit} // ''` call site at line 401 became an `if (defined && length) → verbatim pass-through; else → resolve_head_sha + die_msg on undef` block. Removed the silent empty-string fallback that previously masked the omission. Help-banner copy updated in two places ("Optional; defaults to HEAD (resolved internally). … Explicit values pass through verbatim.").
+- Modified: `.claude/skills/cwf-new-task/SKILL.md` § 3 — dropped the `BASELINE_COMMIT=$(...)` capture line and the `--baseline-commit="$BASELINE_COMMIT"` continuation from the example invocation. Extended the trailing prose by one sentence pointing at the explicit-SHA escape hatch for the rare expert path.
+- Modified: `.claude/skills/cwf-new-subtask/SKILL.md` § 3 — equivalent collapse of the bullet that captured `BASELINE_COMMIT` into a single sentence noting the helper resolves HEAD internally.
+- Added: `t/common-resolve-head-sha.t` — 3 unit subtests via `CWFTest::Fixtures::create_git_repo`: commit-present → 40-char hex matching `git rev-parse HEAD`; empty repo → undef; outside any repo → undef.
+- Added: `t/template-copier-baseline-default.t` — 2 integration subtests via the fork/exec subprocess pattern from `t/security-review-changeset.t`: flag-omitted → rendered `a-task-plan.md` contains live HEAD SHA; explicit `--baseline-commit=deadbeef…` → that exact value verbatim, no resolution attempted.
+- Modified: `.cwf/security/script-hashes.json` — 2 SHA256s updated by hand (`CWF::Common` `749e851…`, `template-copier-v2.1` `3e34496…`) per the Task-135 surface-don't-smooth policy. `last_updated` already at 2026-05-17 from Task 141; not bumped.
+
+### Notable
+- **Plan-review subagents earned their cost again.** Two distinct misalignments surfaced before f-exec: (i) the resolver belongs in `CWF::Common` next to `find_git_root` (same backtick + chomp + length-check shape), not inline in the helper; (ii) tests should use `CWFTest::Fixtures::create_git_repo` rather than rolling a custom tempdir + chdir. Both applied; both visible in the final code. Continues the trend from Task 141 where plan-review caught real issues. Future-self note: when adding a `git rev-parse` shell-out, grep `CWF::Common` first.
+- **Rejected a fabricated review finding.** A plan-review subagent suggested case-insensitive hex regex (`/[0-9a-fA-F]{40}/`) citing "some systems output uppercase". Verified false against current behaviour: `git rev-parse` outputs lowercase on all POSIX platforms. Recorded the rejection in d-implementation-plan to avoid `feedback_no_fabricated_citations` reaching code.
+- **Eating-our-own-dog-food worked.** The friction this task fixes was directly experienced at `/cwf-new-task 142 chore "…"` at the start of the session. Each subsequent checkpoint commit invoked the same code path being modified (via the previous baseline-commit value, before the fix landed). After merge, every future `/cwf-new-task` invocation is the canonical proof that the fix works.
+- **Hard-fail over silent-fallback.** The old code path was `// ''` — a silent empty-string fallback that masked omission. The new code fails loud (`die_msg`) on unresolvable HEAD. Aligns with `feedback_surface_security_dont_smooth`.
+- **Security-review sentinel compliance 0/2 again.** Both f-phase and g-phase invocations led with prose instead of the required sentinel line. The g-phase prompt was strengthened with an explicit "first non-blank line MUST begin with one of these three sentinel strings — no preamble" instruction; the subagent still led with "Actually the code works because…". Both recorded as `**State**: error` per the three-tier conservative default; substance is `no findings` in both, preserved verbatim. Task 141's retrospective documents the working prompt shape ("Your VERY FIRST CHARACTER…" + explicit unacceptable-opener list); folding it into `.cwf/docs/skills/security-review.md` is the next chore.
+- **Under-inclusion of new test files in first security-review changeset.** First `security-review-changeset --phase=implementation` invocation saw only 4 files because the new `.t` files were untracked. `git diff` doesn't list untracked files even with the Task-141 working-tree fix. Staged them, re-ran, got 6 files / 331 lines. Operational habit: stage new files before running the security-review changeset.
+- **TC-6 covered by inspection, not test.** `template-copier-v2.1`'s `find_templates_directory` calls `git rev-parse --show-toplevel` *before* the resolver branch runs, so a no-repo cwd kills the helper at template lookup. The resolver's no-repo `die_msg` is unreachable end-to-end through the helper but exercised at the unit level (TC-3 in `common-resolve-head-sha.t`). Documented limitation, not a coverage gap.
+- **TC-7 deferred to post-merge UX observation.** The Claude Code permission prompt fires at the harness layer, not the helper layer. Cannot be locally validated; the SKILL.md change is structurally clean (`grep -rn 'git rev-parse HEAD' .claude/skills/cwf-new-task .claude/skills/cwf-new-subtask` empty), so behaviourally the prompt cannot fire. First post-merge `/cwf-new-task` invocation is the canonical observation.
+
+### Retired Backlog Items
+- "Default task-workflow --baseline-commit to HEAD (drop shell substitution from SKILL examples)" (Very High, identified during Task 141 setup) — retired via `backlog-manager retire`; this task is the fix.
+
+#### Default task-workflow --baseline-commit to HEAD (drop shell substitution from SKILL examples)
+
+The `/cwf-new-task` and `/cwf-new-subtask` SKILL.md examples currently instruct models to run:
+
+    BASELINE_COMMIT=$(git rev-parse HEAD)
+    .cwf/scripts/command-helpers/task-workflow create \
+      --task-type=... --destination=... --task-num=... \
+      --description=... --baseline-commit="$BASELINE_COMMIT"
+
+The `$(git rev-parse HEAD)` shell substitution triggers a Claude Code permission prompt on every invocation ("Contains shell syntax (string) that cannot be statically analyzed"). This adds a confirmation round-trip to every new task creation.
+
+### Fix
+HEAD is the load-bearing default in essentially every legitimate use of `task-workflow create` (the recorded baseline is whatever the current branch tip is at branch-cut time; users branching off a non-HEAD commit are a rare expert path). Two options:
+
+1. **Make `--baseline-commit` optional, defaulting to HEAD internally.** The helper calls `git rev-parse HEAD` itself when the flag is omitted. SKILL.md drops both the `BASELINE_COMMIT=$(...)` capture and the `--baseline-commit=...` argument from the example. Models pass nothing; the helper resolves.
+
+2. **Accept literal `HEAD` as the `--baseline-commit` value.** Keep the flag required for explicitness but treat the string `HEAD` as a sentinel the helper resolves via `git rev-parse HEAD`. SKILL.md becomes `--baseline-commit=HEAD` with no shell substitution.
+
+Option 1 is cleaner ergonomically. Option 2 preserves explicit invocation shape and makes the "use HEAD" case visible in the command line. Either eliminates the permission prompt; the choice is a UX call to make in design.
+
+### Scope
+- `.cwf/scripts/command-helpers/task-workflow` — accept HEAD literal as a sentinel, or treat absent `--baseline-commit` as HEAD. Internal resolution via `git rev-parse HEAD`.
+- `.claude/skills/cwf-new-task/SKILL.md` § 3 — drop the `BASELINE_COMMIT=$(...)` capture from the example invocation.
+- `.claude/skills/cwf-new-subtask/SKILL.md` (equivalent section) — same fix if it uses the same pattern.
+- Hash regen for the touched script via the Task-135 hand-update path.
+- Confirm no test currently pins `--baseline-commit` to a non-HEAD literal SHA for a legitimate reason. Both shapes (explicit SHA and HEAD/omitted) should keep working — the rare expert path that needs an exact SHA should not be broken by this change.
+
+### Why Very High
+Every `/cwf-new-task` and `/cwf-new-subtask` invocation hits this prompt. With ~140 tasks created historically and the project still active, this is friction on a per-task frequency in active development sessions. The fix is small (probably one afternoon of code + two SKILL.md edits + a test).
+
+### Out of scope
+- Generalising the "resolve symbolic refs" pattern to other helper flags (e.g. anchor in security-review-changeset). That's a separate refactor; this entry is narrowly about the new-task / new-subtask permission-prompt friction.
+
+<!-- Note: Implemented as option (1) from the BACKLOG sketch: helper resolves HEAD internally via CWF::Common::resolve_head_sha when --baseline-commit is omitted. Explicit-SHA expert path unchanged. -->
+
 ## Task 141: security-review-changeset blind to uncommitted
 
 ### Status: Complete (2026-05-17)

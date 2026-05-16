@@ -80,12 +80,9 @@ checkout in either failure path.
 - Slug: pass `--description` raw to the script (same handling as `/cwf-new-task` — script slugifies and rejects descriptions whose slug exceeds 50 chars with `[CWF] ERROR:`)
 - Subtask directory is nested inside parent (e.g. task 48.1 → `implementation-guide/48-feature-parent/48.1-bugfix-slug/`)
 - Verify you are on the intended base branch before running — the recorded
-  **Baseline Commit** is whatever `HEAD` is at this moment. Capture it before
-  invoking the script:
-  ```bash
-  BASELINE_COMMIT=$(git rev-parse HEAD)
-  ```
-  Pass `--baseline-commit="$BASELINE_COMMIT"` to `task-workflow create`.
+  **Baseline Commit** is resolved by `task-workflow create` to whatever `HEAD`
+  is at invocation time. To pin a specific non-HEAD baseline, pass
+  `--baseline-commit=<40-char-sha>` explicitly; otherwise omit the flag.
 - Copy templates via `task-workflow create` with `--destination` pointing inside parent dir
 - Set `{{parentTask}}` to parent task number
 

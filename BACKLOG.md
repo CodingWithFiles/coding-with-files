@@ -1456,40 +1456,30 @@ This entry may legitimately stay open indefinitely. If a year passes with no cal
 ### Dependencies
 None. The two variants this would join are already shipped by Task 140.
 
-## Task: Default task-workflow --baseline-commit to HEAD (drop shell substitution from SKILL examples)
+## Task: Drop --destination from cwf-new-task SKILL example (helper auto-constructs)
 
 ### Task-Type: chore
-### Priority: Very High
-### Status: Open
-### Identified in: Task 141 setup (2026-05-16)
+### Priority: Low
+### Identified in: Task 142 retrospective (2026-05-16)
 
-The `/cwf-new-task` and `/cwf-new-subtask` SKILL.md examples currently instruct models to run:
+The `/cwf-new-task` and `/cwf-new-subtask` SKILL.md examples show `--destination="{task-dir}"` in the `task-workflow create` invocation block. This is misleading in two ways:
 
-    BASELINE_COMMIT=$(git rev-parse HEAD)
-    .cwf/scripts/command-helpers/task-workflow create \
-      --task-type=... --destination=... --task-num=... \
-      --description=... --baseline-commit="$BASELINE_COMMIT"
+1. The placeholder `{task-dir}` reads as the *parent* directory (`implementation-guide/`). A first-time invocation that passes the parent path causes the helper to dump templates loose into the parent, not into a nested task directory. (Encountered at Task 142 task-creation time; one extra rm + re-invocation to recover.)
 
-The `$(git rev-parse HEAD)` shell substitution triggers a Claude Code permission prompt on every invocation ("Contains shell syntax (string) that cannot be statically analyzed"). This adds a confirmation round-trip to every new task creation.
+2. The helper itself auto-constructs the full task-directory path when `--destination` is omitted entirely. `template-copier-v2.1` § parse_parameters around line 110: "Construct destination if not provided. Reuse the slug we just computed rather than slugifying the description a second time."
 
-### Fix
-HEAD is the load-bearing default in essentially every legitimate use of `task-workflow create` (the recorded baseline is whatever the current branch tip is at branch-cut time; users branching off a non-HEAD commit are a rare expert path). Two options:
-
-1. **Make `--baseline-commit` optional, defaulting to HEAD internally.** The helper calls `git rev-parse HEAD` itself when the flag is omitted. SKILL.md drops both the `BASELINE_COMMIT=$(...)` capture and the `--baseline-commit=...` argument from the example. Models pass nothing; the helper resolves.
-
-2. **Accept literal `HEAD` as the `--baseline-commit` value.** Keep the flag required for explicitness but treat the string `HEAD` as a sentinel the helper resolves via `git rev-parse HEAD`. SKILL.md becomes `--baseline-commit=HEAD` with no shell substitution.
-
-Option 1 is cleaner ergonomically. Option 2 preserves explicit invocation shape and makes the "use HEAD" case visible in the command line. Either eliminates the permission prompt; the choice is a UX call to make in design.
+### Fix shape
+- Drop `--destination` from the SKILL example block in both `cwf-new-task/SKILL.md` and `cwf-new-subtask/SKILL.md`.
+- Document the auto-construct behaviour in the trailing prose.
+- Optionally: an explicit-path follow-up sentence for the rare case where a caller wants to override (e.g. subtasks nested into an existing parent — `cwf-new-subtask` may still need the flag for that case; verify the auto-construct logic respects the parent path).
 
 ### Scope
-- `.cwf/scripts/command-helpers/task-workflow` — accept HEAD literal as a sentinel, or treat absent `--baseline-commit` as HEAD. Internal resolution via `git rev-parse HEAD`.
-- `.claude/skills/cwf-new-task/SKILL.md` § 3 — drop the `BASELINE_COMMIT=$(...)` capture from the example invocation.
-- `.claude/skills/cwf-new-subtask/SKILL.md` (equivalent section) — same fix if it uses the same pattern.
-- Hash regen for the touched script via the Task-135 hand-update path.
-- Confirm no test currently pins `--baseline-commit` to a non-HEAD literal SHA for a legitimate reason. Both shapes (explicit SHA and HEAD/omitted) should keep working — the rare expert path that needs an exact SHA should not be broken by this change.
+~15 min. Two SKILL.md edits. No code change, no test change, no hash regen. Verify subtask auto-construct still produces the nested `<parent>/<num>-<type>-<slug>/` shape before dropping the flag from the subtask SKILL example.
 
-### Why Very High
-Every `/cwf-new-task` and `/cwf-new-subtask` invocation hits this prompt. With ~140 tasks created historically and the project still active, this is friction on a per-task frequency in active development sessions. The fix is small (probably one afternoon of code + two SKILL.md edits + a test).
+### Why Low
+- The current shape works for callers who read carefully or who run the helper enough times to learn the pattern.
+- The recovery is one `rm` away (no destructive side effect beyond loose template files).
+- Lower-priority than the wave of security-review prompt-compliance work currently in the backlog.
 
 ### Out of scope
-- Generalising the "resolve symbolic refs" pattern to other helper flags (e.g. anchor in security-review-changeset). That's a separate refactor; this entry is narrowly about the new-task / new-subtask permission-prompt friction.
+- Removing `--destination` from the helper's CLI surface. The flag remains supported for callers who want explicit control; only the SKILL example shape changes.
