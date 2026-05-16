@@ -2,6 +2,32 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 144: Tighten security-subagent sentinel-line output
+
+### Status: Complete (2026-05-16)
+### Duration: 1 session, well under the <0.5-day estimate.
+### Impact: Chore / prompt-tightening — the `cwf-security-reviewer-changeset` agent (added in Task 143) now leads its response with the required sentinel string reliably enough for the calling SKILL's **primary** classifier to fire instead of falling through to the numbered-list fallback or the conservative-default `error`. Single-paragraph edit in `.claude/agents/cwf-security-reviewer-changeset.md` replaces the loose "Start your response with one of three sentinel lines" instruction with explicit failure-mode framing ("Your VERY FIRST output line MUST be one of these three sentinels — no greeting, no analysis, no markdown decoration before it. A preface … causes the calling SKILL to fall through to its conservative fallback classifier and label a clean review as `findings`."). Sentinel tokens unchanged (`findings:` / `no findings` / `error:`); three-tier classifier in `.cwf/docs/skills/security-review.md` untouched. Dogfood on this task's own changeset: primary classifier fired n=2/2 (f-phase + g-phase).
+
+### Changes
+- Modified: `.claude/agents/cwf-security-reviewer-changeset.md` — lines 24–30 replaced. Old "Start your response with one of three sentinel lines:" + 3 bullet lines became a stronger 5-line preamble ("Your VERY FIRST output line MUST be one of these three sentinels — no greeting, no analysis, no markdown decoration before it.") + the same 3 bullets with two small clarifications (`no findings` may have a note "on a subsequent line"; `error:` reason "on the same line"). Frontmatter, `Inputs`/`Procedure` preamble, pattern-based-risk carve-out, and the "do not paraphrase" sentence all untouched.
+- Modified: `.cwf/security/script-hashes.json` — `cwf-security-reviewer-changeset` SHA256 updated from `ef971059…6340630a` to `c7033a74…2095e5` to track the new bytes. Deliberate per-file hash advance for an intentional content change, not an auto-recompute.
+
+### Notable
+- **The tightened wording compliance held at n=2/2 on this task's own dogfood.** Both the f-phase and g-phase invocations of the just-edited agent returned `no findings` as the literal first non-blank line — the calling SKILL classified via the **primary** rule each time, not via the numbered-list fallback and not via the conservative-default error. Single-task n is low statistical weight but is the positive observation called for in e-testing-plan TC-7. A broader quantification of the preface-rate is the subject of a separate backlog follow-up, not this task.
+- **Failure-mode framing beats output-shape framing.** Old wording told the agent *what to emit* ("start with one of three sentinel lines"); new wording also tells the agent *what breaks if it deviates* ("a preface causes the calling SKILL to fall through to its conservative fallback classifier"). Task 141's retrospective documented similar failure-mode-aware wording ("Your VERY FIRST CHARACTER…" + explicit unacceptable-opener list). Worth carrying forward to other subagent prompts where compliance is structural, not stylistic.
+- **`cwf-manage validate` surfaced expected drift + pre-existing perm violations; both triaged per the "surface, don't smooth" rule, not auto-fixed.** Three buckets: (i) 1× SHA mismatch on the edited agent file (legitimate consequence of the deliberate edit — ledger updated); (ii) 1× permission violation on the same file (Edit tool wrote it back at 0600 instead of 0444 — local chmod restored); (iii) 6× pre-existing permission violations on the other 4 plan-reviewer agents + shared-rules doc (install-time issue inherited from Task 143's install path — local chmod applied with the same caveat noted in Task 143's retro). User approved each bucket separately via two-question prompt; no blanket `cwf-manage fix-security`.
+- **Three wf step files initially used a non-canonical `**Status**: Planning` value** in a-/d-/e-task-plan. The `cwf-project.json` `status-values` map enumerates `Backlog/Blocked/Cancelled/Finished/In Progress/Skipped/Testing/To-Do` — "Planning" is not in the set. `validate` caught it on the first run; corrected to `Finished` (those phases are complete). Backlog item added: either canonicalise `Planning` as a value or patch the planning-phase skill templates to default to a canonical value.
+- **Agent-registry caches at session start, still.** d-phase plan-review subagents and the first f-phase security-review invocation all returned "Agent type … not found" — the agents were installed by Task 143 but not registered in the pre-restart session. Mid-task session restart unblocked the security-review invocation. Same pattern as Task 143's TC-AC3b/AC5a/AC5b; the pre-existing backlog item "Session-restart smoke-test helper for newly installed agents" already names it.
+
+### Retired Backlog Items
+- "Tighten security-subagent prompt for sentinel-line compliance" (Medium, Follow-up from Task 123) — retired via `backlog-manager retire`; this task is the fix.
+
+#### Tighten security-subagent prompt for sentinel-line compliance
+
+The security subagent introduced in Task 123 returns three sentinel-prefixed states (`findings:` / `no findings` / `error:`) classified per a three-tier rule (primary sentinel → numbered-list fallback → conservative-default error). TC-AC8 in Task 123 demonstrated that subagents tend not to lead with the sentinel — the dogfood call returned ~70 lines of analysis before the closing `no findings` line, causing the fallback classifier to fire and produce a `**State**: findings` even though the substantive verdict was clean. The conservative-default behaviour is correct (loud false positive > silent false negative), but the false-positive rate could be reduced.
+
+<!-- Note: Wording-only fix; one-paragraph rewrite in the agent file plus failure-mode framing. Primary-rule classification observed n=2/2 on this task's own changeset. Broader follow-up (single-token sentinels) tracked separately. -->
+
 ## Task 143: Adopt .claude/agents format with shared rules
 
 ### Status: Complete (2026-05-16)
@@ -31,7 +57,7 @@ All notable changes to the Code Implementation Guide (CIG) project are documente
 ### Retired Backlog Items
 None directly retired — none of the prior backlog items were specifically addressed by Task 143.
 
-
+## Task 142: Default task-workflow --baseline-commit to HEAD
 
 ### Status: Complete (2026-05-16)
 ### Duration: 1 session, ~0.5 day against a 0.5-day estimate; on-target.

@@ -21,13 +21,18 @@ Review the `{phase}`-phase changeset for security concerns per the
 threat model in `.cwf/docs/skills/security-review.md` § "Threat
 categories" (a)–(e).
 
-**Start your response with one of three sentinel lines:**
+**Your VERY FIRST output line MUST be one of these three sentinels —
+no greeting, no analysis, no markdown decoration before it.** A
+preface (even a single line of context) causes the calling SKILL to
+fall through to its conservative fallback classifier and label a
+clean review as `findings`.
 
 - `findings:` followed by numbered actionable items (what is wrong,
   where in the diff, what to do).
 - `no findings` if the diff is clean. May be followed by a one-line
-  note.
-- `error:` if you cannot perform the review (state the reason).
+  note on a subsequent line.
+- `error:` if you cannot perform the review (state the reason on the
+  same line).
 
 Pattern-based risk findings (per category (e)) are allowed: a pattern
 that is safe at the callsite but risky if reused elsewhere may be

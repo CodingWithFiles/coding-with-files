@@ -65,18 +65,6 @@ The v1 anchored interpreter regex covers `perl|bash|sh|ksh|zsh|fish|python\d?|ru
 
 `t/security-review-changeset.t` (and likely others) uses `chdir $repo` ... `chdir $orig` to scope subprocess invocations. If a test `die`s between the two, `chdir $orig` never runs, leaking cwd state into subsequent tests. Use `local $CWD` from `File::chdir` for exception-safe lexical scoping. Not currently broken (tests die fast, tempdirs auto-clean), but a worth-it refactor as the test scaffolding grows.
 
-## Task: Tighten security-subagent prompt for sentinel-line compliance
-
-### Task-Type: chore
-### Priority: Medium
-### Status: Follow-up from Task 123
-### Problem: Subagents respond with verbose intros even when instructed otherwise. The current prompt says "Start your response with one of three sentinel lines" but the model does not reliably comply.
-### Solution: One-line edit to `.cwf/docs/skills/security-review.md` § "Exec-phase prompt template" to push the sentinel ahead of any analysis. Suggested wording: "Your VERY FIRST output line MUST be the sentinel — do not preface with analysis." Optionally consider one-token sentinels (`NO_FINDINGS:`, `FINDINGS:`, `ERROR:`) which are harder to embed mid-paragraph.
-### Trigger: Defer until the classifier-versus-substance gap recurs in >2 of the next 5 feature tasks. If the rate stays acceptable, no action needed — the conservative classifier is doing its job.
-### Identified in: Task 123 retrospective (j-retrospective.md § "What Could Be Improved")
-
-The security subagent introduced in Task 123 returns three sentinel-prefixed states (`findings:` / `no findings` / `error:`) classified per a three-tier rule (primary sentinel → numbered-list fallback → conservative-default error). TC-AC8 in Task 123 demonstrated that subagents tend not to lead with the sentinel — the dogfood call returned ~70 lines of analysis before the closing `no findings` line, causing the fallback classifier to fire and produce a `**State**: findings` even though the substantive verdict was clean. The conservative-default behaviour is correct (loud false positive > silent false negative), but the false-positive rate could be reduced.
-
 ## Task: Quantitatively justify the security-review subagent line-count cap
 
 ### Task-Type: chore
@@ -1531,3 +1519,12 @@ The 500-line review cap in `cwf-implementation-exec` / `cwf-testing-exec` SKILLs
 ### Identified in: Task 143 retrospective (j-retrospective.md)
 
 Task 143 needed a synthetic upstream commit (renamed agent file) to exercise TC-AC1-update. Created `feature/143-synthetic-rename` as a throwaway branch; the user flagged the noise (`feature/143-...` looked like a real task branch in `git branch -v`). Adopt a prefix convention for non-task throwaway branches â `wip-test/`, `test-fixture/`, or `scratch/` â and document it in `CONTRIBUTING.md` or the relevant convention doc. Cheap; pays off whenever a task needs a synthetic upstream ref for testing.
+
+## Task: Status value mismatch: planning-phase skill templates suggest 'Planning' but cwf-project.json doesn't include it
+
+### Task-Type: chore
+### Priority: Low
+### Status: Follow-up from Task 144
+### Identified in: Task 144 retrospective (j-retrospective.md Â§ Recommendations Â§ Process Improvements)
+
+The planning-phase skill templates (cwf-task-plan, cwf-implementation-plan, cwf-testing-plan) consistently emit `**Status**: Planning` in their suggested wf-step-file body, but `Planning` is not in the canonical `status-values` map in `implementation-guide/cwf-project.json` (which currently enumerates Backlog/Blocked/Cancelled/Finished/In Progress/Skipped/Testing/To-Do). Every task using these skills hits a 3-violation validate-fail on first run and has to manually correct to a canonical value. Resolution options: (i) add `Planning` (and possibly `Testing-plan` etc.) to the canonical set with appropriate progress weights, or (ii) patch the skill templates to default to an existing value such as `In Progress`. Pick one. Identified in Task 144 retrospective (j-retrospective.md Â§ Recommendations).
