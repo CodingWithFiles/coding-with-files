@@ -118,22 +118,23 @@ The plan-review.md criteria-lookup table gains a `Security` column. Each cell is
 
 ## Exec-phase prompt template
 
-Substitute `{changeset}` (the `git diff` output produced per § "Pathspec coverage") and `{phase}` (= `"implementation"` or `"testing"`).
+Invoke the `cwf-security-reviewer-changeset` agent. The agent body
+holds the full review instructions and the sentinel-line contract;
+the SKILL-side prompt only needs to pass `{phase}` and `{changeset}`.
+
+Substitute `{changeset}` (the `git diff` output produced per
+§ "Pathspec coverage") and `{phase}` (= `"implementation"` or
+`"testing"`).
 
 ```
-Review the {phase}-phase changeset below for security concerns per the threat model in `.cwf/docs/skills/security-review.md` § "Threat categories" (a)–(e).
+Agent call: subagent_type=cwf-security-reviewer-changeset
 
-You may only use Read, Grep, and Glob (no Bash, no edits).
-
-Start your response with one of three sentinel lines:
-- `findings:` followed by numbered actionable items (what is wrong, where in the diff, what to do).
-- `no findings` if the diff is clean. May be followed by a one-line note.
-- `error:` if you cannot perform the review (state the reason).
-
-Pattern-based risk findings (per category (e)) are allowed: a pattern that is safe at the callsite but risky if reused elsewhere may be reported with the framing "safe here because X; audit future uses where X might not hold." Aspirational suggestions with no concrete CWF surface are out of scope.
-
-Changeset:
+Inputs:
+- phase: {phase}
+- changeset: |
 {changeset}
+
+Follow the procedure in your agent definition.
 ```
 
 The exec SKILL classifies the response per the three-tier rule:

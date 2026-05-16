@@ -163,10 +163,11 @@ install_subtree() {
     git -C "$clone_dir" subtree split --prefix=.cwf -b cwf-core >/dev/null
     git -C "$clone_dir" subtree split --prefix=.claude/skills -b cwf-skills >/dev/null
     git -C "$clone_dir" subtree split --prefix=.claude/rules -b cwf-rules >/dev/null
+    git -C "$clone_dir" subtree split --prefix=.claude/agents -b cwf-agents >/dev/null
 
     # Remove existing if force
     if [[ "$CWF_FORCE" == "1" ]]; then
-        for dir in .cwf .cwf-skills .cwf-rules; do
+        for dir in .cwf .cwf-skills .cwf-rules .cwf-agents; do
             if [[ -d "$dir" ]]; then
                 git rm -rf --quiet "$dir" 2>/dev/null || true
                 rm -rf "$dir"
@@ -183,8 +184,11 @@ install_subtree() {
     log "Adding .cwf-skills/ (subtree split 2/3)..."
     git subtree add --prefix=.cwf-skills "$clone_dir" cwf-skills --squash -m "Add CWF skills ($ref)"
 
-    log "Adding .cwf-rules/ (subtree split 3/3)..."
+    log "Adding .cwf-rules/ (subtree split 3/4)..."
     git subtree add --prefix=.cwf-rules "$clone_dir" cwf-rules --squash -m "Add CWF rules ($ref)"
+
+    log "Adding .cwf-agents/ (subtree split 4/4)..."
+    git subtree add --prefix=.cwf-agents "$clone_dir" cwf-agents --squash -m "Add CWF agents ($ref)"
 }
 
 install_copy() {
@@ -198,7 +202,7 @@ install_copy() {
 
     # Remove existing if force
     if [[ "$CWF_FORCE" == "1" ]]; then
-        rm -rf .cwf .cwf-skills .cwf-rules
+        rm -rf .cwf .cwf-skills .cwf-rules .cwf-agents
     fi
 
     # Copy core
@@ -215,6 +219,12 @@ install_copy() {
         log "Copied .cwf-rules/"
     fi
 
+    # Copy agents to staging prefix
+    if [[ -d "$clone_dir/.claude/agents" ]]; then
+        cp -r "$clone_dir/.claude/agents" .cwf-agents
+        log "Copied .cwf-agents/"
+    fi
+
     # Fix permissions
     find .cwf/scripts -type f -exec chmod u+rx {} \;
     log "Fixed script permissions"
@@ -226,9 +236,10 @@ post_install() {
     local ref="$1"
     local resolved_sha="$2"
 
-    # Create skill and rule symlinks
-    create_cwf_symlinks .cwf-skills .claude/skills "cwf-*"  -d skill
+    # Create skill, rule, and agent symlinks
+    create_cwf_symlinks .cwf-skills .claude/skills "cwf-*"    -d skill
     create_cwf_symlinks .cwf-rules  .claude/rules  "cwf-*.md" -f rule
+    create_cwf_symlinks .cwf-agents .claude/agents "cwf-*.md" -f agent
 
     # Write version file
     cat > .cwf/version <<VEOF

@@ -60,6 +60,7 @@ my @CWF_INTERNAL_PREFIXES = (
     '.cwf/templates/',
     '.claude/scripts/',
     '.claude/skills/',
+    '.claude/agents/',
     '.claude/hooks/',
     '.claude/rules/',
 );

@@ -51,7 +51,7 @@ allowed-tools:
 - Construct changeset: capture stdout of `.cwf/scripts/command-helpers/security-review-changeset --phase=implementation`. The helper resolves the anchor and applies CWF-internal-dir + shebang-sniff classification per § "Pathspec coverage".
   - If empty: append `## Security Review\n\n**State**: no findings\n\nno findings: empty changeset\n` and proceed to Step 9.
   - If >500 lines (count via `wc -l`): append `## Security Review\n\n**State**: error\n\nerror: changeset exceeds 500-line review cap; split the change or perform manual review\n` and proceed to Step 9.
-- Invoke ONE Agent call with `subagent_type="Explore"` using the prompt template, `{phase}` = `"implementation"`.
+- Invoke ONE Agent call with `subagent_type="cwf-security-reviewer-changeset"` using the prompt template, `{phase}` = `"implementation"`.
 - Append `## Security Review\n\n**State**: <findings|no findings|error>\n\n<verbatim subagent output>\n` to `f-implementation-exec.md`. Classify per the three-tier rule in `security-review.md` (primary sentinel → numbered-list fallback → conservative-default error).
 - Do NOT block on `findings`. Surface them; the user decides whether to fix-and-re-run or accept-and-record before Step 9.
 

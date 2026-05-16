@@ -1483,3 +1483,51 @@ The `/cwf-new-task` and `/cwf-new-subtask` SKILL.md examples show `--destination
 
 ### Out of scope
 - Removing `--destination` from the helper's CLI surface. The flag remains supported for callers who want explicit control; only the SKILL example shape changes.
+
+## Task: Retrofit create_skill_symlinks with warn-on-stray + die-on-collision
+
+### Task-Type: chore
+### Priority: Medium
+### Identified in: Task 143 retrospective (j-retrospective.md)
+
+`cwf-manage`'s `create_skill_symlinks` (existing) does not have the conflict-check / warn-on-stray behaviour that Task 143 added to `create_agent_symlinks`. Same logic applies in both directories â `cwf-*` is CWF's namespace in `.claude/skills/` as much as in `.claude/agents/`. A user-dropped `cwf-mything` regular file should emit the same warning; a user-dropped file colliding with a CWF skill name should die. Lift the warn/die block into a shared helper sub (e.g. `_check_namespace_conflicts($source_dir, $target_dir, $glob, $kind)`) and call it from both `create_skill_symlinks` and `create_agent_symlinks`. Task 143's d-implementation-plan.md explicitly flagged this as a deliberate-asymmetry deferral.
+
+## Task: Install-time chmod 0444 on data/agents files (avoid post-install fix-security)
+
+### Task-Type: chore
+### Priority: Low
+### Identified in: Task 143 g-testing-exec.md TC-AC1-install
+
+Fresh `install.bash` runs leave the `data` and `agents` sections at 0600 (whatever umask creates), and `cwf-manage validate` fires 10 permission violations until `cwf-manage fix-security` runs. The validator's check (`(actual & expected) == expected` for 0444) is correct; the install path doesn't enforce. Fix: have `install.bash`'s `copy_tree` / `post_install` set 0444 on every file whose ledger entry declares that permission. Or have install.bash invoke `cwf-manage fix-security` at the end of post_install. This is a pre-existing issue (not introduced by Task 143); Task 143's agent files just inherit the same path.
+
+## Task: Session-restart smoke-test helper for newly installed agents
+
+### Task-Type: feature
+### Priority: Low
+### Identified in: Task 143 retrospective (j-retrospective.md)
+
+Claude Code's agent registry is loaded at session start. Newly installed `.claude/agents/cwf-*.md` files (via `install.bash` or `cwf-manage update`) are not discoverable until session restart. Task 143's TC-AC3b, TC-AC5a, TC-AC5b were classified BLOCKED-ENV for this reason. Options: (a) post-install helper that prints `"Restart Claude Code to load X new agent(s)"` and exits; (b) auto-re-exec of `claude` after install (probably too invasive); (c) document the constraint in `.cwf/docs/skills/cwf-agent-shared-rules.md` and `cwf-new-task` so authors know upfront. (a)+(c) is the minimal-risk path.
+
+## Task: Install-lifecycle shared helper library (install.bash + cwf-manage dedup)
+
+### Task-Type: chore
+### Priority: Low
+### Identified in: Task 143 retrospective (j-retrospective.md)
+
+`scripts/install.bash` and `.cwf/scripts/cwf-manage` duplicate subtree-split/add, copy-method, and create-symlinks logic for each `.cwf-*` staging directory. Adding a new staging dir (Task 143 did this for `.cwf-agents`) requires symmetric edits in both scripts; missing one is the failure mode Task 143's TC-AC1-install caught. Extract the shared lifecycle into either (a) a Bash library under `scripts/lib/` sourced by both, or (b) a single Perl helper invoked by both. Reduces the per-staging-dir maintenance surface from 12 edits (6 in each script) to ~3 in one place.
+
+## Task: Tune security-review-changeset 500-line cap to count edit-lines only
+
+### Task-Type: chore
+### Priority: Low
+### Identified in: Task 143 retrospective (j-retrospective.md)
+
+The 500-line review cap in `cwf-implementation-exec` / `cwf-testing-exec` SKILLs counts `wc -l` of the entire diff output, which includes hunk headers (`@@ ...`), file headers (`diff --git` / `+++` / `---`), and unchanged context lines. Task 143 fired the cap twice on changesets whose actual edit-line count (`grep -c '^[+-]'`) was well under cap: f-phase 538 total / 399 edits, g-phase 625 total / 419 edits. Either (a) change the SKILL to count `grep -cE '^[+-]' | grep -v '^[+]{3}\|^[-]{3}'` (edit lines only), or (b) raise the cap, or (c) split the cap into two thresholds (warn at 500 edit-lines, hard-stop at 1000). The intent was context-window protection for the subagent; edit-lines is closer to that intent than total-diff-lines.
+
+## Task: Naming convention for throwaway test branches
+
+### Task-Type: chore
+### Priority: Low
+### Identified in: Task 143 retrospective (j-retrospective.md)
+
+Task 143 needed a synthetic upstream commit (renamed agent file) to exercise TC-AC1-update. Created `feature/143-synthetic-rename` as a throwaway branch; the user flagged the noise (`feature/143-...` looked like a real task branch in `git branch -v`). Adopt a prefix convention for non-task throwaway branches â `wip-test/`, `test-fixture/`, or `scratch/` â and document it in `CONTRIBUTING.md` or the relevant convention doc. Cheap; pays off whenever a task needs a synthetic upstream ref for testing.

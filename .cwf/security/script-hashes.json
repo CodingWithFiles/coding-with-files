@@ -1,5 +1,32 @@
 {
-  "last_updated" : "2026-05-17",
+  "last_updated" : "2026-05-16",
+  "agents" : {
+    "cwf-plan-reviewer-improvements" : {
+      "path" : ".claude/agents/cwf-plan-reviewer-improvements.md",
+      "permissions" : "0444",
+      "sha256" : "258fc4f1df8e925b549ffe3f925986d0b5c58c85d2bb7df2c572f6f1ecdac4c7"
+    },
+    "cwf-plan-reviewer-misalignment" : {
+      "path" : ".claude/agents/cwf-plan-reviewer-misalignment.md",
+      "permissions" : "0444",
+      "sha256" : "a10a3bd873d8968bf68e3bc827f50c78966490a24a40f969ad55917fb6616cc3"
+    },
+    "cwf-plan-reviewer-robustness" : {
+      "path" : ".claude/agents/cwf-plan-reviewer-robustness.md",
+      "permissions" : "0444",
+      "sha256" : "ca7ad4e5806e1414f113015824ab881c17a4c6f436b897dc58a696ba17eb8ea8"
+    },
+    "cwf-plan-reviewer-security" : {
+      "path" : ".claude/agents/cwf-plan-reviewer-security.md",
+      "permissions" : "0444",
+      "sha256" : "608084fd30bc08ca374e6dc83ed75259319e1630581b555cf840db2d656ef4b9"
+    },
+    "cwf-security-reviewer-changeset" : {
+      "path" : ".claude/agents/cwf-security-reviewer-changeset.md",
+      "permissions" : "0444",
+      "sha256" : "ef971059eee39721e536843837f314a365a0d397f224cacc96ecfe706340630a"
+    }
+  },
   "data" : {
     "install-manifest" : {
       "path" : ".cwf/install-manifest.json",
@@ -15,6 +42,11 @@
       "path" : ".cwf/templates/install/claude-md-preamble.md",
       "permissions" : "0444",
       "sha256" : "c72927c7a3b14d50bcc15f0acb790bc0b2208930e80b8d14af019350460b436a"
+    },
+    "agent-shared-rules" : {
+      "path" : ".cwf/docs/skills/cwf-agent-shared-rules.md",
+      "permissions" : "0444",
+      "sha256" : "39fd05c087ecb5d50acd91ed38fce6c52abe67acce85eadc7363ff4f0ce6f3e8"
     }
   },
   "lib" : {
@@ -172,7 +204,7 @@
     "cwf-manage" : {
       "path" : ".cwf/scripts/cwf-manage",
       "permissions" : "0700",
-      "sha256" : "55f20d19ebc99e799df4a6779b9192eb2959dfb1dc0b1112cad50cb0339586a3"
+      "sha256" : "a57f6577cb558b384f3e920b77ff8bfdc1ebf028912d3a959dd14e07a5c6d9e6"
     },
     "cwf-set-status" : {
       "path" : ".cwf/scripts/command-helpers/cwf-set-status",
@@ -262,7 +294,7 @@
     "security-review-changeset" : {
       "path" : ".cwf/scripts/command-helpers/security-review-changeset",
       "permissions" : "0500",
-      "sha256" : "826abd8df1d8ee7e0872b1f9abcaa42fb93649ddd214a5b186031dc209e5cbe8"
+      "sha256" : "6944c8f185423def1a580fb3e69204bc1acce8544a6f1b8484890bb0994222ce"
     },
     "template-copier-v2.1" : {
       "path" : ".cwf/scripts/command-helpers/template-copier-v2.1",
