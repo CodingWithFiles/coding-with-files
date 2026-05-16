@@ -1,5 +1,5 @@
 {
-  "last_updated" : "2026-05-16",
+  "last_updated" : "2026-05-17",
   "data" : {
     "install-manifest" : {
       "path" : ".cwf/install-manifest.json",
@@ -262,7 +262,7 @@
     "security-review-changeset" : {
       "path" : ".cwf/scripts/command-helpers/security-review-changeset",
       "permissions" : "0500",
-      "sha256" : "c60f3cab28dc6cc9092c1fdcb6559139ca190a5c4c8da25a81b163c65ba46ffe"
+      "sha256" : "826abd8df1d8ee7e0872b1f9abcaa42fb93649ddd214a5b186031dc209e5cbe8"
     },
     "template-copier-v2.1" : {
       "path" : ".cwf/scripts/command-helpers/template-copier-v2.1",

@@ -510,4 +510,54 @@ subtest 'TC-NF5: helper completes quickly with large working tree but small diff
     unlike($out, qr{noise/file}, 'noise files (no shebang) excluded from changeset');
 };
 
+# ---------------------------------------------------------------------------
+# TC-Task141-uncommitted: helper sees staged and unstaged changes
+# Regression for Task 141: prior helper diffed `anchor..HEAD` only, so any
+# invocation before the exec-phase checkpoint commit returned an empty diff.
+# Uses two paths to prove both halves of the working tree are scanned:
+#   - staged-script: new file, `git add`ed, not committed (index-side change).
+#   - baseline-script: file committed on the task branch, then modified
+#     without `git add` (working-tree-side change to a tracked file).
+# Note: an untracked file (no `git add`) would NOT appear here because
+# `git diff` ignores untracked files by design — see c-design-plan.md
+# § "Behavioural notes on the widened diff window".
+# ---------------------------------------------------------------------------
+subtest 'TC-Task141-uncommitted: helper sees staged and unstaged changes' => sub {
+    my ($repo, $main_sha, $branch, $task_dir) = make_synthetic_repo(baseline => '__MAIN__');
+
+    make_path("$repo/.cwf/scripts");
+
+    # File 1: commit a script on the task branch, then modify it without
+    # `git add` — proves working-tree-side changes to a tracked file are
+    # picked up by the widened diff window.
+    open my $b_fh, '>', "$repo/.cwf/scripts/baseline-script" or die;
+    print $b_fh "#!/usr/bin/perl\nprint \"BASELINE_141\";\n";
+    close $b_fh;
+    git_in($repo, 'add', '.cwf/scripts/baseline-script');
+    git_in($repo, 'commit', '-q', '-m', 'baseline script');
+
+    # Working-tree-only modification (no git add).
+    open my $m_fh, '>', "$repo/.cwf/scripts/baseline-script" or die;
+    print $m_fh "#!/usr/bin/perl\nprint \"BASELINE_141\";\nprint \"UNSTAGED_MOD_141\";\n";
+    close $m_fh;
+
+    # File 2: new file, staged only — proves index-side changes are picked up.
+    open my $s_fh, '>', "$repo/.cwf/scripts/staged-script" or die;
+    print $s_fh "#!/usr/bin/perl\nprint \"STAGED_141\";\n";
+    close $s_fh;
+    git_in($repo, 'add', '.cwf/scripts/staged-script');
+
+    my ($out, $err, $rc) = run_helper($repo);
+
+    is($rc, 0, 'helper exits 0');
+    like($out, qr{\.cwf/scripts/staged-script},
+         'staged-only file appears in diff (index-side change picked up)');
+    like($out, qr{\.cwf/scripts/baseline-script},
+         'modified tracked file appears in diff');
+    like($out, qr{UNSTAGED_MOD_141},
+         'working-tree-only modification content appears in diff (not just the committed baseline)');
+    like($err, qr{^reviewed 2 files,.+anchor=[0-9a-f]{7}, includes uncommitted$}m,
+         'stderr summary anchors disclosure suffix to summary line, count=2');
+};
+
 done_testing();

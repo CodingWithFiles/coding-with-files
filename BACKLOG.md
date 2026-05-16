@@ -1432,36 +1432,6 @@ Strictly downstream of the "Split validate_path_allowlist into write/read/temp v
 
 Task 138 removed the `cd "$(git rev-parse --show-toplevel)" && ` prefix from `cwf-backlog-manager`'s SKILL.md examples on the basis that the relative path `.cwf/scripts/command-helpers/backlog-manager` is self-anchoring via kernel ENOENT. The Task-138 scope explicitly excluded `.claude/skills/cwf-init/SKILL.md:87` because its use is *different* — it captures `GIT_ROOT` into a shell variable and passes it as an *argument* to `cwf-apply-artefacts`. Investigate whether that argument is actually load-bearing: most CWF helpers resolve the git root internally via `find_git_root()` in `CWF::Common`. If `cwf-apply-artefacts` already does so (or can trivially be changed to), the `GIT_ROOT=$(...)` capture and the two-argument call form can be dropped, leaving a bare `.cwf/scripts/command-helpers/cwf-apply-artefacts --bootstrap-init`. ~30 min investigation; the resolution may be "no change" if the helper genuinely needs the argument distinct from its internal git root resolution (e.g. for cross-repo bootstrap scenarios).
 
-## Task: security-review-changeset blind to uncommitted work
-
-### Task-Type: bugfix
-### Priority: High
-### Identified in: Task 139 retrospective (2026-05-15)
-
-`.cwf/scripts/command-helpers/security-review-changeset` diffs `anchor..HEAD` only. When invoked by the f-implementation-exec or g-testing-exec skill before the phase's checkpoint commit lands, HEAD does not yet contain the phase's changes and the helper returns `reviewed 0 files, 0 lines`. The exec skill's "empty changeset -> no findings" fallback then silently skips a real security review.
-
-### Evidence
-- Task 137 retrospective (`f-implementation-exec.md`): "first run reported 0 files; commit first then re-run".
-- Task 138 retrospective (CHANGELOG): "security-review-changeset blind to uncommitted work bit again".
-- Task 139 retrospective (this task, f-implementation-exec.md Security Review section): forced to record `error` with a manual per-category analysis instead of running the subagent on a real diff, because the helper saw zero.
-
-Third task in a row to trip on this. The trap will keep biting until either the helper warns or the workflow doc says "checkpoint first" explicitly.
-
-### Fix options
-- **(a)** Helper diffs working tree against the anchor (`git diff <anchor>` instead of `git diff <anchor>..HEAD`). Picks up staged + unstaged changes. Side-effect: changes the meaning of "changeset" mid-phase, which is fine for the review's purpose.
-- **(b)** Helper detects staged or working-tree changes (`git status --porcelain`) and emits a warning if any exist while the diff is empty: "uncommitted changes present but not in the changeset; commit first or run with --include-worktree".
-- **(c)** Workflow docs (the exec-phase skill templates) state explicitly: "checkpoint the phase changes first, then run security review". Add the ordering to the SKILL.md steps.
-
-Option (a) or (b) is preferred; (c) trains every future agent to remember a non-obvious ordering. (a) is the smallest change and best aligns with how an interactive reviewer would think about "what's changing".
-
-### Why Low priority
-- Workaround exists: commit phase changes first, then run the review. Three tasks have used it; none missed a real security issue as a result.
-- The skill's three-tier classification (primary sentinel / numbered-list fallback / conservative `error`) is sound; the helper limitation triggers `no findings: empty changeset` which is technically faithful to the helper's output.
-- Not a security failure per se — agents have flagged the limitation in retrospectives and provided manual analyses when warranted.
-
-### Scope
-~30-60 min. Single helper edit (option a) or message tweak (option b). Add a regression test verifying behaviour against an uncommitted working tree.
-
 ## Task: Add validate_temp_path_allowlist for transient-file callers
 
 ### Task-Type: chore
@@ -1485,3 +1455,41 @@ This entry may legitimately stay open indefinitely. If a year passes with no cal
 
 ### Dependencies
 None. The two variants this would join are already shipped by Task 140.
+
+## Task: Default task-workflow --baseline-commit to HEAD (drop shell substitution from SKILL examples)
+
+### Task-Type: chore
+### Priority: Very High
+### Status: Open
+### Identified in: Task 141 setup (2026-05-16)
+
+The `/cwf-new-task` and `/cwf-new-subtask` SKILL.md examples currently instruct models to run:
+
+    BASELINE_COMMIT=$(git rev-parse HEAD)
+    .cwf/scripts/command-helpers/task-workflow create \
+      --task-type=... --destination=... --task-num=... \
+      --description=... --baseline-commit="$BASELINE_COMMIT"
+
+The `$(git rev-parse HEAD)` shell substitution triggers a Claude Code permission prompt on every invocation ("Contains shell syntax (string) that cannot be statically analyzed"). This adds a confirmation round-trip to every new task creation.
+
+### Fix
+HEAD is the load-bearing default in essentially every legitimate use of `task-workflow create` (the recorded baseline is whatever the current branch tip is at branch-cut time; users branching off a non-HEAD commit are a rare expert path). Two options:
+
+1. **Make `--baseline-commit` optional, defaulting to HEAD internally.** The helper calls `git rev-parse HEAD` itself when the flag is omitted. SKILL.md drops both the `BASELINE_COMMIT=$(...)` capture and the `--baseline-commit=...` argument from the example. Models pass nothing; the helper resolves.
+
+2. **Accept literal `HEAD` as the `--baseline-commit` value.** Keep the flag required for explicitness but treat the string `HEAD` as a sentinel the helper resolves via `git rev-parse HEAD`. SKILL.md becomes `--baseline-commit=HEAD` with no shell substitution.
+
+Option 1 is cleaner ergonomically. Option 2 preserves explicit invocation shape and makes the "use HEAD" case visible in the command line. Either eliminates the permission prompt; the choice is a UX call to make in design.
+
+### Scope
+- `.cwf/scripts/command-helpers/task-workflow` — accept HEAD literal as a sentinel, or treat absent `--baseline-commit` as HEAD. Internal resolution via `git rev-parse HEAD`.
+- `.claude/skills/cwf-new-task/SKILL.md` § 3 — drop the `BASELINE_COMMIT=$(...)` capture from the example invocation.
+- `.claude/skills/cwf-new-subtask/SKILL.md` (equivalent section) — same fix if it uses the same pattern.
+- Hash regen for the touched script via the Task-135 hand-update path.
+- Confirm no test currently pins `--baseline-commit` to a non-HEAD literal SHA for a legitimate reason. Both shapes (explicit SHA and HEAD/omitted) should keep working — the rare expert path that needs an exact SHA should not be broken by this change.
+
+### Why Very High
+Every `/cwf-new-task` and `/cwf-new-subtask` invocation hits this prompt. With ~140 tasks created historically and the project still active, this is friction on a per-task frequency in active development sessions. The fix is small (probably one afternoon of code + two SKILL.md edits + a test).
+
+### Out of scope
+- Generalising the "resolve symbolic refs" pattern to other helper flags (e.g. anchor in security-review-changeset). That's a separate refactor; this entry is narrowly about the new-task / new-subtask permission-prompt friction.

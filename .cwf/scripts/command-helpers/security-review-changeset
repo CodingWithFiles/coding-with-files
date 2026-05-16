@@ -28,7 +28,10 @@
 # Output:
 #   stdout: filtered git diff output (the changeset for the subagent).
 #   stderr: one-line summary `reviewed N files, M lines, anchor=<sha7>`,
-#           plus one path per line under --verbose.
+#           with optional `, includes uncommitted` suffix when the working
+#           tree has staged or unstaged changes (Task 141; diff window
+#           covers anchor to working tree, not just anchor..HEAD).
+#           Plus one path per line under --verbose.
 #
 # Exit:
 #   0 ok (changeset may be empty)
@@ -157,20 +160,22 @@ for my $path (@changed) {
 # Emit filtered diff (or empty changeset) and stderr summary
 # ---------------------------------------------------------------------------
 my $short = substr($anchor, 0, 7);
+my $dirty_rc = git_check('diff', '--quiet', 'HEAD');
+my $dirty_suffix = $dirty_rc == 1 ? ', includes uncommitted' : '';
+# dirty_rc == 0: clean; rc >= 2: git error - skip suffix, don't fail.
+# The primary diff has already succeeded; the disclosure is informational.
+
 if (!@included) {
-    warn "reviewed 0 files, 0 lines, anchor=$short\n";
-    if ($opt{verbose}) {
-        # nothing to print
-    }
+    warn "reviewed 0 files, 0 lines, anchor=$short$dirty_suffix\n";
     exit 0;
 }
 
-my $diff = capture_git('diff', "${anchor}..HEAD", '--', @included);
+my $diff = capture_git('diff', "$anchor", '--', @included);
 my $line_count = ($diff =~ tr/\n//);
 print $diff;
 
-warn sprintf("reviewed %d files, %d lines, anchor=%s\n",
-             scalar @included, $line_count, $short);
+warn sprintf("reviewed %d files, %d lines, anchor=%s%s\n",
+             scalar @included, $line_count, $short, $dirty_suffix);
 if ($opt{verbose}) {
     warn "  $_\n" for @included;
 }
@@ -334,11 +339,13 @@ sub resolve_anchor_from_fallback {
 }
 
 # ---------------------------------------------------------------------------
-# git diff --name-only -z <anchor>..HEAD → list of paths.
+# git diff --name-only -z <anchor> → list of paths (anchor to working tree,
+# includes staged + unstaged). Task 141: dropped `..HEAD` so the helper sees
+# in-flight changes before the exec-phase checkpoint commit.
 # ---------------------------------------------------------------------------
 sub list_changed_files {
     my ($anchor) = @_;
-    my $out = capture_git('diff', '--name-only', '-z', "${anchor}..HEAD");
+    my $out = capture_git('diff', '--name-only', '-z', "$anchor");
     return () unless length $out;
     my @paths = split /\0/, $out;
     return grep { length } @paths;

@@ -2,6 +2,55 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 141: security-review-changeset blind to uncommitted
+
+### Status: Complete (2026-05-17)
+### Duration: 1 session, ~0.5 day against a 0.5-day estimate; on-target.
+### Impact: Bugfix — `.cwf/scripts/command-helpers/security-review-changeset` diffed `${anchor}..HEAD` only, returning `reviewed 0 files` when invoked before the exec-phase checkpoint commit (HEAD didn't yet contain the phase's work). The exec skill's `empty changeset -> no findings` fallback then silently skipped a real security review. Bit Tasks 137, 138, 139, 140 in sequence. Fix drops `..HEAD` from both diff specs in the helper (option (a) from the BACKLOG entry's three sketched fixes) so the diff window covers anchor-to-working-tree. Adds an `includes uncommitted` disclosure suffix to the stderr summary when `git diff --quiet HEAD` reports a dirty tree, so the reviewer knows the diff covers in-flight work. Detection via the existing list-form `git_check()` helper. The fix is self-validating: the implementation-phase security review for this task ran successfully on a non-empty diff before the f-phase checkpoint commit — structurally impossible under the old behaviour — and that successful run is the canonical proof. The four-task workaround pattern ("commit code first, then re-run security-review") is now obsolete.
+
+### Changes
+- Modified: `.cwf/scripts/command-helpers/security-review-changeset` — two `${anchor}..HEAD` → `${anchor}` edits (in `list_changed_files` and the main-flow diff-emit); added `git_check('diff', '--quiet', 'HEAD')` for dirty-tree detection; computed `$dirty_suffix` once near the top of the summary block, interpolated into both the empty-changeset and non-empty summary `warn` calls. Fail-quiet-and-degrade on `rc >= 2` (git error → skip suffix, don't fail; the primary diff has already succeeded and the disclosure is informational only). File-header stderr-contract comment updated to advertise the new optional suffix; `list_changed_files` block comment updated to "anchor to working tree, includes staged + unstaged" with a Task-141 historical-context note.
+- Modified: `t/security-review-changeset.t` — added `TC-Task141-uncommitted` subtest (4 assertions): one `staged-script` (new file, `git add`-ed, not committed) proves the index-side change is picked up; one `baseline-script` (committed on the task branch, then modified without `git add`) proves working-tree-side changes to a tracked file are picked up. Anchored regex `qr{^reviewed 2 files,.+anchor=[0-9a-f]{7}, includes uncommitted$}m` on the stderr summary proves the disclosure lands on the summary line specifically.
+- Modified: `.cwf/security/script-hashes.json` — `security-review-changeset` SHA updated by hand (`826abd8d…09e5cbe8`) per the Task-135 surface-don't-smooth policy. `last_updated` bumped to 2026-05-17.
+
+### Notable
+- **The fix is self-validating.** The implementation-phase security review (Task-141 f-exec) ran successfully on a non-empty diff *before* the checkpoint commit. Under the old `anchor..HEAD` behaviour this is structurally impossible — HEAD didn't contain the phase's work yet, the diff would have been empty. The review's *running* is the proof, sharper than any unit test. The post-checkpoint smoke (g-exec) on the now-clean tree showed the disclosure suffix correctly *absent*, completing the two-state proof.
+- **Test-setup defect caught at first run.** TC-Task141-uncommitted's first iteration created two new files (one staged, one not). `git diff <anchor>` doesn't list untracked files — exactly what c-design-plan.md's "Behavioural notes on the widened diff window" said, but d-plan and e-plan didn't propagate the constraint to the test setup. Caught at first prove run (~30s feedback), restructured to commit a `baseline-script` first then modify it without `git add`. Lesson recorded: plan-review subagents check consistency *within* a plan, not *across* sibling plans in the same task.
+- **First clean sentinel-first security-review subagent response in 6 consecutive exec-phase reviews.** Tasks 139-f, 139-g, 140-f, 140-g, 141-f all failed sentinel-first formatting; 141-g succeeded. The working prompt: open with "Your VERY FIRST CHARACTER of response must be the letter `n`, `f`, or `e`" plus an explicit unacceptable-opener list ("Now", "Let me", "I'll", "Looking at..."). Character-level instructions worked where sentence-level instructions did not. Concrete prompt template to fold into `.cwf/docs/skills/security-review.md` when the two sentinel-compliance BACKLOG items are picked up.
+- **Adjacent housekeeping folded into a-phase checkpoint, not a separate commit.** The "Default task-workflow --baseline-commit to HEAD" BACKLOG addition (made during task-creation friction, before any a-phase work) was folded into Task 141's a-phase commit. Cleaner than the alternatives (standalone non-task commit, branch-switch to main, or carry-forward to retrospective).
+- **Permission-drift false positive after Task 140's squash.** The first checkpoint of Task 141's a-phase tripped `cwf-manage validate` on `ArtefactHelpers.pm` (`permissions: 0600`, expected `0444`). Cause: soft-reset during Task 140's squash restored file content but the working umask left the on-disk mode at 0600. `fix-security` repaired in one call. Worth noting as a known shape of the squash flow: any permission-tracked file touched during a squash will need a `fix-security` pass after.
+
+### Retired Backlog Items
+- "security-review-changeset blind to uncommitted work" (High, bumped from Low in Task 140's retro) — retired via `backlog-manager retire`; this task is the fix.
+
+#### security-review-changeset blind to uncommitted work
+
+`.cwf/scripts/command-helpers/security-review-changeset` diffs `anchor..HEAD` only. When invoked by the f-implementation-exec or g-testing-exec skill before the phase's checkpoint commit lands, HEAD does not yet contain the phase's changes and the helper returns `reviewed 0 files, 0 lines`. The exec skill's "empty changeset -> no findings" fallback then silently skips a real security review.
+
+### Evidence
+- Task 137 retrospective (`f-implementation-exec.md`): "first run reported 0 files; commit first then re-run".
+- Task 138 retrospective (CHANGELOG): "security-review-changeset blind to uncommitted work bit again".
+- Task 139 retrospective (this task, f-implementation-exec.md Security Review section): forced to record `error` with a manual per-category analysis instead of running the subagent on a real diff, because the helper saw zero.
+
+Third task in a row to trip on this. The trap will keep biting until either the helper warns or the workflow doc says "checkpoint first" explicitly.
+
+### Fix options
+- **(a)** Helper diffs working tree against the anchor (`git diff <anchor>` instead of `git diff <anchor>..HEAD`). Picks up staged + unstaged changes. Side-effect: changes the meaning of "changeset" mid-phase, which is fine for the review's purpose.
+- **(b)** Helper detects staged or working-tree changes (`git status --porcelain`) and emits a warning if any exist while the diff is empty: "uncommitted changes present but not in the changeset; commit first or run with --include-worktree".
+- **(c)** Workflow docs (the exec-phase skill templates) state explicitly: "checkpoint the phase changes first, then run security review". Add the ordering to the SKILL.md steps.
+
+Option (a) or (b) is preferred; (c) trains every future agent to remember a non-obvious ordering. (a) is the smallest change and best aligns with how an interactive reviewer would think about "what's changing".
+
+### Why Low priority
+- Workaround exists: commit phase changes first, then run the review. Three tasks have used it; none missed a real security issue as a result.
+- The skill's three-tier classification (primary sentinel / numbered-list fallback / conservative `error`) is sound; the helper limitation triggers `no findings: empty changeset` which is technically faithful to the helper's output.
+- Not a security failure per se — agents have flagged the limitation in retrospectives and provided manual analyses when warranted.
+
+### Scope
+~30-60 min. Single helper edit (option a) or message tweak (option b). Add a regression test verifying behaviour against an uncommitted working tree.
+
+<!-- Note: Fixed via option (a) from the BACKLOG sketch: dropped ..HEAD from both diff specs in security-review-changeset so the diff window covers anchor-to-working-tree. Added a, includes uncommitted disclosure suffix to the stderr summary (detected via list-form git_check). Self-validating: the implementation-phase security review for Task 141 ran successfully on a non-empty diff before its f-phase checkpoint commit, which is structurally impossible under the old behaviour. -->
+
 ## Task 140: Split path-allowlist by access mode
 
 ### Status: Complete (2026-05-16)
