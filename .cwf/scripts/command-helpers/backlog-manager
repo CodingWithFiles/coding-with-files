@@ -23,7 +23,7 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use File::Spec;
 use CWF::Common qw(find_git_root);
-use CWF::ArtefactHelpers qw(validate_path_allowlist);
+use CWF::ArtefactHelpers qw(validate_read_path_allowlist);
 use CWF::Backlog qw(
     parse_backlog_tree parse_changelog_tree
     write_tree serialize_tree
@@ -128,7 +128,7 @@ Usage: backlog-manager add --title=TITLE --task-type=TYPE --priority=PRI
   Append a new active entry to BACKLOG.md.
   --task-type:    feature|bugfix|hotfix|chore|discovery
   --priority:     Very High|High|Medium|Low|Very Low
-  --body-file:    repo-relative path; outside-repo paths rejected.
+  --body-file:    any readable file path (absolute or relative).
 END
 }
 
@@ -300,11 +300,8 @@ sub cmd_add {
     my $body = '';
     if (defined $opts{'body-file'}) {
         my $path = $opts{'body-file'};
-        eval {
-            validate_path_allowlist($path, ['.cwf/', '.claude/', 'docs/', 'implementation-guide/', 't/']);
-        };
+        eval { validate_read_path_allowlist($path); };
         die_path($@) if $@;
-        die_path("body file does not exist: $path") unless -f $path;
         open(my $fh, '<:encoding(UTF-8)', $path) or die_path("cannot read $path: $!");
         local $/;
         $body = <$fh>;

@@ -474,6 +474,64 @@ subtest 'AC8c: add allows body containing #### (BACKLOG-006 retired in Task 132)
     is($rc2, 0, "validate after add (err: $err2)");
 };
 
+# Task 140 — --body-file now accepts any readable file (validate_read_path_allowlist)
+subtest 'Task140-pos: add accepts --body-file under /tmp' => sub {
+    plan tests => 2;
+    my $dir = make_isolated('BACKLOG.md' => $VALID_BACKLOG_MIN, 'CHANGELOG.md' => $VALID_CHANGELOG);
+    my $body_dir = tempdir(CLEANUP => 1);
+    my $body_path = File::Spec->catfile($body_dir, 'body.md');
+    open(my $fh, '>:raw', $body_path) or die "$body_path: $!";
+    print {$fh} "Smoke 140 body\n";
+    close $fh;
+    my ($rc, $out, $err) = run_bm($dir, 'add',
+        '--priority=Low', '--task-type=chore', '--title=Smoke140',
+        "--body-file=$body_path",
+    );
+    is($rc, 0, "add exit 0 (err: $err)");
+    my $backlog = _slurp(File::Spec->catfile($dir, 'BACKLOG.md'));
+    like($backlog, qr/Smoke 140 body/, 'body content reached BACKLOG.md');
+};
+
+subtest 'Task140-neg: add rejects non-existent --body-file' => sub {
+    plan tests => 2;
+    my $dir = make_isolated('BACKLOG.md' => $VALID_BACKLOG_MIN, 'CHANGELOG.md' => $VALID_CHANGELOG);
+    my ($rc, $out, $err) = run_bm($dir, 'add',
+        '--priority=Low', '--task-type=chore', '--title=NoFile',
+        '--body-file=/nonexistent/path-140',
+    );
+    isnt($rc, 0, 'non-zero exit');
+    like($err, qr/does not exist/, 'stderr mentions does not exist');
+};
+
+subtest 'Task140-neg: add rejects unreadable --body-file' => sub {
+    if ($> == 0) { plan skip_all => 'root effective uid bypasses -r'; }
+    plan tests => 2;
+    my $dir = make_isolated('BACKLOG.md' => $VALID_BACKLOG_MIN, 'CHANGELOG.md' => $VALID_CHANGELOG);
+    my $body_dir = tempdir(CLEANUP => 1);
+    my $body_path = File::Spec->catfile($body_dir, 'unreadable.md');
+    open(my $fh, '>:raw', $body_path) or die "$body_path: $!";
+    close $fh;
+    chmod 0000, $body_path or die "chmod: $!";
+    my ($rc, $out, $err) = run_bm($dir, 'add',
+        '--priority=Low', '--task-type=chore', '--title=NoRead',
+        "--body-file=$body_path",
+    );
+    chmod 0600, $body_path;  # restore so CLEANUP can unlink
+    isnt($rc, 0, 'non-zero exit');
+    like($err, qr/not readable/, 'stderr mentions not readable');
+};
+
+subtest 'Task140-neg: add rejects empty --body-file value' => sub {
+    plan tests => 2;
+    my $dir = make_isolated('BACKLOG.md' => $VALID_BACKLOG_MIN, 'CHANGELOG.md' => $VALID_CHANGELOG);
+    my ($rc, $out, $err) = run_bm($dir, 'add',
+        '--priority=Low', '--task-type=chore', '--title=Empty',
+        '--body-file=',
+    );
+    isnt($rc, 0, 'non-zero exit');
+    like($err, qr/empty/, 'stderr mentions empty');
+};
+
 #==============================================================================
 # AC9 — modify byte-preservation of unspecified fields
 #==============================================================================

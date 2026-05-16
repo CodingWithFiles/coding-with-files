@@ -21,7 +21,8 @@ our @EXPORT_OK = qw(
     read_json_file
     atomic_write_json
     atomic_write_text
-    validate_path_allowlist
+    validate_write_path_allowlist
+    validate_read_path_allowlist
     compute_file_sha256
     read_file_raw
 );
@@ -85,12 +86,11 @@ sub atomic_write_text {
     return;
 }
 
-# validate_path_allowlist($path, \@allowed_prefixes) -> dies on rejection.
-# Rejects:
-#   - absolute paths (starting with /)
-#   - any path containing a .. segment (anchored: ^.., /../, ../ at end)
-#   - any path matching no allowed prefix (string-prefix match)
-sub validate_path_allowlist {
+# validate_write_path_allowlist($path, \@allowed_prefixes) -> dies on rejection.
+# Use when the caller writes content to $path drawn from untrusted data
+# (e.g. a JSON manifest). Defends against directory traversal, absolute
+# paths into sensitive locations, and manifest tampering.
+sub validate_write_path_allowlist {
     my ($path, $allowed) = @_;
     die "[CWF] ERROR: path is undef\n" unless defined $path;
     die "[CWF] ERROR: path is empty\n" unless length $path;
@@ -103,6 +103,21 @@ sub validate_path_allowlist {
         return 1 if index($path, $prefix) == 0;
     }
     die "[CWF] ERROR: path does not match any allowed prefix: $path\n";
+}
+
+# validate_read_path_allowlist($path) -> dies on rejection.
+# Use when the caller reads from a path the invoker has directly chosen
+# (e.g. backlog-manager --body-file). The invoker already has shell access;
+# restricting which files may be read defends against nothing the
+# filesystem doesn't already enforce. Only checks: defined, non-empty,
+# exists, readable.
+sub validate_read_path_allowlist {
+    my ($path) = @_;
+    die "[CWF] ERROR: path is undef\n" unless defined $path;
+    die "[CWF] ERROR: path is empty\n" unless length $path;
+    die "[CWF] ERROR: file does not exist: $path\n" unless -f $path;
+    die "[CWF] ERROR: file is not readable: $path\n" unless -r _;
+    return 1;
 }
 
 # compute_file_sha256($path) -> hex string, or '' if file unreadable.

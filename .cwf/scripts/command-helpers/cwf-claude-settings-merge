@@ -17,7 +17,7 @@ use utf8;
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use JSON::PP;
-use CWF::ArtefactHelpers qw(read_json_file atomic_write_text validate_path_allowlist);
+use CWF::ArtefactHelpers qw(read_json_file atomic_write_text validate_write_path_allowlist);
 
 my $PROG = 'cwf-claude-settings-merge';
 
@@ -60,7 +60,7 @@ sub partition_manifest {
         my $path  = $entry->{path};
         next unless defined $path;
 
-        eval { validate_path_allowlist($path, \@ALLOWED_MANIFEST_PATH_PREFIXES); 1 }
+        eval { validate_write_path_allowlist($path, \@ALLOWED_MANIFEST_PATH_PREFIXES); 1 }
             or die "[CWF] ERROR: refusing manifest path: $path\n";
         unless (-e $path) {
             warn "[CWF] WARN: manifest entry $path not found on disk; skipping\n";

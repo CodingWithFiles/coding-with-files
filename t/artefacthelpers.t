@@ -16,7 +16,8 @@ use CWF::ArtefactHelpers qw(
     read_json_file
     atomic_write_json
     atomic_write_text
-    validate_path_allowlist
+    validate_write_path_allowlist
+    validate_read_path_allowlist
     compute_file_sha256
     read_file_raw
 );
@@ -80,34 +81,71 @@ use CWF::ArtefactHelpers qw(
     is($perms, 0600, 'atomic_write_text honours mode opt');
 }
 
-# validate_path_allowlist -----------------------------------------------------
+# validate_write_path_allowlist ----------------------------------------------
 {
     my @ok = ('.cwf/foo', '.cwf-rules/x.md', 'CLAUDE.md');
     my @prefixes = ('.cwf/', '.cwf-rules/', 'CLAUDE.md');
     for my $p (@ok) {
-        ok(eval { validate_path_allowlist($p, \@prefixes) }, "accepts $p");
+        ok(eval { validate_write_path_allowlist($p, \@prefixes) },
+           "write: accepts $p");
     }
 }
 
 {
     my @prefixes = ('.cwf/');
-    eval { validate_path_allowlist('/etc/passwd', \@prefixes) };
-    like($@, qr/absolute/, 'rejects absolute path');
+    eval { validate_write_path_allowlist('/etc/passwd', \@prefixes) };
+    like($@, qr/absolute/, 'write: rejects absolute path');
 
-    eval { validate_path_allowlist('.cwf/../etc/passwd', \@prefixes) };
-    like($@, qr/'\.\.'/, 'rejects path containing ..');
+    eval { validate_write_path_allowlist('.cwf/../etc/passwd', \@prefixes) };
+    like($@, qr/'\.\.'/, 'write: rejects path containing ..');
 
-    eval { validate_path_allowlist('../etc/passwd', \@prefixes) };
-    like($@, qr/'\.\.'/, 'rejects leading ..');
+    eval { validate_write_path_allowlist('../etc/passwd', \@prefixes) };
+    like($@, qr/'\.\.'/, 'write: rejects leading ..');
 
-    eval { validate_path_allowlist('not/allowed', \@prefixes) };
-    like($@, qr/allowed prefix/, 'rejects path outside allowlist');
+    eval { validate_write_path_allowlist('not/allowed', \@prefixes) };
+    like($@, qr/allowed prefix/, 'write: rejects path outside allowlist');
 
-    eval { validate_path_allowlist(undef, \@prefixes) };
-    like($@, qr/undef/, 'rejects undef');
+    eval { validate_write_path_allowlist(undef, \@prefixes) };
+    like($@, qr/undef/, 'write: rejects undef');
 
-    eval { validate_path_allowlist('', \@prefixes) };
-    like($@, qr/empty/, 'rejects empty');
+    eval { validate_write_path_allowlist('', \@prefixes) };
+    like($@, qr/empty/, 'write: rejects empty');
+}
+
+# validate_read_path_allowlist -----------------------------------------------
+{
+    my $tmp  = tempdir(CLEANUP => 1);
+    my $path = "$tmp/body.md";
+    open my $fh, '>:raw', $path or die $!;
+    print $fh "body\n";
+    close $fh;
+
+    ok(eval { validate_read_path_allowlist($path) },
+       "read: accepts existing readable file at $path");
+}
+
+{
+    eval { validate_read_path_allowlist(undef) };
+    like($@, qr/undef/, 'read: rejects undef');
+
+    eval { validate_read_path_allowlist('') };
+    like($@, qr/empty/, 'read: rejects empty');
+
+    my $tmp = tempdir(CLEANUP => 1);
+    eval { validate_read_path_allowlist("$tmp/never-created") };
+    like($@, qr/does not exist/, 'read: rejects non-existent path');
+}
+
+SKIP: {
+    skip 'root effective uid bypasses -r', 1 if $> == 0;
+    my $tmp  = tempdir(CLEANUP => 1);
+    my $path = "$tmp/unreadable";
+    open my $fh, '>:raw', $path or die $!;
+    close $fh;
+    chmod 0000, $path or die "chmod: $!";
+    eval { validate_read_path_allowlist($path) };
+    like($@, qr/not readable/, 'read: rejects unreadable file');
+    chmod 0600, $path;  # restore so CLEANUP can unlink
 }
 
 # compute_file_sha256 ---------------------------------------------------------

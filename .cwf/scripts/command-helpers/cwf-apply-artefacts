@@ -39,7 +39,7 @@ use File::Spec ();
 use CWF::ArtefactHelpers qw(
     read_json_file
     atomic_write_text
-    validate_path_allowlist
+    validate_write_path_allowlist
     compute_file_sha256
     read_file_raw
 );
@@ -205,7 +205,7 @@ sub load_manifests {
             eval {
                 my @prefixes = $f eq 'source' ? @ALLOWED_SOURCE_PREFIXES : @ALLOWED_DEST_PREFIXES;
                 # "CLAUDE.md" / ".gitignore" / ".cwf/rules-inject.txt" are exact, allow them.
-                validate_path_allowlist($a->{$f}, \@prefixes);
+                validate_write_path_allowlist($a->{$f}, \@prefixes);
                 1;
             } or do {
                 log_error("manifest artefact '$a->{id}' $f path rejected: $a->{$f}");

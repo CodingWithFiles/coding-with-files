@@ -68,7 +68,7 @@ The v1 anchored interpreter regex covers `perl|bash|sh|ksh|zsh|fish|python\d?|ru
 ## Task: Tighten security-subagent prompt for sentinel-line compliance
 
 ### Task-Type: chore
-### Priority: Low
+### Priority: Medium
 ### Status: Follow-up from Task 123
 ### Problem: Subagents respond with verbose intros even when instructed otherwise. The current prompt says "Start your response with one of three sentinel lines" but the model does not reliably comply.
 ### Solution: One-line edit to `.cwf/docs/skills/security-review.md` § "Exec-phase prompt template" to push the sentinel ahead of any analysis. Suggested wording: "Your VERY FIRST output line MUST be the sentinel — do not preface with analysis." Optionally consider one-token sentinels (`NO_FINDINGS:`, `FINDINGS:`, `ERROR:`) which are harder to embed mid-paragraph.
@@ -1344,7 +1344,7 @@ Task 134 established the skill-reference-doc convention at .cwf/docs/skills/skil
 ## Task: Enforce sentinel-first output in security-review subagent prompt
 
 ### Task-Type: chore
-### Priority: Low
+### Priority: Medium
 ### Identified in: 134
 
 The exec-phase security-review subagent (cwf-implementation-exec, cwf-testing-exec) is supposed to begin its response with the literal sentinel "findings:" / "no findings" / "error:" per .cwf/docs/skills/security-review.md, but the current prompt template does not enforce this strongly enough. In Task 134 both invocations produced substantively clean reviews ("no findings." in body) yet failed the primary classification, falling back to "error" (f-phase) and "findings" (g-phase, numbered-list fallback fired on the file enumeration). Strengthen the prompt with a hard "no preamble" instruction and consider extending the classifier with a "last-line `no findings.`" rule for substance-clear malformed responses. Out of scope for Task 134 because the convention task should not also rewrite the security-review prompt.
@@ -1375,50 +1375,6 @@ For tasks whose deliverable is a local CLI helper with no service surface, no us
 ### Identified in: Task 136 retrospective (j-retrospective.md)
 
 Let `/cwf-delete-task` default to the topmost entry on `.cwf/task-stack` when invoked with no `<task-path>` argument — the common case is "undo what I just did", which is by definition the topmost stack entry. Would need its own FR set covering: (a) empty-stack behaviour (refuse with a useful message), (b) interaction with the existing positional `<task-path>` (no-arg form is distinct, not an alias), (c) `--force` semantics (unchanged). Out of scope for Task 136 which deliberately required an explicit task path.
-
-## Task: Split validate_path_allowlist into write/read/temp variants
-
-### Task-Type: chore
-### Priority: Very High
-### Status: Open
-### Identified in: Task 137 implementation-exec (2026-05-13)
-
-Split `CWF::ArtefactHelpers::validate_path_allowlist` into three semantically-distinct functions, each with its own allowlist and rejection rules tailored to the actual threat model of the caller. Today's single function is cargo-culted across callers with different threat models, producing both over-restriction (rejecting legitimate `/tmp` use) and under-protection (no distinction between write and read paths).
-
-### Background
-`validate_path_allowlist` was introduced in Task 127 (`215cbf7`) for `cwf-apply-artefacts` — a tool that **writes** artefact files into the user's tree from a JSON manifest. There the allowlist defends a real threat: a tampered manifest must not be able to write to arbitrary locations (`/etc/passwd`, `~/.ssh/authorized_keys`, etc.).
-
-In Task 131 (`13215d6`) the same function was lifted into `backlog-manager --body-file` — a tool that **reads** a body file and copies its content into BACKLOG.md. The threat model is completely different: the invoker already has shell access and read permission on the source path; restricting where the body file may live defends against nothing. The friction it imposes ("write your temp file inside the repo, then remember to delete it") is pure ceremony and has already pushed callers to bypass the helper entirely (Task 136 retrospective: "Fix at the time: edited BACKLOG.md directly with the Edit tool").
-
-A single function cannot serve both call sites correctly because the underlying questions are different:
-
-- **Write paths**: "Is this a safe destination for content I am about to overwrite?" — defends against directory traversal, absolute paths into sensitive locations, manifest tampering.
-- **Read paths**: "Is this a valid existing source I can read from?" — defends against nothing beyond what the filesystem permissions already enforce. Restricting source paths is anti-feature: the user has already chosen what to read.
-- **Temporary paths**: "Is this a transient file in a scratch location?" — should *encourage* `/tmp/<task>/...` (the project convention), reject paths under tracked roots that would risk accidental commit.
-
-### Proposed split
-Three functions in `CWF::ArtefactHelpers`:
-
-1. **`validate_write_path_allowlist($path, \@allowed_prefixes)`** — current behaviour, renamed. Used by `cwf-apply-artefacts` and `cwf-claude-settings-merge`. Rejects absolute paths, `..` segments, and anything outside the caller-supplied allowlist. This is the only call site where the threat model matches the implementation.
-
-2. **`validate_read_path_allowlist($path)`** — minimal check: `-f` exists, `-r` readable. No prefix allowlist. Used by `backlog-manager --body-file`. Permits any readable file the invoker chooses, including absolute paths under `/tmp/`.
-
-3. **`validate_temp_path_allowlist($path)`** — *encourages* scratch locations. Accepts `/tmp/`, `$TMPDIR/`, and the system temp dir. Rejects paths under `.cwf/`, `.claude/`, `docs/`, `implementation-guide/`, `t/`, or anything else inside the git tree. Used when a caller needs to write a transient file that must not be tracked. (Identify call sites during design — `cwf-checkpoint-commit` writes message scratch files; security-review-changeset writes intermediate state; both should use this.)
-
-### Work to do
-- Add the three new functions to `CWF::ArtefactHelpers`. Export each individually.
-- Update `cwf-apply-artefacts` (`.cwf/scripts/command-helpers/cwf-apply-artefacts:208`) to use `validate_write_path_allowlist`.
-- Update `cwf-claude-settings-merge` (`.cwf/scripts/command-helpers/cwf-claude-settings-merge:63`) to use `validate_write_path_allowlist`.
-- Update `backlog-manager` (`.cwf/scripts/command-helpers/backlog-manager:304`) to use `validate_read_path_allowlist`. Drop the prefix list.
-- Audit other helpers for path-validation needs; switch to `validate_temp_path_allowlist` where the file is genuinely transient.
-- Update tests (`t/artefacthelpers.t`, `t/backlog-manager.t`) for the new function shape.
-- Remove `validate_path_allowlist` from the module's `@EXPORT_OK` list once all callers have migrated.
-
-### Why "Very High"
-This is the second structural defect surfaced by Task 137 (alongside the un-anchored Perl convention). The two are independent and should not be bundled, but both block clean re-use of the helper interfaces. Friction has already produced workaround behaviour (direct `Edit` of `BACKLOG.md`), which is the worst outcome for a validator: not "correct" or "incorrect", but "bypassed".
-
-### Suggested sequencing
-Independent of the Perl-convention re-alignment item; can be done in parallel. Single task, no decomposition needed.
 
 ## Task: Make path-allowlists overridable in cwf-project.json
 
@@ -1479,7 +1435,7 @@ Task 138 removed the `cd "$(git rev-parse --show-toplevel)" && ` prefix from `cw
 ## Task: security-review-changeset blind to uncommitted work
 
 ### Task-Type: bugfix
-### Priority: Low
+### Priority: High
 ### Identified in: Task 139 retrospective (2026-05-15)
 
 `.cwf/scripts/command-helpers/security-review-changeset` diffs `anchor..HEAD` only. When invoked by the f-implementation-exec or g-testing-exec skill before the phase's checkpoint commit lands, HEAD does not yet contain the phase's changes and the helper returns `reviewed 0 files, 0 lines`. The exec skill's "empty changeset -> no findings" fallback then silently skips a real security review.
@@ -1505,3 +1461,27 @@ Option (a) or (b) is preferred; (c) trains every future agent to remember a non-
 
 ### Scope
 ~30-60 min. Single helper edit (option a) or message tweak (option b). Add a regression test verifying behaviour against an uncommitted working tree.
+
+## Task: Add validate_temp_path_allowlist for transient-file callers
+
+### Task-Type: chore
+### Priority: Low
+### Status: Follow-up from Task 140
+### Identified in: Task 140 retrospective (j-retrospective.md)
+
+Add `validate_temp_path_allowlist($path)` to `CWF::ArtefactHelpers` when a Perl-side temp-file caller appears that justifies its existence.
+
+### Background
+Task 140 (`split-path-allowlist-by-access-mode`) implemented two of the three variants proposed in the original Task 137 BACKLOG entry: `validate_write_path_allowlist` (verbatim copy of the prior `validate_path_allowlist` behaviour) and `validate_read_path_allowlist` (defined / non-empty / `-f` / `-r`). The third variant (`validate_temp_path_allowlist`) was deferred at d-implementation-plan time after grep against the two candidate callers named in the original BACKLOG entry (`cwf-checkpoint-commit`, `security-review-changeset`) confirmed neither writes Perl-side temp files today. Adding the function with zero callers would be dead code.
+
+### Proposed semantics (unchanged from Task 137 BACKLOG entry)
+Accept `/tmp/`, `$TMPDIR/`, and the system temp dir. Reject paths under `.cwf/`, `.claude/`, `docs/`, `implementation-guide/`, `t/`, or anything else inside the git tree. Used when a caller needs to write a transient file that must not be tracked.
+
+### Trigger
+Add the function only when a Perl-side caller appears that genuinely writes a temp file the project should not track. Most likely candidate: a future refactor of `security-review-changeset` that emits intermediate state to a temp file rather than stdout. When that happens, write the function on the same pattern as the existing two variants in `CWF::ArtefactHelpers`, then wire the caller to it in the same task.
+
+### Resolution-as-no-action
+This entry may legitimately stay open indefinitely. If a year passes with no caller appearing, close it as "obviated — convention is that Perl-side temp writes go via `File::Temp` directly, no allowlist wrapper needed."
+
+### Dependencies
+None. The two variants this would join are already shipped by Task 140.

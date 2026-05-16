@@ -2,6 +2,80 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 140: Split path-allowlist by access mode
+
+### Status: Complete (2026-05-16)
+### Duration: 1 session, ~0.5 day against a 0.5-day estimate; on-target.
+### Impact: Chore / API split — `CWF::ArtefactHelpers::validate_path_allowlist` was a single function cargo-culted across three call sites with three different threat models, producing both over-restriction (rejecting legitimate `/tmp/...` use in `backlog-manager --body-file`, already pushing callers to bypass the helper at Task 136) and under-protection (no semantic distinction between writing-to-untrusted-destination vs reading-from-user-chosen-source). Replaces it with two access-mode-specific helpers: `validate_write_path_allowlist` (verbatim copy of prior behaviour — absolute / `..` / prefix-allowlist; used by `cwf-apply-artefacts` and `cwf-claude-settings-merge` where the path is drawn from an untrusted manifest) and `validate_read_path_allowlist` (defined / non-empty / `-f` / `-r` only; used by `backlog-manager --body-file` where the invoker has already chosen the path under their own shell access). The third proposed variant (`validate_temp_path_allowlist`) is explicitly deferred — grep against the two candidate callers (`cwf-checkpoint-commit`, `security-review-changeset`) confirmed neither writes Perl-side temp files today, so the function would land as dead code. 472/472 tests pass; manual smoke confirms `/tmp/...` body-file accepted and BACKLOG.md restored byte-for-byte after delete.
+
+### Changes
+- Modified: `.cwf/lib/CWF/ArtefactHelpers.pm` — removed `validate_path_allowlist` (body + `@EXPORT_OK`); added `validate_write_path_allowlist($path, \@allowed_prefixes)` (byte-for-byte body copy of the prior function, ensuring write-side semantics are unchanged) and `validate_read_path_allowlist($path)` (chained file-test `-r _` after `-f $path` — single `stat(2)` call).
+- Modified: `.cwf/scripts/command-helpers/cwf-apply-artefacts` — import + call (line 208) switched to `validate_write_path_allowlist`. Both `source` and `dest` paths keep write-style validation: both are drawn from the manifest, so the threat model is identical regardless of read/write disposition.
+- Modified: `.cwf/scripts/command-helpers/cwf-claude-settings-merge` — import + call switched to `validate_write_path_allowlist`. Manifest paths threat model.
+- Modified: `.cwf/scripts/command-helpers/backlog-manager` — import + call switched to `validate_read_path_allowlist`; the inline `['.cwf/', '.claude/', 'docs/', 'implementation-guide/', 't/']` prefix list dropped; the now-redundant `die_path("body file does not exist: $path") unless -f $path` follow-up removed (validator enforces it); `--body-file` help text updated from "repo-relative path; outside-repo paths rejected" to "any readable file path (absolute or relative)."
+- Modified: `t/artefacthelpers.t` — removed `validate_path_allowlist` test block (7 assertions); added 6 write-validator cases (`write: accepts/rejects ...`) and 5 read-validator cases (`read: accepts/rejects undef/empty/non-existent/unreadable`), with `SKIP: { skip ... if $> == 0 }` around the chmod-0000 case and a chmod-0600 restore before tempdir CLEANUP.
+- Modified: `t/backlog-manager.t` — added 4 new subtests (`Task140-pos`, 3× `Task140-neg`) inline rather than in a separate file, to avoid duplicating ~70 lines of `make_isolated`/`run_bm`/`_shell_quote`/`_slurp` scaffolding. Covers `/tmp/...` accept plus non-existent / unreadable / empty rejects.
+- Modified: `.cwf/security/script-hashes.json` — 4 SHA256s updated by hand (`ArtefactHelpers.pm`, `backlog-manager`, `cwf-apply-artefacts`, `cwf-claude-settings-merge`). `fix-security` intentionally refuses to regenerate SHAs (Task-135 surface-don't-smooth invariant); the four `Actual:` hashes it computed and printed were copied in. `last_updated` bumped to 2026-05-16.
+
+### Notable
+- **Verbatim function-body copy as a security-equivalence proof.** `validate_write_path_allowlist` is a byte-for-byte body copy of `validate_path_allowlist` under a new name. The cost of "did we accidentally weaken the write-side checks?" went from "review the diff carefully" to "verify it's the same bytes". Reviewer's question collapses to the much narrower "is this call site's threat model the one the function defends?".
+- **Plan-review caught two real defects.** The `--body-file` help text at `backlog-manager:131` ("repo-relative path; outside-repo paths rejected.") would have stayed stale post-rename. The redundant `-f $path` follow-up in `backlog-manager` was implicitly removed by the new validator but not explicitly listed in d-plan Step 4. Both surfaced by plan-review subagents before the f-phase started.
+- **Scope-defer-with-grep avoided dead code.** The temp variant's deferral wasn't a guess — d-plan recorded the grep against the two BACKLOG-named candidate callers (`cwf-checkpoint-commit`, `security-review-changeset`); neither uses Perl `File::Temp` today. Adding the function with zero callers would have failed a future "audit for dead code" pass. The original BACKLOG entry stays open under a refined title for re-engagement when a real caller appears.
+- **Hash-update friction worked as designed.** `fix-security` refused to rewrite SHAs ("Restore from upstream: 'git pull'..."). The friction is the feature (Task-135). Manual splice of the four computed hashes into `script-hashes.json` was the canonical path; no recompute-tooling was added.
+- **`security-review-changeset` blind to uncommitted work, bit a fourth time** (137, 138, 139, 140). Workaround: commit code under a non-checkpoint message, re-run helper against the real diff, then checkpoint the wf file alone. Both exec-phase reviews returned substantive "no findings" verdicts; both *also* failed sentinel-first formatting (third+ task in a row), so both were recorded as `**State**: error` with verbatim body. The "security-review-changeset blind" and "Tighten security-subagent prompt" BACKLOG items had their priorities bumped during this retrospective — third-consecutive-task signal is no longer a hypothesis.
+
+### Retired Backlog Items
+- "Split validate_path_allowlist into write/read/temp variants" (Very High) — retired via `backlog-manager retire`; see entry below for the implementation deviation note.
+
+#### Split validate_path_allowlist into write/read/temp variants
+
+Split `CWF::ArtefactHelpers::validate_path_allowlist` into three semantically-distinct functions, each with its own allowlist and rejection rules tailored to the actual threat model of the caller. Today's single function is cargo-culted across callers with different threat models, producing both over-restriction (rejecting legitimate `/tmp` use) and under-protection (no distinction between write and read paths).
+
+### Background
+`validate_path_allowlist` was introduced in Task 127 (`215cbf7`) for `cwf-apply-artefacts` — a tool that **writes** artefact files into the user's tree from a JSON manifest. There the allowlist defends a real threat: a tampered manifest must not be able to write to arbitrary locations (`/etc/passwd`, `~/.ssh/authorized_keys`, etc.).
+
+In Task 131 (`13215d6`) the same function was lifted into `backlog-manager --body-file` — a tool that **reads** a body file and copies its content into BACKLOG.md. The threat model is completely different: the invoker already has shell access and read permission on the source path; restricting where the body file may live defends against nothing. The friction it imposes ("write your temp file inside the repo, then remember to delete it") is pure ceremony and has already pushed callers to bypass the helper entirely (Task 136 retrospective: "Fix at the time: edited BACKLOG.md directly with the Edit tool").
+
+A single function cannot serve both call sites correctly because the underlying questions are different:
+
+- **Write paths**: "Is this a safe destination for content I am about to overwrite?" — defends against directory traversal, absolute paths into sensitive locations, manifest tampering.
+- **Read paths**: "Is this a valid existing source I can read from?" — defends against nothing beyond what the filesystem permissions already enforce. Restricting source paths is anti-feature: the user has already chosen what to read.
+- **Temporary paths**: "Is this a transient file in a scratch location?" — should *encourage* `/tmp/<task>/...` (the project convention), reject paths under tracked roots that would risk accidental commit.
+
+### Proposed split
+Three functions in `CWF::ArtefactHelpers`:
+
+1. **`validate_write_path_allowlist($path, \@allowed_prefixes)`** — current behaviour, renamed. Used by `cwf-apply-artefacts` and `cwf-claude-settings-merge`. Rejects absolute paths, `..` segments, and anything outside the caller-supplied allowlist. This is the only call site where the threat model matches the implementation.
+
+2. **`validate_read_path_allowlist($path)`** — minimal check: `-f` exists, `-r` readable. No prefix allowlist. Used by `backlog-manager --body-file`. Permits any readable file the invoker chooses, including absolute paths under `/tmp/`.
+
+3. **`validate_temp_path_allowlist($path)`** — *encourages* scratch locations. Accepts `/tmp/`, `$TMPDIR/`, and the system temp dir. Rejects paths under `.cwf/`, `.claude/`, `docs/`, `implementation-guide/`, `t/`, or anything else inside the git tree. Used when a caller needs to write a transient file that must not be tracked. (Identify call sites during design — `cwf-checkpoint-commit` writes message scratch files; security-review-changeset writes intermediate state; both should use this.)
+
+### Work to do
+- Add the three new functions to `CWF::ArtefactHelpers`. Export each individually.
+- Update `cwf-apply-artefacts` (`.cwf/scripts/command-helpers/cwf-apply-artefacts:208`) to use `validate_write_path_allowlist`.
+- Update `cwf-claude-settings-merge` (`.cwf/scripts/command-helpers/cwf-claude-settings-merge:63`) to use `validate_write_path_allowlist`.
+- Update `backlog-manager` (`.cwf/scripts/command-helpers/backlog-manager:304`) to use `validate_read_path_allowlist`. Drop the prefix list.
+- Audit other helpers for path-validation needs; switch to `validate_temp_path_allowlist` where the file is genuinely transient.
+- Update tests (`t/artefacthelpers.t`, `t/backlog-manager.t`) for the new function shape.
+- Remove `validate_path_allowlist` from the module's `@EXPORT_OK` list once all callers have migrated.
+
+### Why "Very High"
+This is the second structural defect surfaced by Task 137 (alongside the un-anchored Perl convention). The two are independent and should not be bundled, but both block clean re-use of the helper interfaces. Friction has already produced workaround behaviour (direct `Edit` of `BACKLOG.md`), which is the worst outcome for a validator: not "correct" or "incorrect", but "bypassed".
+
+### Suggested sequencing
+Independent of the Perl-convention re-alignment item; can be done in parallel. Single task, no decomposition needed.
+
+<!-- Note: Write and read variants shipped as planned. Temp variant deferred at d-plan time after grep confirmed neither candidate caller writes Perl-side temp files. Re-scoped temp work captured in a fresh BACKLOG entry to land when a real caller appears. -->
+
+### New Backlog Items
+- Low: "Add validate_temp_path_allowlist for transient-file callers" — re-scoped follow-up containing just the temp-variant work deferred from Task 140. Resolves to "no action" if no Perl-side temp-file caller appears.
+
+### Priority Bumps During Retrospective
+- "security-review-changeset blind to uncommitted work" — Low → High (fourth consecutive task to hit it).
+- "Enforce sentinel-first output in security-review subagent prompt" — Low → Medium (two exec-phase reviews on this task hit it; second attempt with escalating prompt still failed).
+- "Tighten security-subagent prompt for sentinel-line compliance" — Low → Medium (same root cause as above; the two entries should likely be merged in a future housekeeping pass).
+
 ## Task 139: Re-align Perl-script conventions to Task-27 form
 
 ### Status: Complete (2026-05-15)

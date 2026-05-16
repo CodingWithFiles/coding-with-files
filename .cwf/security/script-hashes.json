@@ -1,5 +1,5 @@
 {
-  "last_updated" : "2026-05-15",
+  "last_updated" : "2026-05-16",
   "data" : {
     "install-manifest" : {
       "path" : ".cwf/install-manifest.json",
@@ -21,7 +21,7 @@
     "CWF::ArtefactHelpers" : {
       "path" : ".cwf/lib/CWF/ArtefactHelpers.pm",
       "permissions" : "0444",
-      "sha256" : "db2097dd4dccbf7c9320abdb6e8231f06910cda1d618a806e29ac9f0ed14f6b3"
+      "sha256" : "d87aebec4e4b28ef070d4d307035358d22df859ee6e9028e3c168430a8eae36e"
     },
     "CWF::Backlog" : {
       "path" : ".cwf/lib/CWF/Backlog.pm",
@@ -152,7 +152,7 @@
     "cwf-apply-artefacts" : {
       "path" : ".cwf/scripts/command-helpers/cwf-apply-artefacts",
       "permissions" : "0500",
-      "sha256" : "14242fc80482aec62ec1279e45e24064bbeb393c901323861a97984ba75fcd7a"
+      "sha256" : "b82a77af2a105d9d880346a09563cde132d3bdb87f68099a65b495180199fed4"
     },
     "cwf-checkpoint-commit" : {
       "path" : ".cwf/scripts/command-helpers/cwf-checkpoint-commit",
@@ -162,12 +162,12 @@
     "backlog-manager" : {
       "path" : ".cwf/scripts/command-helpers/backlog-manager",
       "permissions" : "0500",
-      "sha256" : "1c2dc709a4496150c0f1619f648694d63d36d89fc9328d1eac6d864afd52e588"
+      "sha256" : "1b3600053d07dc6104a76b62c045792432322118dd455472115e5162e0b6b5c3"
     },
     "cwf-claude-settings-merge" : {
       "path" : ".cwf/scripts/command-helpers/cwf-claude-settings-merge",
       "permissions" : "0500",
-      "sha256" : "f28dec46729dfd7bac7b6f6815f6c3526d410523125dea6f1ccac916bb972bf9"
+      "sha256" : "09d8a98de979757c01705cb598f0462b9324dc8ca64d635fbb339b9403a87e2b"
     },
     "cwf-manage" : {
       "path" : ".cwf/scripts/cwf-manage",
