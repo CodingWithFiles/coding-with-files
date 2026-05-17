@@ -224,26 +224,6 @@ Carried over from the sister "Consider `internal-feature` template variant for s
 - Surfaced again during Task 136 rollout + maintenance phases -- cross-task evidence: Tasks 57, 114, 136 all hit the same wall.
 - Optional; no functional gap, just a paperwork-reduction opportunity -- but the cross-task recurrence argues for landing it rather than letting it accrete more re-discoveries.
 
-## Task: Document Dead Code Audit Methodology
-
-### Task-Type: chore
-### Priority: Medium
-### Status: Follow-up from Task 51
-### Problem: Task 51 audit incorrectly flagged `workflow_file_mappings()` and `format_error()` as dead code, missing same-file usage and script-to-library usage patterns. Errors caught during pre-removal verification, but audit methodology needs improvement.
-### Solution: Create standardized dead code audit checklist:
-### Scope: Create single documentation file with checklist and examples
-### Rationale: Standardized methodology reduces audit errors, prevents breaking changes, improves cleanup confidence
-### Identified in: Task 51 retrospective (j-retrospective.md - "Recommendations")
-
-Create `.cwf/docs/maintenance/dead-code-audit-checklist.md` documenting comprehensive audit methodology to prevent missing active usage patterns.
-
-
-- **Cross-file usage**: `grep -r "function_name" .cwf/lib/ .cwf/scripts/`
-- **Same-file usage**: Check within each affected file for internal calls
-- **Script-to-library usage**: `grep -r "function_name" .cwf/scripts/command-helpers/`
-- **POD documentation**: Check for public API declarations (`=head2 function_name`)
-- **Structured report format**: Function, file, lines, usage findings, verdict
-
 ## Task: Comprehensive Dead Code Audit for CWF Library Modules
 
 ### Task-Type: chore

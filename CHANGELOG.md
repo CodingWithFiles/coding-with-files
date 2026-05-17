@@ -2,6 +2,31 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 148: Document Dead Code Audit Methodology
+
+### Status: Complete (2026-05-17)
+### Duration: ~38 min wall-clock across six checkpoints, vs. a half-day estimate. Variance −84% — estimate priced a heavier methodology design, actual work distilled to 168-line canonical doc + 30-line recipes sibling + two reference inserts.
+### Impact: Lands a language-agnostic dead-code-audit methodology (`.cwf/docs/dead-code-audit.md`, 168 lines, six caller categories with cross-language examples + plan-time heuristics + maintenance-time recipe + verdict template) and a non-shipping Perl/POSIX recipes sibling (`docs/dead-code-audit-perl.md`, 30 lines). Wires both shift surfaces: `.claude/agents/cwf-plan-reviewer-misalignment.md` consults the plan-time heuristics for `design`/`implementation` plan_types (+4 lines, declarative-criteria framing per Security S1); `.cwf/templates/pool/i-maintenance.md.template` adds a Preventive Maintenance bullet pointing at the canonical doc (+1 line). Methodology self-test against Task 51 fixtures (`workflow_file_mappings()`, `format_error()`, + `_format_uncorrelated()` as positive control) passed both directions on first walk — D6's 3-strikes refinement bound not consumed. `.cwf/security/script-hashes.json` updated in-task for the misalignment-agent edit; this proved the in-task hash convention works.
+
+### Notable
+- **d-plan §Supporting Changes claim was wrong.** Asserted "no hash-tracked file impact" without grepping `script-hashes.json` for the four targets; the misalignment-agent file IS tracked. Caught by first f-phase validate. Lesson: any plan asserting "no hash impact" needs a `grep -F "<path>" .cwf/security/script-hashes.json` check in the plan-review checklist (separate from the broader hash-rule clarification BACKLOG item).
+- **e-plan TC-1/TC-2 had categories swapped vs. retrospective evidence.** TC-1 predicted category 3 for `workflow_file_mappings()`; actual is category 2 (script-to-library cross-module). TC-2 predicted category 2 for `format_error()`; actual is category 3 (same-file private) + category 6 (POD/advertised). Pass condition ("at least one category surfaces a real caller") was met in both, so no retest; but the plan was written from memory of the case shape rather than against the retrospective text.
+- **Task 147 hash-rule discovery, orphaned out of this task's scope.** First a-phase `cwf-manage validate` fired on pre-existing drift in `CWF::Backlog.pm` and `backlog-manager` — Task 147 had deferred those updates citing `[[feedback_surface_security_dont_smooth]]`, but that was a misapplication of a rule whose "How to apply" line says hashes update "by hand" in-diff, not deferred. A mid-task fix was attempted but conflated two scopes (Task 148's docs-only deliverable vs. a Task 147 follow-up); the fix commit was rebased out before the squash to preserve strict-linear one-task-per-commit history on main. The drift remains visible to `cwf-manage validate` as the explicit signal that the issue needs its own urgent very-high-priority task.
+- **Positive-control distinguishing-power lives in one sentence.** `_format_uncorrelated()` (removed in Task 51) has nine appearance sites across `CHANGELOG.md` and pre-removal planning-doc snapshots. The canonical doc's Category 6 carve-out ("Historical mentions are appearance, not advertisement, and not caller-ness") is the load-bearing sentence — without it a naïve walker could mis-flag all nine. Worth knowing the methodology has a single point of failure here, even if the wording handles it.
+- **Plan-review map/reduce earned its keep on a docs task.** 4 parallel subagents flagged 17 issues during d-phase, all addressed in the rewrite. Findings included the doc-location decision, agent-file path correction (`.cwf/agents/` was stale, correct is `.claude/agents/`), 8-→-6 category collapse, declarative-vs-imperative heuristic framing, and the symmetric 3-strikes refinement bound.
+
+### Retired Backlog Items
+#### Document Dead Code Audit Methodology
+
+Create `.cwf/docs/maintenance/dead-code-audit-checklist.md` documenting comprehensive audit methodology to prevent missing active usage patterns.
+
+
+- **Cross-file usage**: `grep -r "function_name" .cwf/lib/ .cwf/scripts/`
+- **Same-file usage**: Check within each affected file for internal calls
+- **Script-to-library usage**: `grep -r "function_name" .cwf/scripts/command-helpers/`
+- **POD documentation**: Check for public API declarations (`=head2 function_name`)
+- **Structured report format**: Function, file, lines, usage findings, verdict
+
 ## Task 147: retire bootstraps missing CHANGELOG task entry
 
 ### Status: Complete (2026-05-17)

@@ -39,6 +39,7 @@ Define ongoing maintenance, monitoring, and support requirements for {{descripti
 - Log rotation and archival (retention policies, storage management)
 - Security vulnerability scanning (dependency audits, penetration testing)
 - Backup validation and disaster recovery testing
+- Dead-code audit (see `.cwf/docs/dead-code-audit.md`) — periodic sweep using documented methodology.
 
 ## Incident Response
 ### Common Issues

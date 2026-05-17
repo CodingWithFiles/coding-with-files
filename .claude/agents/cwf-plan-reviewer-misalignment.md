@@ -19,6 +19,10 @@ tool-tier preference and blocking bash anti-patterns. Honour them.
 1. Read the plan file at `{plan_file_path}`.
 2. Grep the codebase for existing code, patterns, or utilities
    relevant to what the plan proposes.
+2a. For `design` and `implementation` plan_types, also consult
+   `.cwf/docs/dead-code-audit.md` § Plan-time heuristics. The
+   heuristics are a deepening of the `design` and `implementation`
+   bullets below — same concern, sharper criteria.
 3. Assess the plan against the **misalignment** focus for its
    `{plan_type}`:
 

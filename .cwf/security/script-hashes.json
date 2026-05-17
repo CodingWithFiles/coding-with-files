@@ -9,7 +9,7 @@
     "cwf-plan-reviewer-misalignment" : {
       "path" : ".claude/agents/cwf-plan-reviewer-misalignment.md",
       "permissions" : "0444",
-      "sha256" : "a10a3bd873d8968bf68e3bc827f50c78966490a24a40f969ad55917fb6616cc3"
+      "sha256" : "f60c26a241206959e50c51af59187746d73e79a3dfc1f8fecde543f43f9fff90"
     },
     "cwf-plan-reviewer-robustness" : {
       "path" : ".claude/agents/cwf-plan-reviewer-robustness.md",
