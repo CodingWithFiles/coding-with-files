@@ -145,21 +145,6 @@ whether a deliberate style-guide entry would be clearer.
 - Convert model-substitution uses to `{}`; decide on CLI syntax documentation style
 - Add a one-liner to the style guide (or glossary) clarifying the distinction
 
-## Task: Add Delete Task Skill
-
-### Task-Type: feature
-### Priority: High
-### Scope: 
-### Identified in: Task 59 (misclassified as chore, needed manual delete/recreate)
-
-Add a `/cwf-delete-task <num>` skill that cleanly removes a task: deletes the task directory, removes the git branch (if it exists), and optionally cleans the task stack. Currently, deleting a misclassified or abandoned task requires manual `git rm -r`, branch deletion, and directory cleanup — error-prone and tedious.
-
-- Delete task directory under `implementation-guide/`
-- Delete associated git branch (with confirmation)
-- Remove from task stack if present
-- Refuse to delete if task has subtasks (safety check)
-- Support `--force` flag to skip confirmation
-
 ## Task: Add Slug Generation Helper Script (`cwf-slug`)
 
 ### Task-Type: feature
@@ -172,20 +157,6 @@ Expose `generate_slug` from `template-copier-v2.1` as a standalone helper so cal
 - Script wraps `template-copier-v2.1`'s `generate_slug` (or extracts it to a shared module)
 - Returns the slug for a given description; exits non-zero with the same `[CWF] ERROR:` message if the slug is empty or exceeds `SLUG_MAX_LEN` (consistent with task-creation behaviour)
 - Useful for skills/scripts that want to compute the slug for display or branch-name construction without committing to task creation
-
-## Task: Migrate Remaining `print STDERR + exit` Blocks in `template-copier-v2.1` to `die_msg`
-
-### Task-Type: chore
-### Priority: Low
-### Status: Follow-up from Task 119
-### Scope: 
-### Deferred from: Task 119 (c-design-plan.md Decision 3 — boy-scout would have ballooned the diff)
-
-Task 119 added a `die_msg` helper to `template-copier-v2.1` and used it for the new slug-length validation. The script's existing error paths (unknown args, missing required params, invalid format, config load failure, template-dir-not-found, broken symlinks, copy failures) still use the older `print STDERR "Error: ..."` + `exit N` pattern. Migrating these to `die_msg` would unify the error-prefix convention (`[CWF] ERROR:`) across the whole script.
-
-- Replace each `print STDERR "Error: ..." + exit N` block with `die_msg("...")`, preserving exit codes via a 2-arg form if needed
-- Update tests if any assertion strings depend on the old format
-- Refresh script hash
 
 ## Task: Lift `die_msg` to a Shared `CWF::Common` Module
 
@@ -200,6 +171,12 @@ Both `cwf-manage` and `template-copier-v2.1` define identical `sub die_msg { pri
 - Add `die_msg` (and matching unit tests) to `.cwf/lib/CWF/Common.pm`
 - Update `cwf-manage` and `template-copier-v2.1` to `use CWF::Common qw(die_msg)` and remove their inline copies
 - Refresh script hashes
+
+Carried over from the sister "Migrate Remaining `print STDERR + exit` Blocks in `template-copier-v2.1` to `die_msg`" entry (retired in this merge, Task 146):
+
+- Replace each `print STDERR "Error: ..." + exit N` block with `die_msg("...")`, preserving exit codes via a 2-arg form if needed
+- Update tests if any assertion strings depend on the old format
+- `template-copier-v2.1`'s existing error paths (unknown args, missing required params, invalid format, config load failure, template-dir-not-found, broken symlinks, copy failures) still use the older `print STDERR "Error: ..." + exit N` pattern -- migrating them is the natural consequence of lifting `die_msg`, unifying the `[CWF] ERROR:` prefix convention across the whole script.
 
 ## Task: Codify the `main() unless caller();` Testability Convention
 
@@ -240,6 +217,12 @@ Both `h-rollout.md` and `i-maintenance.md` ship with full enterprise templates (
 - Create "internal" variants of h-rollout.md and i-maintenance.md templates
 - Reduce to relevant sections (deployment strategy, known issues, architecture reference)
 - Template selection during `/cwf-new-task` based on project type or explicit flag
+
+Carried over from the sister "Consider `internal-feature` template variant for service-less CLI helpers" entry (retired in this merge, Task 146):
+
+- For tasks whose deliverable is a local CLI helper with no service surface, no users, and no telemetry, the v2.1 template's h-rollout.md and i-maintenance.md sections (monitoring, alerting, phased-rollout, scaling, SLOs) collapse to mostly-N/A. The template-variant approach (e.g. `internal-feature`, or extending `chore`) should drop these vestigial sections rather than only trim them.
+- Surfaced again during Task 136 rollout + maintenance phases -- cross-task evidence: Tasks 57, 114, 136 all hit the same wall.
+- Optional; no functional gap, just a paperwork-reduction opportunity -- but the cross-task recurrence argues for landing it rather than letting it accrete more re-discoveries.
 
 ## Task: Document Dead Code Audit Methodology
 
@@ -345,44 +328,6 @@ Create integration test harness that manipulates git state to produce real signa
 - Test all three signals disagreeing
 - Test no signals scenario (empty repository)
 - Validate real TaskContextInference output matches expectations
-
-## Task: Document Bugfix Workflow Differences
-
-### Task-Type: chore
-### Priority: Low
-### Status: Identified from Task 36 retrospective
-### Problem: Task 36 attempted to use `/cwf-rollout` but bugfix template doesn't include h-rollout.md, causing confusion about rollout phase.
-### Solution: Add explicit documentation about workflow type differences.
-### Scope: 
-### Success Criteria: 
-### Rationale: Reduces confusion about missing workflow phases based on task type.
-### Discovered: Task 36 retrospective - bugfix workflow doesn't include h-rollout.md
-
-Clarify that bugfix workflows skip h-rollout.md and use checkpoint commits for rollout instead.
-
-
-
-1. **Update workflow-steps.md**: Add section comparing workflow types (feature vs bugfix vs hotfix)
-2. **Create comparison table**: Show which phases each workflow type includes
-   ```markdown
-   | Phase | Feature | Bugfix | Hotfix | Chore |
-   |-------|---------|--------|--------|-------|
-   | a-plan | ✓ | ✓ | ✓ | ✓ |
-   | b-requirements | ✓ | - | - | - |
-   | c-design | ✓ | ✓ | - | - |
-   | d-implementation-plan | ✓ | ✓ | ✓ | ✓ |
-   | e-testing-plan | ✓ | ✓ | ✓ | ✓ |
-   | f-implementation-exec | ✓ | ✓ | ✓ | ✓ |
-   | g-testing-exec | ✓ | ✓ | - | - |
-   | h-rollout | ✓ | - | ✓ | - |
-   | i-maintenance | ✓ | - | - | - |
-   | j-retrospective | ✓ | ✓ | ✓ | ✓ |
-   ```
-3. **Document rollout alternatives**: For workflows without h-rollout, explain checkpoint commit serves as rollout
-
-- [ ] Comparison table shows phase inclusion by workflow type
-- [ ] Documentation explains rollout alternatives for bugfix/chore
-- [ ] Future tasks understand which phases apply to their type
 
 ## Task: Create Verification Test Pattern Templates
 
@@ -671,77 +616,6 @@ Create automated linter to detect hardcoded template filename references and ver
 5. Allow v2.0-specific references (V20.pm uses "f-testing-plan.md" correctly)
 6. Integrate with pre-commit hook or CI pipeline
 
-## Task: Create v2.0 to v2.1 Workflow Migration Tools
-
-### Task-Type: feature
-### Priority: Low
-### Context: Task 25 implements v2.1 workflow with 10-phase sequential naming (a-j). Existing Tasks 1-24 use v2.0 format. The trampoline architecture handles mixed v2.0/v2.1 versions seamlessly, and we're already successfully using v2.1 (Tasks 26, 30), so migration is optional for consistency rather than a blocker.
-### Problem: 
-### Solution: Create migration script(s) that:
-### Note on execution files: Do NOT create e-implementation-exec.md or g-testing-exec.md for completed tasks - that would fabricate history. Only rename/re-letter existing files.
-### Note on rollback: Git is the rollback capability (`git commit` before migration, `git reset --hard` if needed).
-### Scope: 
-### Dependencies: 
-### Success Criteria: 
-### Rationale: Migration tools would provide consistency across all tasks by converting v2.0 format to v2.1 naming. However, this is **not blocking** because:
-### Priority rationale: Originally marked Critical, but downgraded to Low after Task 30 demonstrated that mixed versions work without issues. Migration is "nice to have for consistency" rather than a blocker.
-### Note: v1.0→v2.0 migration tools already exist and are preserved by Task 25. This task creates equivalent v2.0→v2.1 migration capability.
-### Rationale: Manual validation is sustainable for small changes but becomes bottleneck as system grows. Automated testing provides confidence and speed.
-
-Create automated migration tools to upgrade existing v2.0 tasks (a-plan.md through h-retrospective.md) to v2.1 format (a-task-plan.md through j-retrospective.md with sequential a-j lettering).
-
-
-- v2.0 uses 8 files: a-plan.md, b-requirements.md, c-design.md, d-implementation.md, e-testing.md, f-rollout.md, g-maintenance.md, h-retrospective.md
-- v2.1 uses 10 files with renames and re-lettering:
-  - a-plan.md → a-task-plan.md
-  - b-requirements.md → b-requirements-plan.md
-  - c-design.md → c-design-plan.md
-  - d-implementation.md → d-implementation-plan.md
-  - e-testing.md → f-testing-plan.md (re-lettered!)
-  - NEW: e-implementation-exec.md
-  - NEW: g-testing-exec.md
-  - f-rollout.md → h-rollout.md (re-lettered!)
-  - g-maintenance.md → i-maintenance.md (re-lettered!)
-  - h-retrospective.md → j-retrospective.md (re-lettered!)
-- Manual migration is error-prone and tedious for 24 existing tasks
-
-1. Detect v2.0 tasks (presence of a-plan.md, absence of e-implementation-exec.md)
-2. Rename existing files with -plan suffix where appropriate
-3. Re-letter files (e→f, f→h, g→i, h→j)
-4. Update internal cross-references (d-implementation.md → d-implementation-plan.md references)
-5. Validate migration (renamed files exist, content valid, no broken references)
-
-
-
-- Migration script: `.cwf/scripts/migrate-v20-to-v21.pl` or similar
-- Dry-run mode to preview changes before applying
-- Batch migration for all v2.0 tasks or selective migration
-- Validation checks before and after migration
-- Clear error messages on failure
-- Update documentation with migration instructions (including git commit/rollback workflow)
-
-- Task 25 must be complete (v2.1 format defined, trampoline architecture implemented)
-- v2.1 template files must exist in `.cwf/templates/pool/`
-
-- [ ] Migration script created and tested
-- [ ] Dry-run mode shows accurate preview
-- [ ] Script handles all edge cases (partial migrations, already-migrated tasks)
-- [ ] Validation checks prevent broken migrations
-- [ ] Documentation explains migration process (including git commit/reset workflow)
-- [ ] Tasks 1-24 can be migrated without manual intervention
-- [ ] Migrated tasks work correctly with v2.1 workflow commands
-
-- Trampoline architecture handles mixed v2.0/v2.1 versions seamlessly
-- We're already successfully using v2.1 format (Tasks 26, 30)
-- Completed tasks (1-24) work fine in v2.0 format
-- New tasks use v2.1 templates automatically
-- Manual migration is straightforward for the few tasks that need it
-
-
-
-- [ ] Runs in <2 minutes
-- [ ] Can run on any Perl 5.14+ system
-
 ## Task: Add Status Calculation Overview to Workflow Documentation
 
 ### Task-Type: chore
@@ -909,213 +783,36 @@ Improve error message in `status-aggregator` to clarify that it expects a task n
 
 ## Task: Implement Interface-Based Version Dispatch for status-aggregator
 
-### Solution: Interface-Based Dispatch Pattern
 ### Task-Type: refactor
 ### Priority: Medium
 ### Status: Discovered in Task 26 (TC-F11 test failure)
-### Problem: `status-aggregator --workflow` doesn't show workflow breakdown for all tasks in mixed-version projects.
-### Current Behavior: 
-### Expected Behavior: All tasks should show workflow breakdown with their respective version-specific files:
-### Root Cause: Version detection happens ONCE at trampoline level, not per-task
-### Affected Test Case: TC-F11 from Task 26 testing plan - currently marked as "KNOWN LIMITATION"
-### Key Insight: "The modules know about versions, the scripts shouldn't have to."
-### Architecture: 
-### Usage in Unified Script: 
+### Identified in: Task 26 testing execution (TC-F11) on a mixed v2.0/v2.1 project
 
-Refactor status-aggregator to use interface-based version dispatch pattern instead of separate version-specific scripts, enabling proper workflow display for mixed-version projects.
+### Problem
 
+`status-aggregator --workflow` does not show the per-task workflow breakdown for all tasks in mixed-version (v2.0 + v2.1) projects. The trampoline detects a version globally and routes to a single version-specific aggregator; that aggregator then fails to find the wf-files of any task in the other version. TC-F11 from Task 26's testing plan captures the failure mode and is currently marked "KNOWN LIMITATION".
 
-```bash
-# Project has Tasks 1-25 (v2.0) and Task 26 (v2.1)
-status-aggregator --workflow
+### Approach
 
-# Result: Only Task 26 shows workflow breakdown
-# Tasks 1-25 show no workflow files
-```
-
-- v2.0 tasks: 8 workflow files (a,b,c,d,f,h,i,j - skips e,g)
-- v2.1 tasks: 10 workflow files (a-j)
-
-1. Trampoline detects version globally (finds ANY v2.1 file → routes to v2.1 script)
-2. Routes to single version-specific script (status-aggregator-v2.0 or v2.1)
-3. That script processes ALL tasks using its hardcoded version logic
-4. v2.1 script can't find workflow files for v2.0 tasks (tries to find 10 files that don't exist)
-
-Implement Go-style interface pattern using Perl dispatch tables:
-
-
-
-```perl
-# CWF::WorkflowFiles::Dispatch
-package CWF::WorkflowFiles::Dispatch;
-
-use strict;
-use warnings;
-use CWF::WorkflowFiles::V20;
-use CWF::WorkflowFiles::V21;
-
-# Dispatch table - each version implements the same interface
-our %DISPATCH = (
-    '2.0' => {
-        list_wf_steps => sub {
-            my ($opts) = @_;
-            # v2.0 specific workflow file listing
-            return CWF::WorkflowFiles::V20::get_workflow_files(
-                $opts->{task_dir},
-                $opts->{task_type}
-            );
-        },
-
-        get_task_progress => sub {
-            my ($opts) = @_;
-            # v2.0 specific progress calculation
-        },
-
-        format_output => sub {
-            my ($opts) = @_;
-            # v2.0 specific formatting
-        },
-    },
-
-    '2.1' => {
-        list_wf_steps => sub { ... },
-        get_task_progress => sub { ... },
-        format_output => sub { ... },
-    },
-);
-
-# Get dispatch table for a version
-sub get_dispatch {
-    my ($version) = @_;
-    return $DISPATCH{$version} or die "Unsupported version: $version";
-}
-
-# Validate all versions implement required interface
-my @REQUIRED_OPERATIONS = qw(list_wf_steps get_task_progress format_output);
-
-sub validate_interfaces {
-    for my $version (keys %DISPATCH) {
-        for my $op (@REQUIRED_OPERATIONS) {
-            die "Version $version missing operation: $op"
-                unless exists $DISPATCH{$version}{$op};
-        }
-    }
-}
-
-validate_interfaces();  # Compile-time-ish checking
-1;
-```
-
-
-```perl
-# Single status-aggregator script (replaces v2.0 and v2.1 scripts)
-use CWF::WorkflowFiles::Dispatch;
-
-for my $task (@all_tasks) {
-    # Detect version PER TASK
-    my $version = detect_task_version($task->{dir});
-
-    # Get version-specific operations (interface dispatch)
-    my $ops = CWF::WorkflowFiles::Dispatch::get_dispatch($version);
-
-    # Call through interface - version-agnostic!
-    my @wf_files = $ops->{list_wf_steps}({
-        task_dir  => $task->{dir},
-        task_type => $task->{type},
-        limit     => $opts->{limit},
-        workflow  => $opts->{workflow},
-        sort      => $opts->{sort},
-        order     => $opts->{order},
-    });
-
-    if ($opts->{workflow}) {
-        my $progress = $ops->{get_task_progress}({
-            workflow_files => \@wf_files,
-            task_dir       => $task->{dir},
-        });
-
-        $ops->{format_output}({
-            task          => $task,
-            workflow_files => \@wf_files,
-            progress      => $progress,
-        });
-    }
-}
-```
-
-### Implementation Steps
-1. **Create `CWF::WorkflowFiles::Dispatch` module**
-   - Define interface (required operations: list_wf_steps, get_task_progress, format_output)
-   - Build dispatch table for v2.0 and v2.1
-   - Add interface validation
-
-2. **Refactor version-specific modules**
-   - Extract logic from status-aggregator-v2.0 into V20 module operations
-   - Extract logic from status-aggregator-v2.1 into V21 module operations
-   - Ensure both implement complete interface
-
-3. **Create unified status-aggregator script**
-   - Replace separate v2.0/v2.1 scripts with single version-agnostic script
-   - Use per-task version detection + dispatch
-   - Preserve all existing flags and behavior
-
-4. **Update trampoline**
-   - Simplify or remove version detection (now handled per-task)
-   - Route to unified script instead of version-specific scripts
-
-5. **Testing**
-   - Verify TC-F11 passes (mixed-version workflow display)
-   - Regression test all existing functionality
-   - Test with v2.0-only, v2.1-only, and mixed projects
-
-### Benefits
-1. **Fixes TC-F11**: `--workflow` works correctly for mixed-version projects
-2. **Go-like interfaces**: Each version MUST implement required operations
-3. **Version-agnostic scripts**: No version conditionals in orchestration code
-4. **Easy version addition**: Add v2.2 by adding dispatch table entry only
-5. **Better modularity**: Version logic in version modules, dispatch in dispatch module
-6. **Testability**: Can inject mock dispatch for testing, validate interface compliance
+Move version detection per-task rather than per-process. Define a small interface (list_wf_steps, get_task_progress, format_output) and a dispatch table keyed by version. Each `CWF::WorkflowFiles::V20` / `V21` module implements the interface; a single unified `status-aggregator` script iterates tasks, looks up the per-task version, and calls through the dispatch. The trampoline simplifies or goes away.
 
 ### Success Criteria
-- [ ] TC-F11 passes: `status-aggregator --workflow` shows workflow for all tasks
-- [ ] All existing tests continue passing (no regressions)
-- [ ] Single unified status-aggregator script (no v2.0/v2.1 split)
-- [ ] Interface validation ensures version compliance at load time
-- [ ] Code reduction (eliminate duplication between v2.0/v2.1 scripts)
 
-### Files to Create/Modify
-**Create**:
-- `.cwf/lib/CIG/WorkflowFiles/Dispatch.pm` - Interface dispatch module
+- [ ] TC-F11 passes: `status-aggregator --workflow` shows workflow files for every task on a mixed-version corpus
+- [ ] All existing tests continue passing
+- [ ] One unified status-aggregator script; no v2.0 / v2.1 split
+- [ ] Interface compliance validated at module-load time
+- [ ] Net code reduction relative to baseline
 
-**Modify**:
-- `.cwf/lib/CIG/WorkflowFiles/V20.pm` - Add operations to match interface
-- `.cwf/lib/CIG/WorkflowFiles/V21.pm` - Add operations to match interface
-- `.cwf/scripts/command-helpers/status-aggregator` - Simplify or unify
-- `.cwf/scripts/command-helpers/status-aggregator-v2.0` - Refactor or remove
-- `.cwf/scripts/command-helpers/status-aggregator-v2.1` - Refactor or remove
+### Files affected
 
-### Scope Note
-This is a **significant refactor** touching the core status aggregation architecture. Estimate: 8-16 hours for experienced Perl developer.
+- Create: `.cwf/lib/CWF/WorkflowFiles/Dispatch.pm`
+- Modify: `.cwf/lib/CWF/WorkflowFiles/V20.pm`, `V21.pm` (implement the interface)
+- Modify or unify: `.cwf/scripts/command-helpers/status-aggregator{,-v2.0,-v2.1}`
 
-**Not in scope for Task 26** due to:
-- Size/complexity (would delay current feature)
-- Requires careful testing with multiple version scenarios
-- Current workaround acceptable (use task-specific queries)
+### Scope note
 
-### Priority Justification
-**Medium Priority** because:
-- **Primary use case works**: Task-specific queries (`/cwf-status 26`) work correctly
-- **Workaround exists**: Use explicit task paths instead of `--workflow` alone
-- **Edge case impact**: Only affects `--workflow` without task argument in mixed-version projects
-- **Quality improvement**: Reduces code duplication, improves architecture
-- **Future-proofing**: Makes version additions easier (v2.2, v2.3, etc.)
-
-**Not High Priority** because:
-- Not blocking current work
-- Has documented workaround
-- Affects power-user feature, not core functionality
-
-**Discovered**: During Task 26 testing execution (TC-F11) when validating `status-aggregator --workflow` behavior with mixed v2.0/v2.1 project.
+Significant refactor touching the status-aggregation core. Workaround exists (task-specific queries via `/cwf-status <num>`); the gap is only the workflow-overview path. Detailed dispatch-table and Perl code design belongs in the eventual task's c-design / d-implementation phases, not in BACKLOG.
 
 ## Task: Audit CWF Skills for Hardcoded Data
 
@@ -1148,6 +845,12 @@ Create quick reference documentation for workflow phase sequences (which files a
 - Document chore workflow: a, d, f, j (4 phases)
 - Add to `.cwf/docs/workflow/` directory
 - Include in command help or error messages when phase skipped
+
+Carried over from the sister "Document Bugfix Workflow Differences" entry (retired in this merge, Task 146):
+
+- Bugfix workflow skips h-rollout.md and uses checkpoint commits for rollout instead -- this should be called out explicitly in the per-type documentation, not just implied by the phase list.
+- The bugfix-specific entry was motivated by Task 36's confusion about an attempted /cwf-rollout invocation on a bugfix task that had no h-rollout.md. The per-type docs should make the "missing phase" cases discoverable from the docs alone, not only via failure.
+- Per-type comparison table (Feature / Bugfix / Hotfix / Chore × phase) is the discoverable shape; document rollout alternatives for workflows without h-rollout.
 
 ## Bug: Progress Signal Scores Completed Tasks Highest in Task Context Inference
 
@@ -1328,32 +1031,6 @@ Task 118 added a tool-selection rubric for CWF subagents (canonical doc + brief 
 ### Identified in: 134
 
 Task 134 established the skill-reference-doc convention at .cwf/docs/skills/skill-reference-convention.md and produced one instance for cwf-backlog-manager. Roll the same treatment to the remaining ~20 user-invocable skills: rewrite each frontmatter description to intent-CTA shape (name domain + 2-3 example user phrasings, <=30 words, double-quoted YAML form) and add a per-skill reference doc at .cwf/docs/skills/reference/<skill>.md (<=30 lines, 3-5 example phrasings, no SKILL.md links).
-
-## Task: Enforce sentinel-first output in security-review subagent prompt
-
-### Task-Type: chore
-### Priority: Medium
-### Identified in: 134
-
-The exec-phase security-review subagent (cwf-implementation-exec, cwf-testing-exec) is supposed to begin its response with the literal sentinel "findings:" / "no findings" / "error:" per .cwf/docs/skills/security-review.md, but the current prompt template does not enforce this strongly enough. In Task 134 both invocations produced substantively clean reviews ("no findings." in body) yet failed the primary classification, falling back to "error" (f-phase) and "findings" (g-phase, numbered-list fallback fired on the file enumeration). Strengthen the prompt with a hard "no preamble" instruction and consider extending the classifier with a "last-line `no findings.`" rule for substance-clear malformed responses. Out of scope for Task 134 because the convention task should not also rewrite the security-review prompt.
-
-## Task: Improve security-review-changeset feedback on empty-from-uncommitted changesets
-
-### Task-Type: chore
-### Priority: Low
-### Status: Follow-up from Task 136
-### Identified in: Task 136 retrospective (j-retrospective.md)
-
-When `security-review-changeset --phase=<phase>` returns empty because all phase work is still uncommitted at the time of the security review, the helper currently emits nothing — the workflow skill then records `no findings: empty changeset` even though there *is* a changeset, it just hasn't been committed yet. Improve the helper to detect this case (e.g., compare `anchor..HEAD` to `git status --porcelain` size) and emit a hint pointing to the `git add -N` + manual-diff workaround, or exit with a distinct status the skill can interpret as "uncommitted work — review postponed". Surfaced during Task 136 implementation-exec security review.
-
-## Task: Consider `internal-feature` template variant for service-less CLI helpers
-
-### Task-Type: chore
-### Priority: Low
-### Status: Follow-up from Task 136
-### Identified in: Task 136 retrospective (j-retrospective.md)
-
-For tasks whose deliverable is a local CLI helper with no service surface, no users, and no telemetry, the v2.1 template's `h-rollout.md` and `i-maintenance.md` sections (monitoring, alerting, phased-rollout, scaling, SLOs) collapse to mostly-N/A. Consider a slimmer template variant — perhaps `internal-feature` or extending `chore` — that drops these vestigial sections. Optional; no functional gap, just a paperwork-reduction opportunity. Surfaced during Task 136 rollout + maintenance phases.
 
 ## Task: `/cwf-delete-task` no-arg form — default to topmost stack entry
 

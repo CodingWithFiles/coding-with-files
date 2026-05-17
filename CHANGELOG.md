@@ -2,6 +2,136 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 146: Backlog refactor: retire, merge, reduce
+
+### Status: Complete (2026-05-17)
+### Duration: 1 session, at the 1-day estimate.
+### Impact: Discovery task / corpus housekeeping -- reviewed every BACKLOG.md entry at baseline (68 entries, parser-recognised `## Task:` plus `## Bug:` headings) against three axes (still-applicable / mergeable / scope-reducible) and applied 8 approved mutations: 4 direct retires, 3 merges (single-commit Edit-then-retire pattern, 3 carry-over phrases preserved per merge), and 1 reduce-scope. Net BACKLOG shrink 68 -> 61 entries (~10%); plus one entry ("Implement Interface-Based Version Dispatch for status-aggregator") slimmed from ~210 lines to ~17 (~94% reduction; dropped embedded Perl code, Architecture sub-section, Implementation Steps, Benefits, Priority Justification; kept Problem, Approach, Success Criteria, Files Affected, Scope Note). Recommendations artefact (`recommendations.md`) preserved under the task directory as the discovery deliverable, anchored to baseline SHA `ca7e8e531f0cad280ffcaa58faab8945a247f2c4` with maintainer approval recorded as a committed line. Validator clean after every mutation commit (8/8); round-trip property held; halt-on-failure path defined but not exercised. No new helpers, flags, schemas, or templates introduced -- "no new code" constraint (c-design D1) honoured.
+
+### Notable
+- **Plan-review subagents caught the phantom `--baseline=<SHA>` flag in b-requirements** before any helper invocation. Fixed in commit 017169a. Without that catch, f-Step-1 would have hit a hard error and had to re-plan.
+- **Baseline-enumeration regex was incomplete in the plan (D1).** d-impl Step 1 used `^## Task: '`; the parser at `CWF::Backlog.pm:222` also accepts `^## Bug: '`. Caught in f-Step-1 by cross-checking the regex count (67) against `backlog-manager list --all-items` (68). Lesson: corpus counts must come from the helper, not from a hand-derived regex.
+- **TC-AC5 wording bug (D4) lasted until g-phase.** Three plan-review subagents read e-testing-plan and none flagged that TC-AC5 grepped CHANGELOG.md when FR6 places the merge trace in the surviving BACKLOG entry. The test was internally consistent but interrogated the wrong artefact. Lesson: plan-review struggles with FR -> TC fidelity even when it catches structural defects reliably.
+- **Single-commit merge atomicity (c-design D5) was the load-bearing decision.** Collapsing Edit-then-retire to one commit per merge made the pre-commit `git checkout --` discard path uniformly correct regardless of which sub-step regressed. The post-commit revert path (D6) was specified for completeness but never exercised -- no post-commit regressions observed.
+- **`--exact-title=` over `--id=<slug>` (D2 deviation) simplified pre-flight to vacuous on D8.1.** All 68 selectors used `--exact-title=`; no per-row slug derivation, no slug-uniqueness pre-flight, no behavioural impact on `backlog-manager retire`. Recommended as the default selector for future batch-retire tasks.
+- **Pre-flight realised as bash (D3) instead of the planned Perl with `CWF::Backlog` round-trip.** Bash regex catches `- Priority:` shape and misses `### Status:` shape -- TC-PF-4 documents this as PARTIAL. No real-artefact impact (all 3 approved carry-overs are plain prose). The Perl approach remains correct for larger or `--id=`-heavy artefacts.
+- **Validator performance NFR1 hit easily.** `backlog-manager validate` measured at 0.087s on the post-batch corpus, well under the sub-1s target.
+
+### Retired Backlog Items
+#### Add Delete Task Skill
+
+Add a `/cwf-delete-task <num>` skill that cleanly removes a task: deletes the task directory, removes the git branch (if it exists), and optionally cleans the task stack. Currently, deleting a misclassified or abandoned task requires manual `git rm -r`, branch deletion, and directory cleanup — error-prone and tedious.
+
+- Delete task directory under `implementation-guide/`
+- Delete associated git branch (with confirmation)
+- Remove from task stack if present
+- Refuse to delete if task has subtasks (safety check)
+- Support `--force` flag to skip confirmation
+
+#### Create v2.0 to v2.1 Workflow Migration Tools
+
+Create automated migration tools to upgrade existing v2.0 tasks (a-plan.md through h-retrospective.md) to v2.1 format (a-task-plan.md through j-retrospective.md with sequential a-j lettering).
+
+
+- v2.0 uses 8 files: a-plan.md, b-requirements.md, c-design.md, d-implementation.md, e-testing.md, f-rollout.md, g-maintenance.md, h-retrospective.md
+- v2.1 uses 10 files with renames and re-lettering:
+  - a-plan.md → a-task-plan.md
+  - b-requirements.md → b-requirements-plan.md
+  - c-design.md → c-design-plan.md
+  - d-implementation.md → d-implementation-plan.md
+  - e-testing.md → f-testing-plan.md (re-lettered!)
+  - NEW: e-implementation-exec.md
+  - NEW: g-testing-exec.md
+  - f-rollout.md → h-rollout.md (re-lettered!)
+  - g-maintenance.md → i-maintenance.md (re-lettered!)
+  - h-retrospective.md → j-retrospective.md (re-lettered!)
+- Manual migration is error-prone and tedious for 24 existing tasks
+
+1. Detect v2.0 tasks (presence of a-plan.md, absence of e-implementation-exec.md)
+2. Rename existing files with -plan suffix where appropriate
+3. Re-letter files (e→f, f→h, g→i, h→j)
+4. Update internal cross-references (d-implementation.md → d-implementation-plan.md references)
+5. Validate migration (renamed files exist, content valid, no broken references)
+
+
+
+- Migration script: `.cwf/scripts/migrate-v20-to-v21.pl` or similar
+- Dry-run mode to preview changes before applying
+- Batch migration for all v2.0 tasks or selective migration
+- Validation checks before and after migration
+- Clear error messages on failure
+- Update documentation with migration instructions (including git commit/rollback workflow)
+
+- Task 25 must be complete (v2.1 format defined, trampoline architecture implemented)
+- v2.1 template files must exist in `.cwf/templates/pool/`
+
+- [ ] Migration script created and tested
+- [ ] Dry-run mode shows accurate preview
+- [ ] Script handles all edge cases (partial migrations, already-migrated tasks)
+- [ ] Validation checks prevent broken migrations
+- [ ] Documentation explains migration process (including git commit/reset workflow)
+- [ ] Tasks 1-24 can be migrated without manual intervention
+- [ ] Migrated tasks work correctly with v2.1 workflow commands
+
+- Trampoline architecture handles mixed v2.0/v2.1 versions seamlessly
+- We're already successfully using v2.1 format (Tasks 26, 30)
+- Completed tasks (1-24) work fine in v2.0 format
+- New tasks use v2.1 templates automatically
+- Manual migration is straightforward for the few tasks that need it
+
+
+
+- [ ] Runs in <2 minutes
+- [ ] Can run on any Perl 5.14+ system
+
+#### Enforce sentinel-first output in security-review subagent prompt
+
+The exec-phase security-review subagent (cwf-implementation-exec, cwf-testing-exec) is supposed to begin its response with the literal sentinel "findings:" / "no findings" / "error:" per .cwf/docs/skills/security-review.md, but the current prompt template does not enforce this strongly enough. In Task 134 both invocations produced substantively clean reviews ("no findings." in body) yet failed the primary classification, falling back to "error" (f-phase) and "findings" (g-phase, numbered-list fallback fired on the file enumeration). Strengthen the prompt with a hard "no preamble" instruction and consider extending the classifier with a "last-line `no findings.`" rule for substance-clear malformed responses. Out of scope for Task 134 because the convention task should not also rewrite the security-review prompt.
+
+#### Improve security-review-changeset feedback on empty-from-uncommitted changesets
+
+When `security-review-changeset --phase=<phase>` returns empty because all phase work is still uncommitted at the time of the security review, the helper currently emits nothing — the workflow skill then records `no findings: empty changeset` even though there *is* a changeset, it just hasn't been committed yet. Improve the helper to detect this case (e.g., compare `anchor..HEAD` to `git status --porcelain` size) and emit a hint pointing to the `git add -N` + manual-diff workaround, or exit with a distinct status the skill can interpret as "uncommitted work — review postponed". Surfaced during Task 136 implementation-exec security review.
+
+#### Migrate Remaining `print STDERR + exit` Blocks in `template-copier-v2.1` to `die_msg`
+
+Task 119 added a `die_msg` helper to `template-copier-v2.1` and used it for the new slug-length validation. The script's existing error paths (unknown args, missing required params, invalid format, config load failure, template-dir-not-found, broken symlinks, copy failures) still use the older `print STDERR "Error: ..."` + `exit N` pattern. Migrating these to `die_msg` would unify the error-prefix convention (`[CWF] ERROR:`) across the whole script.
+
+- Replace each `print STDERR "Error: ..." + exit N` block with `die_msg("...")`, preserving exit codes via a 2-arg form if needed
+- Update tests if any assertion strings depend on the old format
+- Refresh script hash
+
+#### Document Bugfix Workflow Differences
+
+Clarify that bugfix workflows skip h-rollout.md and use checkpoint commits for rollout instead.
+
+
+
+1. **Update workflow-steps.md**: Add section comparing workflow types (feature vs bugfix vs hotfix)
+2. **Create comparison table**: Show which phases each workflow type includes
+   ```markdown
+   | Phase | Feature | Bugfix | Hotfix | Chore |
+   |-------|---------|--------|--------|-------|
+   | a-plan | ✓ | ✓ | ✓ | ✓ |
+   | b-requirements | ✓ | - | - | - |
+   | c-design | ✓ | ✓ | - | - |
+   | d-implementation-plan | ✓ | ✓ | ✓ | ✓ |
+   | e-testing-plan | ✓ | ✓ | ✓ | ✓ |
+   | f-implementation-exec | ✓ | ✓ | ✓ | ✓ |
+   | g-testing-exec | ✓ | ✓ | - | - |
+   | h-rollout | ✓ | - | ✓ | - |
+   | i-maintenance | ✓ | - | - | - |
+   | j-retrospective | ✓ | ✓ | ✓ | ✓ |
+   ```
+3. **Document rollout alternatives**: For workflows without h-rollout, explain checkpoint commit serves as rollout
+
+- [ ] Comparison table shows phase inclusion by workflow type
+- [ ] Documentation explains rollout alternatives for bugfix/chore
+- [ ] Future tasks understand which phases apply to their type
+
+#### Consider `internal-feature` template variant for service-less CLI helpers
+
+For tasks whose deliverable is a local CLI helper with no service surface, no users, and no telemetry, the v2.1 template's `h-rollout.md` and `i-maintenance.md` sections (monitoring, alerting, phased-rollout, scaling, SLOs) collapse to mostly-N/A. Consider a slimmer template variant — perhaps `internal-feature` or extending `chore` — that drops these vestigial sections. Optional; no functional gap, just a paperwork-reduction opportunity. Surfaced during Task 136 rollout + maintenance phases.
+
 ## Task 145: Update CWF skills to use namespaced tmp paths
 
 ### Status: Complete (2026-05-17)
