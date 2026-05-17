@@ -2,6 +2,32 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 145: Update CWF skills to use namespaced tmp paths
+
+### Status: Complete (2026-05-17)
+### Duration: 1 session, well under the <1-day estimate.
+### Impact: Chore / convention — establishes `.cwf/docs/conventions/tmp-paths.md` as the single source of truth for the project-namespaced `/tmp/` scratch-path form (`/tmp/<dashified-absolute-repo-path>-task-<num>/`), so concurrent agents working in different repositories do not collide on shared task numbers (e.g. two repos each at task 145). Convention ships to adopters via `.cwf/` subtree install — placement choice mirrors `.cwf/docs/conventions/subagent-tool-selection.md`. Discovery surface updates: `CLAUDE.md § Conventions` adds a `**Tmp Paths**:` bullet; `docs/conventions/design-alignment.md` scope paragraph extended to acknowledge ship-to-adopter conventions live under `.cwf/`. Memory updates land in four agent-memory files (one not on the original plan list — caught by TC-M1 grep gate). Folded in: `.claude/agents/cwf-security-reviewer-changeset.md` permissions restored from 0600 → 0444 (SHA pre-verified unchanged; restoration not new content), clearing the `cwf-manage validate` warning that had been bleeding into every checkpoint commit during this task's planning phases.
+
+### Changes
+- Added: `.cwf/docs/conventions/tmp-paths.md` (NEW) — single source of truth. Sections: § Convention (canonical form + copy-pastable derivation snippet using `git rev-parse --show-toplevel` + `${repo_root//\//-}`), § Threat model (single-user dev host scope; mandatory `mkdir -m 0700 -p` first-use guard against `/tmp` symlink-attack on multi-user hosts; no-secrets advisory), § Why (collision avoidance + `~/.claude/projects/` precedent), § Out of scope (install scripts, history, `settings.local.json` allowlist, no helper script), § See also.
+- Modified: `CLAUDE.md` § Conventions — new `**Tmp Paths**:` bullet with three sub-bullets covering canonical form, `mkdir -m 0700` guard, derivation snippet pointer. Matches `**Commit Messages**:` style.
+- Modified: `docs/conventions/design-alignment.md:7-11` — scope paragraph extended from 2 lines to 5; names `subagent-tool-selection.md` and `tmp-paths.md` as concrete examples of conventions that live only under `.cwf/docs/conventions/` (no dev-repo mirror).
+- Modified: `.cwf/docs/skills/security-review.md:98` — three-line trailing annotation on the illustrative `/tmp/cwf-update` anti-pattern: `# /tmp/cwf-update is illustrative — not a canonical scratch path; see .cwf/docs/conventions/tmp-paths.md`. Original anti-pattern code unchanged.
+- Modified: `~/.claude/projects/-home-matt-repo-coding-with-files/memory/feedback_no_heredocs.md` — replaced the "one-off scripts" sub-section with canonical-form examples; appended explicit "Historical:" annotation describing the old un-namespaced `/tmp/task-NNN/` form.
+- Modified: `~/.claude/projects/-home-matt-repo-coding-with-files/memory/MEMORY.md` — updated squash-commit line (now canonical form with historical annotation) and the `feedback_no_heredocs` index entry (now points at `[[tmp-paths]]`).
+- Modified: `~/.claude/projects/-home-matt-repo-coding-with-files/memory/project_archaeological_main.md` — squash-commit `/tmp/msg.txt` updated to canonical form. Not on the original plan's three-file list; caught by TC-M1 grep gate during testing-exec.
+- Permissions: `.claude/agents/cwf-security-reviewer-changeset.md` — `chmod 0444` to restore recorded mode per `.cwf/security/script-hashes.json:26`. SHA matches `c7033a74…2095e5` (recorded value at `script-hashes.json:27`); restoration touched permissions only, not content. `cwf-manage validate` post-implementation: `OK` (was 1 violation pre-implementation).
+
+### Notable
+- **TC-M1 grep gate caught the 4th memory file.** The plan listed three memory files (`feedback_no_heredocs.md`, `feedback_no_tee_permissions.md`, `MEMORY.md`); reality was four. `project_archaeological_main.md` had `/tmp/msg.txt` embedded in its squash-commit description. The grep gate is *designed* to catch exactly this kind of plan-list completeness gap — positive validation of the gate, not a plan defect.
+- **Plan-review map/reduce over-rotated on the mirror question, then self-corrected.** Initial reviewer advice was "no `.cwf/docs/conventions/` mirror — drift bait" — correct for in-repo conventions, wrong for ship-to-adopter conventions (adopters install only `.cwf/`). User's "are we duplicating? is that the issue?" reframe led to the cleaner "single file in `.cwf/docs/conventions/`, no `docs/conventions/` copy" outcome. Three round-trips on this question before lock-in.
+- **0444 restoration fold was net-positive, not scope creep.** SHA pre-verified as restoration (not new content); the warning had been firing on every checkpoint commit throughout planning phases of this task; carrying it to a follow-up would have repeated the noise. User authorised the fold explicitly after SHA verification.
+- **Security-review sentinel compliance held at n=2/2 (Task 144 tightening still working).** Both f-phase and g-phase invocations returned `no findings` as the literal first non-blank line; calling SKILL's **primary** classifier fired both times. No fallback or conservative-default `error` classifications.
+- **`security-review-changeset` helper coverage is narrow by design.** The 7-file changeset for this task produced a 14-line diff because only `.cwf/docs/skills/security-review.md` falls inside the unconditional-include CWF-internal prefixes. `.cwf/docs/conventions/`, `CLAUDE.md`, `docs/conventions/`, and user-memory files are all outside coverage. Expected; documented in retro so future reviewers don't wonder why the diff is small.
+
+### Retired Backlog Items
+None directly retired — this task did not target a pre-existing backlog item; the convention emerged from in-conversation discovery of `tee`-via-Bash blocking permissions, which prompted the broader question of `/tmp/` namespacing.
+
 ## Task 144: Tighten security-subagent sentinel-line output
 
 ### Status: Complete (2026-05-16)

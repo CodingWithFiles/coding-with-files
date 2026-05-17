@@ -4,8 +4,11 @@ This document describes the conventions that keep CWF skill, helper-script,
 template, and rule names consistent across the codebase, and the audit
 procedure to follow when renaming or removing any of them.
 
-Scope: CWF *development* (this repository). Conventions that ship with
-installed CWF copies live under `.cwf/docs/conventions/`.
+Scope: CWF *development* (this repository). Conventions that need to
+ship with installed CWF copies — because adopters' agents face the same
+constraint in their own repositories — live under
+`.cwf/docs/conventions/` (e.g. `subagent-tool-selection.md`,
+`tmp-paths.md`), with no dev-repo mirror.
 
 ## Convention
 

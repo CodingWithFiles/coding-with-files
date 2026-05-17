@@ -70,6 +70,11 @@ The Coding with Files (CWF) system v2.0 is **implemented and operational**. Core
 - `-z` flag on path-emitting git subcommands
 - `split /\0/` parsing of NUL-separated records
 
+**Tmp Paths**: Per-task scratch directories under `/tmp/` use a project-namespaced form to avoid collisions across concurrent agents. See `.cwf/docs/conventions/tmp-paths.md` for:
+- Canonical form: `/tmp/<dashified-absolute-repo-path>-task-<num>/`
+- Mandatory `mkdir -m 0700` first-use guard (symlink-attack defence)
+- Derivation snippet and worked examples
+
 ## Architecture Overview
 
 **Hierarchical Workflow System (v2.0)**: Eight lettered workflow steps (a-h) guide tasks from planning through retrospective. Non-linear state machine with dynamic transitions based on step outcomes. Universal decomposition signals (5 criteria) guide task breakdown into subtasks.

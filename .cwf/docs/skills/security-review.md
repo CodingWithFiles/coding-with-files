@@ -96,6 +96,9 @@ Five categories the subagent must cover. Each carries (i) a one-line definition,
   ```perl
   my $source = $ENV{CWF_SOURCE} // 'https://example.com/cwf';
   system("git clone $source /tmp/cwf-update");   # shell metachars in $source execute
+                                                 # `/tmp/cwf-update` is illustrative — not a
+                                                 # canonical scratch path; see
+                                                 # .cwf/docs/conventions/tmp-paths.md
   ```
 - **Do instead**: keep the list form as in `cwf-manage:255`. When new env vars are added, route them through the same list-form invocation pattern; any new env var feeding `chmod`/`rm`/`open` paths must canonicalise (`File::Spec->rel2abs`, deny `..`) before use.
 
