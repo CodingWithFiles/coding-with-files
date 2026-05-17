@@ -2,6 +2,23 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 147: retire bootstraps missing CHANGELOG task entry
+
+### Status: Complete (2026-05-17)
+### Duration: 1 session, at the half-day estimate.
+### Impact: Fixes `backlog-manager retire --task=N` so it no longer refuses when CHANGELOG has no `## Task N: <title>` entry. The retire command's stated purpose -- mechanically move an item from BACKLOG to CHANGELOG -- previously required the destination heading to pre-exist; CHANGELOG entries are normally written by `/cwf-retrospective` near task end, so any mid-task retire failed. New behaviour: when no entry exists, `cmd_retire` derives the title deterministically from `implementation-guide/N-<type>-<slug>/`, bootstraps a minimal `## Task N: <title>` entry with placeholder Status/Impact metadata and an empty `### Retired Backlog Items` subsection, then appends the retired block in the same atomic write pass. The bootstrapped stub is additively replaceable by `/cwf-retrospective` (placeholders overwrite to authoritative content). Two new `CWF::Backlog` public helpers (`resolve_task_title_from_dir`, `bootstrap_changelog_entry`) plus one private (`_scan_task_dirs`); 4-line branch swap in `cmd_retire`; one updated AC14 in `t/backlog-manager.t`; 11 new subtests in `t/backlog-bootstrap-changelog.t`; 3 new tree-mutator unit tests in `t/backlog-tree-mutators.t`. CLI surface unchanged; no new flags; existing-entry path byte-equivalent to prior behaviour.
+
+### Notable
+- **Plan-review subagents caught the CHANGELOG-002 validator blocker on the bare stub** in requirements review. Forced the placeholder-metadata approach (`Status: In Progress`, `Impact: Task in progress.`) which satisfies the existing required-keys validator without weakening it.
+- **Direct hashref construction over parse-the-stub** (Misalignment review on impl plan). The original design called `parse_changelog_tree` on a 7-line stub string to extract `entries[0]`; the rewrite builds the hashref directly. Simpler code, no private-API call, TC-U3 round-trips it back through the parser anyway as safety net.
+- **Anchored regex with `\Q$task_num\E` + `quotemeta`'d type alternation** closes the regex-metachar surface even if a future caller bypasses the integer guard. The `supported-task-types` list is read once from `cwf-project.json` and strict-filtered through `qr/\A[a-z][a-z0-9-]{0,31}\z/` before alternation.
+- **Multi-match case refuses without inventing a new flag.** Only the legacy task-1 corpus has three sibling dirs sharing a task number; preserving FR8 (no new flags) costs one clear error message that names the manual workaround.
+- **AC14 in `t/backlog-manager.t` needed rewriting**, not just augmenting -- it asserted the legacy "Task N has no CHANGELOG entry → die" contract that this task explicitly replaces. Caught at first test-run; ~10 min to update. Worth adding "grep tests for contract messages being changed" to the impl-plan checklist.
+- **Security-review subagent skipped at commit time** (606-line changeset >500-line cap, dominated by the 334-line new test file). Manually invoked at user request after the fact; verbatim no-findings result recorded.
+- **Pre-existing `t/backlog-roundtrip-live.t` UTF-8 mangling failure** (`—` → `â` on live BACKLOG.md) reproduced on `main` HEAD prior to task start. Flagged for separate task; not addressed here.
+
+### Retired Backlog Items
+
 ## Task 146: Backlog refactor: retire, merge, reduce
 
 ### Status: Complete (2026-05-17)

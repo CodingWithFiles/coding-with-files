@@ -33,6 +33,7 @@ use CWF::Backlog qw(
     find_all_entries_by_slug find_all_entries_by_title
     find_changelog_entry_by_task_num
     append_retired_block_tree block_exists_in_retired_tree
+    bootstrap_changelog_entry resolve_task_title_from_dir
     trim_blank_lines
     $VALID_PRIORITIES
 );
@@ -461,8 +462,11 @@ sub cmd_retire {
         push @body, "\n", "### $s->{name}\n", @{$s->{body_raw} // []};
     }
 
-    my ($cl_entry) = find_changelog_entry_by_task_num($cl_tree, $task)
-        or die_user("Task $task has no CHANGELOG entry; create the entry first or pick a different --task");
+    my ($cl_entry, $cl_idx) = find_changelog_entry_by_task_num($cl_tree, $task);
+    unless (defined $cl_entry) {
+        my $title = resolve_task_title_from_dir($task);
+        $cl_entry = bootstrap_changelog_entry($cl_tree, $task, $title);
+    }
 
     # CHANGELOG written first so a crash leaves the recoverable state
     # "CHANGELOG-has-block, BACKLOG-still-active" — re-running retire detects

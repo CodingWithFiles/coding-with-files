@@ -25,8 +25,9 @@ use Exporter 'import';
 use Encode qw(decode encode FB_CROAK LEAVE_SRC);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use CWF::Common qw(generate_slug);
+use CWF::Common qw(generate_slug find_git_root);
 use CWF::ArtefactHelpers qw(atomic_write_text);
+use CWF::WorkflowFiles qw(load_config);
 
 our @EXPORT_OK = qw(
     parse_backlog_tree
@@ -45,6 +46,8 @@ our @EXPORT_OK = qw(
     find_changelog_entry_by_task_num
     append_retired_block_tree
     block_exists_in_retired_tree
+    bootstrap_changelog_entry
+    resolve_task_title_from_dir
     validate_backlog_tree
     validate_changelog_tree
     trim_blank_lines
@@ -635,6 +638,99 @@ sub append_retired_block_tree {
     push @block, "\n", "<!-- Note: $note -->\n" if defined $note && length $note;
     push @{$sub->{body_raw}}, @block;
     return 1;
+}
+
+#==============================================================================
+# CHANGELOG bootstrap (mid-task `retire` against a not-yet-written entry)
+#==============================================================================
+#
+# `bootstrap_changelog_entry` constructs a minimal `## Task N: <title>` node
+# in-tree so `cmd_retire` can append its retired block in the same write pass.
+# `resolve_task_title_from_dir` derives the title deterministically from
+# `implementation-guide/N-<type>-<slug>/`; `<type>` is anchored against the
+# project's `supported-task-types` set so a future hyphenated type token does
+# not bleed into the slug capture. Both helpers die_user-style on any
+# precondition failure; `cmd_retire` writes nothing on a failure path.
+
+my @_SUPPORTED_TYPES;
+sub _load_supported_types {
+    return @_SUPPORTED_TYPES if @_SUPPORTED_TYPES;
+    my $cfg = load_config()
+        or die "[CWF] ERROR: backlog-manager: cannot load cwf-project.json\n";
+    my @raw = @{ $cfg->{'supported-task-types'} // [] };
+    @_SUPPORTED_TYPES = grep { /\A[a-z][a-z0-9-]{0,31}\z/ } @raw;
+    die "[CWF] ERROR: backlog-manager: cwf-project.json has no usable "
+      . "'supported-task-types' values\n" unless @_SUPPORTED_TYPES;
+    return @_SUPPORTED_TYPES;
+}
+
+sub _scan_task_dirs {
+    my ($task_num) = @_;
+    my $root = find_git_root()
+        or die "[CWF] ERROR: backlog-manager: not in a git repository\n";
+    my $base = "$root/implementation-guide";
+    opendir(my $dh, $base)
+        or die "[CWF] ERROR: backlog-manager: cannot read $base/: $!\n";
+    my @entries = grep { !/^\.\.?$/ } readdir $dh;
+    closedir $dh;
+    my $types = join('|', map { quotemeta } _load_supported_types());
+    my $re = qr/\A\Q$task_num\E-(?:$types)-(.+)\z/;
+    # Symlink-reject: cosmetic only (no I/O on these paths follows). Kept so a
+    # later helper that reads inside the matched dir inherits the discipline.
+    return grep { /$re/ && !-l "$base/$_" && -d _ } @entries;
+}
+
+sub resolve_task_title_from_dir {
+    my ($task_num) = @_;
+    die "[CWF] ERROR: backlog-manager: invalid task num '"
+      . (defined $task_num ? $task_num : '<undef>') . "'\n"
+        unless defined $task_num && $task_num =~ /^\d+$/;
+    my @matches = _scan_task_dirs($task_num);
+    if (@matches == 0) {
+        die "[CWF] ERROR: backlog-manager: cannot bootstrap CHANGELOG entry "
+          . "for Task $task_num: no directory matching "
+          . "'implementation-guide/$task_num-*/' found\n";
+    }
+    if (@matches > 1) {
+        my $list = join(', ', map { "'$_'" } @matches);
+        die "[CWF] ERROR: backlog-manager: cannot bootstrap CHANGELOG entry "
+          . "for Task $task_num: multiple directories match ($list); "
+          . "manually create '## Task $task_num: <title>' in CHANGELOG.md "
+          . "first, then retry\n";
+    }
+    my $types = join('|', map { quotemeta } _load_supported_types());
+    (my $slug = $matches[0]) =~ s/\A\Q$task_num\E-(?:$types)-//;
+    (my $title = $slug) =~ tr/-/ /;
+    my $bad;
+    if    (length($title) == 0)              { $bad = 'empty' }
+    elsif ($title =~ /:/)                    { $bad = 'contains :' }
+    elsif ($title =~ /[\x00-\x08\x0a-\x1f]/) { $bad = 'contains control character' }
+    if ($bad) {
+        die "[CWF] ERROR: backlog-manager: derived title '$title' violates "
+          . "CHANGELOG heading constraints ($bad)\n";
+    }
+    return $title;
+}
+
+sub bootstrap_changelog_entry {
+    my ($tree, $task_num, $title) = @_;
+    my $entry = {
+        type             => 'Task',
+        task_num         => $task_num + 0,
+        title            => $title,
+        header_lineno    => undef,
+        metadata         => [
+            { key => 'Status', value => 'In Progress',       lineno => undef },
+            { key => 'Impact', value => 'Task in progress.', lineno => undef },
+        ],
+        subsections      => [
+            { name => 'Retired Backlog Items', lineno => undef, body_raw => [] },
+        ],
+        body_raw         => [],
+        body_before_meta => 0,
+    };
+    unshift @{$tree->{entries}}, $entry;
+    return $entry;
 }
 
 sub block_exists_in_retired_tree {

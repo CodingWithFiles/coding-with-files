@@ -789,15 +789,12 @@ Improve error message in `status-aggregator` to clarify that it expects a task n
 ### Identified in: Task 26 testing execution (TC-F11) on a mixed v2.0/v2.1 project
 
 ### Problem
-
 `status-aggregator --workflow` does not show the per-task workflow breakdown for all tasks in mixed-version (v2.0 + v2.1) projects. The trampoline detects a version globally and routes to a single version-specific aggregator; that aggregator then fails to find the wf-files of any task in the other version. TC-F11 from Task 26's testing plan captures the failure mode and is currently marked "KNOWN LIMITATION".
 
 ### Approach
-
 Move version detection per-task rather than per-process. Define a small interface (list_wf_steps, get_task_progress, format_output) and a dispatch table keyed by version. Each `CWF::WorkflowFiles::V20` / `V21` module implements the interface; a single unified `status-aggregator` script iterates tasks, looks up the per-task version, and calls through the dispatch. The trampoline simplifies or goes away.
 
 ### Success Criteria
-
 - [ ] TC-F11 passes: `status-aggregator --workflow` shows workflow files for every task on a mixed-version corpus
 - [ ] All existing tests continue passing
 - [ ] One unified status-aggregator script; no v2.0 / v2.1 split
@@ -805,13 +802,11 @@ Move version detection per-task rather than per-process. Define a small interfac
 - [ ] Net code reduction relative to baseline
 
 ### Files affected
-
 - Create: `.cwf/lib/CWF/WorkflowFiles/Dispatch.pm`
 - Modify: `.cwf/lib/CWF/WorkflowFiles/V20.pm`, `V21.pm` (implement the interface)
 - Modify or unify: `.cwf/scripts/command-helpers/status-aggregator{,-v2.0,-v2.1}`
 
 ### Scope note
-
 Significant refactor touching the status-aggregation core. Workaround exists (task-specific queries via `/cwf-status <num>`); the gap is only the workflow-overview path. Detailed dispatch-table and Perl code design belongs in the eventual task's c-design / d-implementation phases, not in BACKLOG.
 
 ## Task: Audit CWF Skills for Hardcoded Data
@@ -1205,3 +1200,57 @@ Task 143 needed a synthetic upstream commit (renamed agent file) to exercise TC-
 ### Identified in: Task 144 retrospective (j-retrospective.md Â§ Recommendations Â§ Process Improvements)
 
 The planning-phase skill templates (cwf-task-plan, cwf-implementation-plan, cwf-testing-plan) consistently emit `**Status**: Planning` in their suggested wf-step-file body, but `Planning` is not in the canonical `status-values` map in `implementation-guide/cwf-project.json` (which currently enumerates Backlog/Blocked/Cancelled/Finished/In Progress/Skipped/Testing/To-Do). Every task using these skills hits a 3-violation validate-fail on first run and has to manually correct to a canonical value. Resolution options: (i) add `Planning` (and possibly `Testing-plan` etc.) to the canonical set with appropriate progress weights, or (ii) patch the skill templates to default to an existing value such as `In Progress`. Pick one. Identified in Task 144 retrospective (j-retrospective.md Â§ Recommendations).
+
+## Task: Unify implementation-guide directory-scan helpers across CWF::Backlog and CWF::TaskContextInference
+
+### Task-Type: chore
+### Priority: Low
+### Identified in: Task 147 c-design D1 (Out of Scope)
+
+Three slightly different `implementation-guide/N-*-*` directory scans now exist across two modules: `CWF::Backlog::_scan_task_dirs` (Task 147 — strict, returns all matches, anchors `<type>` against `supported-task-types`), and `CWF::TaskContextInference::_get_task_slug` (`:491-509`) / `_get_task_dir` (`:560-578`) (best-effort, first-match). Contracts differ (strict-or-die vs best-effort-first) but the scan primitive (opendir + filter on `\AN-<type>-<slug>\z`) is the same.
+
+Worth promoting the primitive into a small `CWF::TaskDir` module exposing a single `scan_task_dirs($task_num)` returning `(@matches)` plus two thin wrappers preserving the two existing contracts. Keeps the supported-task-types regex anchoring in one place, eliminates the three-scan drift surface, and lets future helpers share a single discipline (symlink rejection, anchored type alternation, `\Q$task_num\E` quoting).
+
+Out of scope for Task 147 — the new scan was intentionally factored only within `Backlog.pm` to avoid scope creep on the user-facing fix.
+
+## Task: Investigate UTF-8 mangling in backlog-roundtrip-live test against live BACKLOG.md
+
+### Task-Type: bugfix
+### Priority: Medium
+### Identified in: Task 147 retrospective (j-retrospective.md)
+
+`t/backlog-roundtrip-live.t::TC-ROUNDTRIP-LIVE-BACKLOG` fails on the live BACKLOG.md with UTF-8 character mangling: characters like `—` (U+2014) and `§` (U+00A7) get rewritten as `â` and `Â§` on round-trip. Reproduced on `main` HEAD as of 2026-05-17, prior to any Task 147 changes. The test reads the file, parses with `parse_backlog_tree`, serialises with `serialize_tree`, encodes back to UTF-8, and compares to the original bytes. Output shows truncated multi-byte UTF-8 sequences — looks like serialize_tree is operating on byte strings (not codepoints) somewhere along the way, or the decode chain is single-byte under one code path.
+
+Investigation candidates: `_read_file_with_global_checks` (uses `<:raw>` + explicit `decode(...)`), the `for ($i = 0; $i < @$lines; $i++)` loop in `_parse_tree` (does `$line` carry decoded text?), and `_serialize_entry`'s string concatenation. The other 5 backlog test files (mutators, parse, validate, manager, manager-argv-utf8) pass, so the round-trip-against-live-file path is the specific failure surface.
+
+Surfaced by Task 147 at f-step-1 baseline test run.
+
+## Task: Tune 500-line security-review cap so test files do not dominate
+
+### Task-Type: chore
+### Priority: Low
+### Identified in: Task 147 retrospective (j-retrospective.md)
+
+The 500-line cap on the security-review subagent's input (set in `.cwf/docs/skills/security-review.md` and applied by exec-phase SKILLs) is meant to keep the subagent's context window manageable. In practice the cap fires on test-heavy changes where the production delta is small — Task 147's production diff was ~120 lines (`Backlog.pm` helpers + 4-line `cmd_retire` branch), but the new test file `t/backlog-bootstrap-changelog.t` alone added 334 lines, pushing the total to 606. The exec SKILL classifies this as `error` and skips the subagent; the human is left to either split (often not viable for a single logical change) or perform manual review.
+
+Two reasonable options:
+1. Have `.cwf/scripts/command-helpers/security-review-changeset` exclude (or 0.5x weight) paths matching `^t/` or `^tests/` from the line-count tally that drives the cap decision. The diff would still include the test files (review covers them), but the cap would key off production volume.
+2. Add a configurable per-phase override in `cwf-project.json` so users can tune the cap.
+
+Option 1 is the smaller surface change; the cap stays in one place (the helper) and SKILLs keep their current "ask the helper" contract. Option 2 is more flexible but adds a config knob to maintain.
+
+Identified in Task 147 retrospective (j-retrospective.md § Recommendations).
+
+## Task: Plan-review or impl-plan should grep existing tests for contract-message strings being changed
+
+### Task-Type: chore
+### Priority: Low
+### Identified in: Task 147 retrospective (j-retrospective.md)
+
+Task 147's implementation plan didn't catch that AC14 in `t/backlog-manager.t` asserted the old "Task N has no CHANGELOG entry → die" contract that this task explicitly replaces per FR1. The test broke on first post-implementation run; ~10 min to update. The plan-review subagents (Improvements/Misalignment/Robustness) caught several other defects but didn't flag this one because they review the plan against the codebase abstractly, not against the existing test corpus by message content.
+
+Proposed: add a step to either the implementation-plan checklist or the plan-review subagent prompts that says "grep all `t/*.t` files for any string literals referenced as the existing contract being changed (specifically: assertion regexes that pin error messages or behaviour the task changes); enumerate each match in the plan as either 'remains valid' or 'needs update'."
+
+The pattern generalises beyond Task 147: any task that changes a user-facing message, error contract, or exit code potentially has tests that pin the old form. Catching them at plan-review time costs minutes; catching them at exec time costs a re-plan or a test-file edit.
+
+Identified in Task 147 retrospective (j-retrospective.md § Recommendations).

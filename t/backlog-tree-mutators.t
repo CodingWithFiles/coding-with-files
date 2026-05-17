@@ -17,6 +17,7 @@ use CWF::Backlog qw(
     find_all_entries_by_slug find_all_entries_by_title
     find_changelog_entry_by_task_num
     append_retired_block_tree block_exists_in_retired_tree
+    bootstrap_changelog_entry
     validate_backlog_tree validate_changelog_tree
 );
 
@@ -177,6 +178,66 @@ subtest 'TC-MUT-retired-dedup' => sub {
     is(block_exists_in_retired_tree($e, 'Some Item'), 1, 'found after append');
     is(block_exists_in_retired_tree($e, 'some item'), 1, 'case-insensitive');
     is(block_exists_in_retired_tree($e, 'Other'), 0, 'unrelated title absent');
+};
+
+#==============================================================================
+# TC-U1: bootstrap_changelog_entry — empty-tree bootstrap (Task 147)
+#==============================================================================
+subtest 'TC-U1: bootstrap on empty CHANGELOG tree' => sub {
+    plan tests => 6;
+    my $path = write_tmp("# Changelog\n");
+    my ($tree, $g) = parse_changelog_tree($path);
+    is(scalar @{$tree->{entries}}, 0, 'starts empty');
+    my $e = bootstrap_changelog_entry($tree, 50, 'something');
+    is(scalar @{$tree->{entries}}, 1, 'one entry after bootstrap');
+    is($e->{task_num}, 50,          'task_num set');
+    is($e->{title},    'something', 'title set');
+    is_deeply([map { $_->{key} } @{$e->{metadata}}], ['Status', 'Impact'],
+        'metadata keys present in order');
+    my @sub_names = map { $_->{name} } @{$e->{subsections}};
+    is_deeply(\@sub_names, ['Retired Backlog Items'],
+        'single Retired Backlog Items subsection');
+};
+
+#==============================================================================
+# TC-U2: bootstrap inserts at index 0 against existing entries
+#==============================================================================
+subtest 'TC-U2: bootstrap inserts at index 0' => sub {
+    plan tests => 4;
+    my $cl = join('',
+        "# Changelog\n\n",
+        "## Task 100: Existing One\n\n",
+        "### Status: Complete\n### Impact: x\n", "\n",
+        "## Task 50: Existing Two\n\n",
+        "### Status: Complete\n### Impact: y\n",
+    );
+    my $path = write_tmp($cl);
+    my ($tree, $g) = parse_changelog_tree($path);
+    is(scalar @{$tree->{entries}}, 2, 'two existing entries');
+    bootstrap_changelog_entry($tree, 200, 'x');
+    is($tree->{entries}[0]{task_num}, 200, 'new entry at index 0');
+    is($tree->{entries}[1]{task_num}, 100, 'task 100 shifted down');
+    is($tree->{entries}[2]{task_num}, 50,  'task 50 still last');
+};
+
+#==============================================================================
+# TC-U3: bootstrap → serialise → parse round-trip preserves entry shape
+#==============================================================================
+subtest 'TC-U3: bootstrap serialise/parse round-trip' => sub {
+    plan tests => 5;
+    my $path = write_tmp("# Changelog\n");
+    my ($tree, $g) = parse_changelog_tree($path);
+    bootstrap_changelog_entry($tree, 147, 'retire bootstraps missing changelog task entry');
+    my $serialised = serialize_tree($tree);
+    my $path2 = write_tmp($serialised);
+    my ($t2, $g2) = parse_changelog_tree($path2);
+    is(scalar @{$t2->{entries}}, 1, 'one entry after round-trip');
+    my $e2 = $t2->{entries}[0];
+    is($e2->{task_num}, 147, 'task_num preserved');
+    is($e2->{title},    'retire bootstraps missing changelog task entry',
+        'title preserved');
+    is(metadata_get($e2, 'Status'), 'In Progress', 'Status preserved');
+    is(metadata_get($e2, 'Impact'), 'Task in progress.', 'Impact preserved');
 };
 
 done_testing;

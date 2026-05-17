@@ -680,10 +680,21 @@ subtest 'AC13b: retire --note rejects forbidden content' => sub {
 # AC14 — retire missing CHANGELOG entry
 #==============================================================================
 
-subtest 'AC14: retire fails when implementing-task CHANGELOG entry missing' => sub {
+subtest 'AC14: retire bootstrap path refuses + no-write when no task dir matches' => sub {
+    # Task 147 replaces the old "no CHANGELOG entry → die" contract with a
+    # bootstrap path that derives the entry from
+    # `implementation-guide/N-<type>-<slug>/`. When that directory does not
+    # exist, retire MUST refuse and write nothing — same no-write invariant as
+    # the original AC14 contract.
     plan tests => 4;
     my $dir = make_isolated('BACKLOG.md' => $VALID_BACKLOG_MIN, 'CHANGELOG.md' => $VALID_CHANGELOG);
-    # Capture both file contents before
+    # Provide a minimal cwf-project.json so _load_supported_types can resolve;
+    # leave implementation-guide/ empty so the scan returns zero matches.
+    mkdir "$dir/implementation-guide" or die "mkdir: $!";
+    open(my $fh, '>', "$dir/implementation-guide/cwf-project.json") or die "open: $!";
+    print $fh '{"supported-task-types":["feature","bugfix","hotfix","chore","discovery"]}';
+    close $fh;
+
     my $bl_before = _slurp("$dir/BACKLOG.md");
     my $cl_before = _slurp("$dir/CHANGELOG.md");
 
@@ -691,7 +702,8 @@ subtest 'AC14: retire fails when implementing-task CHANGELOG entry missing' => s
         '--id=sample-active-entry', '--task=999',  # no Task 999 in CHANGELOG
     );
     is($rc, 1, 'exit 1');
-    like($err, qr/Task 999 has no CHANGELOG entry/, 'error names the missing task');
+    like($err, qr/cannot bootstrap CHANGELOG entry for Task 999.*no directory matching/,
+        'error names the bootstrap failure');
 
     # Both files unchanged
     is(_slurp("$dir/BACKLOG.md"), $bl_before, 'BACKLOG unchanged');
