@@ -81,6 +81,12 @@ The Coding with Files (CWF) system v2.0 is **implemented and operational**. Core
 - Narrow carve-out (4 invariants) for dedicated hash-fix tasks
 - What NOT to build: any surface that silences `cwf-manage validate` without surfacing first
 
+**Session Hygiene**: When to `/clear`, when to `/compact` and what to preserve, how to keep memory salient across sessions, and how to re-derive workflow state on resume. See `.cwf/docs/conventions/session-hygiene.md` for:
+- Triggering conditions for `/clear` and `/compact` (vs auto-compaction)
+- Preservation list explicitly including standing security rules from CLAUDE.md `## Critical Rules` and MEMORY.md
+- Inline "surface, never smooth" principle covering `/clear`-as-gate-bypass and compaction-induced rule loss
+- On session-resume: re-derive current wf step from on-disk task files, not from the resumed conversation
+
 ## Architecture Overview
 
 **Hierarchical Workflow System (v2.0)**: Eight lettered workflow steps (a-h) guide tasks from planning through retrospective. Non-linear state machine with dynamic transitions based on step outcomes. Universal decomposition signals (5 criteria) guide task breakdown into subtasks.

@@ -2,6 +2,24 @@
 
 Future tasks and improvements for the Coding with Files system.
 
+## Task: Plan-time helper-path verification gate
+
+### Task-Type: chore
+### Priority: Low
+### Status: Follow-up from Task 150
+### Identified in: Task 150 j-retrospective.md §Recommendations / §What Could Be Improved
+
+Add a plan-review pass (or a small helper invoked from the plan-review skill) that resolves any `.cwf/scripts/...` path referenced in a d-implementation-plan against the filesystem at plan time. Task 150's d-plan referenced `.cwf/scripts/command-helpers/cwf-manage`, but the actual helper lives at `.cwf/scripts/cwf-manage` (one level up). The plan-review subagents reviewed plan *logic* and missed the path-existence defect because helper-path verification is a separate dimension. Scope: grep d-plan for path patterns matching `.cwf/scripts/[^ ]+` (or similar), `test -x` each one, surface mismatches as a plan-review finding. Cheap; mechanical; complementary to the existing 4-subagent map/reduce. Optionally extend to b/c/d plan phases uniformly.
+
+## Task: Mechanical detection of `echo "EXIT: $?"` / `echo "exit=$?"` bash habit
+
+### Task-Type: chore
+### Priority: Low
+### Status: Follow-up from Task 150
+### Identified in: Task 150 j-retrospective.md §What Could Be Improved
+
+The `[[feedback_no_echo_exit]]` memory entry exists, but the bash-habit leak still occurred twice during Task 150 exec phases. Surface-level review of memory entries does not prevent the habit from firing on autopilot. A mechanical detector would close the gap: e.g. a post-Bash-call hook that greps the command for `;\s*echo\s+["']?(?:EXIT|exit)\s*[:=]?\s*\$\?` and either blocks (strict) or surfaces (advisory) the pattern, citing the feedback memory. Out-of-scope alternatives: lifting the rule into CLAUDE.md `## Conventions` (more bulk in always-loaded surface); waiting for the harness to detect this class (not under CWF control). Lowest-friction option is an in-repo bash-call linter or a Stop-hook check.
+
 ## Task: Make `.claude/agents/cwf-plan-reviewer-misalignment.md` enforced-permission survive git checkout
 
 ### Task-Type: chore
@@ -873,24 +891,6 @@ Analyse conversation history via LMM memory MCP to determine how often compactio
 4. Assess frequency and impact
 5. If frequent: recommend specific compaction instructions for CLAUDE.md
 6. If rare: deprioritise
-
-## Task: Add Session Hygiene Guidance to CWF Documentation
-
-### Task-Type: chore
-### Priority: Medium
-### Status: Backlog
-### Problem: No guidance currently exists on when to clear context, when to continue sessions, or how to manage long-running CWF workflows. Best practices are clear: `/clear` between unrelated tasks, `/clear` after 2 failed corrections on the same issue, continue when deep in one problem or during iterative refinement.
-### Scope: 
-### Identified in: Claude Code best practices analysis (2026-04-16)
-
-Add guidance on Claude Code session management to CWF documentation, helping users maintain effective context across workflow phases.
-
-
-- Add session hygiene section to `.cwf/docs/workflow/` or CLAUDE.md
-- Document when to `/clear` (between tasks, after repeated corrections)
-- Document when to continue (mid-phase, iterative refinement)
-- Document `/compact` with CWF-specific preservation instructions
-- Installed documentation only — no code changes
 
 ## Task: Replace Backtick Operators with IPC::Open3 in cwf-manage
 

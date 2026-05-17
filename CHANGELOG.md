@@ -2,6 +2,24 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 150: session hygiene guidance from past deviations
+
+### Status: Complete (2026-05-17)
+### Duration: ~2–3 hours wall-clock active work in a single calendar day, vs. 2–4 hour estimate. Within range.
+### Impact: Adds `.cwf/docs/conventions/session-hygiene.md` (59 lines, 4 content sections + tail) covering `/clear` triggering conditions (≥3 bullets, ≥2 citing audit-table P-numbers), `/compact` vs auto-compaction with a preservation list explicitly including "standing security rules from CLAUDE.md `## Critical Rules` and MEMORY.md", on-resume memory salience + workflow-state re-derivation from on-disk `a-task-plan.md` through `j-retrospective.md` Status fields, and an inline "surface, never smooth" security principle with `recompute-hashes` / `validate --fix` / `validate --ignore` / `/clear`-as-gate-bypass / compaction-induced rule loss enumerated as defender-framed anti-patterns. Single advertised consumer wired into `CLAUDE.md` `## Conventions` after `**Hash Updates**` — survives `/compact` boundaries because CLAUDE.md is reloaded fresh per turn (structural mechanism, not "compaction preserves the bullet"). Discovery-task workflow: evidence-based audit (P1–P5 from retrospectives + memory files; LMM corpus unavailable this session and recorded as R-LMM follow-up) → c-design fixed doc shape against tier-sizing data → d-implementation specified exact anchors and validation gates → e-testing defined 16 TCs with partial-match-vs-exact-line pass-condition semantics throughout. All 16 TCs pass (15 mechanical + 1 manual NFR4.3 defender-framing attestation).
+
+### Notable
+- **Plan-review map/reduce earned its keep across all three plan phases.** Caught M1 wiki-link misalignment in a-task-plan (fixed in b-phase commit), the D2 structural-mechanism reframe (CLAUDE.md is reloaded per turn, not preserved by compaction summarisation), the workflow-state authoritativeness FR (Security F3 → FR3.AC3.3 re-derive from on-disk task files), the inline-principle requirement (Security F1 → NFR4.1, because the principle's prior residence is operator-private memory and unverifiable from session), and the load-bearing self-application risk (F5 on c-design → AC4.6 — the doc documents a failure mode that affects itself).
+- **Sparse-signal contingency was actually invoked and behaved correctly.** LMM corpus unavailable (`mcp__lmm__search_semantic` returned `User not found`) → fall back to retrospectives + memory files → still meet ≥3-pattern threshold (4 clear + 1 named residue). The a-plan threshold was real, not theatre.
+- **Defender-framing first-filter regex auto-passed by construction.** The doc's `/clear` mentions are wrapped in backticks (`` `/clear` ``) or followed by hyphens (`/clear`-as-gate-bypass), so `/clear\s+(escape|...)` never fires. "compaction-induced rule loss" puts "rule" before "loss" with "loss" outside the regex's verb set. Defender-framed phrasing produced filter-clean output without contortions.
+- **One plan-text defect**: d-plan referenced `.cwf/scripts/command-helpers/cwf-manage`; actual helper path is `.cwf/scripts/cwf-manage` (one level up). Corrected at exec time, no behaviour impact. Plan-review subagents reviewed plan logic, not helper-path existence — surfaced as a plan-time check worth adding (see follow-up BACKLOG).
+- **`backlog-manager retire` is the right shape.** Atomic BACKLOG removal + CHANGELOG append in one operation; idempotent-ish; clean exit. The retrospective-time fill-in for Status/Duration/Impact happens in-task as part of the standard j-phase CHANGELOG update flow.
+
+### Retired Backlog Items
+#### Add Session Hygiene Guidance to CWF Documentation
+
+Original ask: "Add guidance on Claude Code session management to CWF documentation, helping users maintain effective context across workflow phases." Implemented as the discovery-task workflow described above; canonical doc lives at `.cwf/docs/conventions/session-hygiene.md` with the always-reloaded CLAUDE.md preamble as the advertised consumer.
+
 ## Task 149: Fix Task 147 hash drift, clarify hash rule
 
 ### Status: Complete (2026-05-17)
