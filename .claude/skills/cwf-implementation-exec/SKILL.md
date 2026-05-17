@@ -14,6 +14,7 @@ allowed-tools:
 
 1. **Run `git status` before every checkpoint commit**: `git diff` only shows unstaged changes to already-tracked files. New files created during the phase (workflow files, helper scripts, generated docs) and tracked files that were modified but never staged are easy to miss, and the commit will silently exclude them. Always inspect `git status` for untracked or unstaged entries before staging.
 2. **After any rename or string substitution, verify both source and generated output**: A clean source grep is not proof the change is complete — stale strings persist in artefacts produced from templates, script-emitted text, or rendered documentation. After renaming, grep the entire codebase for the old string, then generate at least one sample output artefact and grep that too. Both checks are required; neither is sufficient alone.
+3. **Editing a hash-tracked file requires an in-task hash refresh**: any source change to a file listed in `.cwf/security/script-hashes.json` (typically paths under `.cwf/scripts/`, `.cwf/lib/CWF/`, `.claude/agents/`, `.claude/hooks/`, `.claude/rules/`) MUST refresh the matching `sha256` entry in the same commit. See `.cwf/docs/conventions/hash-updates.md`. Deferring the refresh — even to "the next task" or retrospective — defeats the integrity check.
 
 ## Scope & Boundaries
 

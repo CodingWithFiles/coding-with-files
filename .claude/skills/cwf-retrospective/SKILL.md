@@ -14,6 +14,7 @@ allowed-tools:
 1. **Stale status fields**: Before writing j-retrospective.md, run `workflow-manager status {task_num} --workflow` and fix any non-terminal statuses. The stop-stale-status-detector hook catches Backlog only; this manual sweep catches In Progress too. This is the most recurring workflow error.
 2. **Never execute merge to main**: Step 10 says "Suggest Merge" — output the merge command for the user to run, never execute it yourself. Merges are a human decision.
 3. **Don't skip the retrospective**: After testing-exec (g), complete all remaining workflow phases before starting new work. Jumping to new tasks or backfilling phases after the fact leaves the current task incomplete and workflow docs inaccurate.
+4. **Do not absorb hash drift at retrospective time**: if `cwf-manage validate` reports `sha256` drift, the fix belongs in the task that originally modified the file, in-diff (see `.cwf/docs/conventions/hash-updates.md`). Recomputing a hash during retrospective to clear validate output silently signs whatever shape the file has now. Surface the drift instead; either re-open the originating task or schedule a dedicated follow-up task (the Task 149 pattern).
 
 ## Scope & Boundaries
 

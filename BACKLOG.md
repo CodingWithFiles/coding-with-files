@@ -2,6 +2,15 @@
 
 Future tasks and improvements for the Coding with Files system.
 
+## Task: Make `.claude/agents/cwf-plan-reviewer-misalignment.md` enforced-permission survive git checkout
+
+### Task-Type: chore
+### Priority: Medium
+### Status: Follow-up from Task 149
+### Identified in: Task 149 a-task-plan.md §Constraints, j-retrospective.md §Future Work
+
+`.cwf/security/script-hashes.json` requires permissions `0444` on `.claude/agents/cwf-plan-reviewer-misalignment.md`, but `cwf-manage validate` reports `Actual: 0600` and the violation persists after every fresh clone or branch switch. Root cause: git tracks only the executable bit, so `chmod 0444` doesn't survive `git checkout`. This is structural — separate from any source-edit drift the file might have. Resolution options: (a) change the expected permission in `script-hashes.json` to `0644` or `0664` (match what git can actually preserve), (b) move permission-enforcement out of `cwf-manage validate` for non-executable text files, (c) install a post-checkout hook that re-applies the recorded permission. (a) is the lowest-cost option but should be considered against whether the read-only invariant is actually load-bearing for this agent file. Task 149's a-plan explicitly excluded this from its scope; the convention doc on hash updates is intentionally orthogonal to the permission-bit question.
+
 ## Task: Tighten AC4-style grep gates to "metadata position only"
 
 ### Task-Type: chore

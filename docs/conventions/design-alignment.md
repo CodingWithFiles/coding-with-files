@@ -78,6 +78,8 @@ Before committing a rename of any artefact in §1:
 
    Validate exits non-zero on broken symlinks and on stale
    `script-hashes.json` entries; both are common rename casualties.
+   When a rename or edit touches a hashed file, refresh the entry
+   in the same commit — see `.cwf/docs/conventions/hash-updates.md`.
 
 4. **`cwf-manage` and its subcommands**: see *Deprecation* below;
    these are not in-repo references only.

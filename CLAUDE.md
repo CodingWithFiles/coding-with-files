@@ -75,6 +75,12 @@ The Coding with Files (CWF) system v2.0 is **implemented and operational**. Core
 - Mandatory `mkdir -m 0700` first-use guard (symlink-attack defence)
 - Derivation snippet and worked examples
 
+**Hash Updates**: Hash refreshes to `.cwf/security/script-hashes.json` happen in the same task — and same commit — as the underlying file modification. See `.cwf/docs/conventions/hash-updates.md` for:
+- Plan-time disclosure rule for hashed-file edits
+- Per-file pre-refresh `git log` verification
+- Narrow carve-out (4 invariants) for dedicated hash-fix tasks
+- What NOT to build: any surface that silences `cwf-manage validate` without surfacing first
+
 ## Architecture Overview
 
 **Hierarchical Workflow System (v2.0)**: Eight lettered workflow steps (a-h) guide tasks from planning through retrospective. Non-linear state machine with dynamic transitions based on step outcomes. Universal decomposition signals (5 criteria) guide task breakdown into subtasks.

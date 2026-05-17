@@ -2,6 +2,22 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 149: Fix Task 147 hash drift, clarify hash rule
+
+### Status: Complete (2026-05-17)
+### Duration: ~17 min wall-clock from a-checkpoint to g-checkpoint, across 5 exec-phase commits, vs. ~1 hour estimate. Variance −72%.
+### Impact: Refreshes the two sha256 entries Task 147 deferred — `CWF::Backlog.pm` (`8c4bd187…ebdb85c` → `375ce811…49b7e7`) and `backlog-manager` (`1b360005…62e0b6b5c3` → `f9045c72…931fce9e`) — in-diff, after per-file `git log` verification confirmed each file's drift was a single commit (`246e6c4`, Task 147). Codifies the in-task hash-update rule in a new convention doc (`.cwf/docs/conventions/hash-updates.md`, 49 lines) covering Convention, Why, How (mechanical), Plan-time disclosure, Pre-refresh verification (per-file baselines, not assumed-shared), a four-invariant carve-out for dedicated hash-fix tasks, "What NOT to build" as a principle (forbids any surface that silences `cwf-manage validate` without surfacing first — covers `recompute-hashes`, auto-update hook, `validate --fix`, `--ignore=<path>`, `--baseline=HEAD`), and Task 147 as the historical example with Tasks 139/140 as positive controls. Four advertised consumers now link the doc: `cwf-implementation-exec` SKILL Gotcha 3, `cwf-retrospective` SKILL Gotcha 4 ("do not absorb hash drift at retrospective time"), `CLAUDE.md` `## Conventions` entry, `docs/conventions/design-alignment.md` cross-reference next to the existing `script-hashes.json` guidance. Validate now clean for the two Task 147 entries; the misalignment-agent permission violation (out of scope per a-plan §Constraints) is the only remaining `[SECURITY]` line.
+
+### Notable
+- **Robustness plan-review caught the shared-baseline assumption (F1)**. The first d-plan draft used a single baseline `7500aef` (Task 137) across both hashed paths. Investigation showed Tasks 139/140 had each touched `backlog-manager` and refreshed its hash in-task — a shared baseline would have over-included three commits when only one was actually drifted on Backlog.pm. Fixed before exec: per-file baselines `4f47494` for `Backlog.pm` and `f833bbf` for `backlog-manager`. The lesson is now encoded in the convention doc's `§Pre-refresh verification` as the load-bearing phrase "per file, not assumed-shared baselines."
+- **The four-invariant carve-out is structural, not advisory**. A future "dedicated hash-fix task" can only claim the carve-out if all four conditions hold simultaneously: named drifted entries, per-file `git log` verification, no other source edits, originating commit(s) named. Self-applied labels don't work — Robustness F4 and Security F1 hardened this together.
+- **"What NOT to build" reframed as principle, not enumeration (Security F3)**. Original draft listed specific anti-patterns (`recompute-hashes`, `--fix`, `--ignore`, `--baseline`); the rewrite leads with the principle ("any tool, flag, or mode whose effect is to silence `cwf-manage validate` output without first surfacing it to a human is forbidden") and treats the list as concrete examples. New smoothing surfaces fall under the prohibition even when not enumerated.
+- **The Task 148 retrospective's deliberate orphaning of the side-quest was the right structural choice in retrospect.** Leaving the drift visible to validate between Tasks 148 and 149 made the failure mode tangible enough to write a rule for. If Task 148 had absorbed the fix, the convention doc would lack its concrete historical example.
+- **String-anchor Edits, not line-number Edits, for SKILL/agent files (Misalignment F3 + Robustness F2).** Both SKILL.md insertions anchor on `## Scope & Boundaries`; insertions of new Gotchas elsewhere won't shift these anchors. Worth lifting into a CLAUDE.md note if any future task hits the same problem.
+
+### Retired Backlog Items
+None — Task 149 was added as urgent very-high-priority directly from the Task 148 retrospective Future Work, not via a pre-existing BACKLOG entry.
+
 ## Task 148: Document Dead Code Audit Methodology
 
 ### Status: Complete (2026-05-17)

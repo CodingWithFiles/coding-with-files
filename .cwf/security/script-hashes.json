@@ -57,7 +57,7 @@
     },
     "CWF::Backlog" : {
       "path" : ".cwf/lib/CWF/Backlog.pm",
-      "sha256" : "8c4bd18725779e3c0fc2edc4cea25d66a1d9c54e8b5819cf4e20fcf00ebdb85c"
+      "sha256" : "375ce811ecb4f507e304075c96bd99393f75a93ccc09085ece1124b16849b7e7"
     },
     "CWF::Common" : {
       "path" : ".cwf/lib/CWF/Common.pm",
@@ -194,7 +194,7 @@
     "backlog-manager" : {
       "path" : ".cwf/scripts/command-helpers/backlog-manager",
       "permissions" : "0500",
-      "sha256" : "1b3600053d07dc6104a76b62c045792432322118dd455472115e5162e0b6b5c3"
+      "sha256" : "f9045c722c469eaacb2afeeb60d965fb0d43a35d892fc7239f6c8d35931fce9e"
     },
     "cwf-claude-settings-merge" : {
       "path" : ".cwf/scripts/command-helpers/cwf-claude-settings-merge",
