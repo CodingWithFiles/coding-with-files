@@ -12,7 +12,7 @@ allowed-tools:
 ## Gotchas
 
 1. **Stale status fields**: Before writing j-retrospective.md, run `workflow-manager status {task_num} --workflow` and fix any non-terminal statuses. The stop-stale-status-detector hook catches Backlog only; this manual sweep catches In Progress too. This is the most recurring workflow error.
-2. **Never execute merge to main**: Step 10 says "Suggest Merge" — output the merge command for the user to run, never execute it yourself. Merges are a human decision.
+2. **Never execute merge to main**: Step 12 suggests the merge — output the command for the user to run, never execute it yourself. Merges are a human decision.
 3. **Don't skip the retrospective**: After testing-exec (g), complete all remaining workflow phases before starting new work. Jumping to new tasks or backfilling phases after the fact leaves the current task incomplete and workflow docs inaccurate.
 4. **Do not absorb hash drift at retrospective time**: if `cwf-manage validate` reports `sha256` drift, the fix belongs in the task that originally modified the file, in-diff (see `.cwf/docs/conventions/hash-updates.md`). Recomputing a hash during retrospective to clear validate output silently signs whatever shape the file has now. Surface the drift instead; either re-open the originating task or schedule a dedicated follow-up task (the Task 149 pattern).
 
@@ -54,7 +54,7 @@ allowed-tools:
 **Step 11**: Tag version. Run `.cwf/scripts/command-helpers/cwf-version-tag --task-num={current_task_num} --message="Task {current_task_num}"` after the squash so any tag points at the final commit. Honours `wf_step_config.retrospective.tag_version` (default: false — CwF itself never tags from the script; tagging is human-only per `CLAUDE.md`). External adopters with `tag_version: true` get the annotated tag.
 
 **Step 12 (Next Steps)**:
-- **Primary**: Suggest merge to user (do not execute): `git checkout main && git merge --ff-only <task-branch>`
+- **Primary**: Suggest merge to user (do not execute). Read `.cwf/docs/skills/retrospective-extras.md#suggest-merge-step-12` for the derivation rule (covers top-level and subtask cases).
 - **Alt**: Create follow-up tasks, share learnings
 
 ## Success Criteria

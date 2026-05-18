@@ -73,7 +73,7 @@ The `cwf-retrospective` skill invokes the helpers in this order:
 3. Stage both `j-retrospective.md` and `cwf-project.json`; checkpoint commit
 4. Squash the task's checkpoint commits into the final commit on the checkpoints branch
 5. **`cwf-version-tag --task-num={current_task_num} --message="Task {N}"`** — tags the squashed commit (or no-op if disabled)
-6. Suggest the merge to main to the user (human action)
+6. Suggest the merge to the parent (parent task branch for subtasks; trunk for top-level tasks) — human action
 
 `bump` runs **before** the squash so the `last_released` change is part of
 the final commit. `tag` runs **after** the squash so the tag points at the

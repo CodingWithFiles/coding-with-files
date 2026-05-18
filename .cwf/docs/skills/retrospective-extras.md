@@ -117,7 +117,19 @@ Confirm all checkpoint commits preserved on checkpoints branch.
 
 (Step 11 — `cwf-version-tag` — runs after the squash; see SKILL.md)
 
-```bash
-git checkout main
-git merge --ff-only {task-branch}
-```
+Derive the merge target from the current task's position in the hierarchy:
+
+1. Run `context-manager hierarchy <task-path> --format=json`. Read `parent_path` and (for the current task's branch name) `task_type`, `task_num`, `task_slug`. The current task branch is `<task_type>/<task_num>-<task_slug>`.
+2. If `parent_path` is empty, the task is top-level. Target is `main`. Suggest:
+   ```bash
+   sleep 1 && git checkout main && git merge --ff-only <current-task-branch>
+   ```
+3. If `parent_path` is non-empty, the task is a subtask. Run `context-manager hierarchy <parent_path> --format=json`; read the parent's `task_type`, `task_num`, `task_slug`. Parent branch is `<type>/<num>-<slug>`. Suggest:
+   ```bash
+   sleep 1 && git checkout <parent-branch> && git merge --ff-only <current-task-branch>
+   ```
+4. If the step-3 helper call exits non-zero, print the helper's stderr and the raw `parent_path` value; do **not** emit a `git checkout` line. The user investigates (renamed/missing parent directory) before retrying.
+
+The `sleep 1 && git` prefix is required because Claude Code spawns a background `git` process that briefly holds `.git/index.lock`; the prefix lets users paste the suggestion directly into Claude Code's Bash tool without the lock race. Scope: Bash-tool git calls and user-facing suggested git ff merge commands only.
+
+*Maintainer note: output is for human paste only. If this is ever lifted into a helper that executes the command, switch to list-form `system()` to keep slug interpolation safe.*

@@ -1266,3 +1266,21 @@ Task 151 audit identified ~7,964 cross-doc references that diverge from the cano
 - A re-run of Task 151's `audit.pl` should serve as the verification gate: divergence count should drop monotonically with each migration commit, ending at ≤ 100 (residual: bold × path skill-header idiom, ambiguous narrative-vs-reference cases, and any template carve-outs).
 
 Audit script preserved at: `implementation-guide/151-discovery-consolidate-cross-doc-reference-patterns/f-implementation-exec.md` (## Audit Script Source section).
+
+## Task: Promote sleep 1 && git prefix to a referenced convention doc
+
+### Task-Type: chore
+### Priority: Low
+### Status: Follow-up from Task 152
+### Identified in: Task 152 c-design-plan.md §Decision 3, §Follow-ups
+
+Promote the `sleep 1 && git` prefix convention from MEMORY.md/global CLAUDE.md (both maintainer-local) into a referenced convention doc under `.cwf/docs/conventions/` (e.g. `sleep-git-prefix.md`) so installed skills can reference one place instead of copy-pasting the rule. Task 152 was the first wf doc to bake the convention into installed wording other adopters will see; `retrospective-extras.md` Step 12 currently restates the scope inline. Rule scope (carry over verbatim to the new doc): the prefix applies only to (a) Bash-tool calls that invoke `git`, and (b) suggested user-facing `git ff` merge commands — both because Claude Code spawns a background `git` that briefly holds `.git/index.lock`. Naming must always include `git` (never `sleep 1 && convention`); the rule does NOT apply to non-git Bash calls. After the convention doc lands, edit `retrospective-extras.md` to reference it rather than restate it.
+
+## Task: Wire trunk-resolution fallback chain across retrospective-extras and security-review-changeset
+
+### Task-Type: chore
+### Priority: Low
+### Status: Follow-up from Task 152
+### Identified in: Task 152 c-design-plan.md §Decision 2, §Follow-ups
+
+Wire the documented trunk-resolution fallback chain (`cwf-project.json:trunk` → `git symbolic-ref refs/remotes/origin/HEAD` → hardcoded `main`) across the two call sites that need it: `.cwf/docs/skills/retrospective-extras.md` `## Suggest Merge (Step 12)` (top-level-task branch of the derivation rule) and `.cwf/scripts/command-helpers/security-review-changeset` (already documents the chain at `.cwf/docs/skills/security-review.md:28` but does not yet wire it). Today both sites hardcode `main`. Today's behaviour is loud-failure for non-`main` adopters: a suggested `git checkout main` simply fails on paste (and `security-review-changeset` falls back to `git merge-base HEAD main`, which also fails loudly). Doing both call sites in one task ensures a single convention, single `cwf-project.json` schema bump, single test surface. Trigger: either a non-`main` adopter shows up, or `security-review-changeset` needs the chain wired first for an independent reason.
