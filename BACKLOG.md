@@ -722,33 +722,6 @@ List scenarios where action MIGHT be required (IF/THEN format):
    - Example B: Feature with zero scheduled maintenance (configuration/documentation changes)
 4. Update documentation to explain distinction between active/reactive/passive
 
-## Task: Research and Consolidate Cross-Document Reference Patterns
-
-### Task-Type: discovery
-### Priority: Medium
-### Problem: Currently inconsistent patterns for referencing other documents:
-### Scope: 
-### Examples to analyse: 
-### Outcome: Clear, documented standard for cross-document references that follows DRY and progressive disclosure principles.
-
-Analyse and standardise cross-document reference patterns used throughout CWF system documentation, templates, and command files.
-
-- Templates use bold text: `**See e-testing.md for complete test plan**`
-- Some locations may use markdown links: `[text](path)`
-- Some locations may use HTML comments
-- No clear guidelines on when to use which pattern
-
-1. **Audit existing patterns**: Survey all templates, command files, and documentation for cross-reference patterns
-2. **Categorise use cases**: Different contexts may need different patterns (intra-task vs external, LLM-facing vs human-facing)
-3. **Define standard patterns**: Establish clear guidelines for each use case
-4. **Document rationale**: Explain why each pattern is used (progressive disclosure, readability, tooling support)
-5. **Update style guide**: Document patterns in `.cwf/docs/` for future reference
-6. **Migration plan**: Optionally create plan to standardise existing references
-
-- Intra-task references: `d-implementation.md` → `e-testing.md`
-- External doc references: Templates → `workflow-steps.md`
-- Config references: Command files → `cwf-project.json`
-
 ## Task: Extract CWF Argument Validation Pattern to Documentation
 
 ### Task-Type: feature
@@ -1243,3 +1216,53 @@ Proposed: add a step to either the implementation-plan checklist or the plan-rev
 The pattern generalises beyond Task 147: any task that changes a user-facing message, error contract, or exit code potentially has tests that pin the old form. Catching them at plan-review time costs minutes; catching them at exec time costs a re-plan or a test-file edit.
 
 Identified in Task 147 retrospective (j-retrospective.md § Recommendations).
+
+## Task: Migrate cross-doc references to canonical style
+
+### Task-Type: chore
+### Priority: Low
+### Identified in: Task 151 g-testing-exec.md
+
+Task 151 audit identified ~7,964 cross-doc references that diverge from the canonical rules now in `docs/conventions/cross-doc-references.md`. This entry tracks the migration. **Migration is not in scope for task 151** — discovery and standard-setting only; the rewrite is here.
+
+**Scope (per locality)**:
+
+```markdown
+| Divergence category                                | Count | Target form                                  |
+|----------------------------------------------------|-------|----------------------------------------------|
+| plain-prose × path (intra-repo)                    | 5,616 | inline-backtick × path                       |
+| plain-prose × path (intra-task)                    | 2,128 | inline-backtick × path                       |
+| plain-prose × in-file-anchor                       |   134 | markdown-link × in-file-anchor               |
+| plain-prose × path:line and path:line-range        |    36 | inline-backtick × {path:line, line-range}    |
+| inline-backtick × in-file-anchor                   |    20 | markdown-link × in-file-anchor               |
+| bold × in-file-anchor                              |    16 | markdown-link × in-file-anchor               |
+| inline-backtick × external-url (non-template)      |  ≤ 14 | markdown-link × external-url                 |
+| Total                                              | ~7,964|                                              |
+```
+
+**Top-10 files by divergence count**:
+
+```markdown
+| file                                                                                | divergent rows |
+|-------------------------------------------------------------------------------------|----------------|
+| .cwf/docs/workflow/workflow-steps.md                                                |            184 |
+| CLAUDE.md                                                                           |            113 |
+| .cwf/docs/skills/security-review.md                                                 |             71 |
+| implementation-guide/151-discovery-consolidate-cross-doc-reference-patterns/d-implementation-plan.md |             49 |
+| implementation-guide/151-discovery-consolidate-cross-doc-reference-patterns/c-design-plan.md |             47 |
+| .cwf/templates/pool/d-implementation-plan.md                                        |             39 |
+| .claude/skills/cwf-implementation-plan/SKILL.md                                     |             36 |
+| implementation-guide/151-discovery-consolidate-cross-doc-reference-patterns/b-requirements-plan.md |             35 |
+| .claude/skills/cwf-design-plan/SKILL.md                                             |             34 |
+| implementation-guide/151-discovery-consolidate-cross-doc-reference-patterns/a-task-plan.md |             32 |
+```
+
+**Dogfooding result against `docs/conventions/commit-messages.md`** (per Task 151 AC7): 0 mismatches. The 7 references in that file match the new rules.
+
+**Constraints on the migration**:
+- Templates (`.cwf/templates/pool/*.md`) and skill bodies (`.claude/skills/**/*.md`, `.claude/agents/**/*.md`) are LLM-facing and load-bearing. Migration of these must be tested for LLM-attention regression after each batch.
+- Historic files (`BACKLOG.md`, `CHANGELOG.md`) are exempt per the carve-out in `docs/conventions/cross-doc-references.md`.
+- The migration should be staged: convention docs first (small, verifiable), then wf-step templates (LLM-attention regression risk), then helper-script docs, then individual task wf-step files (large volume, low risk per file).
+- A re-run of Task 151's `audit.pl` should serve as the verification gate: divergence count should drop monotonically with each migration commit, ending at ≤ 100 (residual: bold × path skill-header idiom, ambiguous narrative-vs-reference cases, and any template carve-outs).
+
+Audit script preserved at: `implementation-guide/151-discovery-consolidate-cross-doc-reference-patterns/f-implementation-exec.md` (## Audit Script Source section).

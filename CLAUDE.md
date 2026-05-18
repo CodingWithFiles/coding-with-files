@@ -70,6 +70,11 @@ The Coding with Files (CWF) system v2.0 is **implemented and operational**. Core
 - `-z` flag on path-emitting git subcommands
 - `split /\0/` parsing of NUL-separated records
 
+**Cross-Doc References**: Standard for how to reference other documents from CWF docs, templates, skills, and wf step files. See `docs/conventions/cross-doc-references.md` for:
+- Rules table by locality (intra-file, intra-task, intra-repo, external)
+- Rejected alternatives with rationale
+- BACKLOG/CHANGELOG carve-out
+
 **Tmp Paths**: Per-task scratch directories under `/tmp/` use a project-namespaced form to avoid collisions across concurrent agents. See `.cwf/docs/conventions/tmp-paths.md` for:
 - Canonical form: `/tmp/<dashified-absolute-repo-path>-task-<num>/`
 - Mandatory `mkdir -m 0700` first-use guard (symlink-attack defence)
