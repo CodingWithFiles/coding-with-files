@@ -249,9 +249,16 @@ Add the task stack file (user-specific workspace state) to your `.gitignore`:
 echo '.cwf/task-stack' >> .gitignore
 ```
 
-### 3. Optional: Enable Unicode support
+### 3. Unicode support (PERL5OPT)
 
-Add `PERL5OPT` to your Claude Code settings (`~/.claude/settings.json`):
+CWF sets `env.PERL5OPT=-CDSLA` in your **project-level** `.claude/settings.json`
+(at the git root) automatically: `/cwf-init` and `cwf-manage update` merge it via
+`cwf-claude-settings-merge`, and it is committed with the project. Normally no
+manual step is required — restart Claude Code after init so the session picks it
+up.
+
+If you are setting up without `/cwf-init`, add it to the project-level
+`.claude/settings.json` yourself:
 
 ```json
 {
@@ -260,6 +267,12 @@ Add `PERL5OPT` to your Claude Code settings (`~/.claude/settings.json`):
   }
 }
 ```
+
+Keep `PERL5OPT` in the project settings rather than your global user settings:
+that scopes it per-repo so multiple CWF installs can't clash on a single global
+value, and the project value overrides any global one. A value you set globally
+under an earlier CWF version is harmless — the project value wins; removing it is
+optional.
 
 This enables Unicode handling in Perl helper scripts (STDIN/STDOUT/STDERR
 plus `@ARGV` decoding). Without it, scripts will issue warnings, and any

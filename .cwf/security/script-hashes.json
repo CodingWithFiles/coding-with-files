@@ -61,7 +61,7 @@
     },
     "CWF::Common" : {
       "path" : ".cwf/lib/CWF/Common.pm",
-      "sha256" : "749e851132e7e3ea493ab489d6aeee7b5b7da37f6f21857b3adcda70d6254ba3"
+      "sha256" : "c8a3f2e542a42043a828ee445219b96d235ab3a628550d63bf696cac73c5d442"
     },
     "CWF::ContextInheritance::Core" : {
       "path" : ".cwf/lib/CWF/ContextInheritance/Core.pm",
@@ -199,7 +199,7 @@
     "cwf-claude-settings-merge" : {
       "path" : ".cwf/scripts/command-helpers/cwf-claude-settings-merge",
       "permissions" : "0500",
-      "sha256" : "09d8a98de979757c01705cb598f0462b9324dc8ca64d635fbb339b9403a87e2b"
+      "sha256" : "11b6f4aae5a9d6c6da35b3abf3d177d3248127ea3663f62e7fc256c50ef030fa"
     },
     "cwf-manage" : {
       "path" : ".cwf/scripts/cwf-manage",

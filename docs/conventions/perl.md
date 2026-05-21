@@ -17,8 +17,9 @@ Every Perl file in scan roots (`.cwf/scripts/`, `.cwf/lib/CWF/`) uses:
   PERL5OPT=-CDSLA
   ```
 
-  Configured in your Claude Code settings (`~/.claude/settings.json` under
-  `"env"`) or your shell's startup file.
+  Configured in your project's `.claude/settings.json` under `"env"`
+  (installed automatically by CWF via `cwf-claude-settings-merge`), or your
+  shell's startup file for invocations outside a Claude Code tool call.
 
 The `-CDSLA` flags decode `STDIN`, `STDOUT`, `STDERR`, the default
 I/O layer, and `@ARGV` as UTF-8. The `A` flag matters: it is what allows a

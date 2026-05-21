@@ -1284,3 +1284,27 @@ Promote the `sleep 1 && git` prefix convention from MEMORY.md/global CLAUDE.md (
 ### Identified in: Task 152 c-design-plan.md §Decision 2, §Follow-ups
 
 Wire the documented trunk-resolution fallback chain (`cwf-project.json:trunk` → `git symbolic-ref refs/remotes/origin/HEAD` → hardcoded `main`) across the two call sites that need it: `.cwf/docs/skills/retrospective-extras.md` `## Suggest Merge (Step 12)` (top-level-task branch of the derivation rule) and `.cwf/scripts/command-helpers/security-review-changeset` (already documents the chain at `.cwf/docs/skills/security-review.md:28` but does not yet wire it). Today both sites hardcode `main`. Today's behaviour is loud-failure for non-`main` adopters: a suggested `git checkout main` simply fails on paste (and `security-review-changeset` falls back to `git merge-base HEAD main`, which also fails loudly). Doing both call sites in one task ensures a single convention, single `cwf-project.json` schema bump, single test surface. Trigger: either a non-`main` adopter shows up, or `security-review-changeset` needs the chain wired first for an independent reason.
+
+## Task: Single source of truth for the canonical PERL5OPT value (-CDSLA)
+
+### Task-Type: chore
+### Priority: Low
+### Identified in: Task 153
+
+The canonical PERL5OPT value `-CDSLA` is duplicated across several surfaces: `INSTALL.md`, `docs/conventions/perl.md`, `.claude/skills/cwf-init/SKILL.md`, the `check_perl5opt` warning in `.cwf/lib/CWF/Common.pm`, and now the `$CANONICAL_PERL5OPT` constant in `.cwf/scripts/command-helpers/cwf-claude-settings-merge` (Task 153). A change to the value (as in Task 137/139, `-CDSL` → `-CDSLA`) must be made in every place by hand.
+
+Consider a single source of truth — e.g. the helper constant becomes the authority and the docs reference it, or a small shared data point read by `check_perl5opt` and the merge helper. Scope discipline: Task 153 deliberately did not build this (the bug there was setting *location*, not value duplication). Low priority — the value changes rarely.
+
+## Task: Fix t/cwf-manage-fix-security.t: build_fixture omits .claude/ manifest paths
+
+### Task-Type: bugfix
+### Priority: Medium
+### Identified in: Task 153
+
+`t/cwf-manage-fix-security.t` fails (TC-1, TC-2, TC-7) on a clean tree. Confirmed pre-existing at baseline `b5b8739` during Task 153 (the failure reproduces identically before any Task 153 edit).
+
+Root cause: `build_fixture()` copies only `.cwf/` into the tempdir (`cp -rp $REPO_ROOT/.cwf`), but `.cwf/security/script-hashes.json` now also lists `.claude/agents/*` paths (the 5 plan-reviewer / security-reviewer agents, hash-tracked since ~Task 148/149). Those files are absent from the fixture, so `validate`/`fix-security` report a missing-file (existence) failure and `fix-security` refuses (exit 1, repaired 0). TC-1 (clean no-op), TC-2 (post-validate), and TC-7 (idempotency first run) all assert exit 0 / clean validate and therefore fail.
+
+Fix options: have `build_fixture` also copy the `.claude/agents/` (and any other non-`.cwf/`) files the manifest references, or make the test derive the copy set from the manifest paths rather than hardcoding `.cwf/`. Either way the fixture must contain every path the manifest enumerates.
+
+Unrelated to the PERL5OPT change; surfaced and recorded rather than absorbed.

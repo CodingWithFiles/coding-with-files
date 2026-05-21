@@ -2,6 +2,22 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 153: Move PERL5OPT to project-local settings
+
+### Status: Complete (2026-05-21)
+### Duration: ~½ day wall-clock; estimate ~½ day. Variance 0%.
+### Impact: Fixes a CwF bug where `PERL5OPT=-CDSLA` was recommended into the user-global `~/.claude/settings.json` — a single global value shared by every repo on the machine, so two CWF installs that want different values clash (last writer wins, silently breaking the other). The setting is now project-scoped: `cwf-claude-settings-merge` gains a `merge_env` step that writes `env.PERL5OPT=-CDSLA` into the project `.claude/settings.json` (add-if-absent, warn-on-mismatch, type-guarded), and both `/cwf-init` step 6d and `cwf-manage update` already invoke that helper — so installation is automatic and the value is committed with the project; project `env` overrides the user-global one per Claude Code's settings precedence (verified against its docs this task). `cwf-manage` itself is unchanged (it already delegates to the helper). `CWF::Common::check_perl5opt`'s warning + POD, `.claude/skills/cwf-init/SKILL.md` (step 7 retired → no-user-action note), `INSTALL.md`, and `docs/conventions/perl.md` all retarget to project settings; none retain the literal `~/.claude/settings.json` string, so a repo-wide zero-hit grep guards against regression. In-commit `sha256` refresh for the two hashed files (`cwf-claude-settings-merge`, `CWF::Common`); this repo's own `.claude/settings.json` committed env-only as dogfood. `$CANONICAL_PERL5OPT` is kept a compile-time constant — the tool-call `env` path has no trust-gate (FR4(e)).
+
+### Notable
+- **Verified the load-bearing premise before building.** "Project `.claude/settings.json` `env` overrides user-global and applies with no trust-gate" was confirmed against Claude Code's own settings/env docs during planning. The entire fix is inert if that's false; confirming it first de-risked the task.
+- **Maximal reuse, minimal new surface.** Extending the single existing project-settings writer (reached by both install and update) meant no new helper, no `cwf-manage` edit, and only two hashed-file refreshes. Both design reviewers independently confirmed the insertion point.
+- **Discovered a pre-existing red test and proved it pre-existing.** `t/cwf-manage-fix-security.t` (TC-1/2/7) fails on a clean tree because its `build_fixture` copies only `.cwf/`, but the hash manifest now lists 5 `.claude/agents/*` paths (hash-tracked since ~Task 148/149). Reproduced identically at baseline `b5b8739` via a throwaway `git worktree`, so it is not from this task — filed as a Medium BACKLOG bugfix rather than absorbed or panicked over.
+- **Surface, never smooth — applied to the permission drift too.** The unrelated `cwf-plan-reviewer-misalignment.md` 0600-vs-0444 drift (a git-checkout artefact, sha intact) was repaired with the canonical `cwf-manage fix-security`; the chmod is not committable (git stores 100644 either way), so it stays out of this task's diff.
+- **Plan-review subagents earned their keep (8 reviews across c+d).** Load-bearing folds: dry-run must still warn on drift; type-guard a malformed `env`; the `check_perl5opt` message must not over-promise (restart + bare-shell caveats); concrete env-only re-derivation for the dogfood commit; repo-wide closing grep; corrected `Common.pm` line anchors; extend the existing test file rather than create one.
+
+### Retired Backlog Items
+None — this task was triggered by a CwF bug report, not by an existing BACKLOG entry. Two new follow-ups filed: "Fix t/cwf-manage-fix-security.t: build_fixture omits .claude/ manifest paths" (Medium) and "Single source of truth for the canonical PERL5OPT value (-CDSLA)" (Low).
+
 ## Task 152: Fix retrospective merge suggestion for subtasks
 
 ### Status: Complete (2026-05-18)

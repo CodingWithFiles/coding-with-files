@@ -18,9 +18,11 @@ our @EXPORT_OK = qw(check_perl5opt format_error parse_semver version_cmp find_gi
 # Returns: none (warns if not configured)
 sub check_perl5opt {
     unless ($ENV{PERL5OPT} && $ENV{PERL5OPT} =~ /-C/) {
-        warn "WARNING: PERL5OPT not configured for Unicode handling.\n";
-        warn "Add the following to ~/.claude/settings.json:\n";
-        warn "  \"env\": { \"PERL5OPT\": \"-CDSLA\" }\n\n";
+        warn "WARNING: PERL5OPT lacks the -C flags needed for Unicode handling.\n";
+        warn "CWF installs env.PERL5OPT=-CDSLA into this project's .claude/settings.json;\n";
+        warn "run 'cwf-manage update' if it is missing, then restart Claude Code so the\n";
+        warn "session picks it up. A script run outside a Claude Code tool call won't\n";
+        warn "inherit that setting — export PERL5OPT=-CDSLA in your shell for those cases.\n\n";
     }
 }
 
@@ -145,8 +147,11 @@ Eliminates 78 lines of duplication (PERL5OPT check duplicated 13 times).
 Checks if PERL5OPT is configured for Unicode handling. Warns if not.
 
 The PERL5OPT environment variable should include the -C flag for proper Unicode
-handling. If not configured, warns the user with instructions to add it to their
-Claude settings.json file.
+handling. CWF installs C<env.PERL5OPT=-CDSLA> into the project's
+C<.claude/settings.json> (via C<cwf-claude-settings-merge>), which Claude Code
+applies to tool-call environments. If not present at runtime, warns the user
+with instructions to run C<cwf-manage update> (and to export the variable for
+non-tool-call shells).
 
 =head2 format_error($type, $message, $usage)
 

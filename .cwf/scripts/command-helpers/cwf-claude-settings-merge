@@ -1,10 +1,13 @@
 #!/usr/bin/env perl
 #
-# cwf-claude-settings-merge - Register CWF Bash allowlist + Stop hooks in
-# .claude/settings.json by walking .cwf/security/script-hashes.json.
+# cwf-claude-settings-merge - Register CWF Bash allowlist, Stop hooks, and
+# required env vars (PERL5OPT) in .claude/settings.json. Allowlist + hooks are
+# derived by walking .cwf/security/script-hashes.json; env.PERL5OPT is a fixed
+# CWF-required value.
 #
 # Idempotent: re-running adds only missing entries; existing user entries are
-# preserved.
+# preserved (env.PERL5OPT is added only when absent; a differing value is
+# surfaced via a warning, never overwritten).
 #
 # Usage:
 #   .cwf/scripts/command-helpers/cwf-claude-settings-merge [--dry-run]
@@ -24,7 +27,8 @@ my $PROG = 'cwf-claude-settings-merge';
 sub usage {
     return "Usage: $PROG [--dry-run]\n"
          . "  Walks .cwf/security/script-hashes.json and merges Bash allowlist\n"
-         . "  + Stop hook entries into .claude/settings.json. Idempotent.\n";
+         . "  + Stop hook entries into .claude/settings.json, and ensures\n"
+         . "  env.PERL5OPT is set. Idempotent.\n";
 }
 
 my $dry_run = 0;
@@ -164,6 +168,41 @@ sub merge_hooks {
     return scalar @missing;
 }
 
+# Canonical CWF value for env.PERL5OPT. MUST stay a compile-time constant:
+# .claude/settings.json env is applied to every tool-call environment with no
+# trust-gate, so writing a non-constant / externally-sourced value here would
+# put attacker-influenceable data on the tool-call env path (FR4(e)).
+my $CANONICAL_PERL5OPT = '-CDSLA';
+
+# Merge env.PERL5OPT into project settings: add-if-absent, warn-on-mismatch.
+# Single key, constant value — a direct check, not a list merge. Returns 1 if
+# the key was added, 0 otherwise. Warnings fire regardless of --dry-run so a
+# dry run previews drift before an update.
+sub merge_env {
+    my ($settings) = @_;
+    my $env = $settings->{env};
+
+    if (defined $env && ref($env) ne 'HASH') {
+        warn "[CWF] WARN: .claude/settings.json 'env' is present but not an object; leaving it untouched\n";
+        return 0;
+    }
+    $settings->{env} = $env = {} unless defined $env;
+
+    my $cur = $env->{PERL5OPT};
+    if (!defined $cur) {
+        $env->{PERL5OPT} = $CANONICAL_PERL5OPT;
+        return 1;
+    }
+    if (ref($cur) ne '') {
+        warn "[CWF] WARN: .claude/settings.json env.PERL5OPT is present but not a string; leaving it untouched\n";
+        return 0;
+    }
+    if ($cur ne $CANONICAL_PERL5OPT) {
+        warn "[CWF] WARN: .claude/settings.json env.PERL5OPT is \"$cur\"; CWF expects \"$CANONICAL_PERL5OPT\". Leaving the existing value untouched.\n";
+    }
+    return 0;
+}
+
 # --- Atomic write ----------------------------------------------------------
 sub atomic_write {
     my ($blob) = @_;
@@ -178,16 +217,17 @@ my ($allow_entries, $hook_entries) = partition_manifest($manifest);
 my $settings = read_settings();
 my $allow_added = merge_allow($settings, $allow_entries);
 my $hook_added  = merge_hooks($settings, $hook_entries);
+my $env_added   = merge_env($settings);
 
 my $encoder = JSON::PP->new->pretty->indent_length(2)->canonical;
 my $blob    = $encoder->encode($settings);
 
 if ($dry_run) {
     print $blob;
-    print "[CWF] settings: would add $allow_added allowlist entries, $hook_added hook entries (dry-run)\n";
+    print "[CWF] settings: would add $allow_added allowlist entries, $hook_added hook entries, $env_added env keys (dry-run)\n";
     exit 0;
 }
 
 atomic_write($blob);
-print "[CWF] settings: added $allow_added allowlist entries, $hook_added hook entries\n";
+print "[CWF] settings: added $allow_added allowlist entries, $hook_added hook entries, $env_added env keys\n";
 exit 0;

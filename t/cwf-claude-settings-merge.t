@@ -219,7 +219,7 @@ subtest 'TC-U4: --dry-run prints, does not write' => sub {
     is($exit, 0, 'exit 0');
     ok(!-e "$tmp/.claude/settings.json", 'settings.json not created');
     like($out, qr/"permissions"/, 'stdout contains rendered JSON');
-    like($out, qr/would add 3 allowlist entries, 1 hook entries \(dry-run\)/,
+    like($out, qr/would add 3 allowlist entries, 1 hook entries, 1 env keys \(dry-run\)/,
          'dry-run summary present');
 };
 
@@ -307,6 +307,99 @@ subtest 'TC-U6: manifest entry references missing file — warn-and-skip' => sub
        'missing helper not in allowlist');
     ok($allow{'Bash(.cwf/scripts/command-helpers/a-helper:*)'},
        'present helper still in allowlist');
+};
+
+# ----- TC-U7: env.PERL5OPT absent — added -----------------------------------
+subtest 'TC-U7: env.PERL5OPT absent — added as -CDSLA' => sub {
+    plan tests => 4;
+    my $tmp = build_fixture(manifest => standard_manifest());
+    my ($exit, $out, $err) = run_helper($tmp);
+    is($exit, 0, 'exit 0');
+    like($out, qr/1 env keys/, 'summary reports 1 env key added');
+    my $s = read_settings($tmp);
+    is($s->{env}{PERL5OPT}, '-CDSLA', 'env.PERL5OPT set to -CDSLA');
+    unlike($err, qr/env\.PERL5OPT/, 'no env warning on clean add');
+};
+
+# ----- TC-U8: env.PERL5OPT already correct — no-op --------------------------
+subtest 'TC-U8: env.PERL5OPT already -CDSLA — no-op, no warn' => sub {
+    plan tests => 4;
+    my $tmp = build_fixture(manifest => standard_manifest());
+    write_settings($tmp, { env => { PERL5OPT => '-CDSLA' } });
+    my ($exit, $out, $err) = run_helper($tmp);
+    is($exit, 0, 'exit 0');
+    like($out, qr/0 env keys/, 'summary reports 0 env keys added');
+    my $s = read_settings($tmp);
+    is($s->{env}{PERL5OPT}, '-CDSLA', 'value unchanged');
+    unlike($err, qr/env\.PERL5OPT/, 'no warning when already correct');
+};
+
+# ----- TC-U9: env.PERL5OPT mismatch — warn, untouched -----------------------
+subtest 'TC-U9: env.PERL5OPT differs — warn, value untouched' => sub {
+    plan tests => 4;
+    my $tmp = build_fixture(manifest => standard_manifest());
+    write_settings($tmp, { env => { PERL5OPT => '-CDSL' } });
+    my ($exit, $out, $err) = run_helper($tmp);
+    is($exit, 0, 'exit 0');
+    like($out, qr/0 env keys/, 'summary reports 0 env keys added');
+    my $s = read_settings($tmp);
+    is($s->{env}{PERL5OPT}, '-CDSL', 'existing value left untouched');
+    like($err, qr{\Q[CWF] WARN: .claude/settings.json env.PERL5OPT is "-CDSL"; CWF expects "-CDSLA"\E},
+         'mismatch warning names both values');
+};
+
+# ----- TC-U10: env present but not an object — warn, untouched --------------
+subtest 'TC-U10: env is not an object — warn, untouched' => sub {
+    plan tests => 4;
+    my $tmp = build_fixture(manifest => standard_manifest());
+    write_settings($tmp, { env => 'not-an-object' });
+    my ($exit, $out, $err) = run_helper($tmp);
+    is($exit, 0, 'exit 0');
+    like($out, qr/0 env keys/, 'summary reports 0 env keys added');
+    my $s = read_settings($tmp);
+    is($s->{env}, 'not-an-object', 'env left untouched');
+    like($err, qr{\Q[CWF] WARN: .claude/settings.json 'env' is present but not an object\E},
+         'non-object env warning emitted');
+};
+
+# ----- TC-U11: env.PERL5OPT not a string — warn, untouched ------------------
+subtest 'TC-U11: env.PERL5OPT non-scalar — warn, untouched' => sub {
+    plan tests => 4;
+    my $tmp = build_fixture(manifest => standard_manifest());
+    write_settings($tmp, { env => { PERL5OPT => ['x'] } });
+    my ($exit, $out, $err) = run_helper($tmp);
+    is($exit, 0, 'exit 0');
+    like($out, qr/0 env keys/, 'summary reports 0 env keys added');
+    my $s = read_settings($tmp);
+    is_deeply($s->{env}{PERL5OPT}, ['x'], 'non-scalar value left untouched');
+    like($err, qr{\Q[CWF] WARN: .claude/settings.json env.PERL5OPT is present but not a string\E},
+         'non-string warning emitted');
+};
+
+# ----- TC-U12: sibling env keys preserved -----------------------------------
+subtest 'TC-U12: sibling env keys preserved when adding PERL5OPT' => sub {
+    plan tests => 3;
+    my $tmp = build_fixture(manifest => standard_manifest());
+    write_settings($tmp, { env => { FOO => 'bar' } });
+    my ($exit, $out, $err) = run_helper($tmp);
+    is($exit, 0, 'exit 0');
+    my $s = read_settings($tmp);
+    is($s->{env}{PERL5OPT}, '-CDSLA', 'PERL5OPT added');
+    is($s->{env}{FOO}, 'bar', 'pre-existing sibling key preserved');
+};
+
+# ----- TC-U13: --dry-run on mismatch warns, writes nothing ------------------
+subtest 'TC-U13: --dry-run warns on env mismatch, does not write' => sub {
+    plan tests => 4;
+    my $tmp = build_fixture(manifest => standard_manifest());
+    write_settings($tmp, { env => { PERL5OPT => '-CDSL' } });
+    my ($exit, $out, $err) = run_helper($tmp, '--dry-run');
+    is($exit, 0, 'exit 0');
+    like($err, qr{\Q[CWF] WARN: .claude/settings.json env.PERL5OPT is "-CDSL"\E},
+         'mismatch warning fires under --dry-run');
+    my $s = read_settings($tmp);
+    is($s->{env}{PERL5OPT}, '-CDSL', 'on-disk value unchanged by dry-run');
+    like($out, qr/0 env keys \(dry-run\)/, 'dry-run summary shows 0 env keys');
 };
 
 done_testing();

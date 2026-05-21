@@ -77,7 +77,7 @@ chmod "$PERMS" .cwf/scripts/cwf-manage
 - Read existing `.claude/settings.json` if present; use `{"permissions":{"allow":[]}}` if absent
 - Add each missing `Skill(cwf-<name>)` entry to `permissions.allow` — skip any already present
 - Write back valid JSON to `.claude/settings.json`
-- **Note**: This is the project-level `.claude/settings.json` (at git root), not the global `~/.claude/settings.json` used for PERL5OPT in step 7
+- **Note**: This is the project-level `.claude/settings.json` (at git root). CWF-required env vars (`PERL5OPT`) are merged into the same file by step 6d.
 
 ### 6b-apply. Apply CWF Artefacts (Bootstrap)
 
@@ -138,20 +138,13 @@ Run, using the Bash tool:
 - If exit code is 0, continue. Relay the helper's stdout summary verbatim. `[CWF] WARN:` lines on stderr (e.g. a manifest entry references a file that is not on disk) are logged and tolerated — partial coverage is acceptable.
 - If exit code is non-zero **or** stderr contains any `[CWF] ERROR:` line, **abort `/cwf-init`**: relay stdout/stderr to the user verbatim and append: `[CWF] /cwf-init aborted: cwf-claude-settings-merge failed; resolve the error above and re-run /cwf-init.` Do not proceed.
 
-### 7. Configure Claude Code Settings (user action required)
-- First, check if PERL5OPT is already configured:
-  `grep -q 'PERL5OPT' ~/.claude/settings.json 2>/dev/null`
-- **If already configured**: Inform user "PERL5OPT is already configured — no action needed" and skip to next step
-- **If not configured**: Inform user to add PERL5OPT to `~/.claude/settings.json`:
-  ```json
-  {
-    "env": {
-      "PERL5OPT": "-CDSLA"
-    }
-  }
-  ```
-- This enables Unicode handling in Perl helper scripts
-- Without this, scripts will issue warnings but continue to work
+### 7. PERL5OPT (no user action)
+- `env.PERL5OPT=-CDSLA` is merged into the project-level `.claude/settings.json`
+  automatically by step 6d (`cwf-claude-settings-merge`) and committed by step 8.
+  No manual edit of your global user settings is needed — keeping the setting
+  project-scoped avoids clashes between multiple CWF installs on one machine.
+- This enables Unicode handling (including `@ARGV` decoding) in Perl helper
+  scripts. Restart Claude Code after init so the session picks up the new env var.
 
 ### 8. Commit Init Output
 - Stage all files created or modified by init:
@@ -177,5 +170,5 @@ Run, using the Bash tool:
 - [ ] CWF artefacts applied via `cwf-apply-artefacts --bootstrap-init` (gitignore entries, rules-inject, .cwf-rules/, CLAUDE.md preamble, .claude/rules/ symlinks)
 - [ ] Rule re-injection hook configured in `.claude/settings.json`
 - [ ] Bash allowlist + Stop hooks registered via `cwf-claude-settings-merge`
-- [ ] PERL5OPT checked and user informed only if not already configured
+- [ ] PERL5OPT merged into project `.claude/settings.json` via `cwf-claude-settings-merge` (step 6d)
 - [ ] Init commit created (mandatory — do not begin task work without it)
