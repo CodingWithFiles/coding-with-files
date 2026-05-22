@@ -108,35 +108,6 @@ The current 500-line cap on security-review subagent invocations (set in Task 12
 3. Plot finding-rate-per-line and runtime against changeset size; identify the inflection point where review quality starts to degrade.
 4. Set the cap from data, not vibes. Document the methodology in `.cwf/docs/skills/security-review.md` so future revisions have a baseline.
 
-## Task: Add fixture-server harness for end-to-end cwf-manage update tests
-
-### Task-Type: chore
-### Priority: Low
-### Status: Follow-up from Task 127
-### Approach: 
-### Out of scope: SIGKILL-during-rename atomicity (covered architecturally by same-dir-temp + rename), interactive D/A prompt branches (need expect-style harness — separate task if ever needed).
-### Identified in: Task 127 retrospective (j-retrospective.md § "Recommendations § Future Work")
-
-Task 127's testing covers `cwf-apply-artefacts` at the helper level and `cwf-manage update` at the helper-sub level (lock acquisition, manifest SHA validation, path-traversal). What's missing is a true end-to-end test that exercises the full clone+subtree-pull flow — TC-INT-AC1 in Task 127's test plan was marked PARTIAL for this reason. Closing the gap requires a fixture remote (a local git repo serving as upstream) and a multi-commit fixture history so subtree pulls have something meaningful to pull.
-
-1. Build a `t/fixtures/upstream-server/` skeleton: bare git repo, scripted commit history (3-5 commits with realistic CWF-shaped diffs).
-2. Add `t/cwf-manage-update-end-to-end.t`: clones fixture upstream → runs `cwf-manage init` → modifies fixture → runs `cwf-manage update` → asserts artefacts updated, manifest-SHA pinned, lock released.
-3. Cover the regression cases not currently covered: subtree-pull conflict, manifest schema bump (when v2 exists), upstream rollback (downgrade scenario).
-
-## Task: Reconcile cwf-manage update and fix-security chmod logic
-
-### Task-Type: chore
-### Priority: Low
-### Status: Follow-up from Task 120
-### Scope: 
-### Identified in: Task 120 retrospective (j-retrospective.md, "Future Work")
-
-`cwf-manage update` (line 350) does a blanket `chmod 0755` over `.cwf/scripts/`. `cwf-manage fix-security` (Task 120) chmods to *exact* recorded perms (e.g. `0500`/`0700`/`0755`) per `script-hashes.json`. Both pass validate, but they produce different end states. Worth reconciling so update and fix-security converge — most likely option: have `update` call `fix-security` after the copy step, removing the bespoke `chmod 0755` from the update path.
-
-- Replace the blanket chmod in `cmd_update` with a `cmd_fix_security` call (or extract the per-entry chmod logic into a shared sub)
-- Confirm the integration test for `update` (if any) still passes
-- Refresh `cwf-manage` hash after the change
-
 ## Task: Add --dry-run flag to cwf-manage fix-security
 
 ### Task-Type: feature
@@ -1130,14 +1101,6 @@ Fresh `install.bash` runs leave the `data` and `agents` sections at 0600 (whatev
 
 Claude Code's agent registry is loaded at session start. Newly installed `.claude/agents/cwf-*.md` files (via `install.bash` or `cwf-manage update`) are not discoverable until session restart. Task 143's TC-AC3b, TC-AC5a, TC-AC5b were classified BLOCKED-ENV for this reason. Options: (a) post-install helper that prints `"Restart Claude Code to load X new agent(s)"` and exits; (b) auto-re-exec of `claude` after install (probably too invasive); (c) document the constraint in `.cwf/docs/skills/cwf-agent-shared-rules.md` and `cwf-new-task` so authors know upfront. (a)+(c) is the minimal-risk path.
 
-## Task: Install-lifecycle shared helper library (install.bash + cwf-manage dedup)
-
-### Task-Type: chore
-### Priority: Low
-### Identified in: Task 143 retrospective (j-retrospective.md)
-
-`scripts/install.bash` and `.cwf/scripts/cwf-manage` duplicate subtree-split/add, copy-method, and create-symlinks logic for each `.cwf-*` staging directory. Adding a new staging dir (Task 143 did this for `.cwf-agents`) requires symmetric edits in both scripts; missing one is the failure mode Task 143's TC-AC1-install caught. Extract the shared lifecycle into either (a) a Bash library under `scripts/lib/` sourced by both, or (b) a single Perl helper invoked by both. Reduces the per-staging-dir maintenance surface from 12 edits (6 in each script) to ~3 in one place.
-
 ## Task: Tune security-review-changeset 500-line cap to count edit-lines only
 
 ### Task-Type: chore
@@ -1295,16 +1258,33 @@ The canonical PERL5OPT value `-CDSLA` is duplicated across several surfaces: `IN
 
 Consider a single source of truth — e.g. the helper constant becomes the authority and the docs reference it, or a small shared data point read by `check_perl5opt` and the merge helper. Scope discipline: Task 153 deliberately did not build this (the bug there was setting *location*, not value duplication). Low priority — the value changes rarely.
 
-## Task: Fix t/cwf-manage-fix-security.t: build_fixture omits .claude/ manifest paths
+## Task: Converge cwf-manage update onto install.bash (shared install-lifecycle library)
 
-### Task-Type: bugfix
+### Task-Type: chore
 ### Priority: Medium
-### Identified in: Task 153
+### Status: Consolidates 3 prior entries; motivated by user cross-version upgrade-failure report (2026-05-22)
+### Identified in: Tasks 143, 127, 120 retrospectives; reinforced by user upgrade-failure report 2026-05-22
 
-`t/cwf-manage-fix-security.t` fails (TC-1, TC-2, TC-7) on a clean tree. Confirmed pre-existing at baseline `b5b8739` during Task 153 (the failure reproduces identically before any Task 153 edit).
+Two install paths exist — `scripts/install.bash` (bash) and `.cwf/scripts/cwf-manage` `update_subtree`/`update_copy` (perl) — and they duplicate subtree-split/add, copy-method, and create-symlinks logic per `.cwf-*` staging dir. They drift: `install.bash` lays down 4 subtrees (`.cwf`, `.cwf-skills`, `.cwf-rules`, `.cwf-agents`); `update` delivers core/skills/agents via subtree but rules via `cwf-apply-artefacts` (a divergent mechanism). Adding a staging dir needs symmetric edits in both scripts (Task 143's `.cwf-agents` work; TC-AC1-install caught a missed edit).
 
-Root cause: `build_fixture()` copies only `.cwf/` into the tempdir (`cp -rp $REPO_ROOT/.cwf`), but `.cwf/security/script-hashes.json` now also lists `.claude/agents/*` paths (the 5 plan-reviewer / security-reviewer agents, hash-tracked since ~Task 148/149). Those files are absent from the fixture, so `validate`/`fix-security` report a missing-file (existence) failure and `fix-security` refuses (exit 1, repaired 0). TC-1 (clean no-op), TC-2 (post-validate), and TC-7 (idempotency first run) all assert exit 0 / clean validate and therefore fail.
+Root issue (user upgrade-failure report, 2026-05-22, subtree install v1.0.114 → v1.1.152): the update is performed by the *installed* (old) `cwf-manage`, so fixes to the updater never reach installs that predate them — a chicken-and-egg. Reported symptoms: (1) `git subtree pull --squash` produces spurious add/add conflicts across a multi-version gap (squash loses the merge base); (2) update structurally out of sync with install (old versions can never deliver trees added in a later minor). Issue (3) — update ignoring `CWF_SOURCE` — is already fixed (Task 115).
 
-Fix options: have `build_fixture` also copy the `.claude/agents/` (and any other non-`.cwf/`) files the manifest references, or make the test derive the copy set from the manifest paths rather than hardcoding `.cwf/`. Either way the fixture must contain every path the manifest enumerates.
+Goal: a single shared install-lifecycle implementation used by both install and update, such that update runs the *target* version's laydown logic (e.g. delegate to the freshly-cloned `$clone_dir/scripts/install.bash` via the `CWF_FORCE` remove-then-add path). This (a) makes install/update incapable of drifting, (b) eliminates the `subtree pull --squash` conflict via fresh remove-then-add (the documented `CWF_FORCE=1 … install.bash` workaround already proves this works), and (c) structurally breaks the chicken-and-egg for all future cross-version jumps.
 
-Unrelated to the PERL5OPT change; surfaced and recorded rather than absorbed.
+Approach options:
+- (a) Bash library under `scripts/lib/` sourced by both; (b) a single Perl helper invoked by both; or (c) update shells out to the cloned target's `install.bash`.
+- Reduces per-staging-dir maintenance from ~12 edits (6 in each script) to ~3 in one place.
+- Constraint: `cmd_update` has accreted steps `install.bash` lacks — `cwf-apply-artefacts`, `cwf-claude-settings-merge`, manifest-SHA pinning (D12), the update lock. Convergence must move these into a shared post-install so update does not regress them; `install.bash`'s own `.cwf/version` write must not double-write against `cmd_update`'s manifest-sha logic.
+- Nothing shippable can repair installs already on a pre-fix `cwf-manage`; document `CWF_FORCE=1 CWF_REF=<tag> CWF_SOURCE=<src> bash install.bash` as the one-time recovery path.
+
+Folded in — chmod reconciliation (was "Reconcile cwf-manage update and fix-security chmod logic", Task 120 follow-up):
+- `cmd_update` does a blanket `chmod 0755` over `.cwf/scripts/`; `fix-security` chmods to exact recorded perms (0500/0700/0755) per `script-hashes.json`. Both pass validate but produce different end states.
+- Replace the blanket chmod in `cmd_update` with a `cmd_fix_security` call (or extract per-entry chmod into a shared sub); confirm update integration tests still pass; refresh the `cwf-manage` hash.
+
+Folded in — end-to-end test harness (was "Add fixture-server harness for end-to-end cwf-manage update tests", Task 127 follow-up):
+- Task 127's TC-INT-AC1 was PARTIAL — no true end-to-end test of the clone+subtree-pull flow. Needs a fixture remote + multi-commit history.
+- Build `t/fixtures/upstream-server/`: bare git repo, 3-5 scripted commits with realistic CWF-shaped diffs.
+- Add `t/cwf-manage-update-end-to-end.t`: clone fixture → init → modify fixture → update → assert artefacts updated, manifest-SHA pinned, lock released.
+- Cover regressions: subtree-pull/squash conflict across a version gap, manifest schema bump, upstream rollback (downgrade). Out of scope: SIGKILL-during-rename atomicity (covered by same-dir-temp + rename), interactive D/A prompt branches (need an expect-style harness).
+
+Consolidates three prior Low-priority entries: install-lifecycle dedup (Task 143), chmod reconciliation (Task 120), fixture harness (Task 127). Bumped to Medium because a real user cross-version upgrade failure now motivates it.

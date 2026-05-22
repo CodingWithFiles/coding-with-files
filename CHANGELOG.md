@@ -2,6 +2,31 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 154: Fix cwf-manage-fix-security test fixture
+
+### Status: Complete (2026-05-22)
+### Duration: single session (estimate <0.5 day, Low complexity). On estimate.
+### Impact: Fixes a pre-existing red test (`t/cwf-manage-fix-security.t` TC-1/2/7 failed on a clean tree), filed as a Medium BACKLOG bugfix from Task 153. Root cause: `build_fixture` copied only `.cwf/` into the fixture, but `.cwf/security/script-hashes.json` also tracks 5 `.claude/agents/*.md` paths; `cmd_validate`/`cmd_fix_security` resolve every manifest path against the fixture git root (`cwf-manage:743`), so those files read as missing → `existence` violations → exit 1. Fix is test-only: a new `_provision_extra_manifest_paths($tmp)` helper parses the manifest and `cp -p`s every tracked path whose first segment is not `.cwf` into the fixture (existence + byte-identical content for SHA + preserved perms for the recorded floor). The copy set is **derived from the manifest, not hard-coded**, so a future task that tracks a new non-`.cwf/` path is provisioned automatically. A new TC-8 pins the helper directly, asserting on the manifest-derived set (≥1 path; today the 5 agents at floor 0444) rather than a hard-coded count. No production code, no hashed file, no hash refresh: `prove t/cwf-manage-fix-security.t` 8/8; full `prove t/` 500 pass; `cwf-manage validate` on the real repo unchanged. Security review clean both exec phases (one advisory category-(e) note on the fail-closed `..`/absolute path guard, documented inline).
+
+### Notable
+- **Manifest-derived copy set kills the bug class, not just the instance.** Hard-coding `.claude/agents/` would re-break the moment a new tracked root appears (e.g. `.claude/hooks/*`); deriving from the manifest binds the fixture to the same source of truth the tool reads. TC-8 enforces this going forward.
+- **Design-phase plan-review caught a phantom limitation.** An early draft flagged fresh-clone perms as a failure mode; verifying the perm operator (`($actual & $recorded) != $recorded`, `Security.pm:117`) showed the check is a *floor*, not exact-match — a fresh-clone 0644 satisfies a 0444 floor. `cp -p`'s real value is umask-independence, not exact-perm fidelity. The correction collapsed a would-be BACKLOG follow-up.
+- **Clean phase boundary.** The production-side helper landed in implementation-exec (f); the test that pins it (TC-8) landed in testing-exec (g) — f delivers the fix, g delivers the guard.
+- **Fail-closed guard, stricter than production by design.** The helper `die`s on any `..`/absolute manifest path even though the production callsite trusts its integrity-tracked manifest; the asymmetry is deliberate and made the security review trivially clean.
+
+### Retired Backlog Items
+#### Fix t/cwf-manage-fix-security.t: build_fixture omits .claude/ manifest paths
+
+`t/cwf-manage-fix-security.t` fails (TC-1, TC-2, TC-7) on a clean tree. Confirmed pre-existing at baseline `b5b8739` during Task 153 (the failure reproduces identically before any Task 153 edit).
+
+Root cause: `build_fixture()` copies only `.cwf/` into the tempdir (`cp -rp $REPO_ROOT/.cwf`), but `.cwf/security/script-hashes.json` now also lists `.claude/agents/*` paths (the 5 plan-reviewer / security-reviewer agents, hash-tracked since ~Task 148/149). Those files are absent from the fixture, so `validate`/`fix-security` report a missing-file (existence) failure and `fix-security` refuses (exit 1, repaired 0). TC-1 (clean no-op), TC-2 (post-validate), and TC-7 (idempotency first run) all assert exit 0 / clean validate and therefore fail.
+
+Fix options: have `build_fixture` also copy the `.claude/agents/` (and any other non-`.cwf/`) files the manifest references, or make the test derive the copy set from the manifest paths rather than hardcoding `.cwf/`. Either way the fixture must contain every path the manifest enumerates.
+
+Unrelated to the PERL5OPT change; surfaced and recorded rather than absorbed.
+
+<!-- Note: Fixed by deriving the fixture copy set from the manifest; TC-8 added as drift pin. -->
+
 ## Task 153: Move PERL5OPT to project-local settings
 
 ### Status: Complete (2026-05-21)

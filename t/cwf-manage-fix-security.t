@@ -46,6 +46,51 @@ sub _ensure_cwf_manage_executable {
         or die "chmod $cwf_manage: $!";
 }
 
+# _provision_extra_manifest_paths($tmp)
+# build_fixture copies .cwf/ wholesale (the cwf-manage runtime tree), but the
+# hash manifest also tracks paths *outside* .cwf/ (currently .claude/agents/*.md).
+# cmd_validate/cmd_fix_security resolve every manifest path against the fixture
+# git root ("$git_root/$rel"), so those files must exist there too or they read
+# as missing. Copy each manifest-tracked path whose top segment is not ".cwf".
+#
+# Read $REPO_ROOT's manifest (byte-identical to the copy just made under $tmp;
+# reading $REPO_ROOT keeps this independent of copy ordering — do NOT "align" it
+# with _read_recorded_perms's $tmp read). Manifest paths are repo-controlled,
+# integrity-tracked, repo-relative strings (no "..", no absolute) — the same
+# trust cmd_fix_security places in them at cwf-manage:743. cp -p preserves perms
+# (umask-independence) and yields byte-identical content, so the fixture
+# satisfies the existence / SHA256 / perm-floor checks.
+sub _provision_extra_manifest_paths {
+    my ($tmp) = @_;
+    my $manifest = "$REPO_ROOT/.cwf/security/script-hashes.json";
+    open my $fh, '<', $manifest or die "$manifest: $!";
+    local $/;
+    my $data = decode_json(<$fh>);
+    close $fh;
+
+    for my $section (sort keys %$data) {
+        my $entries = $data->{$section};
+        next unless ref $entries eq 'HASH';          # skip scalar sections (version, last_updated)
+        for my $name (sort keys %$entries) {
+            my $entry = $entries->{$name};
+            next unless ref $entry eq 'HASH' && exists $entry->{path};
+            my $rel = $entry->{path};
+            next if $rel =~ m{^\.cwf/};               # .cwf/ already copied wholesale
+            # Fail closed: $rel is integrity-tracked + repo-relative today; guard
+            # anyway so a future/untrusted manifest can't escape $tmp via the cp.
+            die "refusing unsafe manifest path: $rel"
+                if $rel =~ m{(?:^/|(?:^|/)\.\.(?:/|$))};
+            my $src = "$REPO_ROOT/$rel";
+            my $dst = "$tmp/$rel";
+            (my $dir = $dst) =~ s{/[^/]+$}{};
+            my $mrc = system("mkdir", "-p", $dir);
+            die "mkdir -p $dir failed (rc=$mrc)" if $mrc != 0;
+            my $crc = system("cp", "-p", $src, $dst);
+            die "cp -p $rel into fixture failed (rc=$crc)" if $crc != 0;
+        }
+    }
+}
+
 # build_fixture()
 # Returns a fresh tempdir with a working .cwf/ copied from the repo, plus a
 # minimal git repo (cwf-manage's find_git_root requires .git/).
@@ -57,6 +102,7 @@ sub build_fixture {
     my $rc = system("cp", "-rp", "$REPO_ROOT/.cwf", "$tmp/.cwf");
     die "cp .cwf failed (rc=$rc)" if $rc != 0;
     system("git", "-C", $tmp, "init", "-q") == 0 or die "git init failed";
+    _provision_extra_manifest_paths($tmp);
     return $tmp;
 }
 
@@ -229,6 +275,49 @@ subtest 'TC-7: idempotency — second run is a no-op' => sub {
     my ($rc2, $out2) = run_fix_security($tmp);
     is($rc2, 0, 'second run exits 0');
     like($out2, qr{repaired 0 file}i, 'second run reports zero repairs');
+};
+
+# TC-8 pins _provision_extra_manifest_paths directly, independent of TC-1's
+# broader "validate passes" path. Re-derives the non-.cwf/ manifest set the
+# same way the fixture helper does and asserts each path was provisioned
+# (exists, byte-identical, perms satisfy recorded floor). Asserts on the
+# derived set (≥1, today the 5 .claude/agents/*.md) — never a hard-coded
+# count — so it stays correct if the manifest gains or loses a non-.cwf/ path.
+subtest 'TC-8: fixture provisions non-.cwf/ manifest paths (drift pin)' => sub {
+    my $tmp = build_fixture();
+
+    my $manifest = "$REPO_ROOT/.cwf/security/script-hashes.json";
+    open my $fh, '<', $manifest or die "$manifest: $!";
+    local $/;
+    my $data = decode_json(<$fh>);
+    close $fh;
+
+    my @entries;
+    for my $section (sort keys %$data) {
+        my $sec = $data->{$section};
+        next unless ref $sec eq 'HASH';
+        for my $name (sort keys %$sec) {
+            my $entry = $sec->{$name};
+            next unless ref $entry eq 'HASH' && exists $entry->{path};
+            next if $entry->{path} =~ m{^\.cwf/};
+            push @entries, $entry;
+        }
+    }
+
+    ok(@entries >= 1, 'manifest tracks at least one non-.cwf/ path');
+
+    for my $entry (@entries) {
+        my $rel = $entry->{path};
+        my $dst = "$tmp/$rel";
+        ok(-e $dst, "provisioned: $rel exists in fixture")
+            or next;
+        is(slurp($dst), slurp("$REPO_ROOT/$rel"),
+           "provisioned: $rel byte-identical to repo");
+        next unless defined $entry->{permissions};
+        my $floor = oct($entry->{permissions});
+        is(file_perms($dst) & $floor, $floor,
+           "provisioned: $rel perms satisfy recorded floor $entry->{permissions}");
+    }
 };
 
 done_testing();
