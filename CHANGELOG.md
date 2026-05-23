@@ -2,6 +2,18 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 156: Suggest fresh install on cwf-manage update failure
+
+### Status: Complete (2026-05-23)
+### Duration: single session (estimate <1 day, Low complexity). On estimate.
+### Impact: Bugfix — when a `cwf-manage update` fails during laydown, the error output now suggests the user *might* consider a fresh install (a clean remove-then-add) and points at the existing `INSTALL.md` "Recovering an install stuck on an old cwf-manage" recovery. Previously the updater died with only a local diagnostic, never surfacing the documented bootstrap recovery — a gap given the forward-only updater limitation (Task 155). Implemented as a single file-scoped flag `$update_in_progress` (declared above `die_msg`, set to `1` in `cmd_update` immediately after checkout, before the laydown dispatch); `die_msg` appends the 5-line `[CWF]` suggestion only when the flag is set. This covers every laydown/artefact/settings/perms/version-write failure — including those raised inside shared helpers (`run_apply_artefacts`, `run_settings_merge`, `apply_exact_perms_or_die`) — with one change point, while pre-flight guard failures (malformed ref, dirty tree, unparseable settings, tampered manifest) and clone/checkout failures stay clean (a same-source bootstrap would hit the identical failure there). The bootstrap line keeps `<tag>`/`<source-url>` as literal placeholders — `$source` may derive from `$ENV{CWF_SOURCE}`, so interpolating it into a printed shell command is avoided (FR4(d)); a test asserts the placeholder survives, turning the guardrail into a regression. In-commit `cwf-manage` sha256 refresh. Four new subtests in `t/cwf-manage-update-end-to-end.t` cover hint presence on a laydown failure and absence on pre-flight + clone/resolve failures, plus a static single-set-point guard; full suite 46 files / 509 tests pass; `cwf-manage validate` clean; both exec-phase security reviews clean.
+
+### Notable
+- **Scoping is the load-bearing behaviour, so the negative tests carry the proof.** A single flag makes the hint trivial to emit; the value is in *not* emitting it for pre-flight/clone failures. The testing plan made the hint-absence assertions mandatory rather than only asserting the positive path.
+- **Flag-set point is a correctness decision, not style.** Placed after clone/checkout because those touch only a throwaway tempdir — a same-source bootstrap would fail identically, so a fresh-install suggestion there would mislead. The hint fires only once the user's install can actually be left partial.
+- **A security guardrail encoded as a test.** Keeping the bootstrap command's placeholders literal is enforced by `like($out, qr/<source-url>/)`, so any future env-var interpolation fails the suite.
+- **Plan review caught an incomplete failure enumeration.** The design's "covered failures" list initially stopped at the last obvious helper and omitted the trailing version-file-write region; reviewers flagged it. Lesson recorded: enumerate covered failures by walking the enclosing function to its end.
+
 ## Task 155: Converge cwf-manage update onto install.bash
 
 ### Status: Complete (2026-05-23)

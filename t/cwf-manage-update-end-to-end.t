@@ -250,4 +250,62 @@ subtest 'FR10: unrelated staged work is not swept into the reinstall commit' => 
     ok(-f "$consumer/UNRELATED.txt", 'UNRELATED.txt still present in working tree');
 };
 
+#==============================================================================
+# Task 156: fresh-install hint is scoped to laydown failures.
+
+subtest 'Task 156: laydown failure surfaces the fresh-install hint' => sub {
+    my $base = tempdir(CLEANUP => 1);
+    my $consumer = "$base/consumer";
+    my $upstream = build_upstream("$base/upstream", 1);
+    my ($irc, $iout) = install_consumer($consumer, $upstream, 'v0.0.1');
+    is($irc, 0, 'install v0.0.1 succeeds') or diag $iout;
+
+    # Tag v0.0.2 with a failing install.bash so the update's delegated laydown
+    # errors *after* clone/checkout — i.e. past the $update_in_progress set point.
+    write_file("$upstream/scripts/install.bash", "#!/usr/bin/env bash\nexit 1\n");
+    git_ok($upstream, 'add', '-A');
+    git_ok($upstream, 'commit', '-q', '-m', 'release v0.0.2 (broken install.bash)');
+    git_ok($upstream, 'tag', 'v0.0.2');
+
+    my ($urc, $uout) = consumer_manage($consumer, 'update', 'v0.0.2');
+    isnt($urc, 0, 'update fails when target laydown errors');
+    like($uout, qr/install\.bash laydown failed/, 'laydown failure diagnostic present');
+    like($uout, qr/might want to consider a fresh install/, 'fresh-install suggestion present');
+    like($uout, qr/CWF_FORCE=1 .*bash install\.bash/, 'bootstrap command shown');
+    like($uout, qr/INSTALL\.md/, 'points at INSTALL.md recovery section');
+    like($uout, qr/<source-url>/, 'placeholder kept literal (no env-var interpolation)');
+};
+
+subtest 'Task 156: pre-flight ref rejection shows no hint' => sub {
+    my $base = tempdir(CLEANUP => 1);
+    my $consumer = "$base/consumer";
+    my $upstream = build_upstream("$base/upstream", 1);
+    my ($irc) = install_consumer($consumer, $upstream, 'v0.0.1');
+    is($irc, 0, 'install v0.0.1');
+
+    my ($rc, $out) = consumer_manage($consumer, 'update', ';rm');
+    isnt($rc, 0, 'malformed ref rejected');
+    like($out, qr/Invalid ref/, 'lexical validation error');
+    unlike($out, qr/fresh install/, 'no hint for a pre-flight guard failure');
+};
+
+subtest 'Task 156: clone/resolve failure shows no hint' => sub {
+    my $base = tempdir(CLEANUP => 1);
+    my $consumer = "$base/consumer";
+    my $upstream = build_upstream("$base/upstream", 1);
+    my ($irc) = install_consumer($consumer, $upstream, 'v0.0.1');
+    is($irc, 0, 'install v0.0.1');
+
+    # Well-formed but non-existent tag: fails at resolve_ref, before laydown.
+    my ($rc, $out) = consumer_manage($consumer, 'update', 'v0.0.99');
+    isnt($rc, 0, 'non-existent ref fails');
+    unlike($out, qr/fresh install/, 'no hint: failure precedes the laydown set point');
+};
+
+subtest 'Task 156: $update_in_progress is set in exactly one place' => sub {
+    my $src = slurp("$REPO_ROOT/.cwf/scripts/cwf-manage");
+    my $count = () = $src =~ /\$update_in_progress = 1/g;
+    is($count, 1, 'flag assigned to 1 in exactly one place (cmd_update)');
+};
+
 done_testing();

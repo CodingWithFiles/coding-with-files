@@ -42,8 +42,22 @@ use CWF::Validate::Templates        ();
 
 sub log_msg { print "[CWF] @_\n"; return; }
 
+# Set true once cmd_update enters laydown; never reset (die_msg exits, and one
+# update runs per process). Gates the fresh-install suggestion in die_msg so it
+# fires only for laydown/artefact/perms/version-write failures — not pre-flight
+# guards or clone/checkout, where a same-source bootstrap would not help.
+my $update_in_progress = 0;
+
 sub die_msg {
     print STDERR "[CWF] ERROR: @_\n";
+    if ($update_in_progress) {
+        print STDERR
+            "[CWF] The update did not finish; this install may be in a partial state.\n",
+            "[CWF] You might want to consider a fresh install (a clean remove-then-add)\n",
+            "[CWF] by re-running the bootstrap installer for the target version:\n",
+            "[CWF]   CWF_FORCE=1 CWF_REF=<tag> CWF_SOURCE=<source-url> bash install.bash\n",
+            "[CWF] See INSTALL.md, \"Recovering an install stuck on an old cwf-manage\".\n";
+    }
     exit 1;
 }
 
@@ -402,6 +416,10 @@ sub cmd_update {
     # Checkout
     system("git", "-C", $clone_dir, "checkout", "--quiet", $resolved) == 0
         or die_msg("Failed to checkout $resolved");
+
+    # Laydown begins: failures past here may leave a partial install, so die_msg
+    # now suggests a fresh install (see the flag declaration near die_msg).
+    $update_in_progress = 1;
 
     if ($method eq 'subtree') {
         # FR2: delegate laydown to the TARGET ref's install.bash. It performs

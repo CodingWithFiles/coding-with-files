@@ -204,7 +204,7 @@
     "cwf-manage" : {
       "path" : ".cwf/scripts/cwf-manage",
       "permissions" : "0700",
-      "sha256" : "1311378e5b14173f1ffb436a10ea78c11fcdbcdb0cfb3f2611595211c7840777"
+      "sha256" : "669ca7e17671e570e14de5be777b9c406d2b9431c8582ceb959d21bb40d4608a"
     },
     "cwf-set-status" : {
       "path" : ".cwf/scripts/command-helpers/cwf-set-status",
