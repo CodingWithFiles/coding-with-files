@@ -103,7 +103,7 @@ sub check_clean_tree {
 
     open(my $fh, '-|', 'git', '-C', $git_root,
          'status', '--porcelain', '-z', '--untracked-files=all',
-         '--', '.cwf', '.cwf-skills', '.cwf-agents')
+         '--', '.cwf', '.cwf-skills', '.cwf-rules', '.cwf-agents')
         or die_msg("Failed to spawn git status: $!");
     local $/;
     my $output = <$fh> // '';
@@ -116,7 +116,7 @@ sub check_clean_tree {
 
     my $list = join("\n", map { "  $_" } @records);
     die_msg(<<"END");
-Working tree has uncommitted changes under .cwf, .cwf-skills, .cwf-agents:
+Working tree has uncommitted changes under .cwf, .cwf-skills, .cwf-rules, .cwf-agents:
 $list
 Stash or commit them, then re-run:
   git stash
@@ -127,11 +127,30 @@ END
 
 # --- Ref resolution -----------------------------------------------------------
 
+# Phase-1 lexical validation of a user-supplied ref, BEFORE it ever reaches
+# git (FR9). Closes the option-injection / metacharacter surface independently
+# of the list-form git calls below. Allows the literal 'latest'; otherwise a
+# conservative ref charset, no leading '-', no '..' path segment.
+sub validate_ref_lexical {
+    my ($ref) = @_;
+    return if $ref eq 'latest';
+    die_msg("Invalid ref '$ref': must not begin with '-'") if $ref =~ /^-/;
+    die_msg("Invalid ref '$ref': contains a '..' path segment")
+        if $ref =~ m{(?:^|/)\.\.(?:/|$)};
+    die_msg("Invalid ref '$ref': allowed characters are letters, digits, '.', '_', '/', '-'")
+        unless $ref =~ m{^[A-Za-z0-9._/-]+$};
+    return;
+}
+
 sub resolve_ref {
     my ($clone_dir, $ref) = @_;
 
     if ($ref eq 'latest') {
-        my @tags = `git -C "$clone_dir" tag -l 'v*' --sort=-version:refname`;
+        open my $fh, '-|', 'git', '-C', $clone_dir, 'tag', '-l', 'v*',
+                     '--sort=-version:refname'
+            or die_msg("Failed to list tags: $!");
+        my @tags = <$fh>;
+        close $fh;
         chomp @tags;
         die_msg("No version tags found. Use a branch name or commit SHA instead.") unless @tags;
         my $latest = $tags[0];
@@ -139,17 +158,25 @@ sub resolve_ref {
         return $latest;
     }
 
-    my $check = `git -C "$clone_dir" rev-parse --verify "$ref" 2>/dev/null`;
-    chomp $check;
-    die_msg("Invalid ref: $ref — not found in source repo") unless $check;
+    open my $fh, '-|', 'git', '-C', $clone_dir, 'rev-parse', '--verify',
+                 '--quiet', $ref
+        or die_msg("Failed to run git rev-parse: $!");
+    my $check = <$fh>;
+    close $fh;
+    chomp $check if defined $check;
+    die_msg("Invalid ref: $ref — not found in source repo")
+        unless defined $check && length $check;
 
     return $ref;
 }
 
 sub resolve_sha {
     my ($clone_dir, $ref) = @_;
-    my $sha = `git -C "$clone_dir" rev-parse "$ref"`;
-    chomp $sha;
+    open my $fh, '-|', 'git', '-C', $clone_dir, 'rev-parse', $ref
+        or die_msg("Failed to run git rev-parse: $!");
+    my $sha = <$fh>;
+    close $fh;
+    chomp $sha if defined $sha;
     return $sha;
 }
 
@@ -335,6 +362,10 @@ sub cmd_update {
     my ($git_root, $ref) = @_;
     $ref //= 'latest';
 
+    # FR9: reject a malformed ref before it reaches git or the install.bash
+    # delegation (lexical only — no side effects yet).
+    validate_ref_lexical($ref);
+
     my %v = read_version_file($git_root);
     my $method = $v{cwf_method} or die_msg("No cwf_method in .cwf/version");
     my ($source, $origin) = resolve_source(\%v);
@@ -356,7 +387,8 @@ sub cmd_update {
 
     log_msg("Updating CWF (method: $method, ref: $ref)");
 
-    # Clone source to temp dir
+    # Clone source to temp dir (single network clone; the subtree path has
+    # install.bash re-source from this local checkout via file://).
     my $tmpdir = tempdir(CLEANUP => 1);
     my $clone_dir = "$tmpdir/cwf-source";
     log_msg("Cloning CWF source from $source (from: $origin)...");
@@ -372,18 +404,43 @@ sub cmd_update {
         or die_msg("Failed to checkout $resolved");
 
     if ($method eq 'subtree') {
-        update_subtree($git_root, $clone_dir, $resolved);
+        # FR2: delegate laydown to the TARGET ref's install.bash. It performs
+        # the subtree remove-then-add (CWF_FORCE) plus skill/rule/agent
+        # symlinks, so the target version's laydown governs — breaking the
+        # chicken-and-egg and avoiding the subtree-pull squash conflict (FR3).
+        # CWF_REF is the resolved SHA so install.bash cannot re-resolve to a
+        # different commit; CWF_SOURCE points at the local clone (no 2nd
+        # network clone). system (not exec) keeps the lock scope-guard alive.
+        my $installer = "$clone_dir/scripts/install.bash";
+        -f $installer
+            or die_msg("Target ref has no scripts/install.bash; cannot delegate laydown");
+
+        my $prev_cwd = getcwd();
+        chdir($git_root) or die_msg("Cannot chdir to $git_root: $!");
+        my $rc = do {
+            local %ENV = (%ENV,
+                CWF_FORCE  => '1',
+                CWF_METHOD => $method,
+                CWF_SOURCE => "file://$clone_dir",
+                CWF_REF    => $sha,
+            );
+            system('bash', $installer);   # cwd = $git_root (install.bash uses bare git)
+        };
+        my $sys_err = $!;
+        chdir($prev_cwd) or die_msg("Cannot chdir back to $prev_cwd: $!");
+        if    ($rc == -1) { die_msg("Failed to spawn install.bash: $sys_err"); }
+        elsif ($rc & 127) { die_msg(sprintf("install.bash killed by signal %d", $rc & 127)); }
+        elsif ($rc >> 8)  { die_msg(sprintf("install.bash laydown failed (exit %d)", $rc >> 8)); }
     } elsif ($method eq 'copy') {
+        # Copy method retains cwf-manage's own laydown (copy_tree/_escapes_src
+        # symlink-escape guard) and symlink creation. Copy-method convergence
+        # onto install.bash is deferred (see BACKLOG).
         update_copy($git_root, $clone_dir, $resolved);
+        create_skill_symlinks($git_root);
+        create_agent_symlinks($git_root);
     } else {
         die_msg("Unknown install method: $method");
     }
-
-    # Recreate skill symlinks (existing — non-rule)
-    create_skill_symlinks($git_root);
-
-    # Recreate agent symlinks (.claude/agents/cwf-*.md → .cwf-agents/).
-    create_agent_symlinks($git_root);
 
     # D7/D9: apply non-script artefacts (.cwf-rules/, .gitignore, CLAUDE.md
     # preamble, .cwf/rules-inject.txt, .claude/rules/ symlinks).
@@ -392,8 +449,13 @@ sub cmd_update {
     # D7: settle .claude/settings.json (Bash allowlist + Stop hooks).
     run_settings_merge($git_root);
 
-    # Update version file. cwf_install_manifest_sha pins the freshly-installed
-    # manifest's SHA (D12) so subsequent updates can detect tampering.
+    # FR5: enforce exact recorded perms over the fully-laid-down tree (run last
+    # so artefacts/symlinks are already in place). Fatal on sha mismatch.
+    apply_exact_perms_or_die($git_root);
+
+    # Authoritative version-file write (FR6): overwrites any base version file
+    # install.bash wrote on the subtree path — restoring the real cwf_source
+    # (not the transient file:// re-source) and pinning the manifest SHA once.
     $v{cwf_version}                = $resolved;
     $v{cwf_ref}                    = $resolved;
     $v{cwf_sha}                    = $sha;
@@ -413,35 +475,7 @@ sub cmd_rollback {
     return;
 }
 
-# --- Update helpers -----------------------------------------------------------
-
-sub update_subtree {
-    my ($git_root, $clone_dir, $ref) = @_;
-
-    log_msg("Creating subtree splits...");
-    system("git", "-C", $clone_dir, "subtree", "split", "--prefix=.cwf", "-b", "cwf-core") == 0
-        or die_msg("Failed to split .cwf/");
-    system("git", "-C", $clone_dir, "subtree", "split", "--prefix=.claude/skills", "-b", "cwf-skills") == 0
-        or die_msg("Failed to split .claude/skills/");
-    system("git", "-C", $clone_dir, "subtree", "split", "--prefix=.claude/agents", "-b", "cwf-agents") == 0
-        or die_msg("Failed to split .claude/agents/");
-
-    log_msg("Pulling .cwf/ update...");
-    system("git", "-C", $git_root, "subtree", "pull", "--prefix=.cwf",
-           $clone_dir, "cwf-core", "--squash", "-m", "Update CWF core ($ref)") == 0
-        or die_msg("Failed to update .cwf/ subtree");
-
-    log_msg("Pulling .cwf-skills/ update...");
-    system("git", "-C", $git_root, "subtree", "pull", "--prefix=.cwf-skills",
-           $clone_dir, "cwf-skills", "--squash", "-m", "Update CWF skills ($ref)") == 0
-        or die_msg("Failed to update .cwf-skills/ subtree");
-
-    log_msg("Pulling .cwf-agents/ update...");
-    system("git", "-C", $git_root, "subtree", "pull", "--prefix=.cwf-agents",
-           $clone_dir, "cwf-agents", "--squash", "-m", "Update CWF agents ($ref)") == 0
-        or die_msg("Failed to update .cwf-agents/ subtree");
-    return;
-}
+# --- Update helpers (copy method only; subtree delegates to install.bash) -----
 
 # _escapes_src — single gate for symlink-target safety in copy_tree.
 # Returns true if $link (the readlink value of an entry whose path is
@@ -685,29 +719,28 @@ sub _print_unfixable {
     return;
 }
 
-sub cmd_fix_security {
+# Read+decode .cwf/security/script-hashes.json. Returns ($data, undef) on
+# success, or (undef, $err) where $err is a hashref suitable for
+# _print_unfixable. Never exits — callers decide (fix-security exits; the
+# exact-perms pass in cmd_update die_msg's).
+sub _read_hashes_data {
     my ($git_root) = @_;
-
-    require Digest::SHA;
-    require JSON::PP;
-
     my $hashes_rel  = '.cwf/security/script-hashes.json';
     my $hashes_path = "$git_root/$hashes_rel";
 
     unless (-f $hashes_path) {
-        _print_unfixable({
+        return (undef, {
             rel => $hashes_rel, field => 'file',
             actual => '(missing)', expected => 'script-hashes.json to exist',
         });
-        exit 1;
     }
 
     my $json_text;
     {
-        open my $fh, '<', $hashes_path or do {
-            print STDERR "[CWF] ERROR: cannot read $hashes_path: $!\n";
-            exit 1;
-        };
+        open my $fh, '<', $hashes_path or return (undef, {
+            rel => $hashes_rel, field => 'file',
+            actual => "(unreadable: $!)", expected => 'script-hashes.json readable',
+        });
         local $/;
         $json_text = <$fh>;
         close $fh;
@@ -715,13 +748,21 @@ sub cmd_fix_security {
 
     my $data = eval { JSON::PP::decode_json($json_text) };
     if ($@ || !ref $data) {
-        _print_unfixable({
+        return (undef, {
             rel => $hashes_rel, field => 'json',
             actual => '(parse error)', expected => 'valid JSON',
         });
-        exit 1;
     }
+    return ($data, undef);
+}
 
+# Apply recorded permissions from decoded $data. $mode is 'additive' (raise
+# only missing bits — the standalone fix-security behaviour) or 'exact' (set
+# the exact recorded mode, removing excess bits — least-privilege enforcement
+# after a laydown). A missing file or sha256 mismatch is always reported as
+# unfixable. Returns (\@repaired, \@unfixable); never exits.
+sub _apply_recorded_perms {
+    my ($git_root, $data, $mode) = @_;
     my @repaired;
     my @unfixable;
 
@@ -772,10 +813,15 @@ sub cmd_fix_security {
             # sha matches — safe to fix permissions if needed.
             next unless defined $expected_perms;
             my $actual_perms = (stat($abs))[2] & 07777;
-            my $min_perms    = oct($expected_perms);
-            next if ($actual_perms & $min_perms) == $min_perms;
+            my $want         = oct($expected_perms);
 
-            if (chmod $min_perms, $abs) {
+            if ($mode eq 'exact') {
+                next if $actual_perms == $want;          # already exact
+            } else {
+                next if ($actual_perms & $want) == $want; # additive: bits present
+            }
+
+            if (chmod $want, $abs) {
                 push @repaired, {
                     rel => $rel,
                     from => sprintf('0%o', $actual_perms),
@@ -791,19 +837,52 @@ sub cmd_fix_security {
             }
         }
     }
+    return (\@repaired, \@unfixable);
+}
 
-    for my $r (@repaired) {
+sub cmd_fix_security {
+    my ($git_root) = @_;
+
+    my ($data, $err) = _read_hashes_data($git_root);
+    if ($err) { _print_unfixable($err); exit 1; }
+
+    my ($repaired, $unfixable) = _apply_recorded_perms($git_root, $data, 'additive');
+
+    for my $r (@$repaired) {
         printf "[CWF] fix-security: chmod %s %s (was %s)\n", $r->{to}, $r->{rel}, $r->{from};
     }
 
-    if (@unfixable) {
-        _print_unfixable($_) for @unfixable;
+    if (@$unfixable) {
+        _print_unfixable($_) for @$unfixable;
         printf "[CWF] fix-security: repaired %d file(s); %d unfixable\n",
-            scalar @repaired, scalar @unfixable;
+            scalar @$repaired, scalar @$unfixable;
         exit 1;
     }
 
-    printf "[CWF] fix-security: repaired %d file(s); validate: OK\n", scalar @repaired;
+    printf "[CWF] fix-security: repaired %d file(s); validate: OK\n", scalar @$repaired;
+    return;
+}
+
+# Enforce exact recorded perms after a laydown (FR5). A sha mismatch or missing
+# file here means a corrupt laydown, so it is fatal — abort before the manifest
+# pin. Called by cmd_update.
+sub apply_exact_perms_or_die {
+    my ($git_root) = @_;
+    my ($data, $err) = _read_hashes_data($git_root);
+    die_msg("exact-perms: cannot read script-hashes.json ($err->{field}); aborting")
+        if $err;
+
+    my ($repaired, $unfixable) = _apply_recorded_perms($git_root, $data, 'exact');
+    for my $r (@$repaired) {
+        printf "[CWF] update: chmod %s %s (was %s)\n", $r->{to}, $r->{rel}, $r->{from};
+    }
+    if (@$unfixable) {
+        _print_unfixable($_) for @$unfixable;
+        die_msg(sprintf(
+            "exact-perms: %d unfixable entr%s after laydown (corrupt laydown); "
+          . "aborting before version-file update",
+            scalar @$unfixable, (@$unfixable == 1 ? 'y' : 'ies')));
+    }
     return;
 }
 

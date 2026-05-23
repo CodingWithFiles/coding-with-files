@@ -81,6 +81,22 @@ After install, use the management script for ongoing operations:
 .cwf/scripts/cwf-manage rollback v2.0.0 # revert to previous version
 ```
 
+### Recovering an install stuck on an old `cwf-manage`
+
+`cwf-manage update` is run by the *installed* (old) script, so a fix to the
+updater only reaches installs made **after** that fix. An install predating a
+given fix cannot benefit from it through `update` alone — the limitation is
+forward-only. If `update` fails across a large version gap, recover by
+re-running the bootstrap installer for the target version, which performs a
+clean remove-then-add:
+
+```bash
+CWF_FORCE=1 CWF_REF=<tag> CWF_SOURCE=<source-url> bash install.bash
+```
+
+This is a one-time manual step; subsequent `update`s use the freshly-installed
+(fixed) `cwf-manage`.
+
 ## Manual Install
 
 Three methods are available for manual installation. All are first-class and fully supported.

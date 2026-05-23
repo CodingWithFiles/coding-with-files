@@ -1258,33 +1258,10 @@ The canonical PERL5OPT value `-CDSLA` is duplicated across several surfaces: `IN
 
 Consider a single source of truth — e.g. the helper constant becomes the authority and the docs reference it, or a small shared data point read by `check_perl5opt` and the merge helper. Scope discipline: Task 153 deliberately did not build this (the bug there was setting *location*, not value duplication). Low priority — the value changes rarely.
 
-## Task: Converge cwf-manage update onto install.bash (shared install-lifecycle library)
+## Task: Converge cwf-manage copy-method update onto install.bash
 
-### Task-Type: chore
-### Priority: Medium
-### Status: Consolidates 3 prior entries; motivated by user cross-version upgrade-failure report (2026-05-22)
-### Identified in: Tasks 143, 127, 120 retrospectives; reinforced by user upgrade-failure report 2026-05-22
+### Task-Type: feature
+### Priority: Low
+### Identified in: Task 155
 
-Two install paths exist — `scripts/install.bash` (bash) and `.cwf/scripts/cwf-manage` `update_subtree`/`update_copy` (perl) — and they duplicate subtree-split/add, copy-method, and create-symlinks logic per `.cwf-*` staging dir. They drift: `install.bash` lays down 4 subtrees (`.cwf`, `.cwf-skills`, `.cwf-rules`, `.cwf-agents`); `update` delivers core/skills/agents via subtree but rules via `cwf-apply-artefacts` (a divergent mechanism). Adding a staging dir needs symmetric edits in both scripts (Task 143's `.cwf-agents` work; TC-AC1-install caught a missed edit).
-
-Root issue (user upgrade-failure report, 2026-05-22, subtree install v1.0.114 → v1.1.152): the update is performed by the *installed* (old) `cwf-manage`, so fixes to the updater never reach installs that predate them — a chicken-and-egg. Reported symptoms: (1) `git subtree pull --squash` produces spurious add/add conflicts across a multi-version gap (squash loses the merge base); (2) update structurally out of sync with install (old versions can never deliver trees added in a later minor). Issue (3) — update ignoring `CWF_SOURCE` — is already fixed (Task 115).
-
-Goal: a single shared install-lifecycle implementation used by both install and update, such that update runs the *target* version's laydown logic (e.g. delegate to the freshly-cloned `$clone_dir/scripts/install.bash` via the `CWF_FORCE` remove-then-add path). This (a) makes install/update incapable of drifting, (b) eliminates the `subtree pull --squash` conflict via fresh remove-then-add (the documented `CWF_FORCE=1 … install.bash` workaround already proves this works), and (c) structurally breaks the chicken-and-egg for all future cross-version jumps.
-
-Approach options:
-- (a) Bash library under `scripts/lib/` sourced by both; (b) a single Perl helper invoked by both; or (c) update shells out to the cloned target's `install.bash`.
-- Reduces per-staging-dir maintenance from ~12 edits (6 in each script) to ~3 in one place.
-- Constraint: `cmd_update` has accreted steps `install.bash` lacks — `cwf-apply-artefacts`, `cwf-claude-settings-merge`, manifest-SHA pinning (D12), the update lock. Convergence must move these into a shared post-install so update does not regress them; `install.bash`'s own `.cwf/version` write must not double-write against `cmd_update`'s manifest-sha logic.
-- Nothing shippable can repair installs already on a pre-fix `cwf-manage`; document `CWF_FORCE=1 CWF_REF=<tag> CWF_SOURCE=<src> bash install.bash` as the one-time recovery path.
-
-Folded in — chmod reconciliation (was "Reconcile cwf-manage update and fix-security chmod logic", Task 120 follow-up):
-- `cmd_update` does a blanket `chmod 0755` over `.cwf/scripts/`; `fix-security` chmods to exact recorded perms (0500/0700/0755) per `script-hashes.json`. Both pass validate but produce different end states.
-- Replace the blanket chmod in `cmd_update` with a `cmd_fix_security` call (or extract per-entry chmod into a shared sub); confirm update integration tests still pass; refresh the `cwf-manage` hash.
-
-Folded in — end-to-end test harness (was "Add fixture-server harness for end-to-end cwf-manage update tests", Task 127 follow-up):
-- Task 127's TC-INT-AC1 was PARTIAL — no true end-to-end test of the clone+subtree-pull flow. Needs a fixture remote + multi-commit history.
-- Build `t/fixtures/upstream-server/`: bare git repo, 3-5 scripted commits with realistic CWF-shaped diffs.
-- Add `t/cwf-manage-update-end-to-end.t`: clone fixture → init → modify fixture → update → assert artefacts updated, manifest-SHA pinned, lock released.
-- Cover regressions: subtree-pull/squash conflict across a version gap, manifest schema bump, upstream rollback (downgrade). Out of scope: SIGKILL-during-rename atomicity (covered by same-dir-temp + rename), interactive D/A prompt branches (need an expect-style harness).
-
-Consolidates three prior Low-priority entries: install-lifecycle dedup (Task 143), chmod reconciliation (Task 120), fixture harness (Task 127). Bumped to Medium because a real user cross-version upgrade failure now motivates it.
+Task 155 converged only the subtree update method onto install.bash delegation; the copy method still uses cwf-manage update_copy (with copy_tree/_escapes_src symlink-escape guard). Converging copy too requires either porting the lexical symlink-escape check into install.bash install_copy (cp -r currently has none) or having install_copy shell out to a shared checker. Until then update_copy + copy_tree + _escapes_src + _collapse_dotdot remain in cwf-manage and FR1 (single laydown) is only fully met for subtree.

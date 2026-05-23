@@ -137,9 +137,16 @@ create_cwf_symlinks() {
     local count=0
     for item in "$source_dir"/$glob; do
         if test "$test_flag" "$item"; then
-            local name
+            local name target
             name="$(basename "$item")"
-            ln -s "../../$source_dir/$name" "$target_dir/$name"
+            target="$target_dir/$name"
+            # Conflict-check (ported from cwf-manage create_agent_symlinks): a
+            # regular file at the cwf-* path blocks the install rather than
+            # being silently overwritten. cwf-* is CWF's namespace.
+            if [[ -e "$target" && ! -L "$target" ]]; then
+                die "Regular file $target blocks CWF $label install; remove it or rename your custom $label"
+            fi
+            ln -s "../../$source_dir/$name" "$target"
             count=$((count + 1))
         fi
     done
@@ -173,8 +180,12 @@ install_subtree() {
                 rm -rf "$dir"
             fi
         done
-        # Need a clean state for subtree add
-        git commit --allow-empty -m "CWF: remove existing install for reinstall" --quiet 2>/dev/null || true
+        # Need a clean state for subtree add. Restrict the commit to CWF
+        # pathspecs so unrelated staged work is never swept into it. The
+        # `|| true` tolerates an empty-pathspec commit; the real failure net is
+        # the `set -e` git subtree adds below.
+        git commit --allow-empty -m "CWF: remove existing install for reinstall" --quiet \
+            -- .cwf .cwf-skills .cwf-rules .cwf-agents 2>/dev/null || true
     fi
 
     # Add all subtrees
