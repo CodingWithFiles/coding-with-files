@@ -798,25 +798,6 @@ Carried over from the sister "Document Bugfix Workflow Differences" entry (retir
 - The bugfix-specific entry was motivated by Task 36's confusion about an attempted /cwf-rollout invocation on a bugfix task that had no h-rollout.md. The per-type docs should make the "missing phase" cases discoverable from the docs alone, not only via failure.
 - Per-type comparison table (Feature / Bugfix / Hotfix / Chore × phase) is the discoverable shape; document rollout alternatives for workflows without h-rollout.
 
-## Bug: Progress Signal Scores Completed Tasks Highest in Task Context Inference
-
-### Task-Type: bugfix
-### Priority: Medium
-### Status: Backlog
-### Observed: After completing Task 103 and creating Task 104, `task-context-inference` returned "inconclusive" with both 103 and 104 as candidates. Task 103 (100%/Finished) scored higher on the progress signal than Task 104 (~10%/Backlog). The branch signal (weight 100) overrode it in the final result, but the progress signal contributed noise.
-### Root cause: Comment on line 409 says "bell curve, peak at 50%" but implementation is linear ramp. The scoring should either: (a) filter out 100% tasks entirely, (b) use a bell curve peaking at ~50% (actively being worked on), or (c) use an inverted ramp where low-progress tasks score higher (more work remaining = more likely current).
-### Scope: 
-### Identified in: Task 104 session — inference returned inconclusive when only one task had remaining work
-
-The `_score_progress` function in `TaskContextInference.pm` uses a linear ramp (line 452: `int(($percentage / 100) * WEIGHT_PROGRESS_MAX)`) — a task at 100% gets score 60 (maximum), while a task at 10% gets score 6. This means **finished tasks dominate the progress signal**, which is backwards: a 100% task has no remaining work and shouldn't be a candidate for "current task."
-
-
-
-- Fix `_score_progress` in `.cwf/lib/CWF/TaskContextInference.pm`
-- Either filter out 100% tasks or use bell-curve scoring
-- Update comment to match implementation
-- Verify with mixed completed/in-progress task states
-
 ## Task: Research Compaction Failure Frequency via LMM Memory Analysis
 
 ### Task-Type: discovery
@@ -1265,3 +1246,33 @@ Consider a single source of truth — e.g. the helper constant becomes the autho
 ### Identified in: Task 155
 
 Task 155 converged only the subtree update method onto install.bash delegation; the copy method still uses cwf-manage update_copy (with copy_tree/_escapes_src symlink-escape guard). Converging copy too requires either porting the lexical symlink-escape check into install.bash install_copy (cp -r currently has none) or having install_copy shell out to a shared checker. Until then update_copy + copy_tree + _escapes_src + _collapse_dotdot remain in cwf-manage and FR1 (single laydown) is only fully met for subtree.
+
+## Task: cwf-manage records ref (HEAD/branch) in cwf_version instead of resolved semver
+
+### Task-Type: bugfix
+### Priority: Very High
+### Identified in: User CWF install session, 2026-05-23
+
+Symptom: `cwf-manage status` shows `Version: HEAD` (a ref, not a version) when CWF was installed/updated from the `HEAD` ref or a branch. For a tagged commit the Version field should resolve to the semver, e.g. an install pinned to a SHA that is exactly `v1.1.155` should report `v1.1.155`.
+
+Root cause: `resolve_ref` (`.cwf/scripts/cwf-manage:159`) only maps `latest` to the highest semver tag; for any other ref (`HEAD`, branch, SHA) it verifies existence and returns the ref string verbatim (`:184`). `cmd_update` then writes that same verbatim string into BOTH `cwf_version` and `cwf_ref` (`:477-478`), so `cwf_version` records a ref rather than a version.
+
+Field conflation: `cwf_ref` should hold the originally-requested ref (`latest`/`HEAD`/branch); `cwf_version` should hold the semver the installed SHA maps to. They currently receive the same value.
+
+Proposed fix: derive `cwf_version` from `git describe --tags <sha>` against the already-resolved SHA (`$sha`, `:479`), and stop overwriting `cwf_ref` with `$resolved` so the requested ref is preserved. For `latest`, `cwf_version` stays the semver and `cwf_ref` should record `latest`.
+
+Notes: dog-food repo, so the fix goes through the CWF workflow. `cwf-manage` is hash-tracked (`.cwf/security/script-hashes.json:204`), so the change needs a same-commit `script-hashes.json` refresh (hash-updates convention).
+
+## Task: Clarify _score_progress: rename misleading $percentage param and delete stale bell-curve comment
+
+### Task-Type: chore
+### Priority: Low
+### Identified in: Task 157 j-retrospective.md (Future Work)
+
+Clarity-only, no behaviour change. The `_score_progress` sub in `.cwf/lib/CWF/TaskContextInference.pm` is correct but reads like a bug in isolation, which led to a mis-filed bugfix (retired in Task 157).
+
+Two edits:
+1. Rename the parameter `$percentage` (`:447`) to a work-potential name (e.g. `$work_potential`). It does not receive raw completion — `_get_progress_signal` feeds it `_calculate_task_progress` (`:488`), which returns the post-cliff `state_achievable` value. The name is the root of the misread.
+2. Delete the stale comment `# Score tasks by progress (bell curve, peak at 50%)` (`:410`) in `_get_progress_signal`. There is no bell curve; the cliff in `state_achievable` (`TaskState.pm:150`) plus the linear ramp govern. The comment inside `_score_progress` (`:450-452`) is already accurate and should be kept.
+
+`TaskContextInference.pm` is hash-tracked (`.cwf/security/script-hashes.json`), so the change requires a same-commit `script-hashes.json` refresh (hash-updates convention). Verify no behaviour change: existing TaskContextInference tests should pass unchanged.

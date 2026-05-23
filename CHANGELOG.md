@@ -2,6 +2,32 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 157: Verify progress-signal still causes conflicting task context inference
+
+### Status: Complete (2026-05-23)
+### Duration: single session (estimate <1 day, Low complexity). On estimate.
+### Impact: Discovery — no behaviour change. Investigated the Medium backlog item claiming `_score_progress` scores completed tasks highest and lets finished tasks dominate the progress signal in `task-context-inference`. Verdict: **misread of current code**. `_score_progress`'s input is not raw completion — `_get_progress_signal` feeds it `_calculate_task_progress` (`TaskContextInference.pm:488`), which returns `CWF::TaskState::state_achievable`, applying a cliff (`TaskState.pm:150`: completion ≥ 100% → work potential 0). `_get_progress_signal` then drops zero-score candidates (`TaskContextInference.pm:418`). So a correctly-finished task (all steps terminal → `state_done` 100) arrives as 0 and is filtered out before candidate assembly — it cannot be `top`, cannot dissent, cannot drive an inconclusive. Confirmed both by static trace (FR1) and by an executable probe calling the real `state_achievable`/`_score_progress`/`_get_progress_signal` against a synthetic three-task tree (FR2): candidates `[203:15, 202:6]`, the finished task `201` **absent**, `top=203`. The original Task 104 observation either predates the current cliff implementation or reflects a task mislabelled Finished with a non-terminal step (purpose-#2 diagnostic, not noise). Read-only: no `.cwf/**` modified; fixture and probe were throwaway scratch artefacts. Backlog item retired; a Low clarity-only chore filed to rename the misleading `$percentage` parameter (`:447`) and delete the stale "bell curve, peak at 50%" comment (`:410`).
+
+### Notable
+- **`{code} != {purpose}`.** Reading `_score_progress` in isolation produces exactly the backwards conclusion the backlog item reached. The upstream cliff and downstream zero-filter are the real guarantee; the function body alone does not show them. The misleading parameter name and stale comment are what made the function read like a bug.
+- **`inconclusive` is diagnostic, not abstention.** A "finished" task that surfaces as a candidate is evidence it is not correctly finished — the alarm working as designed. The recommendation deliberately does not propose suppressing this.
+- **The parse-success guard was load-bearing.** Asserting `state_done(201)==100` before trusting the candidate list ruled out a false-confirm where a malformed fixture (no `## Status` heading → empty statuses → 0) would have excluded the finished task for the wrong reason.
+- **Plan review corrected real design errors before exec** — a wrong `find_git_root()` citation and an unreachable "chdir → defaults fallback" (config is process-cached). The corrected reasoning (config-source-independent because real config is byte-identical to defaults for the keys used) is what made the empirical step trustworthy.
+
+### Retired Backlog Items
+#### Progress Signal Scores Completed Tasks Highest in Task Context Inference
+
+The `_score_progress` function in `TaskContextInference.pm` uses a linear ramp (line 452: `int(($percentage / 100) * WEIGHT_PROGRESS_MAX)`) — a task at 100% gets score 60 (maximum), while a task at 10% gets score 6. This means **finished tasks dominate the progress signal**, which is backwards: a 100% task has no remaining work and shouldn't be a candidate for "current task."
+
+
+
+- Fix `_score_progress` in `.cwf/lib/CWF/TaskContextInference.pm`
+- Either filter out 100% tasks or use bell-curve scoring
+- Update comment to match implementation
+- Verify with mixed completed/in-progress task states
+
+<!-- Note: Investigated in Task 157. Premise is a misread of current code: the cliff at TaskState.pm:150 plus the zero-score filter at TaskContextInference.pm:418 already exclude correctly-finished tasks from the progress signal. Not a bug. Superseded by a Low clarity-only chore. -->
+
 ## Task 156: Suggest fresh install on cwf-manage update failure
 
 ### Status: Complete (2026-05-23)
