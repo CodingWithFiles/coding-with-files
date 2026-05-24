@@ -1212,14 +1212,6 @@ The canonical PERL5OPT value `-CDSLA` is duplicated across several surfaces: `IN
 
 Consider a single source of truth — e.g. the helper constant becomes the authority and the docs reference it, or a small shared data point read by `check_perl5opt` and the merge helper. Scope discipline: Task 153 deliberately did not build this (the bug there was setting *location*, not value duplication). Low priority — the value changes rarely.
 
-## Task: Converge cwf-manage copy-method update onto install.bash
-
-### Task-Type: feature
-### Priority: Low
-### Identified in: Task 155
-
-Task 155 converged only the subtree update method onto install.bash delegation; the copy method still uses cwf-manage update_copy (with copy_tree/_escapes_src symlink-escape guard). Converging copy too requires either porting the lexical symlink-escape check into install.bash install_copy (cp -r currently has none) or having install_copy shell out to a shared checker. Until then update_copy + copy_tree + _escapes_src + _collapse_dotdot remain in cwf-manage and FR1 (single laydown) is only fully met for subtree.
-
 ## Task: Clarify _score_progress: rename misleading $percentage param and delete stale bell-curve comment
 
 ### Task-Type: chore

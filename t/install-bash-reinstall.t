@@ -24,6 +24,7 @@ use Test::More;
 use FindBin;
 use File::Spec;
 use File::Temp qw(tempdir tempfile);
+use File::Find ();
 use Cwd qw(getcwd);
 
 my $REPO_ROOT = File::Spec->rel2abs(File::Spec->catdir($FindBin::Bin, '..'));
@@ -287,6 +288,94 @@ subtest 'TC-7 (item 3): security-review.md doc lists every helper prefix' => sub
     for my $p (@helper_prefixes) {
         ok($doc{$p}, "doc enumerates $p");
     }
+};
+
+# Structural listing of a tree: sorted "kind relpath" lines (l=symlink, d=dir,
+# f=file). Used to compare copy- vs subtree-produced trees (TC-6).
+sub tree_list {
+    my ($root) = @_;
+    return '' unless -d $root;
+    my @rel;
+    File::Find::find({
+        no_chdir => 1,
+        wanted => sub {
+            return if $_ eq $root;
+            (my $r = $_) =~ s{^\Q$root\E/}{};
+            my $kind = -l $_ ? 'l' : (-d _ ? 'd' : 'f');
+            push @rel, "$kind $r";
+        },
+    }, $root);
+    return join("\n", sort @rel);
+}
+
+# Plant escaping symlinks under the upstream's .cwf/ and re-point the tag, so a
+# subsequent install of that ref sees a tainted source. @links are link=>target.
+sub taint_upstream {
+    my ($upstream, $tag, %links) = @_;
+    for my $name (keys %links) {
+        symlink($links{$name}, "$upstream/.cwf/$name") or die "symlink $name: $!";
+    }
+    git_ok($upstream, 'add', '-A');
+    git_ok($upstream, 'commit', '-q', '-m', 'plant escaping symlink(s)');
+    git_ok($upstream, 'tag', '-f', $tag);
+}
+
+subtest 'TC-3 (Task 161): fresh copy install refuses an escaping upstream symlink' => sub {
+    my $base     = tempdir(CLEANUP => 1);
+    my $upstream = build_upstream("$base/upstream");
+    my $consumer = fresh_consumer("$base/consumer");
+
+    taint_upstream($upstream, 'v0.0.1',
+        'abs-leak' => '/etc/passwd',                 # absolute target
+        'rel-leak' => '../../../../../etc/passwd');  # ..-escape
+
+    my ($rc, $out) = do_install($consumer, $upstream, method => 'copy');
+    isnt($rc, 0, 'fresh copy install aborts on an escaping upstream symlink');
+    like($out, qr/out-of-tree symlink/, 'guard message surfaced');
+    ok(! -e "$consumer/.cwf", 'no .cwf laid down — refused before any cp -r');
+};
+
+subtest 'TC-4 (Task 161): existing install survives a refused copy source (guard before rm -rf)' => sub {
+    my $base     = tempdir(CLEANUP => 1);
+    my $upstream = build_upstream("$base/upstream");
+    my $consumer = fresh_consumer("$base/consumer");
+
+    # 1) A clean copy install establishes an existing .cwf/, plus a sentinel.
+    my ($rc1, $out1) = do_install($consumer, $upstream, method => 'copy', force => 1);
+    is($rc1, 0, 'initial clean copy install succeeds') or diag $out1;
+    ok(-d "$consumer/.cwf", '.cwf present after the initial install');
+    write_file("$consumer/.cwf/SENTINEL", "preserve me\n");
+
+    # 2) Taint the upstream, then force a re-install over the existing tree.
+    #    CWF_FORCE=1 means install_copy would rm -rf — but the guard must fire
+    #    first, so the existing install is left intact (the blocking-finding
+    #    regression guard).
+    taint_upstream($upstream, 'v0.0.1', 'leak' => '/etc/passwd');
+
+    my ($rc2, $out2) = do_install($consumer, $upstream, method => 'copy', force => 1);
+    isnt($rc2, 0, 'forced re-install aborts on the escaping source');
+    like($out2, qr/out-of-tree symlink/, 'guard message surfaced');
+    ok(-d "$consumer/.cwf", 'existing .cwf still present (guard ran before rm -rf)');
+    ok(-e "$consumer/.cwf/SENTINEL", 'pre-existing install file survived the refused update');
+};
+
+subtest 'TC-6 (Task 161): copy and subtree installs produce a matching .cwf-rules + rules symlinks' => sub {
+    my $base     = tempdir(CLEANUP => 1);
+    my $upstream = build_upstream("$base/upstream");
+    my $con_copy = fresh_consumer("$base/con_copy");
+    my $con_sub  = fresh_consumer("$base/con_sub");
+
+    my ($rcc, $oc) = do_install($con_copy, $upstream, method => 'copy');
+    my ($rcs, $os) = do_install($con_sub,  $upstream, method => 'subtree');
+    is($rcc, 0, 'copy install succeeds')    or diag $oc;
+    is($rcs, 0, 'subtree install succeeds') or diag $os;
+
+    is(tree_list("$con_copy/.cwf-rules"), tree_list("$con_sub/.cwf-rules"),
+        '.cwf-rules structure identical across methods (no double-handling)');
+    is(tree_list("$con_copy/.claude/rules"), tree_list("$con_sub/.claude/rules"),
+        '.claude/rules symlink set identical across methods');
+    ok(-l "$con_copy/.claude/rules/cwf-workflow-files.md", 'copy: rules entry is a symlink');
+    ok(-l "$con_sub/.claude/rules/cwf-workflow-files.md",  'subtree: rules entry is a symlink');
 };
 
 done_testing();

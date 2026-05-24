@@ -217,30 +217,35 @@ install_copy() {
     # Checkout the resolved ref
     git -C "$clone_dir" checkout --quiet "$ref"
 
+    # Single source-of-truth list of (source-subpath:dest) copy pairs. The
+    # symlink-escape guard and the cp -r loop below iterate this SAME list, so
+    # a new copy source cannot be added without also being guarded.
+    local pairs=( ".cwf:.cwf" ".claude/skills:.cwf-skills" \
+                  ".claude/rules:.cwf-rules" ".claude/agents:.cwf-agents" )
+    local p src
+    local roots=()
+    for p in "${pairs[@]}"; do
+        src="$clone_dir/${p%%:*}"
+        [[ -d "$src" ]] && roots+=("$src")
+    done
+
+    # Refuse out-of-tree symlinks in the source BEFORE any destructive removal
+    # or copy (fail-closed; a post-copy check is too late — cp -r copies an
+    # escaping symlink verbatim). The guard runs from the target-version clone.
+    local guard="$clone_dir/.cwf/scripts/command-helpers/cwf-check-tree-symlinks"
+    [[ -x "$guard" ]] || die "symlink-escape guard missing from source tree ($guard); cannot safely copy"
+    "$guard" "${roots[@]}" || die "refusing to install: source tree contains an out-of-tree symlink"
+
     # Remove existing if force
     if [[ "$CWF_FORCE" == "1" ]]; then
         rm -rf .cwf .cwf-skills .cwf-rules .cwf-agents
     fi
 
-    # Copy core
-    cp -r "$clone_dir/.cwf" .cwf
-    log "Copied .cwf/"
-
-    # Copy skills to staging prefix
-    cp -r "$clone_dir/.claude/skills" .cwf-skills
-    log "Copied .cwf-skills/"
-
-    # Copy rules to staging prefix
-    if [[ -d "$clone_dir/.claude/rules" ]]; then
-        cp -r "$clone_dir/.claude/rules" .cwf-rules
-        log "Copied .cwf-rules/"
-    fi
-
-    # Copy agents to staging prefix
-    if [[ -d "$clone_dir/.claude/agents" ]]; then
-        cp -r "$clone_dir/.claude/agents" .cwf-agents
-        log "Copied .cwf-agents/"
-    fi
+    # Copy each present source to its staging dest
+    for p in "${pairs[@]}"; do
+        src="$clone_dir/${p%%:*}"
+        [[ -d "$src" ]] && { cp -r "$src" "${p##*:}"; log "Copied ${p##*:}/"; }
+    done
 
     # Fix permissions
     find .cwf/scripts -type f -exec chmod u+rx {} \;

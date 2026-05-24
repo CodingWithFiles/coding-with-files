@@ -2,6 +2,25 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 161: Converge cwf-manage copy update onto install.bash
+
+### Status: Complete (2026-05-24)
+### Duration: single session (estimate 1–2 days, Medium complexity). On estimate.
+### Impact: Feature — implements FR3 deferred at Task 159's design gate (the copy-method counterpart to Task 155's subtree convergence). **Single laydown path**: `cmd_update`'s copy branch now delegates to the target version's `scripts/install.bash` exactly like the subtree branch (the if/elsif/else collapsed to one delegation guarded by `$method eq 'subtree' || $method eq 'copy' or die_msg("Unknown install method: …")`), and the six dead copy-laydown subs (`update_copy`, `copy_tree`, `_escapes_src`, `_collapse_dotdot`, `create_skill_symlinks`, `create_agent_symlinks`) plus five now-orphaned imports (`File::Find`, `File::Copy`, `File::Path`, `File::Spec`, `File::Basename`) were removed after a caller audit — 340 lines, guarded against return by TC-8. **Guard extracted + integrity-covered**: the symlink-escape check (`_escapes_src`/`_collapse_dotdot`) moved verbatim into a new standalone helper `.cwf/scripts/command-helpers/cwf-check-tree-symlinks` (lexical, no disk-following; refuses absolute, `..`-escaping, and source-root-equal targets; fail-closed on readlink failure; `exit 2` on no roots; self-decodes `@ARGV`; `main(@ARGV) unless caller();` for testability). Landing it under `.cwf/scripts/` put it inside the hash ledger **and** `@CWF_INTERNAL_PREFIXES` with no prefix edit; `cwf-manage validate` now detects a deliberate tamper of it (TC-7, negative assertion). **Headline security win**: `install_copy` now runs the guard — via a `[[ -x "$guard" ]] || die` precheck then the guard itself — *before* the destructive `rm -rf`/`cp`, closing the previously-unguarded fresh copy-install path; a refused source leaves any existing install intact (TC-4). The guard runs from the target-version clone (design D4). `.cwf-rules` laydown reconciled against `run_apply_artefacts` (copy/subtree parity, TC-6); full env block incl. `CWF_FORCE=1` passed on the copy delegation (TC-5). In-commit `script-hashes.json` refresh (new helper entry + refreshed `cwf-manage`); new `t/cwf-check-tree-symlinks.t`; TC-3..TC-8 added across `install-bash-reinstall.t`, `cwf-manage-update-end-to-end.t`, `cwf-manage-update.t`; full suite 49 files / 533 tests pass; `cwf-manage validate` clean; both exec-phase security reviews clean.
+
+### Notable
+- **A relocated security check must take its integrity coverage with it.** The decision that made FR2/FR3/NFR4 mutually consistent at zero extra cost was *where* the guard lived: inside the existing `.cwf/scripts/` prefix (ledger + auto-review both apply) rather than co-located with `install.bash` at repo-root `scripts/` (outside both). Move-don't-rewrite kept the audited lexical logic byte-identical.
+- **Fresh-install and update paths have different reach.** The `install.bash` copy guard protects new installs immediately; the copy-*update* convergence is forward-only (run by the consumer's old `cwf-manage`, effective from the next update or via bootstrap reinstall) — the same intrinsic as Task 159's updater fixes.
+- **The plan under-counted orphaned imports (3 named, 5 actual).** Caller enumeration caught the dead subs; the import count was eyeballed from the `use` list rather than grepped against HEAD. Lesson recorded: grep imports the same way you grep callers on deletion tasks.
+- **The 500-line review cap fires on deletion-heavy changes.** Both phase changesets exceeded the cap largely because of the 340-line removal; the "split the change" remedy (review the genuinely-new source/test surface) worked, but the cap counts deleted lines as review burden.
+
+### Retired Backlog Items
+#### Converge cwf-manage copy-method update onto install.bash
+
+Task 155 converged only the subtree update method onto install.bash delegation; the copy method still uses cwf-manage update_copy (with copy_tree/_escapes_src symlink-escape guard). Converging copy too requires either porting the lexical symlink-escape check into install.bash install_copy (cp -r currently has none) or having install_copy shell out to a shared checker. Until then update_copy + copy_tree + _escapes_src + _collapse_dotdot remain in cwf-manage and FR1 (single laydown) is only fully met for subtree.
+
+<!-- Note: Implemented in Task 161: copy update now delegates to install.bash; guard extracted to cwf-check-tree-symlinks (integrity-covered) and extended to the fresh copy-install path. -->
+
 ## Task 160: Remove sed extraction guidance from CWF docs
 
 ### Status: Complete (2026-05-24)

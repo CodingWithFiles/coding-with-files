@@ -114,8 +114,10 @@ sub build_upstream {
 }
 
 # Install CWF into a fresh consumer repo from the upstream via install.bash.
+# $method defaults to 'subtree' (back-compat); pass 'copy' for the copy path.
 sub install_consumer {
-    my ($consumer, $upstream, $ref) = @_;
+    my ($consumer, $upstream, $ref, $method) = @_;
+    $method //= 'subtree';
     system('mkdir', '-p', $consumer) == 0 or die "mkdir $consumer";
     git_ok($consumer, 'init', '-q');
     write_file("$consumer/README.md", "consumer\n");
@@ -124,7 +126,7 @@ sub install_consumer {
 
     my @r;
     {
-        local $ENV{CWF_METHOD} = 'subtree';
+        local $ENV{CWF_METHOD} = $method;
         local $ENV{CWF_SOURCE} = "file://$upstream";
         local $ENV{CWF_REF}    = $ref;
         @r = run(cmd => ['bash', "$upstream/scripts/install.bash"], dir => $consumer);
@@ -346,6 +348,30 @@ subtest 'FR1: update by SHA-on-a-tag → cwf_version=tag, cwf_ref=the SHA' => su
     like($vf, qr/^cwf_version=v0\.0\.2$/m, 'cwf_version describes the SHA to its tag');
     like($vf, qr/^cwf_ref=\Q$sha\E$/m,     'cwf_ref preserves the requested SHA');
     unlike($vf, qr/^cwf_version=\Q$sha\E$/m, 'cwf_version is NOT the bare SHA (the bug)');
+};
+
+subtest 'TC-5 (Task 161): copy-method update over an existing install succeeds' => sub {
+    my $base = tempdir(CLEANUP => 1);
+    my $consumer = "$base/consumer";
+    my $upstream = build_upstream("$base/upstream", 2);   # tags v0.0.1, v0.0.2
+
+    my ($irc, $iout) = install_consumer($consumer, $upstream, 'v0.0.1', 'copy');
+    is($irc, 0, 'copy install v0.0.1 succeeds') or diag $iout;
+    like(slurp("$consumer/.cwf/version") // '', qr/^cwf_method=copy$/m,
+        'installed method is copy');
+
+    # The copy update path delegates to install.bash, which runs install_copy
+    # with CWF_FORCE=1 over the existing .cwf/ — proving FR4's full env block.
+    my ($urc, $uout) = consumer_manage($consumer, 'update', 'v0.0.2');
+    is($urc, 0, 'copy-method update succeeds (no "already installed" abort)') or diag $uout;
+
+    my $vf = slurp("$consumer/.cwf/version") // '';
+    like($vf, qr/^cwf_method=copy$/m,  'method remains copy after update');
+    like($vf, qr/^cwf_ref=v0\.0\.2$/m, 'cwf_ref records the update target');
+    ok(-d "$consumer/.cwf" && -d "$consumer/.cwf-rules",
+        '.cwf and .cwf-rules present after the converged copy update');
+    ok(-l "$consumer/.claude/rules/cwf-workflow-files.md",
+        'rules symlink regenerated (run_apply_artefacts parity with subtree)');
 };
 
 done_testing();

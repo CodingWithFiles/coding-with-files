@@ -186,6 +186,11 @@
       "permissions" : "0500",
       "sha256" : "b82a77af2a105d9d880346a09563cde132d3bdb87f68099a65b495180199fed4"
     },
+    "cwf-check-tree-symlinks" : {
+      "path" : ".cwf/scripts/command-helpers/cwf-check-tree-symlinks",
+      "permissions" : "0500",
+      "sha256" : "7cb443c664a0bfe3a063bb7b8b6ef78ec059f5fdbcb2d0e20d8c3e929ea46d29"
+    },
     "cwf-checkpoint-commit" : {
       "path" : ".cwf/scripts/command-helpers/cwf-checkpoint-commit",
       "permissions" : "0700",
@@ -204,7 +209,7 @@
     "cwf-manage" : {
       "path" : ".cwf/scripts/cwf-manage",
       "permissions" : "0700",
-      "sha256" : "1dc8cb0635b2545346a19a847a5ea945a953eecd9910a4552f1fd0d223e30972"
+      "sha256" : "661990290fa72af54afad5f6a854dad107ea7c2e2b39955de8dbd658f4402f06"
     },
     "cwf-set-status" : {
       "path" : ".cwf/scripts/command-helpers/cwf-set-status",

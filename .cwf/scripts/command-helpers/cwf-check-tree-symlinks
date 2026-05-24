@@ -1,0 +1,117 @@
+#!/usr/bin/env perl
+#
+# cwf-check-tree-symlinks - Symlink-escape guard for CWF tree laydown.
+#
+# Walks one or more source roots and refuses any symlink whose target
+# escapes the root it was found under — i.e. a target that is absolute,
+# resolves outside the root after lexically collapsing '..' segments, or
+# resolves to exactly the root. Pure validation: no filesystem mutation,
+# no disk-following (only the symlink *target* string is canonicalised).
+#
+# Used before any `cp -r` on the copy install/update path so a compromised
+# upstream cannot plant out-of-tree references into the installed .cwf/.
+#
+# Usage:
+#   cwf-check-tree-symlinks <root>...
+#     exit 0         every symlink under every root is in-tree
+#     exit 1         first escaping symlink (or readlink failure); message
+#                    on STDERR: "refusing escaping symlink target: <e> -> <l>"
+#     exit 2         usage error (no roots given)
+#
+# This helper is launched from bash (bare `bash install.bash` on a fresh
+# install, or `system('bash', ...)` from cwf-manage on update), so it cannot
+# rely on the harness-injected PERL5OPT=-CDSLA for @ARGV decoding; it decodes
+# its path arguments itself.
+#
+use strict;
+use warnings;
+use utf8;
+use File::Find ();
+use File::Spec ();
+use File::Basename ();
+use Encode ();
+
+my $PROG = 'cwf-check-tree-symlinks';
+
+# _escapes_src — single gate for symlink-target safety (ported verbatim from
+# cwf-manage's copy_tree guard). Returns true if $link (the readlink value of
+# an entry whose path is $entry, walked from source root $src) is either
+# absolute or resolves outside $src after collapsing parent-dir (..) segments,
+# or resolves to exactly $src.
+#
+# Note: only the symlink *target* string is canonicalised; no path on disk is
+# followed. $src is the upstream clone and trusted not to embed
+# symlinks-in-paths.
+sub _escapes_src {
+    my ($entry, $link, $src) = @_;
+    return 1 if File::Spec->file_name_is_absolute($link);
+    my $entry_dir = File::Basename::dirname($entry);
+    my $combined  = File::Spec->rel2abs($link, $entry_dir);
+    my $canon     = _collapse_dotdot($combined);
+    my $src_canon = _collapse_dotdot(File::Spec->rel2abs($src));
+    return 1 if $canon eq $src_canon;
+    return 0 if index($canon, "$src_canon/") == 0;
+    return 1;
+}
+
+# Collapse '.' and '..' segments lexically (no disk access). POSIX-only.
+sub _collapse_dotdot {
+    my ($p) = @_;
+    my $abs = $p =~ m{^/};
+    my @parts = split m{/+}, $p;
+    my @out;
+    for my $part (@parts) {
+        next if $part eq '' || $part eq '.';
+        if ($part eq '..') {
+            if (@out && $out[-1] ne '..') { pop @out; }
+            elsif (!$abs)                 { push @out, '..'; }
+            # absolute root: '..' at top is dropped
+        } else {
+            push @out, $part;
+        }
+    }
+    return $abs ? '/' . join('/', @out) : (@out ? join('/', @out) : '.');
+}
+
+# Walk one root, checking every symlink against that root. Closes over $src so
+# a symlink under root B is checked against root B (callers may pass several
+# roots). Fail-closed: a readlink failure or an escaping target exits non-zero.
+sub check_root {
+    my ($src) = @_;
+    File::Find::find(sub {
+        lstat($_);
+        return unless -l _;
+        # Use the full path ($File::Find::name), not $_ (basename): the safety
+        # calculation must not depend on File::Find's chdir-into-each-directory
+        # default.
+        my $name = $File::Find::name;
+        my $link = readlink($_);
+        unless (defined $link) {
+            print STDERR "[CWF] ERROR: $PROG: readlink failed on $name: $!\n";
+            exit 1;
+        }
+        if (_escapes_src($name, $link, $src)) {
+            print STDERR "[CWF] ERROR: refusing escaping symlink target: $name -> $link\n";
+            exit 1;
+        }
+    }, $src);
+    return;
+}
+
+sub main {
+    my (@roots) = @_;
+    @roots = map { Encode::decode('UTF-8', $_) } @roots;
+    unless (@roots) {
+        print STDERR "Usage: $PROG <root>...\n";
+        exit 2;
+    }
+    for my $src (@roots) {
+        next unless -d $src;   # caller filters; tolerate a missing root
+        check_root($src);
+    }
+    exit 0;
+}
+
+main(@ARGV) unless caller();
+
+1;
