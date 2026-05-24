@@ -29,7 +29,7 @@ The helper resolves its diff anchor in two steps. The success path: read the rec
 
 The helper's classification rules over the resulting changed-files list are:
 
-1. **CWF-internal coverage (unconditional include)**: paths under `.cwf/scripts/`, `.cwf/lib/`, `.cwf/docs/skills/`, `.cwf/templates/`, `.claude/scripts/`, `.claude/skills/`, `.claude/hooks/`, `.claude/rules/`, plus the exact files `.claude/settings.json`, `.claude/settings.local.json`, `implementation-guide/cwf-project.json`. Reviewed regardless of file type — markdown skills/rules carry instructions interpreted by Claude.
+1. **CWF-internal coverage (unconditional include)**: paths under `.cwf/scripts/`, `.cwf/lib/`, `.cwf/docs/skills/`, `.cwf/templates/`, `.claude/scripts/`, `.claude/skills/`, `.claude/agents/`, `.claude/hooks/`, `.claude/rules/`, plus the exact files `.claude/settings.json`, `.claude/settings.local.json`, `implementation-guide/cwf-project.json`. Reviewed regardless of file type — markdown skills/rules carry instructions interpreted by Claude.
 2. **Shebang sniff (conditional include)**: any path *outside* (1) is included only if its first line begins with `#!` and the interpreter basename matches the anchored regex `^(?:perl|bash|sh|ksh|zsh|fish|python\d?|ruby|node|deno|php|lua|pwsh|powershell)$`. Symlinks and non-regular files (FIFOs, sockets, devices) are skipped to avoid following arbitrary targets and to defend against DoS-shaped diff entries.
 3. **Default exclude**: anything else.
 

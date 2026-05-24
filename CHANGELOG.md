@@ -2,6 +2,18 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 158: Fix install.bash reinstall and settings-merge
+
+### Status: Complete (2026-05-24)
+### Duration: single session (estimate <1 day, Low–Medium complexity). On estimate.
+### Impact: Bugfix — three items from a downstream consumer's `CWF_FORCE` copy→subtree migration log. **(1)** `install_subtree`'s force-reinstall removal commit hard-coded the pathspec `-- .cwf .cwf-skills .cwf-rules .cwf-agents`; when a pre-state lacked one (e.g. `.cwf-agents` on a pre-agents copy install) `git commit` failed wholesale, `|| true` swallowed it, and the *other* staged deletions stayed in the index — breaking the subsequent `git subtree add`. Fixed by committing only the dirs actually `git rm`'d (a `removed[]` array), with a `die` on a *tracked* dir whose `git rm` fails and removal of the `|| true`/`--allow-empty` that hid the bug. **(2)** `post_install` never merged `.claude/settings.json`, so a raw `CWF_FORCE=1 bash install.bash` migration (which has no `/cwf-init` or `cwf-manage update` completion caller) never landed PERL5OPT/allowlist; fixed by invoking `cwf-claude-settings-merge` after the symlinks and before the version write, `-x`-guarded with `|| die`, mirroring `cwf-manage`'s `run_settings_merge`. **(3)** `security-review.md` §Pathspec coverage omitted `.claude/agents/` (the helper's `@CWF_INTERNAL_PREFIXES` already had it) — prose corrected. Scope was narrowed in design: an apply-artefacts "parity" option was investigated and **rejected** (its premise — that a reinstall empties `.cwf/rules-inject.txt` — was false; the file ships populated in the subtree, and the proposed call would have *emptied* it). New `t/install-bash-reinstall.t` (TC-1..TC-7, each RED pre-fix / GREEN post-fix, incl. failure paths via a root-independent fake-git PATH shim); full suite 47 files / 516 tests pass; `cwf-manage validate` clean (neither edited file is hash-tracked → no `script-hashes.json` refresh).
+
+### Notable
+- **Plan review refuted a load-bearing false premise before any code was written.** Three reviewers confirmed an "empty blob" fact but misattributed template vs. consumed dest; one careful reviewer plus a direct `git ls-files -s` check caught it, flipping the design from the harmful Option A to Option B.
+- **The fixes turn on failure paths the old `|| true` swallowed**, so the tests assert the install now *aborts loudly* (TC-2 tracked-rm failure; TC-5 merge failure aborts before the version write) — not just the happy path.
+- **A fake-`git` PATH shim** (exit 1 on the `rm` subcommand, `exec` real git otherwise) gives a deterministic, root-independent way to exercise the tracked-rm-failure branch.
+- **Security-review gate recorded `State: error` in both exec phases** despite substantively clean reviews: the reasoning-model reviewer prefaced its `no findings` sentinel, so the deterministic classifier conservatively defaulted to `error`. Recorded verbatim rather than silently downgraded; filed as a Medium backlog item.
+
 ## Task 157: Verify progress-signal still causes conflicting task context inference
 
 ### Status: Complete (2026-05-23)

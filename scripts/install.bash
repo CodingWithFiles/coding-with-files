@@ -174,18 +174,24 @@ install_subtree() {
 
     # Remove existing if force
     if [[ "$CWF_FORCE" == "1" ]]; then
+        # Commit only the dirs actually removed from the index. A hardcoded
+        # pathspec naming an absent dir (e.g. .cwf-agents on a pre-agents copy
+        # install) makes `git commit` fail wholesale, leaving the other staged
+        # deletions in the index and breaking the subtree adds below.
+        local -a removed=()
         for dir in .cwf .cwf-skills .cwf-rules .cwf-agents; do
-            if [[ -d "$dir" ]]; then
-                git rm -rf --quiet "$dir" 2>/dev/null || true
-                rm -rf "$dir"
+            [[ -d "$dir" ]] || continue
+            if git rm -rf --quiet "$dir"; then
+                removed+=("$dir")
+            elif git ls-files --error-unmatch "$dir" >/dev/null 2>&1; then
+                die "git rm failed for tracked $dir"
             fi
+            rm -rf "$dir"
         done
-        # Need a clean state for subtree add. Restrict the commit to CWF
-        # pathspecs so unrelated staged work is never swept into it. The
-        # `|| true` tolerates an empty-pathspec commit; the real failure net is
-        # the `set -e` git subtree adds below.
-        git commit --allow-empty -m "CWF: remove existing install for reinstall" --quiet \
-            -- .cwf .cwf-skills .cwf-rules .cwf-agents 2>/dev/null || true
+        if (( ${#removed[@]} > 0 )); then
+            git commit -m "CWF: remove existing install for reinstall" --quiet \
+                -- "${removed[@]}" || die "failed to commit removal of existing CWF install"
+        fi
     fi
 
     # Add all subtrees
@@ -251,6 +257,19 @@ post_install() {
     create_cwf_symlinks .cwf-skills .claude/skills "cwf-*"    -d skill
     create_cwf_symlinks .cwf-rules  .claude/rules  "cwf-*.md" -f rule
     create_cwf_symlinks .cwf-agents .claude/agents "cwf-*.md" -f agent
+
+    # Merge .claude/settings.json (PERL5OPT + Bash allowlist + Stop hooks).
+    # install.bash is otherwise laydown-only; this mirrors cwf-manage's
+    # run_settings_merge so a raw `CWF_FORCE=1 bash install.bash` migration —
+    # which has no /cwf-init or `cwf-manage update` completion caller — still
+    # lands these entries. The `-x` guard tolerates installs predating the
+    # helper; a non-zero exit aborts before the version write below (never
+    # record a version the install did not fully reach). The helper is
+    # idempotent, so a later /cwf-init re-run is a harmless no-op.
+    local merge_helper=".cwf/scripts/command-helpers/cwf-claude-settings-merge"
+    if [[ -x "$merge_helper" ]]; then
+        "$merge_helper" || die "cwf-claude-settings-merge failed; .claude/settings.json may be partially updated"
+    fi
 
     # Write version file
     cat > .cwf/version <<VEOF

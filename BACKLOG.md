@@ -1276,3 +1276,35 @@ Two edits:
 2. Delete the stale comment `# Score tasks by progress (bell curve, peak at 50%)` (`:410`) in `_get_progress_signal`. There is no bell curve; the cliff in `state_achievable` (`TaskState.pm:150`) plus the linear ramp govern. The comment inside `_score_progress` (`:450-452`) is already accurate and should be kept.
 
 `TaskContextInference.pm` is hash-tracked (`.cwf/security/script-hashes.json`), so the change requires a same-commit `script-hashes.json` refresh (hash-updates convention). Verify no behaviour change: existing TaskContextInference tests should pass unchanged.
+
+## Task: cwf-security-reviewer-changeset sentinel-first contract not honoured; clean reviews classify as error
+
+### Task-Type: bugfix
+### Priority: Medium
+### Status: Follow-up from Task 158
+### Identified in: Task 158 retrospective (j-retrospective.md)
+
+The `cwf-security-reviewer-changeset` subagent (a reasoning model) consistently
+prefaces its verdict with analysis instead of emitting the sentinel on its very
+first line, despite the agent definition's explicit "Your VERY FIRST output line
+MUST be one of these three sentinels" instruction (reinforced in the SKILL prompt
+made no difference across Task 158's f and g phases).
+
+Consequence: the exec-phase three-tier classifier in `cwf-implementation-exec` /
+`cwf-testing-exec` falls through tier-1 (no first-line sentinel) and tier-2 (no
+`^\d+[.)]` numbered list, no literal "actionable finding") to the conservative
+`error` default — so a substantively clean "no findings" review is recorded as
+`State: error`. This is noise that, if routine, erodes the signal the `error`
+state is meant to carry (a genuinely malformed/failed review).
+
+Scope: investigate a fix that makes clean reviews classify as `no findings`
+without weakening the malformed-output guard. Options to weigh (design phase):
+(a) tighten the agent so it truly emits the sentinel first (may be unreliable for
+a reasoning model); (b) extend the classifier's tier-2 fallback to recognise a
+standalone `no findings` / `findings:` line anywhere in the body (carefully, so a
+prefaced clean review is not misread, and a prefaced findings review still lands
+on `findings`); (c) some combination. Must preserve "never silently classify as
+no findings" — any body-scan must be explicit and auditable.
+
+Evidence: Task 158 f-implementation-exec.md and g-testing-exec.md "## Security
+Review" sections both record `State: error` with verbatim clean reviews.
