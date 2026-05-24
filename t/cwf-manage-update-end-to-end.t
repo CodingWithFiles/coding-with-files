@@ -308,4 +308,44 @@ subtest 'Task 156: $update_in_progress is set in exactly one place' => sub {
     is($count, 1, 'flag assigned to 1 in exactly one place (cmd_update)');
 };
 
+#==============================================================================
+# Task 159 FR1: cwf_version records the resolved semver (git describe), cwf_ref
+# records the originally-requested ref — not both echoing the resolved value.
+
+subtest 'FR1: update latest → cwf_version=highest tag, cwf_ref=latest' => sub {
+    my $base = tempdir(CLEANUP => 1);
+    my $consumer = "$base/consumer";
+    my $upstream = build_upstream("$base/upstream", 3);   # tags v0.0.1..v0.0.3
+    my ($irc, $iout) = install_consumer($consumer, $upstream, 'v0.0.1');
+    is($irc, 0, 'install v0.0.1 succeeds') or diag $iout;
+
+    my ($urc, $uout) = consumer_manage($consumer, 'update', 'latest');
+    is($urc, 0, "update 'latest' succeeds") or diag $uout;
+
+    my $vf = slurp("$consumer/.cwf/version") // '';
+    like($vf, qr/^cwf_version=v0\.0\.3$/m, 'cwf_version is the resolved highest tag');
+    like($vf, qr/^cwf_ref=latest$/m,       "cwf_ref preserves the requested 'latest'");
+};
+
+subtest 'FR1: update by SHA-on-a-tag → cwf_version=tag, cwf_ref=the SHA' => sub {
+    my $base = tempdir(CLEANUP => 1);
+    my $consumer = "$base/consumer";
+    my $upstream = build_upstream("$base/upstream", 3);
+    my ($irc, $iout) = install_consumer($consumer, $upstream, 'v0.0.1');
+    is($irc, 0, 'install v0.0.1 succeeds') or diag $iout;
+
+    my $sha = git_ok($upstream, 'rev-parse', 'v0.0.2');
+    $sha =~ s/\s+//g;
+
+    my ($urc, $uout) = consumer_manage($consumer, 'update', $sha);
+    is($urc, 0, 'update pinned to a tagged commit SHA succeeds') or diag $uout;
+
+    my $vf = slurp("$consumer/.cwf/version") // '';
+    # Pre-fix behaviour wrote the SHA into BOTH fields; the fix derives the tag
+    # for cwf_version while cwf_ref keeps the requested SHA.
+    like($vf, qr/^cwf_version=v0\.0\.2$/m, 'cwf_version describes the SHA to its tag');
+    like($vf, qr/^cwf_ref=\Q$sha\E$/m,     'cwf_ref preserves the requested SHA');
+    unlike($vf, qr/^cwf_version=\Q$sha\E$/m, 'cwf_version is NOT the bare SHA (the bug)');
+};
+
 done_testing();

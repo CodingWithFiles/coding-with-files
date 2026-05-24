@@ -24,6 +24,7 @@ use File::Copy qw(copy);
 use File::Spec ();
 use Cwd qw(getcwd);
 use Fcntl qw(:flock O_RDWR O_CREAT O_NOFOLLOW);
+use POSIX ();
 use Digest::SHA qw(sha256_hex);
 use JSON::PP;
 use FindBin;
@@ -61,12 +62,35 @@ sub die_msg {
     exit 1;
 }
 
+# --- git capture --------------------------------------------------------------
+
+# git_capture(@argv) — run `git @argv`, capture stdout, discard stderr, and
+# return (\@chomped_lines, $exit_code). List-form (no shell), so arguments are
+# passed verbatim to execvp with no metacharacter exposure. Child stderr is
+# reopened on /dev/null before exec, replacing the `2>/dev/null` the previous
+# backtick callers relied on. The parent drains the pipe to EOF before close()
+# reaps the child, so large output (e.g. `git ls-remote --tags`) cannot deadlock.
+sub git_capture {
+    my (@argv) = @_;
+    my $pid = open my $fh, '-|';
+    die_msg("git_capture: fork failed: $!") unless defined $pid;
+    if ($pid == 0) {
+        open STDERR, '>', '/dev/null' or POSIX::_exit(127);
+        exec('git', @argv) or POSIX::_exit(127);
+    }
+    my @lines = <$fh>;
+    close $fh;
+    my $exit = $? >> 8;
+    chomp @lines;
+    return (\@lines, $exit);
+}
+
 # --- Version file -------------------------------------------------------------
 
 sub find_git_root {
-    my $root = `git rev-parse --show-toplevel 2>/dev/null`;
-    chomp $root;
-    die_msg("Not inside a git repository") unless $root;
+    my ($out, $rc) = git_capture('rev-parse', '--show-toplevel');
+    my $root = $rc == 0 ? ($out->[0] // '') : '';
+    die_msg("Not inside a git repository") unless length $root;
     return $root;
 }
 
@@ -194,6 +218,21 @@ sub resolve_sha {
     return $sha;
 }
 
+# git_describe_version($clone_dir, $sha) — derive the version recorded in
+# cwf_version from the resolved SHA, so the field is always tag-derived rather
+# than echoing the requested ref. `describe --tags --always`:
+#   - SHA on a tag        → that tag (e.g. v1.1.155)
+#   - SHA past a tag      → nearest-ancestor long form (v1.1.155-3-gabcdef)
+#   - no tags reachable   → abbreviated SHA (exit 0)
+# A non-zero exit (corrupt clone, bad committish) falls back to the full $sha,
+# so the field is never empty and never a bare ref.
+sub git_describe_version {
+    my ($clone_dir, $sha) = @_;
+    my ($out, $rc) = git_capture('-C', $clone_dir, 'describe', '--tags', '--always', $sha);
+    return $sha if $rc != 0 || !defined $out->[0] || !length $out->[0];
+    return $out->[0];
+}
+
 # --- Update prelude helpers ---------------------------------------------------
 
 # acquire_update_lock — Perl flock(LOCK_EX|LOCK_NB) on .cwf/.update.lock with
@@ -306,12 +345,11 @@ sub cmd_list_releases {
 
     log_msg("Available releases from $source (from: $origin)");
 
-    my @lines = `git ls-remote --tags "$source" 'v*' 2>/dev/null`;
-    die_msg("Failed to query remote tags from $source") if $?;
+    my ($lines, $rc) = git_capture('ls-remote', '--tags', $source, 'v*');
+    die_msg("Failed to query remote tags from $source") if $rc;
 
     my @tags;
-    for (@lines) {
-        chomp;
+    for (@$lines) {
         push @tags, $1 if m{refs/tags/(v[^\^]+)$};
     }
     die_msg("No version tags found at $source") unless @tags;
@@ -474,8 +512,8 @@ sub cmd_update {
     # Authoritative version-file write (FR6): overwrites any base version file
     # install.bash wrote on the subtree path — restoring the real cwf_source
     # (not the transient file:// re-source) and pinning the manifest SHA once.
-    $v{cwf_version}                = $resolved;
-    $v{cwf_ref}                    = $resolved;
+    $v{cwf_version}                = git_describe_version($clone_dir, $sha);
+    $v{cwf_ref}                    = $ref;
     $v{cwf_sha}                    = $sha;
     $v{cwf_installed}              = gmtime_iso();
     $v{cwf_install_manifest_sha}   = compute_install_manifest_sha($git_root);
@@ -780,7 +818,7 @@ sub _read_hashes_data {
 # after a laydown). A missing file or sha256 mismatch is always reported as
 # unfixable. Returns (\@repaired, \@unfixable); never exits.
 sub _apply_recorded_perms {
-    my ($git_root, $data, $mode) = @_;
+    my ($git_root, $data, $mode, $dry_run) = @_;
     my @repaired;
     my @unfixable;
 
@@ -839,7 +877,17 @@ sub _apply_recorded_perms {
                 next if ($actual_perms & $want) == $want; # additive: bits present
             }
 
-            if (chmod $want, $abs) {
+            # Dry-run: record the would-be repair without mutating. The
+            # existence and sha256 gates above already ran, so missing/sha
+            # entries are surfaced identically; only the chmod is skipped. The
+            # chmod-failure branch is unreachable here (no chmod attempted).
+            if ($dry_run) {
+                push @repaired, {
+                    rel => $rel,
+                    from => sprintf('0%o', $actual_perms),
+                    to   => $expected_perms,
+                };
+            } elsif (chmod $want, $abs) {
                 push @repaired, {
                     rel => $rel,
                     from => sprintf('0%o', $actual_perms),
@@ -861,23 +909,38 @@ sub _apply_recorded_perms {
 sub cmd_fix_security {
     my ($git_root) = @_;
 
+    # Parse args from the global @ARGV (the dispatcher passes none). Strip
+    # --dry-run first, then reject any leftover token — so --dry-run is not
+    # itself flagged as unknown.
+    my $dry_run = grep { $_ eq '--dry-run' } @ARGV;
+    my @rest = grep { $_ ne '--dry-run' } @ARGV;
+    die_msg("fix-security: unknown argument '$rest[0]'") if @rest;
+
     my ($data, $err) = _read_hashes_data($git_root);
     if ($err) { _print_unfixable($err); exit 1; }
 
-    my ($repaired, $unfixable) = _apply_recorded_perms($git_root, $data, 'additive');
+    my ($repaired, $unfixable) = _apply_recorded_perms($git_root, $data, 'additive', $dry_run);
 
+    my $pfx = $dry_run ? '[dry-run] ' : '';
     for my $r (@$repaired) {
-        printf "[CWF] fix-security: chmod %s %s (was %s)\n", $r->{to}, $r->{rel}, $r->{from};
+        printf "[CWF] %sfix-security: %s %s %s (was %s)\n",
+            $pfx, ($dry_run ? 'would chmod' : 'chmod'), $r->{to}, $r->{rel}, $r->{from};
     }
 
     if (@$unfixable) {
         _print_unfixable($_) for @$unfixable;
-        printf "[CWF] fix-security: repaired %d file(s); %d unfixable\n",
+        printf "[CWF] %sfix-security: %s %d file(s); %d unfixable\n",
+            $pfx, ($dry_run ? 'would repair' : 'repaired'),
             scalar @$repaired, scalar @$unfixable;
         exit 1;
     }
 
-    printf "[CWF] fix-security: repaired %d file(s); validate: OK\n", scalar @$repaired;
+    if ($dry_run) {
+        printf "[CWF] [dry-run] fix-security: would repair %d file(s); 0 unfixable (no changes made)\n",
+            scalar @$repaired;
+    } else {
+        printf "[CWF] fix-security: repaired %d file(s); validate: OK\n", scalar @$repaired;
+    }
     return;
 }
 
@@ -916,8 +979,9 @@ Commands:
   update [ref]     Update to a specific ref (default: latest tag)
   rollback <ref>   Revert to a previous version
   validate         Validate config and workflow files; exit non-zero on violations
-  fix-security     Repair fixable integrity violations (perms when sha256 matches);
-                   exit non-zero on tampering or missing files
+  fix-security [--dry-run]  Repair fixable integrity violations (perms when
+                   sha256 matches); exit non-zero on tampering or missing files.
+                   --dry-run previews the changes without modifying any files.
   help             Show this help message
 
 Environment:
@@ -935,6 +999,7 @@ Examples:
   cwf-manage update v2.1.0
   cwf-manage rollback v2.0.0
   cwf-manage validate
+  cwf-manage fix-security --dry-run
 HELP
     return;
 }

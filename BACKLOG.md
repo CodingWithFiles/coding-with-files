@@ -108,21 +108,6 @@ The current 500-line cap on security-review subagent invocations (set in Task 12
 3. Plot finding-rate-per-line and runtime against changeset size; identify the inflection point where review quality starts to degrade.
 4. Set the cap from data, not vibes. Document the methodology in `.cwf/docs/skills/security-review.md` so future revisions have a baseline.
 
-## Task: Add --dry-run flag to cwf-manage fix-security
-
-### Task-Type: feature
-### Priority: Low
-### Status: Follow-up from Task 120
-### Scope: 
-### Identified in: Task 120 retrospective (j-retrospective.md, "Future Work")
-
-`fix-security` currently has no preview mode. A `--dry-run` flag would print the chmod actions it *would* take and the unfixable entries it *would* surface, without mutating the filesystem. Useful for security-conscious users auditing the install before a repair.
-
-- Add `--dry-run` argument parsing in `cmd_fix_security`
-- Skip the `chmod` call when in dry-run mode; preface fix lines with `[dry-run]`
-- Add a test case to `t/cwf-manage-fix-security.t` that asserts no fs mutation in dry-run mode
-- Update help text and SKILL.md if appropriate
-
 ## Task: Standardise Placeholder Syntax in Remaining CLI Docs
 
 ### Task-Type: chore
@@ -817,18 +802,6 @@ Analyse conversation history via LMM memory MCP to determine how often compactio
 5. If frequent: recommend specific compaction instructions for CLAUDE.md
 6. If rare: deprioritise
 
-## Task: Replace Backtick Operators with IPC::Open3 in cwf-manage
-
-### Task-Type: chore
-### Priority: Very Low
-### Scope: 
-### Identified in: Task 61 (perlcritic --harsh on cwf-manage)
-
-Replace backtick operators in `.cwf/scripts/cwf-manage` with `IPC::Open3` calls to satisfy perlcritic severity 3 (harsh). `IPC::Open3` is core since Perl 5.000. Currently 5 backtick usages for simple `git` commands — functional and readable as-is, but not PBP-compliant at level 3.
-
-- Replace backticks in `find_git_root()`, `resolve_ref()`, `resolve_sha()`, `cmd_list_releases()`
-- Consider also adding `/x` flag to simple regexes (8 hits) and converting the if-elsif dispatch to a hash table (1 hit) for full level 3 compliance
-
 ## Task: Add Conflict-State Regression Test for stop-uncommitted-changes-warning
 
 ### Task-Type: chore
@@ -1246,22 +1219,6 @@ Consider a single source of truth — e.g. the helper constant becomes the autho
 ### Identified in: Task 155
 
 Task 155 converged only the subtree update method onto install.bash delegation; the copy method still uses cwf-manage update_copy (with copy_tree/_escapes_src symlink-escape guard). Converging copy too requires either porting the lexical symlink-escape check into install.bash install_copy (cp -r currently has none) or having install_copy shell out to a shared checker. Until then update_copy + copy_tree + _escapes_src + _collapse_dotdot remain in cwf-manage and FR1 (single laydown) is only fully met for subtree.
-
-## Task: cwf-manage records ref (HEAD/branch) in cwf_version instead of resolved semver
-
-### Task-Type: bugfix
-### Priority: Very High
-### Identified in: User CWF install session, 2026-05-23
-
-Symptom: `cwf-manage status` shows `Version: HEAD` (a ref, not a version) when CWF was installed/updated from the `HEAD` ref or a branch. For a tagged commit the Version field should resolve to the semver, e.g. an install pinned to a SHA that is exactly `v1.1.155` should report `v1.1.155`.
-
-Root cause: `resolve_ref` (`.cwf/scripts/cwf-manage:159`) only maps `latest` to the highest semver tag; for any other ref (`HEAD`, branch, SHA) it verifies existence and returns the ref string verbatim (`:184`). `cmd_update` then writes that same verbatim string into BOTH `cwf_version` and `cwf_ref` (`:477-478`), so `cwf_version` records a ref rather than a version.
-
-Field conflation: `cwf_ref` should hold the originally-requested ref (`latest`/`HEAD`/branch); `cwf_version` should hold the semver the installed SHA maps to. They currently receive the same value.
-
-Proposed fix: derive `cwf_version` from `git describe --tags <sha>` against the already-resolved SHA (`$sha`, `:479`), and stop overwriting `cwf_ref` with `$resolved` so the requested ref is preserved. For `latest`, `cwf_version` stays the semver and `cwf_ref` should record `latest`.
-
-Notes: dog-food repo, so the fix goes through the CWF workflow. `cwf-manage` is hash-tracked (`.cwf/security/script-hashes.json:204`), so the change needs a same-commit `script-hashes.json` refresh (hash-updates convention).
 
 ## Task: Clarify _score_progress: rename misleading $percentage param and delete stale bell-curve comment
 

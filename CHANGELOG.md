@@ -2,6 +2,54 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 159: Fix outstanding cwf-manage issues
+
+### Status: Complete (2026-05-24)
+### Duration: single session (estimate 1–2 days, Medium complexity). On estimate once FR3 — the only High-risk milestone — was deferred at the design gate.
+### Impact: Feature — bundled 4 outstanding `cwf-manage` backlog items into one flat task; delivered **3 of 4**. **FR1 (Very High, version/ref bug)**: `cmd_update` previously wrote the verbatim requested ref into *both* `cwf_version` and `cwf_ref`, so `cwf-manage status` showed `Version: HEAD` (a ref, not a version). New `git_describe_version($clone_dir, $sha)` derives `cwf_version` from `git describe --tags --always` against the already-resolved SHA — exact tag (`v1.1.159`), nearest-ancestor long form (`v1.1.159-N-gHASH`), or abbreviated SHA when no tag is reachable, never a bare ref; falls back to the input SHA on any non-zero describe exit. `cwf_ref` now preserves the originally-requested ref. Confirms the maintainer's "latest = highest semver tag" model. **FR2 (Low, feature)**: `cwf-manage fix-security --dry-run` previews the chmod actions and unfixable entries it *would* take and mutates nothing (`_apply_recorded_perms` gained a `$dry_run` param that records the would-be repair and skips the `chmod`; existence/sha256 gates unchanged). Unknown args fail closed (`--dry-run` stripped first, any leftover `die_msg`s); dry-run exits 0 even with pending repairs but still exits 1 on a genuine sha256 mismatch; `cmd_help` documents the flag. **FR4 (Very Low, chore)**: new shared `git_capture(@argv)` helper (list-form `open '-|'` fork, child reopens STDERR→`/dev/null` then `exec('git', @argv) or POSIX::_exit(127)`, parent drains before close, returns `(\@lines, $? >> 8)`); `find_git_root` and `cmd_list_releases` converted off backticks, removing the `$source` shell-string interpolation. The backlog item's "5 backticks" claim was two releases stale — only 2 remained (`resolve_ref`/`resolve_sha` were converted in Task 155). **FR3 (copy-method convergence) deferred** at the design gate (all four plan reviewers leaned defer: a new copy-laydown guard script would sit outside the hash ledger and the changeset auto-review set, with CWF_FORCE/.cwf-rules preconditions) — remains a Low backlog item. In-commit `cwf-manage` sha256 refresh; `cwf-manage validate` clean; `perlcritic` backtick policy `source OK`. New `t/cwf-manage-git-capture.t` (6 subtests); `t/cwf-manage-fix-security.t` +3; `t/cwf-manage-update-end-to-end.t` +2; full suite 48 files / 527 tests pass; both exec-phase security reviews clean.
+
+### Notable
+- **The version fix is forward-only and that's correct.** FR1/FR2 live in `cwf-manage`, run by the consumer's *installed* (old) copy, so they only land in installs at/after the carrying tag. Documented as a reach limit with the INSTALL.md bootstrap-reinstall recovery, not a self-repair attempt (same structural lesson as Task 155).
+- **Plan review swapped a risky mechanism before any code.** FR4 was designed as `IPC::Open3` (c-design D4); the implementation-plan reviewers flagged its deadlock/stderr-merge traps and NFR3's preference for the lighter primitive, so it became a list-form `open '-|'` fork. Same AC, simpler mechanism, zero rework.
+- **Deferring at the design gate is a first-class outcome.** FR3 carried the task's only real risk; the convergent reviewer signal to defer (rather than force a weaker bash symlink guard) removed it cleanly and kept the item tracked.
+- **Backlog citations go stale.** The "5 backticks" count was two releases out of date. Backlog text is a pointer, not ground truth; the count was re-derived from `HEAD` at requirements time.
+- **Bundling beat decomposition here.** Four items sharing one file, one hash refresh, and one review pass — the flat-task decision (recorded in the decomposition check) avoided 4× subtask ceremony for surgical edits.
+
+### Retired Backlog Items
+#### cwf-manage records ref (HEAD/branch) in cwf_version instead of resolved semver
+
+Symptom: `cwf-manage status` shows `Version: HEAD` (a ref, not a version) when CWF was installed/updated from the `HEAD` ref or a branch. For a tagged commit the Version field should resolve to the semver, e.g. an install pinned to a SHA that is exactly `v1.1.155` should report `v1.1.155`.
+
+Root cause: `resolve_ref` (`.cwf/scripts/cwf-manage:159`) only maps `latest` to the highest semver tag; for any other ref (`HEAD`, branch, SHA) it verifies existence and returns the ref string verbatim (`:184`). `cmd_update` then writes that same verbatim string into BOTH `cwf_version` and `cwf_ref` (`:477-478`), so `cwf_version` records a ref rather than a version.
+
+Field conflation: `cwf_ref` should hold the originally-requested ref (`latest`/`HEAD`/branch); `cwf_version` should hold the semver the installed SHA maps to. They currently receive the same value.
+
+Proposed fix: derive `cwf_version` from `git describe --tags <sha>` against the already-resolved SHA (`$sha`, `:479`), and stop overwriting `cwf_ref` with `$resolved` so the requested ref is preserved. For `latest`, `cwf_version` stays the semver and `cwf_ref` should record `latest`.
+
+Notes: dog-food repo, so the fix goes through the CWF workflow. `cwf-manage` is hash-tracked (`.cwf/security/script-hashes.json:204`), so the change needs a same-commit `script-hashes.json` refresh (hash-updates convention).
+
+<!-- Note: Fixed via git_describe_version; cwf_version now tag-derived semver, cwf_ref preserves requested ref -->
+
+#### Add --dry-run flag to cwf-manage fix-security
+
+`fix-security` currently has no preview mode. A `--dry-run` flag would print the chmod actions it *would* take and the unfixable entries it *would* surface, without mutating the filesystem. Useful for security-conscious users auditing the install before a repair.
+
+- Add `--dry-run` argument parsing in `cmd_fix_security`
+- Skip the `chmod` call when in dry-run mode; preface fix lines with `[dry-run]`
+- Add a test case to `t/cwf-manage-fix-security.t` that asserts no fs mutation in dry-run mode
+- Update help text and SKILL.md if appropriate
+
+<!-- Note: Implemented: --dry-run previews chmod actions/unfixables, mutates nothing; unknown args fail closed -->
+
+#### Replace Backtick Operators with IPC::Open3 in cwf-manage
+
+Replace backtick operators in `.cwf/scripts/cwf-manage` with `IPC::Open3` calls to satisfy perlcritic severity 3 (harsh). `IPC::Open3` is core since Perl 5.000. Currently 5 backtick usages for simple `git` commands — functional and readable as-is, but not PBP-compliant at level 3.
+
+- Replace backticks in `find_git_root()`, `resolve_ref()`, `resolve_sha()`, `cmd_list_releases()`
+- Consider also adding `/x` flag to simple regexes (8 hits) and converting the if-elsif dispatch to a hash table (1 hit) for full level 3 compliance
+
+<!-- Note: Implemented with list-form open() fork (git_capture) rather than IPC::Open3: lighter, avoids deadlock/stderr-merge traps; perlcritic backtick policy clean. Only 2 backticks remained (not 5). -->
+
 ## Task 158: Fix install.bash reinstall and settings-merge
 
 ### Status: Complete (2026-05-24)

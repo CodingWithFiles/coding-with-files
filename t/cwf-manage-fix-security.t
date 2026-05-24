@@ -119,8 +119,9 @@ sub _run_cwf_manage {
     return ($rc, $output);
 }
 
-sub run_fix_security { _run_cwf_manage($_[0], 'fix-security') }
-sub run_validate     { _run_cwf_manage($_[0], 'validate')     }
+sub run_fix_security     { _run_cwf_manage($_[0], 'fix-security') }
+sub run_fix_security_dry { _run_cwf_manage($_[0], 'fix-security --dry-run') }
+sub run_validate         { _run_cwf_manage($_[0], 'validate')     }
 
 sub strip_perms_recursive {
     my ($dir) = @_;
@@ -318,6 +319,62 @@ subtest 'TC-8: fixture provisions non-.cwf/ manifest paths (drift pin)' => sub {
         is(file_perms($dst) & $floor, $floor,
            "provisioned: $rel perms satisfy recorded floor $entry->{permissions}");
     }
+};
+
+# --- Task 159 FR2: fix-security --dry-run + unknown-arg rejection -------------
+
+# e-testing-plan TC-5: --dry-run previews a fixable perms repair without
+# mutating the filesystem, exits 0, and does not claim "validate: OK".
+subtest 'FR2 dry-run: fixable perms previewed, not mutated (exit 0)' => sub {
+    plan tests => 7;
+    my $tmp = build_fixture();
+    # Non-bootstrap target so the executable-bootstrap helper does not touch it.
+    my $file = "$tmp/.cwf/scripts/command-helpers/cwf-version-tag";
+    chmod 0644, $file;
+
+    my ($rc, $out) = run_fix_security_dry($tmp);
+    is($rc, 0, 'dry-run exits 0 when only would-be repairs exist');
+    is(file_perms($file), 0644, 'target perms UNCHANGED (no chmod in dry-run)');
+    like($out, qr{\[dry-run\]}, 'output carries [dry-run] marker');
+    like($out, qr{would chmod}, 'output says "would chmod" not "chmod"');
+    like($out, qr{cwf-version-tag}, 'names the file it would repair');
+    unlike($out, qr{validate: OK}, 'does NOT falsely claim validate: OK');
+
+    # Sanity: the live path still repairs the same fixture (dry-run left it dirty).
+    my ($rc2) = run_fix_security($tmp);
+    is($rc2, 0, 'live fix-security after dry-run repairs (exit 0)');
+};
+
+# e-testing-plan TC-6: a sha256-mismatch entry is surfaced as unfixable under
+# --dry-run exactly as in the live path (pre-chmod gate), exit 1, no mutation.
+subtest 'FR2 dry-run: sha256 mismatch still surfaced unfixable (exit 1)' => sub {
+    plan tests => 4;
+    my $tmp = build_fixture();
+    my $target = "$tmp/.cwf/scripts/command-helpers/cwf-set-status";
+    append_byte($target);
+    chmod 0644, $target;
+
+    my ($rc, $out) = run_fix_security_dry($tmp);
+    is($rc, 1, 'dry-run exits 1 on a genuine unfixable (sha mismatch)');
+    like($out, qr{sha256}, 'names the sha256 field');
+    like($out, qr{cwf-set-status}, 'names the tampered file');
+    like(slurp($target), qr{X$}, 'tampered file content unchanged under dry-run');
+};
+
+# e-testing-plan TC-7: unknown arguments fail closed; --dry-run is stripped
+# before the leftover check so it is never itself flagged.
+subtest 'FR2 fix-security rejects unknown arguments' => sub {
+    plan tests => 4;
+    my $tmp = build_fixture();
+
+    my ($rc1, $out1) = _run_cwf_manage($tmp, 'fix-security bogus');
+    isnt($rc1, 0, 'bare unknown arg exits non-zero');
+    like($out1, qr{unknown argument 'bogus'}, 'names the offending token "bogus"');
+
+    my ($rc2, $out2) = _run_cwf_manage($tmp, 'fix-security --dry-run extra');
+    isnt($rc2, 0, '--dry-run + unknown arg exits non-zero');
+    like($out2, qr{unknown argument 'extra'},
+        'flags "extra" (not --dry-run), proving --dry-run was stripped first');
 };
 
 done_testing();
