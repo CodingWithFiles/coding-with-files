@@ -1,9 +1,18 @@
 #!/usr/bin/env perl
 #
-# cwf-claude-settings-merge - Register CWF Bash allowlist, Stop hooks, and
+# cwf-claude-settings-merge - Register CWF Bash allowlist, hook entries, and
 # required env vars (PERL5OPT) in .claude/settings.json. Allowlist + hooks are
 # derived by walking .cwf/security/script-hashes.json; env.PERL5OPT is a fixed
 # CWF-required value.
+#
+# A hook under .cwf/scripts/hooks/ registers under the Stop event with no
+# matcher by default. A hook may opt into a different event or an agent_type
+# matcher via header-comment directives in its first 15 lines:
+#   # cwf-hook-event: SubagentStop
+#   # cwf-hook-matcher: cwf-security-reviewer-changeset
+# Directive values are validated (event in {Stop,SubagentStop}; matcher is
+# [A-Za-z0-9_-]+) before they reach a settings key; anything else falls back to
+# the Stop / no-matcher default.
 #
 # Idempotent: re-running adds only missing entries; existing user entries are
 # preserved (env.PERL5OPT is added only when absent; a differing value is
@@ -27,8 +36,9 @@ my $PROG = 'cwf-claude-settings-merge';
 sub usage {
     return "Usage: $PROG [--dry-run]\n"
          . "  Walks .cwf/security/script-hashes.json and merges Bash allowlist\n"
-         . "  + Stop hook entries into .claude/settings.json, and ensures\n"
-         . "  env.PERL5OPT is set. Idempotent.\n";
+         . "  + hook entries (Stop / SubagentStop, per hook header directives)\n"
+         . "  into .claude/settings.json, and ensures env.PERL5OPT is set.\n"
+         . "  Idempotent.\n";
 }
 
 my $dry_run = 0;
@@ -50,10 +60,41 @@ my @ALLOWED_MANIFEST_PATH_PREFIXES = ('.cwf/scripts/');
 # --- Manifest reader -------------------------------------------------------
 sub read_manifest { return read_json_file($manifest_path); }
 
+# Read a hook's registration directives from its first 15 lines. Returns
+# ($event, $matcher): $event defaults to 'Stop', $matcher to undef. Values are
+# validated before use — an invalid or absent directive yields the default, so
+# an unvalidated parsed string never reaches a .claude/settings.json key.
+#
+# $path has already passed validate_write_path_allowlist; the -f && !-l guard
+# mirrors read_settings and refuses to open a symlink or non-regular file.
+sub read_hook_directives {
+    my ($path) = @_;
+    my $event   = 'Stop';
+    my $matcher = undef;
+
+    return ($event, $matcher) unless -f $path && !-l $path;
+    open(my $fh, '<', $path) or return ($event, $matcher);
+    my $n = 0;
+    while (my $line = <$fh>) {
+        last if ++$n > 15;
+        if ($line =~ /^#\s*cwf-hook-event:\s*(\S+)/) {
+            my $v = $1;
+            $event = $v if $v =~ /^(?:Stop|SubagentStop)$/;
+        }
+        elsif ($line =~ /^#\s*cwf-hook-matcher:\s*(\S+)/) {
+            my $v = $1;
+            $matcher = $v if $v =~ /^[A-Za-z0-9_-]+$/;
+        }
+    }
+    close $fh;
+    return ($event, $matcher);
+}
+
 # Partition manifest paths into allowlist + hook entries.
 # Returns (\@allow_entries, \@hook_entries).
 #  - allow_entries: list of strings like 'Bash(<path>:*)' or 'Bash(<path>)'
-#  - hook_entries:  list of { type => 'command', command => <path>, timeout => 5 }
+#  - hook_entries:  list of { entry => { type, command, timeout }, event,
+#                             matcher } where matcher may be undef.
 sub partition_manifest {
     my ($json) = @_;
     my (@allow, @hooks);
@@ -83,10 +124,15 @@ sub partition_manifest {
         }
         elsif ($path =~ m{^\.cwf/scripts/hooks/[^/]+$}) {
             push @allow, "Bash($path)";
+            my ($event, $matcher) = read_hook_directives($path);
             push @hooks, {
-                type    => 'command',
-                command => $path,
-                timeout => 5,
+                entry   => {
+                    type    => 'command',
+                    command => $path,
+                    timeout => 5,
+                },
+                event   => $event,
+                matcher => $matcher,
             };
         }
         # else: migrations/ and other paths — skip silently
@@ -139,33 +185,68 @@ sub merge_allow {
     return $added;
 }
 
+# Locate (or create) the group within @$groups that a hook with $matcher
+# belongs to.
+#  - matcher undef → the matcher-less group: Stop[0], created as { hooks => [] }
+#    if the event has no groups yet. This preserves the pre-Task-162 Stop path
+#    byte-for-byte (no spurious `matcher` key, always appended to index 0).
+#  - matcher defined → the { matcher, hooks } group whose matcher equals it,
+#    created and appended if none exists.
+sub find_or_make_group {
+    my ($groups, $matcher) = @_;
+    if (!defined $matcher) {
+        push @$groups, { hooks => [] } unless @$groups;
+        my $g = $groups->[0];
+        $g->{hooks} ||= [];
+        return $g;
+    }
+    for my $g (@$groups) {
+        next unless ref($g) eq 'HASH';
+        if (defined $g->{matcher} && $g->{matcher} eq $matcher) {
+            $g->{hooks} ||= [];
+            return $g;
+        }
+    }
+    my $g = { matcher => $matcher, hooks => [] };
+    push @$groups, $g;
+    return $g;
+}
+
 sub merge_hooks {
     my ($settings, $entries) = @_;
     $settings->{hooks} ||= {};
-    $settings->{hooks}{Stop} ||= [];
-    my $stop = $settings->{hooks}{Stop};
 
-    # Build set of existing hook commands across ALL matcher objects.
-    my %seen;
-    for my $matcher (@$stop) {
-        next unless ref($matcher) eq 'HASH' && ref($matcher->{hooks}) eq 'ARRAY';
-        for my $h (@{ $matcher->{hooks} }) {
-            next unless ref($h) eq 'HASH' && defined $h->{command};
-            $seen{ $h->{command} } = 1;
+    my %by_event;
+    for my $e (@$entries) {
+        push @{ $by_event{ $e->{event} } }, $e;
+    }
+
+    my $added = 0;
+    for my $event (sort keys %by_event) {
+        $settings->{hooks}{$event} ||= [];
+        my $groups = $settings->{hooks}{$event};
+
+        # Existing commands across ALL groups for this event (cross-group
+        # dedupe — a command lives under exactly one group per event).
+        my %seen;
+        for my $g (@$groups) {
+            next unless ref($g) eq 'HASH' && ref($g->{hooks}) eq 'ARRAY';
+            for my $h (@{ $g->{hooks} }) {
+                next unless ref($h) eq 'HASH' && defined $h->{command};
+                $seen{ $h->{command} } = 1;
+            }
+        }
+
+        for my $e (@{ $by_event{$event} }) {
+            my $cmd = $e->{entry}{command};
+            next if $seen{$cmd};
+            my $group = find_or_make_group($groups, $e->{matcher});
+            push @{ $group->{hooks} }, $e->{entry};
+            $seen{$cmd} = 1;
+            $added++;
         }
     }
-
-    my @missing = grep { !$seen{ $_->{command} } } @$entries;
-    return 0 unless @missing;
-
-    # Append missing entries to Stop[0].hooks; create Stop[0] if absent.
-    if (!@$stop) {
-        push @$stop, { hooks => [] };
-    }
-    my $first = $stop->[0];
-    $first->{hooks} ||= [];
-    push @{ $first->{hooks} }, @missing;
-    return scalar @missing;
+    return $added;
 }
 
 # Canonical CWF value for env.PERL5OPT. MUST stay a compile-time constant:

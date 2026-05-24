@@ -1,0 +1,107 @@
+#!/usr/bin/env perl
+#
+# subagentstop-security-verdict-guard — SubagentStop event hook for CWF
+#
+# Backstop for the exec-phase security review (Task 162). When the
+# cwf-security-reviewer-changeset subagent finishes, this hook checks that its
+# response carried a valid `cwf-review` verdict block. If — and only if — the
+# deterministic classifier cleanly reports `error` (no valid block) and this is
+# not already a re-emit loop, it returns {"decision":"block"} to force the
+# subagent to re-emit a well-formed verdict.
+#
+# Registration directives (read by cwf-claude-settings-merge):
+# cwf-hook-event: SubagentStop
+# cwf-hook-matcher: cwf-security-reviewer-changeset
+#
+# FAIL-OPEN INVARIANT (security-critical): this hook must never trap the
+# subagent. The whole body runs in eval; on malformed stdin, a missing message,
+# an unreachable/failed classifier, a re-emit loop (stop_hook_active), or any
+# exception, it ALLOWS the stop (empty stdout) and leaves the SKILL-side
+# classifier as the authority. It blocks ONLY on an affirmative `error` verdict
+# from a cleanly-run classifier. It never blocks on its own failure, and never
+# lets a verdict-less response through as a non-error state.
+#
+# Must always exit 0 — a non-zero exit surfaces an error to the user.
+
+use strict;
+use warnings;
+use utf8;
+use FindBin;
+use JSON::PP;
+use POSIX ();
+
+# Fixed re-emit instruction. A literal — never interpolates stdin-derived data
+# into harness-visible output (the JSON is built via JSON::PP->encode, not
+# string concatenation).
+my $REEMIT_REASON =
+    "Your previous response did not end with a valid cwf-review verdict block. "
+  . "Re-run the review and finish your response with exactly one fenced block:\n\n"
+  . "```cwf-review\nstate: <no findings|findings|error>\n```\n\n"
+  . "Replace <…> with one of the literal tokens: no findings, findings, error.";
+
+# Run the deterministic classifier as a subprocess, feeding $msg on its stdin
+# via a self-managed pipe (no shell, no message-derived path). Returns the
+# canonical token, or undef if the classifier is unreachable or fails.
+sub run_classifier {
+    my ($msg) = @_;
+    my $classifier = "$FindBin::Bin/../command-helpers/security-review-classify";
+    return undef unless -f $classifier && -x $classifier;
+
+    pipe(my $child_in,  my $parent_out) or return undef;
+    pipe(my $parent_in, my $child_out)  or return undef;
+
+    my $pid = fork();
+    return undef unless defined $pid;
+    if ($pid == 0) {
+        # Child: wire the pipes to std handles and exec the classifier with the
+        # list/block form (no shell). POSIX::_exit on any failure so inherited
+        # END blocks never run in the child.
+        open(STDIN,  '<&', $child_in)  or POSIX::_exit(127);
+        open(STDOUT, '>&', $child_out) or POSIX::_exit(127);
+        close $parent_out;
+        close $parent_in;
+        exec { $classifier } $classifier or POSIX::_exit(127);
+        POSIX::_exit(127);
+    }
+
+    # Parent: write the message, signal EOF, then read the one-token verdict.
+    close $child_in;
+    close $child_out;
+    binmode $parent_out, ':utf8';
+    print { $parent_out } $msg;
+    close $parent_out;
+    my $token = do { local $/; <$parent_in> };
+    close $parent_in;
+    waitpid($pid, 0);
+
+    return undef unless defined $token;
+    $token =~ s/\s+\z//;
+    return $token;
+}
+
+my $decision;   # undef => allow the stop; defined => block-JSON to emit
+eval {
+    my $raw = do { local $/; <STDIN> };
+    return unless defined $raw && length $raw;
+
+    my $data = JSON::PP->new->decode($raw);
+    return unless ref $data eq 'HASH';
+    return if $data->{stop_hook_active};        # already looping → allow
+
+    my $msg = $data->{last_assistant_message};
+    return unless defined $msg && !ref $msg;    # no usable message → fail-open
+
+    my $token = run_classifier($msg);
+    return unless defined $token;               # classifier failed → fail-open
+    return unless $token eq 'error';            # valid verdict → allow
+
+    # Affirmative: a cleanly-run classifier reports no valid verdict block,
+    # and this is the first stop. Block to force a re-emit.
+    $decision = JSON::PP->new->canonical->encode({
+        decision => 'block',
+        reason   => $REEMIT_REASON,
+    });
+};
+
+print "$decision\n" if defined $decision;
+exit 0;

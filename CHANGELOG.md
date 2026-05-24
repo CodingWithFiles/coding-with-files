@@ -2,6 +2,49 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 162: Fix security-reviewer clean-review misclassification
+
+### Status: Complete (2026-05-24)
+### Duration: single session (estimate 1–2 days, Medium complexity). On/under estimate.
+### Impact: Bugfix — replaces the fragile line-1-sentinel contract between the `cwf-security-reviewer-changeset` subagent and its callers with a deterministic, position-independent verdict container parsed by a single helper. **Root cause**: the subagent is a reasoning model that prefaces its verdict with prose, but the LLM-applied "three-tier rule" required the sentinel on line 1 and otherwise fell through to a numbered-list heuristic → clean reviews mislabelled `error` (9 of 23 historical `error` records) or false `findings` (126-g/133-g/134-g). **D1**: the subagent now ends its response with a fenced ```` ```cwf-review ```` block carrying `state: <no findings|findings|error>`; reasoning prose precedes it freely. **D2/D3**: new `.cwf/scripts/command-helpers/security-review-classify` (core-Perl, stdin→token) is the single parse authority — exactly one valid block → its state; zero or many → `error` (the numbered-list heuristic is gone; severity comes only from `state:`). Both exec SKILLs and `security-review.md` now pipe through the helper rather than applying prose rules. **D4 (backstop, full scope per user option C)**: new `.cwf/scripts/hooks/subagentstop-security-verdict-guard` — a fail-open SubagentStop hook scoped to the agent that re-prompts only when a cleanly-run classifier returns `error` and it is not a re-emit loop; it reuses the classifier as a shell-free subprocess and emits a fixed-literal `reason` (no message-derived interpolation). `cwf-claude-settings-merge` was extended to register `SubagentStop` + an `agent_type` matcher via validated header directives (`event ∈ {Stop,SubagentStop}`, `matcher ^[A-Za-z0-9_-]+$`), with the matcher-less Stop path kept byte-identical; `stop-hooks-framework.md` documents the event, registration, fail-open discipline, and the wrong-matcher silent-failure risk. In-commit `script-hashes.json` touches: agent def + merge helper refreshed, classifier + hook added (4 total); `cwf-manage validate` clean. New `t/security-review-classify.t` (18, TC-C1–C14), `t/subagentstop-security-verdict-guard.t` (18, TC-H1–H7), `t/cwf-claude-settings-merge.t` +5 (TC-M1–M5, TC-U1/U3 retained); full suite 574 tests pass. The task's own exec-phase security review exceeded the 500-line cap (982 lines) → manual threat-category walkthrough (a–e), no actionable findings.
+
+### Notable
+- **Match the verdict format to how the model writes.** A reasoning model concludes last; demanding a line-1 sentinel fought the grain and regressed even after character-level coercion (Task 142). A trailing fenced block parsed position-independently is immune to the markdown-wrapping variance that defeated bare-token matching.
+- **One parser, three callers.** `security-review-classify` is consumed by both exec SKILLs and the SubagentStop hook (as a subprocess, never reimplemented), so the contract is defined and tested in exactly one place — no drift.
+- **The backstop is affirmative-only and fail-open.** The hook blocks solely when a cleanly-run classifier returns `error` outside a re-emit loop; every failure mode (malformed stdin, unreachable classifier, exception, `stop_hook_active`) allows the stop. It can never trap the subagent.
+- **Live end-to-end corroboration can't run in the editing session.** Agent definitions load at session start; the in-session live subagent emitted old-contract output (correctly classified `error`). The deterministic unit suite is the acceptance gate; positive live evidence is deferred to a fresh session (follow-up filed).
+- **Two operational gotchas, both now memories.** (1) Restore edited hashed scripts to `0700`, not the recorded `0500` *minimum*, or `install-bash-reinstall.t` TC-5's `cp -rp`+overwrite breaks. (2) `git add -N` new files before `security-review-changeset` or the most security-sensitive new code is silently absent from the review.
+
+### Retired Backlog Items
+#### cwf-security-reviewer-changeset sentinel-first contract not honoured; clean reviews classify as error
+
+The `cwf-security-reviewer-changeset` subagent (a reasoning model) consistently
+prefaces its verdict with analysis instead of emitting the sentinel on its very
+first line, despite the agent definition's explicit "Your VERY FIRST output line
+MUST be one of these three sentinels" instruction (reinforced in the SKILL prompt
+made no difference across Task 158's f and g phases).
+
+Consequence: the exec-phase three-tier classifier in `cwf-implementation-exec` /
+`cwf-testing-exec` falls through tier-1 (no first-line sentinel) and tier-2 (no
+`^\d+[.)]` numbered list, no literal "actionable finding") to the conservative
+`error` default — so a substantively clean "no findings" review is recorded as
+`State: error`. This is noise that, if routine, erodes the signal the `error`
+state is meant to carry (a genuinely malformed/failed review).
+
+Scope: investigate a fix that makes clean reviews classify as `no findings`
+without weakening the malformed-output guard. Options to weigh (design phase):
+(a) tighten the agent so it truly emits the sentinel first (may be unreliable for
+a reasoning model); (b) extend the classifier's tier-2 fallback to recognise a
+standalone `no findings` / `findings:` line anywhere in the body (carefully, so a
+prefaced clean review is not misread, and a prefaced findings review still lands
+on `findings`); (c) some combination. Must preserve "never silently classify as
+no findings" — any body-scan must be explicit and auditable.
+
+Evidence: Task 158 f-implementation-exec.md and g-testing-exec.md "## Security
+Review" sections both record `State: error` with verbatim clean reviews.
+
+<!-- Note: Fixed via deterministic cwf-review container + security-review-classify single-parser; SubagentStop backstop added (D4). -->
+
 ## Task 161: Converge cwf-manage copy update onto install.bash
 
 ### Status: Complete (2026-05-24)

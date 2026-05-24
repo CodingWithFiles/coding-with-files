@@ -47,7 +47,7 @@ allowed-tools:
   - If empty: append `## Security Review\n\n**State**: no findings\n\nno findings: empty changeset\n` and proceed to Step 9.
   - If >500 lines (count via `wc -l`): append `## Security Review\n\n**State**: error\n\nerror: changeset exceeds 500-line review cap; split the change or perform manual review\n` and proceed to Step 9.
 - Invoke ONE Agent call with `subagent_type="cwf-security-reviewer-changeset"` using the prompt template, `{phase}` = `"testing"`.
-- Append `## Security Review\n\n**State**: <findings|no findings|error>\n\n<verbatim subagent output>\n` to `g-testing-exec.md`. Classify per the three-tier rule in `security-review.md` (primary sentinel → numbered-list fallback → conservative-default error).
+- Write the verbatim subagent output to a file in the task scratch dir (derive the dir per `.cwf/docs/conventions/tmp-paths.md`; `mkdir -m 0700` on first use), then classify deterministically: `.cwf/scripts/command-helpers/security-review-classify < <file>` prints one of `no findings|findings|error`. Append `## Security Review\n\n**State**: <token>\n\n<verbatim subagent output>\n` to `g-testing-exec.md`. Do not apply any prose/heuristic rule — the helper is the sole classifier (a tool-level Agent failure is recorded as `error`).
 - Do NOT block on `findings`. Surface them; the user decides whether to fix-and-re-run or accept-and-record before Step 9.
 
 **Step 9**: Checkpoint commit. See `.cwf/docs/skills/checkpoint-commit.md`. Stage: `g-testing-exec.md`

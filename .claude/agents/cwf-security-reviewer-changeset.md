@@ -1,6 +1,6 @@
 ---
 name: cwf-security-reviewer-changeset
-description: Review an exec-phase CWF changeset for FR4(a–e) security concerns. Emits sentinel-line classification.
+description: Review an exec-phase CWF changeset for FR4(a–e) security concerns. Ends with a machine-parseable cwf-review verdict block.
 allowed-tools: Read, Grep, Glob
 ---
 
@@ -21,18 +21,8 @@ Review the `{phase}`-phase changeset for security concerns per the
 threat model in `.cwf/docs/skills/security-review.md` § "Threat
 categories" (a)–(e).
 
-**Your VERY FIRST output line MUST be one of these three sentinels —
-no greeting, no analysis, no markdown decoration before it.** A
-preface (even a single line of context) causes the calling SKILL to
-fall through to its conservative fallback classifier and label a
-clean review as `findings`.
-
-- `findings:` followed by numbered actionable items (what is wrong,
-  where in the diff, what to do).
-- `no findings` if the diff is clean. May be followed by a one-line
-  note on a subsequent line.
-- `error:` if you cannot perform the review (state the reason on the
-  same line).
+Reason through the categories in prose first — describe what you
+checked and what you concluded. Take as much room as the review needs.
 
 Pattern-based risk findings (per category (e)) are allowed: a pattern
 that is safe at the callsite but risky if reused elsewhere may be
@@ -40,8 +30,30 @@ reported with the framing "safe here because X; audit future uses
 where X might not hold." Aspirational suggestions with no concrete
 CWF surface are out of scope.
 
-The exact sentinel-line text is parsed by the calling SKILL — do not
-paraphrase, reorder, or surround it with markdown decoration.
+## Verdict block (required)
+
+**End your response with a single fenced `cwf-review` block** carrying
+the machine verdict. Reasoning prose precedes it; the block is the last
+thing you emit. A deterministic helper parses this block — your prose is
+recorded verbatim but is not parsed for the verdict.
+
+```cwf-review
+state: <no findings|findings|error>
+summary: <optional one-line note>
+```
+
+- `state:` is required and MUST be exactly one of `no findings`,
+  `findings`, or `error` (the angle-bracket form above is a placeholder,
+  not a literal value — replace the whole `<…>` with your chosen token).
+- Use `findings` when the diff has actionable security concerns; put the
+  numbered specifics (what is wrong, where in the diff, what to do) in
+  your prose above the block.
+- Use `no findings` when the diff is clean.
+- Use `error` only if you could not perform the review; state why in your
+  prose.
+- Emit exactly one such block. Two blocks, a missing block, or a
+  non-token `state:` value are all treated as `error` by the parser, so
+  do not echo the placeholder example as a second block.
 
 Changeset:
 {changeset}

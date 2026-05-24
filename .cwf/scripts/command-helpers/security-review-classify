@@ -1,0 +1,117 @@
+#!/usr/bin/env perl
+#
+# security-review-classify - Deterministic classifier for the exec-phase
+# security-review subagent's output.
+#
+# Single source of truth for the verdict-parse rule (CWF Task 162). Reads the
+# subagent's full response on stdin and prints exactly one canonical token on
+# stdout: `no findings`, `findings`, or `error`. Both exec SKILLs
+# (cwf-implementation-exec, cwf-testing-exec) pipe the subagent output through
+# this helper in their Step 8, and the SubagentStop guard hook reuses it — so
+# there is one parser, no drift.
+#
+# Contract (see .cwf/docs/skills/security-review.md):
+#   The subagent ends its response with a fenced block:
+#
+#       ```cwf-review
+#       state: <no findings|findings|error>
+#       summary: <optional one-line note>
+#       ```
+#
+#   Reasoning prose may precede the block freely; the block is matched
+#   anywhere in the input (position-independent), tolerating surrounding
+#   markdown noise.
+#
+# Parse rule (D3):
+#   - Collect every closed `cwf-review` fenced block whose single `state:`
+#     value (trimmed, whitespace-collapsed, lower-cased) is exactly one of
+#     the three canonical tokens.
+#   - Exactly one such valid block  -> print that token.
+#   - Zero, or more than one        -> print `error`.
+#   An echoed worked example using the non-token placeholder
+#   `state: <no findings|findings|error>` never validates, so it never counts.
+#
+# Usage:
+#   security-review-classify < subagent-output.txt
+#
+# Output:
+#   stdout: one canonical token (`no findings` | `findings` | `error`).
+#
+# Exit:
+#   0 always. The token (including `error`) is the signal, not the exit code.
+#
+use strict;
+use warnings;
+use utf8;
+
+my $PROG = 'security-review-classify';
+
+sub usage {
+    return "Usage: $PROG < subagent-output\n"
+         . "  Reads the security-review subagent's response on stdin and prints\n"
+         . "  one canonical verdict token (no findings|findings|error) on stdout.\n"
+         . "  Exactly one valid cwf-review block -> its state; zero or many -> error.\n";
+}
+
+for my $arg (@ARGV) {
+    if ($arg eq '--help' || $arg eq '-h') { print usage(); exit 0 }
+    warn "[CWF] ERROR: $PROG: unknown argument: $arg\n", usage();
+    exit 1;
+}
+
+my %VALID = ('no findings' => 1, 'findings' => 1, 'error' => 1);
+
+# Slurp stdin.
+my $input = do { local $/; <STDIN> };
+$input = '' unless defined $input;
+
+# Walk lines, extracting closed cwf-review fenced blocks. A block opens with a
+# line of >=3 backticks followed by the `cwf-review` info string, and closes
+# with a line of at least as many backticks (and nothing else). This length
+# rule means a shorter nested fence inside the block does not close it early.
+my @valid_states;
+my @lines = split /\n/, $input, -1;
+my $in_block   = 0;
+my $fence_len  = 0;
+my @block_body;
+
+for my $line (@lines) {
+    if (!$in_block) {
+        if ($line =~ /^\s*(`{3,})\s*cwf-review\s*$/i) {
+            $in_block  = 1;
+            $fence_len = length $1;
+            @block_body = ();
+        }
+        next;
+    }
+
+    # In a block: a run of >= $fence_len backticks (only) closes it.
+    if ($line =~ /^\s*(`{3,})\s*$/ && length($1) >= $fence_len) {
+        # Block closed: extract its single valid state, if any.
+        my @states;
+        for my $bl (@block_body) {
+            if ($bl =~ /^\s*state\s*:\s*(.*?)\s*$/i) {
+                my $val = $1;
+                $val =~ s/\s+/ /g;
+                $val =~ s/^\s+|\s+$//g;
+                push @states, lc $val;
+            }
+        }
+        if (@states == 1 && $VALID{ $states[0] }) {
+            push @valid_states, $states[0];
+        }
+        $in_block = 0;
+        next;
+    }
+
+    push @block_body, $line;
+}
+# An unterminated block (opened, never closed) contributes nothing.
+
+if (@valid_states == 1) {
+    print "$valid_states[0]\n";
+}
+else {
+    print "error\n";
+}
+exit 0;

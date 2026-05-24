@@ -402,4 +402,123 @@ subtest 'TC-U13: --dry-run warns on env mismatch, does not write' => sub {
     like($out, qr/0 env keys \(dry-run\)/, 'dry-run summary shows 0 env keys');
 };
 
+# Overwrite a stub file (created by build_fixture) with explicit content —
+# used to give a hook stub its registration directives.
+sub overwrite_file {
+    my ($tmp, $rel, $content) = @_;
+    my $abs = "$tmp/$rel";
+    open(my $fh, '>', $abs) or die "overwrite $abs: $!";
+    print $fh $content;
+    close $fh;
+}
+
+# ----- TC-M1: matcher-less Stop group carries no `matcher` key --------------
+subtest 'TC-M1: directive-less hook → matcher-less Stop group (no matcher key)' => sub {
+    plan tests => 4;
+    my $tmp = build_fixture(manifest => standard_manifest());
+    my ($exit) = run_helper($tmp);
+    is($exit, 0, 'exit 0');
+    my $s = read_settings($tmp);
+    my $stop = $s->{hooks}{Stop};
+    is(scalar(@$stop), 1, 'one Stop group');
+    ok(!exists $stop->[0]{matcher}, 'Stop group has no matcher key');
+    ok(!exists $s->{hooks}{SubagentStop},
+       'no SubagentStop event for a directive-less hook');
+};
+
+# ----- TC-M2: SubagentStop + matcher directives → matchered group -----------
+subtest 'TC-M2: directives register under hooks.SubagentStop as {matcher,hooks}' => sub {
+    plan tests => 5;
+    my $manifest = {
+        'sa-guard' => mk_entry('.cwf/scripts/hooks/sa-guard'),
+    };
+    my $tmp = build_fixture(manifest => $manifest);
+    overwrite_file($tmp, '.cwf/scripts/hooks/sa-guard',
+        "#!/usr/bin/env perl\n"
+      . "# cwf-hook-event: SubagentStop\n"
+      . "# cwf-hook-matcher: cwf-security-reviewer-changeset\n");
+    my ($exit) = run_helper($tmp);
+    is($exit, 0, 'exit 0');
+    my $s = read_settings($tmp);
+    my $sas = $s->{hooks}{SubagentStop};
+    is(scalar(@$sas), 1, 'one SubagentStop group');
+    is($sas->[0]{matcher}, 'cwf-security-reviewer-changeset', 'matcher set from directive');
+    is_deeply($sas->[0]{hooks},
+              [{ type => 'command',
+                 command => '.cwf/scripts/hooks/sa-guard',
+                 timeout => 5 }],
+              'hook entry under the matcher group');
+    ok(!exists $s->{hooks}{Stop} || !grep({
+            grep { $_->{command} eq '.cwf/scripts/hooks/sa-guard' } @{ $_->{hooks} || [] }
+        } @{ $s->{hooks}{Stop} }),
+       'SubagentStop hook not duplicated under Stop');
+};
+
+# ----- TC-M3: idempotency across events -------------------------------------
+subtest 'TC-M3: re-run adds nothing; one group per event' => sub {
+    plan tests => 3;
+    my $manifest = {
+        'a-hook'   => mk_entry('.cwf/scripts/hooks/a-hook'),
+        'sa-guard' => mk_entry('.cwf/scripts/hooks/sa-guard'),
+    };
+    my $tmp = build_fixture(manifest => $manifest);
+    overwrite_file($tmp, '.cwf/scripts/hooks/sa-guard',
+        "#!/usr/bin/env perl\n# cwf-hook-event: SubagentStop\n"
+      . "# cwf-hook-matcher: cwf-security-reviewer-changeset\n");
+    my ($e1) = run_helper($tmp);
+    open(my $f1, '<:raw', "$tmp/.claude/settings.json") or die $!;
+    my $first = do { local $/; <$f1> }; close $f1;
+    my ($e2) = run_helper($tmp);
+    open(my $f2, '<:raw', "$tmp/.claude/settings.json") or die $!;
+    my $second = do { local $/; <$f2> }; close $f2;
+    is($e2, 0, 'second run exit 0');
+    is($first, $second, 'second run byte-identical (idempotent)');
+    my $s = read_settings($tmp);
+    is(scalar(@{ $s->{hooks}{SubagentStop} }), 1, 'still one SubagentStop group');
+};
+
+# ----- TC-M4: bogus directive values fall back to defaults ------------------
+subtest 'TC-M4: invalid event/matcher directives → Stop / no matcher' => sub {
+    plan tests => 4;
+    my $manifest = { 'sneaky' => mk_entry('.cwf/scripts/hooks/sneaky') };
+    my $tmp = build_fixture(manifest => $manifest);
+    overwrite_file($tmp, '.cwf/scripts/hooks/sneaky',
+        "#!/usr/bin/env perl\n"
+      . "# cwf-hook-event: PreToolUse;rm\n"          # not in {Stop,SubagentStop}
+      . "# cwf-hook-matcher: ../../evil path\n");    # fails [A-Za-z0-9_-]+
+    my ($exit) = run_helper($tmp);
+    is($exit, 0, 'exit 0');
+    my $s = read_settings($tmp);
+    ok(!exists $s->{hooks}{'PreToolUse;rm'}, 'attacker event key not created');
+    my $stop = $s->{hooks}{Stop};
+    my @cmds = map { @{ $_->{hooks} } } @$stop;
+    ok((grep { $_->{command} eq '.cwf/scripts/hooks/sneaky' } @cmds),
+       'hook fell back to Stop event');
+    ok(!exists $stop->[0]{matcher}, 'no matcher applied from invalid directive');
+};
+
+# ----- TC-M5: directive read refuses a symlinked hook path ------------------
+subtest 'TC-M5: symlinked hook path → directives not read (default Stop)' => sub {
+    plan tests => 3;
+    my $manifest = { 'linky' => mk_entry('.cwf/scripts/hooks/linky') };
+    my $tmp = build_fixture(manifest => $manifest);
+    # Target holds SubagentStop directives; if the guard fails and follows the
+    # symlink, the hook would wrongly land under SubagentStop.
+    open(my $tf, '>', "$tmp/real-hook") or die $!;
+    print $tf "#!/usr/bin/env perl\n# cwf-hook-event: SubagentStop\n"
+            . "# cwf-hook-matcher: cwf-security-reviewer-changeset\n";
+    close $tf;
+    unlink "$tmp/.cwf/scripts/hooks/linky";
+    symlink("$tmp/real-hook", "$tmp/.cwf/scripts/hooks/linky")
+        or do { plan skip_all => 'symlink not supported'; return };
+    my ($exit) = run_helper($tmp);
+    is($exit, 0, 'exit 0');
+    my $s = read_settings($tmp);
+    ok(!exists $s->{hooks}{SubagentStop},
+       'symlinked directives ignored — no SubagentStop group');
+    my @cmds = map { @{ $_->{hooks} } } @{ $s->{hooks}{Stop} };
+    ok((grep { $_->{command} eq '.cwf/scripts/hooks/linky' } @cmds),
+       'hook registered under default Stop event');
+};
+
 done_testing();

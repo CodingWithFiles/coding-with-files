@@ -122,7 +122,7 @@ The plan-review.md criteria-lookup table gains a `Security` column. Each cell is
 ## Exec-phase prompt template
 
 Invoke the `cwf-security-reviewer-changeset` agent. The agent body
-holds the full review instructions and the sentinel-line contract;
+holds the full review instructions and the verdict-block contract;
 the SKILL-side prompt only needs to pass `{phase}` and `{changeset}`.
 
 Substitute `{changeset}` (the `git diff` output produced per
@@ -140,12 +140,43 @@ Inputs:
 Follow the procedure in your agent definition.
 ```
 
-The exec SKILL classifies the response per the three-tier rule:
+### Verdict container
 
-1. **Primary**: first non-blank line begins with `findings:` / `no findings` / `error:` → use that classification.
-2. **Fallback**: if primary fails, scan body for a numbered list (`^\s*\d+[.)]\s`) or the literal phrase `actionable finding` → classify as `findings`.
-3. **Conservative default**: if neither matches, classify as `error`. Never silently classify as `no findings` — that masks malformed-output failures.
+The subagent reasons in prose, then ends its response with a single
+fenced `cwf-review` block carrying the machine verdict:
 
-A tool-level failure (Agent call error, timeout, allowlist violation) is also classified `error` regardless of body.
+````
+```cwf-review
+state: <no findings|findings|error>
+summary: <optional one-line note>
+```
+````
 
-The SKILL records the verbatim subagent output under `## Security Review` in the wf step file, with a `**State**: findings|no findings|error` line above the verbatim block.
+The block is position-independent — prose precedes it freely; only the
+block is parsed for the verdict, so the model is no longer required to
+lead with a sentinel.
+
+### Classification (deterministic, single source of truth)
+
+The exec SKILL does **not** apply a prose rule. It writes the verbatim
+subagent output to a file and pipes it through the deterministic helper:
+
+```
+.cwf/scripts/command-helpers/security-review-classify < <subagent-output-file>
+```
+
+The helper prints exactly one canonical token (`no findings` |
+`findings` | `error`) on stdout per the parse rule it owns: exactly one
+valid `cwf-review` block → that state; zero or more than one valid block
+→ `error`. Both exec SKILLs and the SubagentStop guard hook
+(`.cwf/scripts/hooks/subagentstop-security-verdict-guard`) call the same
+helper, so there is no classifier drift.
+
+`error` is the conservative default — an absent, malformed, duplicated,
+or non-token verdict surfaces as `error`, never silently downgraded to
+`no findings`. A tool-level failure (Agent call error, timeout,
+allowlist violation) is likewise recorded as `error`.
+
+The SKILL records the verbatim subagent output under `## Security
+Review` in the wf step file, with a `**State**: findings|no
+findings|error` line (the helper's token) above the verbatim block.

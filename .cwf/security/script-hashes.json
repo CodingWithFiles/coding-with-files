@@ -24,7 +24,7 @@
     "cwf-security-reviewer-changeset" : {
       "path" : ".claude/agents/cwf-security-reviewer-changeset.md",
       "permissions" : "0444",
-      "sha256" : "c7033a74da495e7ef7b401f0b88ab6b8d8e53cfb69acb1a924c463bb182095e5"
+      "sha256" : "7c59992a807fd5e293ddb2fec2af28654054a77d615ed42dc18380bbd3c315ed"
     }
   },
   "data" : {
@@ -204,7 +204,7 @@
     "cwf-claude-settings-merge" : {
       "path" : ".cwf/scripts/command-helpers/cwf-claude-settings-merge",
       "permissions" : "0500",
-      "sha256" : "11b6f4aae5a9d6c6da35b3abf3d177d3248127ea3663f62e7fc256c50ef030fa"
+      "sha256" : "5e4efc8b44bf95839edb940471310c0ce304962f93735159f1be09aa6091835f"
     },
     "cwf-manage" : {
       "path" : ".cwf/scripts/cwf-manage",
@@ -266,6 +266,11 @@
       "permissions" : "0500",
       "sha256" : "510d1bf9c698d16cfa1245aa67bff9d755f8d834cc2b9d3fd1afbc8c5e563e14"
     },
+    "subagentstop-security-verdict-guard" : {
+      "path" : ".cwf/scripts/hooks/subagentstop-security-verdict-guard",
+      "permissions" : "0500",
+      "sha256" : "68066f337c417e91167db283c919951dc5dccd76207deb50b783f0e71dc6ef0a"
+    },
     "task-context-inference" : {
       "path" : ".cwf/scripts/command-helpers/task-context-inference",
       "permissions" : "0500",
@@ -300,6 +305,11 @@
       "path" : ".cwf/scripts/command-helpers/security-review-changeset",
       "permissions" : "0500",
       "sha256" : "6944c8f185423def1a580fb3e69204bc1acce8544a6f1b8484890bb0994222ce"
+    },
+    "security-review-classify" : {
+      "path" : ".cwf/scripts/command-helpers/security-review-classify",
+      "permissions" : "0500",
+      "sha256" : "e5a60675951e6c09b41843bf170b6de3f181d6642e7cb504352f3793f7798053"
     },
     "template-copier-v2.1" : {
       "path" : ".cwf/scripts/command-helpers/template-copier-v2.1",

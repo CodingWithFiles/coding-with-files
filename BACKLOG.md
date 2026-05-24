@@ -1226,38 +1226,6 @@ Two edits:
 
 `TaskContextInference.pm` is hash-tracked (`.cwf/security/script-hashes.json`), so the change requires a same-commit `script-hashes.json` refresh (hash-updates convention). Verify no behaviour change: existing TaskContextInference tests should pass unchanged.
 
-## Task: cwf-security-reviewer-changeset sentinel-first contract not honoured; clean reviews classify as error
-
-### Task-Type: bugfix
-### Priority: Medium
-### Status: Follow-up from Task 158
-### Identified in: Task 158 retrospective (j-retrospective.md)
-
-The `cwf-security-reviewer-changeset` subagent (a reasoning model) consistently
-prefaces its verdict with analysis instead of emitting the sentinel on its very
-first line, despite the agent definition's explicit "Your VERY FIRST output line
-MUST be one of these three sentinels" instruction (reinforced in the SKILL prompt
-made no difference across Task 158's f and g phases).
-
-Consequence: the exec-phase three-tier classifier in `cwf-implementation-exec` /
-`cwf-testing-exec` falls through tier-1 (no first-line sentinel) and tier-2 (no
-`^\d+[.)]` numbered list, no literal "actionable finding") to the conservative
-`error` default — so a substantively clean "no findings" review is recorded as
-`State: error`. This is noise that, if routine, erodes the signal the `error`
-state is meant to carry (a genuinely malformed/failed review).
-
-Scope: investigate a fix that makes clean reviews classify as `no findings`
-without weakening the malformed-output guard. Options to weigh (design phase):
-(a) tighten the agent so it truly emits the sentinel first (may be unreliable for
-a reasoning model); (b) extend the classifier's tier-2 fallback to recognise a
-standalone `no findings` / `findings:` line anywhere in the body (carefully, so a
-prefaced clean review is not misread, and a prefaced findings review still lands
-on `findings`); (c) some combination. Must preserve "never silently classify as
-no findings" — any body-scan must be explicit and auditable.
-
-Evidence: Task 158 f-implementation-exec.md and g-testing-exec.md "## Security
-Review" sections both record `State: error` with verbatim clean reviews.
-
 ## Task: Align cwf-extract skill and template-engine extraction guidance to grep+read
 
 ### Task-Type: chore
@@ -1265,3 +1233,11 @@ Review" sections both record `State: error` with verbatim clean reviews.
 ### Identified in: Task 160
 
 Task 160 replaced sed-based section-extraction guidance in COMMANDS.md and DESIGN.md with grep+read. But the actual extraction mechanism elsewhere still uses an awk one-liner: .claude/skills/cwf-extract/SKILL.md:48 (awk "/^## {section-name}/{p=1; print; next} p && /^## [^#]/{p=0} p" {file-path}) and .cwf/utils/template-engine.md:41 (which prescribes that awk command). The user-facing docs now describe grep+read while the implementing skill/design doc describe awk. Decide whether to converge the skill on grep+read (matching the docs and the no-sed-line-range-reads tool preference, avoiding a Bash awk invocation) or to re-document the two docs back to awk, then apply consistently. SKILL.md is hash-tracked, so a skill change needs a same-commit script-hashes.json refresh.
+
+## Task: Fresh-session end-to-end corroboration of the cwf-review verdict container
+
+### Task-Type: chore
+### Priority: Low
+### Identified in: Task 162 retrospective (j-retrospective.md)
+
+Task 162 fixed the security-review misclassification at the parser level (security-review-classify; deterministic unit suite green). The live end-to-end check could not run in the editing session because agent definitions are loaded at session start, so the live subagent exercised the old contract. In a FRESH session, re-run cwf-security-reviewer-changeset (new definition) against bucket-B changesets (e.g. Tasks 140/142/143/158) and confirm: (a) the subagent ends its response with a cwf-review block, (b) clean reviews classify no findings via the helper, and (c) the SubagentStop guard fires (blocks) when the block is absent. Corroboration only — not a code change unless a discrepancy is found.

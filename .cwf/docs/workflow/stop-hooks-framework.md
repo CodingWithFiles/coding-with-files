@@ -1,6 +1,6 @@
 # Stop Hooks Framework for CWF
 
-A framework for evaluating whether a Stop event hook improves CWF quality enough to justify its context cost.
+A framework for evaluating whether a Stop event hook improves CWF quality enough to justify its context cost. CWF also ships one **SubagentStop** hook (event-scoped, matcher-based); its mechanics and registration differ from Stop and are documented in § "SubagentStop hooks" below.
 
 ## Stop Hook Mechanics
 
@@ -99,3 +99,86 @@ A hook earns "build" when: frequency >= 3 occurrences, no existing tool covers i
 **Skip**: Candidate C. Already covered by checkpoint commits.
 
 **Future consideration**: If `/simplify` reviews keep catching over-engineered plans, a planning-phase-specific PostToolUse hook might be worth exploring — but that's a PostToolUse pattern, not a Stop hook, and needs its own evaluation.
+
+## SubagentStop hooks
+
+A **SubagentStop** hook fires when a subagent (an `Agent` tool call) finishes,
+distinct from the conversation-level Stop event. Unlike Stop, SubagentStop
+supports a **matcher** that scopes the hook to a single subagent by its
+`agent_type` — the `name` field from the agent definition's frontmatter
+(`.claude/agents/<name>.md`). The hook's stdin JSON carries
+`last_assistant_message` (the subagent's final message) and `stop_hook_active`
+(true when the stop was itself produced by a prior block decision — the
+harness's loop guard, capped at a small number of consecutive blocks).
+
+CWF ships one such hook:
+`.cwf/scripts/hooks/subagentstop-security-verdict-guard`, scoped to
+`cwf-security-reviewer-changeset`. It is the backstop for the exec-phase
+security review (Task 162): if the subagent's response carries no valid
+`cwf-review` verdict block, the hook returns `{"decision":"block","reason":…}`
+to force a re-emit. It reuses the deterministic
+`security-review-classify` helper rather than reimplementing block detection,
+so there is one parse authority.
+
+### Fail-open discipline (security-critical)
+
+A SubagentStop guard must never trap the subagent. The whole body runs in
+`eval`; it **blocks only** when the classifier ran cleanly AND returned exactly
+`error` AND `stop_hook_active` is false. In every other case — a valid verdict,
+an already-looping stop, an unreachable or failing classifier, malformed stdin
+JSON, or any exception — it **allows the stop** (empty stdout, exit 0). It never
+blocks on its own failure, and the `reason` it emits is a fixed literal built
+via `JSON::PP->encode`, so no `last_assistant_message`-derived data is ever
+interpolated into harness-visible output. The hook always exits 0; a non-zero
+exit would surface as an error to the user.
+
+### Registration: header directives + settings shape
+
+`cwf-claude-settings-merge` discovers hooks by walking the integrity manifest
+(`.cwf/security/script-hashes.json`) for paths under `.cwf/scripts/hooks/`. A
+hook defaults to the **Stop** event with **no matcher**. To register under a
+different event or with a matcher, a hook declares directives in its first 15
+header-comment lines:
+
+```
+# cwf-hook-event: SubagentStop
+# cwf-hook-matcher: cwf-security-reviewer-changeset
+```
+
+The merge helper validates both values before they reach a settings key —
+`event` must be exactly `Stop` or `SubagentStop`; `matcher` must match
+`^[A-Za-z0-9_-]+$`. An invalid or absent directive falls back to the
+Stop / no-matcher default, so an unvalidated parsed string is never written
+into `.claude/settings.json`. The directive read refuses symlinks and
+non-regular files (`-f && !-l`).
+
+The resulting `.claude/settings.json` shape is a `{matcher, hooks}` group under
+`hooks.SubagentStop`:
+
+```json
+"SubagentStop": [
+  {
+    "matcher": "cwf-security-reviewer-changeset",
+    "hooks": [
+      { "type": "command",
+        "command": ".cwf/scripts/hooks/subagentstop-security-verdict-guard",
+        "timeout": 5 }
+    ]
+  }
+]
+```
+
+Matcher-less Stop hooks keep their existing shape — a `{hooks: […]}` group under
+`hooks.Stop` with no `matcher` key — registered byte-for-byte as before.
+
+### Silent-failure risk
+
+The matcher is exact-matched against the subagent's `agent_type`. A wrong
+matcher value means the hook **never fires** — and because the hook fails open,
+a never-firing hook is indistinguishable from an allow at runtime, silently
+disabling the backstop. This is why the merge helper's matcher registration is
+covered by a regression test (`t/cwf-claude-settings-merge.t`): the failure
+mode is invisible in normal operation, so it must be caught at the
+registration boundary. If the agent is ever renamed, the matcher directive in
+the hook header must be updated in the same change (see
+`docs/conventions/design-alignment.md`).
