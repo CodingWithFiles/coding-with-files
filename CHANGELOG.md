@@ -2,6 +2,17 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 160: Remove sed extraction guidance from CWF docs
+
+### Status: Complete (2026-05-24)
+### Duration: single short session (estimate <0.5 day, Low complexity). On estimate.
+### Impact: Chore — replaced the stale `sed`-based section-extraction guidance in two top-level docs with grep+read guidance, matching the project's no-sed-line-range-reads tool preference. **COMMANDS.md**: deleted the `/cwf-extract` `**Method**: Uses sed -n '…/p' | head -n -1` line. **DESIGN.md**: success criterion `extract specific sections using sed commands` → `using grep and read tools`; the **Section Extraction Commands** fenced `sed` block → two bullets (grep for `^## {section name}` to get line numbers, then read with offset/limit). The change was pre-authored in a session stash (`stash@{0}`, carried over from Task 159) and applied here through the full workflow. Neither file is hash-tracked → no `script-hashes.json` refresh. Verification was grep-based (discriminating `grep -nE 'sed -n|sed commands'` → zero; positive greps for the replacement strings) plus a full-suite regression: 48 files / 527 tests pass, `cwf-manage validate` clean. Both exec-phase security changesets were empty (top-level docs are outside the CWF-internal security-relevant trees).
+
+### Notable
+- **Plan review paid off on a two-line doc edit.** Four reviewers independently caught that the plan's rationale was wrong (claimed the `/cwf-extract` skill "uses grep+read internally" — it uses `awk`), that the verification `grep sed` could never pass (matches `based`/`used`/`standardised`), and that acceptance was deferred to an empty template. All fixed before exec; the implementation had zero rework.
+- **The repo describes extraction three ways.** The actual skill (`SKILL.md:48`) and design doc (`template-engine.md:41`) use `awk`; the two user-facing docs now use grep+read. Aligning the skill/template-engine to grep+read was kept out of scope and filed as a Low follow-up rather than silently expanded.
+- **Stash hygiene under multiple stashes.** Applied (not popped) and dropped only after a verified-identity check, protecting an unrelated `stash@{1}` (WIP on main) from a positional-index mistake.
+
 ## Task 159: Fix outstanding cwf-manage issues
 
 ### Status: Complete (2026-05-24)

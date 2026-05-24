@@ -10,7 +10,7 @@
 Create a context-efficient hierarchical documentation system for Claude Code that maximises signal-to-noise ratio while enabling precise information extraction and change management tracking.
 
 ## Success Criteria
-- [ ] Claude Code can extract specific sections using sed commands
+- [ ] Claude Code can extract specific sections using grep and read tools
 - [ ] Document structure scales without context explosion
 - [ ] Change management tracking captures estimate variance
 - [ ] System works with Claude Code's natural tool patterns
@@ -113,9 +113,8 @@ Use as needed per document:
 ### Section Extraction Commands
 
 **Precise extraction**:
-```bash
-sed -n '/^## <section name>/,/^## /p' <file> | head -n -1
-```
+- use the grep (search) tool with line numbers; search for `^## {section name}` to get the line number(s)
+- use the read tool with offset and limit to read the section
 
 ## Change Management Strategy
 

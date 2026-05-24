@@ -86,8 +86,6 @@ Provide comprehensive command reference for Coding with Files (CWF) system to en
 
 **Usage**:`/cwf-extract 1-auth-system/plan.md "Original Estimate"`
 
-**Method**: Uses `sed -n '/^## <section-name>/,/^## /p' <file> | head -n -1`
-
 **Common Sections**:
 - "Original Estimate" - Initial planning estimates
 - "Task Reference" - Task tracking integration (Task ID, URL, Parent Task, Branch)

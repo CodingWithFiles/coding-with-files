@@ -1265,3 +1265,11 @@ no findings" — any body-scan must be explicit and auditable.
 
 Evidence: Task 158 f-implementation-exec.md and g-testing-exec.md "## Security
 Review" sections both record `State: error` with verbatim clean reviews.
+
+## Task: Align cwf-extract skill and template-engine extraction guidance to grep+read
+
+### Task-Type: chore
+### Priority: Low
+### Identified in: Task 160
+
+Task 160 replaced sed-based section-extraction guidance in COMMANDS.md and DESIGN.md with grep+read. But the actual extraction mechanism elsewhere still uses an awk one-liner: .claude/skills/cwf-extract/SKILL.md:48 (awk "/^## {section-name}/{p=1; print; next} p && /^## [^#]/{p=0} p" {file-path}) and .cwf/utils/template-engine.md:41 (which prescribes that awk command). The user-facing docs now describe grep+read while the implementing skill/design doc describe awk. Decide whether to converge the skill on grep+read (matching the docs and the no-sed-line-range-reads tool preference, avoiding a Bash awk invocation) or to re-document the two docs back to awk, then apply consistently. SKILL.md is hash-tracked, so a skill change needs a same-commit script-hashes.json refresh.
