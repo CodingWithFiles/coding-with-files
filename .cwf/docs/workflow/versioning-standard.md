@@ -53,6 +53,8 @@ catches malformed entries.
 All three live under `.cwf/scripts/command-helpers/`. Each takes
 `--task-num=N` as a required positive integer; the retrospective skill
 passes the current task number explicitly so the result is unambiguous.
+A **subtask** number (decimal, e.g. `3.2`) is a clean no-op — see
+"Top-Level Tasks Only" below.
 
 | Script | Purpose | Honours flag | Side-effects |
 |--------|---------|--------------|--------------|
@@ -78,6 +80,22 @@ The `cwf-retrospective` skill invokes the helpers in this order:
 `bump` runs **before** the squash so the `last_released` change is part of
 the final commit. `tag` runs **after** the squash so the tag points at the
 final commit, not a transient pre-squash one.
+
+## Top-Level Tasks Only
+
+Version actions are release events keyed to an integer task number — the
+patch component of `v{major}.{minor}.{patch}`. A **subtask** (decimal
+number such as `3.2`) cannot form a valid patch and merges to its parent
+task branch, not trunk, so nothing is released when it completes.
+
+All three helpers therefore treat a decimal `--task-num` as a deterministic
+no-op: they print `skipped: version actions apply to top-level tasks only
+(subtask {N})` and exit 0 **before** reading config or touching git. The
+retrospective skill invokes the helpers unconditionally; the skip keeps a
+subtask retrospective flowing without a version bump or tag. Malformed
+values (e.g. `3.`, `..`) still error. The guard is enforced in the scripts
+(via `CWF::Versioning::is_subtask_num`), not in skill prose, so it holds
+regardless of how the retrospective is driven.
 
 ## JSON Formatting
 

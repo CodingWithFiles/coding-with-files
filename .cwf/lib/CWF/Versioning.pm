@@ -17,6 +17,7 @@ our @EXPORT_OK = qw(
     bump_to
     tag_at
     config_path
+    is_subtask_num
 );
 
 our $VERSION = '1.0.0';
@@ -70,6 +71,17 @@ sub wf_step_setting {
     $cfg //= read_config();
     my $val = $cfg->{wf_step_config}{$step}{$key};
     return defined $val ? $val : $default;
+}
+
+# True iff $n is a hierarchical subtask number (one or more dotted segments,
+# e.g. "3.2", "3.2.1"). Top-level numbers ("163") are false. The version
+# helpers use this to skip version actions for subtasks, which merge to a
+# parent branch and release nothing. See versioning-standard.md.
+# Input contract: a task id (already numeric/dotted), not arbitrary user
+# text — the anchored pattern classifies shape, it does not sanitise input.
+sub is_subtask_num {
+    my ($n) = @_;
+    return (defined $n && $n =~ /^\d+(?:\.\d+)+$/) ? 1 : 0;
 }
 
 # Compose the next version from major_minor + task_num.

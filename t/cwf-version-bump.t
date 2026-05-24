@@ -94,4 +94,40 @@ subtest 'missing required arg → exit 1' => sub {
     chdir $orig_cwd;
 };
 
+subtest 'TC-163-1 subtask number → clean skip, no write' => sub {
+    plan tests => 3;
+    make_repo('{ "versioning": { "major_minor": "v1.0" } }');
+    my ($exit, $out) = run_script('--task-num=3.2');
+    is($exit, 0, 'exit 0');
+    like($out, qr/^skipped: version actions apply to top-level tasks only \(subtask 3\.2\)/, 'skip line');
+    is(read_cfg()->{versioning}{last_released}, undef, 'last_released untouched');
+    chdir $orig_cwd;
+};
+
+subtest 'TC-163-2 subtask skip short-circuits before read_config' => sub {
+    plan tests => 4;
+    # No cwf-project.json at all: read_config would die "not found".
+    make_repo(undef);
+    my ($exit, $out) = run_script('--task-num=3.2');
+    is($exit, 0, 'exit 0 with no config present');
+    like($out, qr/^skipped: version actions/, 'skip line, not a config error');
+    chdir $orig_cwd;
+    # Malformed config (no major_minor): read_config would die.
+    make_repo('{ }');
+    ($exit, $out) = run_script('--task-num=3.2');
+    is($exit, 0, 'exit 0 with malformed config');
+    like($out, qr/^skipped: version actions/, 'skip line, not a config error');
+    chdir $orig_cwd;
+};
+
+subtest 'TC-163-3 malformed dotted value → error, not skip' => sub {
+    plan tests => 3;
+    make_repo('{ "versioning": { "major_minor": "v1.0" } }');
+    for my $bad ('3.', '.2', '3..2') {
+        my ($exit, $out) = run_script("--task-num=$bad");
+        is($exit, 1, "--task-num=$bad → exit 1 (unknown argument)");
+    }
+    chdir $orig_cwd;
+};
+
 done_testing();

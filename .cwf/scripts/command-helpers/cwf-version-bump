@@ -4,7 +4,7 @@ use warnings;
 use utf8;
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use CWF::Versioning qw(read_config next_version bump_to);
+use CWF::Versioning qw(read_config next_version bump_to is_subtask_num);
 
 my $PROG = 'cwf-version-bump';
 
@@ -12,12 +12,21 @@ sub usage {
     "Usage: $PROG --task-num=N\n"
   . "  Writes versioning.last_released to v{major}.{minor}.N in cwf-project.json,\n"
   . "  iff wf_step_config.retrospective.bump_version is true (default: true).\n"
+  . "  A subtask number (e.g. 3.2) is a no-op: version actions apply to top-level tasks only.\n"
   . "  Idempotent. See .cwf/docs/workflow/versioning-standard.md.\n";
 }
 
 my $task_num;
 for (@ARGV) {
-    if (/^--task-num=(\d+)$/) { $task_num = $1 + 0; next }
+    if (/^--task-num=(\d+(?:\.\d+)*)$/) {
+        my $n = $1;
+        if (is_subtask_num($n)) {
+            print "skipped: version actions apply to top-level tasks only (subtask $n)\n";
+            exit 0;
+        }
+        $task_num = $n + 0;
+        next;
+    }
     if ($_ eq '--help' || $_ eq '-h') { print usage(); exit 0 }
     warn "$PROG: unknown argument: $_\n", usage();
     exit 1;

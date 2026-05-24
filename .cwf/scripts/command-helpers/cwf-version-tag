@@ -4,7 +4,7 @@ use warnings;
 use utf8;
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use CWF::Versioning qw(read_config next_version tag_at);
+use CWF::Versioning qw(read_config next_version tag_at is_subtask_num);
 
 my $PROG = 'cwf-version-tag';
 
@@ -12,13 +12,22 @@ sub usage {
     "Usage: $PROG --task-num=N [--message=STR]\n"
   . "  Creates an annotated git tag at v{major}.{minor}.N on the main branch,\n"
   . "  iff wf_step_config.retrospective.tag_version is true (default: false).\n"
+  . "  A subtask number (e.g. 3.2) is a no-op: version actions apply to top-level tasks only.\n"
   . "  Refuses if tag exists or HEAD is not on the main branch.\n"
   . "  See .cwf/docs/workflow/versioning-standard.md.\n";
 }
 
 my ($task_num, $message);
 for (@ARGV) {
-    if (/^--task-num=(\d+)$/)   { $task_num = $1 + 0; next }
+    if (/^--task-num=(\d+(?:\.\d+)*)$/) {
+        my $n = $1;
+        if (is_subtask_num($n)) {
+            print "skipped: version actions apply to top-level tasks only (subtask $n)\n";
+            exit 0;
+        }
+        $task_num = $n + 0;
+        next;
+    }
     if (/^--message=(.+)$/s)    { $message  = $1;     next }
     if ($_ eq '--help' || $_ eq '-h') { print usage(); exit 0 }
     warn "$PROG: unknown argument: $_\n", usage();

@@ -47,11 +47,11 @@ allowed-tools:
 
 **Step 8**: Update CHANGELOG.md and BACKLOG.md. Read `.cwf/docs/skills/retrospective-extras.md#changelogmd-and-backlogmd-update` for the full workflow.
 
-**Step 9**: Bump version. Run `.cwf/scripts/command-helpers/cwf-version-bump --task-num={current_task_num}`. Honours `wf_step_config.retrospective.bump_version` in `cwf-project.json` (default: true). On `bumped: v{X}`, the resulting `cwf-project.json` change is staged together with `j-retrospective.md` for the j-phase checkpoint. On `skipped` or `already at v{X}`, nothing further to stage. See `.cwf/docs/workflow/versioning-standard.md`.
+**Step 9**: Bump version. Run `.cwf/scripts/command-helpers/cwf-version-bump --task-num={current_task_num}`. Honours `wf_step_config.retrospective.bump_version` in `cwf-project.json` (default: true). On `bumped: v{X}`, the resulting `cwf-project.json` change is staged together with `j-retrospective.md` for the j-phase checkpoint. On `skipped` or `already at v{X}`, nothing further to stage. For a subtask (decimal `current_task_num`) the helper is a deterministic no-op reporting `skipped: ...` — version actions apply to top-level tasks only. See `.cwf/docs/workflow/versioning-standard.md`.
 
 **Step 10**: Create checkpoints branch and squash. Read `.cwf/docs/skills/retrospective-extras.md#checkpoints-branch-and-squash` for the full workflow.
 
-**Step 11**: Tag version. Run `.cwf/scripts/command-helpers/cwf-version-tag --task-num={current_task_num} --message="Task {current_task_num}"` after the squash so any tag points at the final commit. Honours `wf_step_config.retrospective.tag_version` (default: false — CwF itself never tags from the script; tagging is human-only per `CLAUDE.md`). External adopters with `tag_version: true` get the annotated tag.
+**Step 11**: Tag version. Run `.cwf/scripts/command-helpers/cwf-version-tag --task-num={current_task_num} --message="Task {current_task_num}"` after the squash so any tag points at the final commit. Honours `wf_step_config.retrospective.tag_version` (default: false — CwF itself never tags from the script; tagging is human-only per `CLAUDE.md`). External adopters with `tag_version: true` get the annotated tag. For a subtask (decimal `current_task_num`) this is a deterministic no-op (`skipped: ...`) — only top-level tasks are tagged.
 
 **Step 12 (Next Steps)**:
 - **Primary**: Suggest merge to user (do not execute). Read `.cwf/docs/skills/retrospective-extras.md#suggest-merge-step-12` for the derivation rule (covers top-level and subtask cases).

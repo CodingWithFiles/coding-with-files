@@ -89,4 +89,32 @@ subtest 'missing major_minor → exit 1 with field name' => sub {
     chdir $orig_cwd;
 };
 
+subtest 'TC-163-1 subtask number → clean skip, no version printed' => sub {
+    plan tests => 2;
+    make_repo('{ "versioning": { "major_minor": "v1.0" } }');
+    my ($exit, $out) = run_script('--task-num=3.2');
+    is($exit, 0, 'exit 0');
+    like($out, qr/^skipped: version actions apply to top-level tasks only \(subtask 3\.2\)/, 'skip line');
+    chdir $orig_cwd;
+};
+
+subtest 'TC-163-2 subtask skip short-circuits before read_config' => sub {
+    plan tests => 2;
+    make_repo(undef);
+    my ($exit, $out) = run_script('--task-num=3.2');
+    is($exit, 0, 'exit 0 with no config present');
+    like($out, qr/^skipped: version actions/, 'skip line, not a config error');
+    chdir $orig_cwd;
+};
+
+subtest 'TC-163-3 malformed dotted value → error, not skip' => sub {
+    plan tests => 3;
+    make_repo('{ "versioning": { "major_minor": "v1.0" } }');
+    for my $bad ('3.', '.2', '3..2') {
+        my ($exit, $out) = run_script("--task-num=$bad");
+        is($exit, 1, "--task-num=$bad → exit 1 (unknown argument)");
+    }
+    chdir $orig_cwd;
+};
+
 done_testing();

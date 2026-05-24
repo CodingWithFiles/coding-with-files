@@ -94,4 +94,50 @@ subtest 'missing required arg → exit 1' => sub {
     chdir $orig_cwd;
 };
 
+subtest 'TC-163-1 subtask number → clean skip, no tag created' => sub {
+    plan tests => 3;
+    make_repo_with_main('"wf_step_config": { "retrospective": { "tag_version": true } }');
+    my ($exit, $out) = run_script('--task-num=3.2');
+    is($exit, 0, 'exit 0');
+    like($out, qr/^skipped: version actions apply to top-level tasks only \(subtask 3\.2\)/, 'skip line');
+    my $tags = `git tag -l`;
+    chomp $tags;
+    is($tags, '', 'no tag created');
+    chdir $orig_cwd;
+};
+
+subtest 'TC-163-5 subtask skip with --message present, both arg orders' => sub {
+    plan tests => 4;
+    make_repo_with_main('"wf_step_config": { "retrospective": { "tag_version": true } }');
+    my ($exit, $out) = run_script('--task-num=3.2', '--message=foo');
+    is($exit, 0, 'task-num then message → exit 0');
+    like($out, qr/^skipped: version actions/, 'skip line (task-num first)');
+    ($exit, $out) = run_script('--message=foo', '--task-num=3.2');
+    is($exit, 0, 'message then task-num → exit 0');
+    like($out, qr/^skipped: version actions/, 'skip line (message first)');
+    chdir $orig_cwd;
+};
+
+subtest 'TC-163-2 subtask skip short-circuits before read_config' => sub {
+    plan tests => 2;
+    # Bare git repo, no cwf-project.json: read_config would die "not found".
+    my $dir = tempdir(CLEANUP => 1);
+    chdir $dir or die $!;
+    system("git init -q") == 0 or die;
+    my ($exit, $out) = run_script('--task-num=3.2');
+    is($exit, 0, 'exit 0 with no config present');
+    like($out, qr/^skipped: version actions/, 'skip line, not a config error');
+    chdir $orig_cwd;
+};
+
+subtest 'TC-163-3 malformed dotted value → error, not skip' => sub {
+    plan tests => 3;
+    make_repo_with_main();
+    for my $bad ('3.', '.2', '3..2') {
+        my ($exit, $out) = run_script("--task-num=$bad");
+        is($exit, 1, "--task-num=$bad → exit 1 (unknown argument)");
+    }
+    chdir $orig_cwd;
+};
+
 done_testing();

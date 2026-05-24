@@ -125,7 +125,7 @@
     },
     "CWF::Versioning" : {
       "path" : ".cwf/lib/CWF/Versioning.pm",
-      "sha256" : "57c7b1d39d855927b72b7b7d96a1dd156996e0318e23fc05c9639c27c951c9be"
+      "sha256" : "dcd5b4fe10d8ec9e91a66fd056b26c5d3469e3ffb3f469ab1e520ee7fa1f97ce"
     },
     "CWF::WorkflowFiles" : {
       "path" : ".cwf/lib/CWF/WorkflowFiles.pm",
@@ -219,17 +219,17 @@
     "cwf-version-bump" : {
       "path" : ".cwf/scripts/command-helpers/cwf-version-bump",
       "permissions" : "0500",
-      "sha256" : "f35fc075109274520d097f8a5ace2379957e760d92201e6f4b0bbfcf173ccfc4"
+      "sha256" : "6bc5c797c5701b1a0460e5234440ccc8bb0d270a7cc9e29fd7bdf4fa108fc8a1"
     },
     "cwf-version-next" : {
       "path" : ".cwf/scripts/command-helpers/cwf-version-next",
       "permissions" : "0500",
-      "sha256" : "3f4af2de8696889aabcf7c54c37b94534f3f29a35cbf3c0b1760041bf521fe63"
+      "sha256" : "5c74879cdb402c4cf093737e0c50da18c9082bb41d432b9b3b6dcfc9e1b5d529"
     },
     "cwf-version-tag" : {
       "path" : ".cwf/scripts/command-helpers/cwf-version-tag",
       "permissions" : "0500",
-      "sha256" : "89e9ff6b456055e1562fdf02e13e20b6aa5fda4f48a7db594602c96388ad13bb"
+      "sha256" : "40f3ddfa0450a2ad3aafb8bf76f6ae7c3eec1ac95593c5591e25f56dcc7d09f9"
     },
     "migrate-v1-to-v2.sh" : {
       "path" : ".cwf/scripts/migrate-v1-to-v2.sh",

@@ -11,7 +11,7 @@ use Cwd qw(cwd);
 use FindBin;
 use lib "$FindBin::Bin/../.cwf/lib";
 
-BEGIN { use_ok('CWF::Versioning', qw(read_config wf_step_setting next_version current_version bump_to tag_at config_path)) }
+BEGIN { use_ok('CWF::Versioning', qw(read_config wf_step_setting next_version current_version bump_to tag_at config_path is_subtask_num)) }
 
 # ---------------------------------------------------------------------------
 # Test fixture: chdir into a tempdir holding a fresh git repo with
@@ -122,6 +122,22 @@ subtest 'TC-V7b next_version: rejects bad task_num' => sub {
     eval { next_version(task_num => 'abc') };
     like($@, qr/task_num required/, 'non-numeric rejected');
     chdir $orig_cwd;
+};
+
+subtest 'TC-V7c is_subtask_num: truth table (no repo needed)' => sub {
+    plan tests => 9;
+    # true: one or more dotted segments
+    ok( is_subtask_num('3.2'),    '3.2 is a subtask');
+    ok( is_subtask_num('3.2.1'),  '3.2.1 is a subtask');
+    ok( is_subtask_num('163.4'),  '163.4 is a subtask');
+    # false: bare integer (top-level)
+    ok(!is_subtask_num('163'),    '163 is top-level, not a subtask');
+    # false: malformed (locks contract independent of any caller capture regex)
+    ok(!is_subtask_num('3.'),     'trailing dot is not a subtask');
+    ok(!is_subtask_num('.2'),     'leading dot is not a subtask');
+    ok(!is_subtask_num('3..2'),   'double dot is not a subtask');
+    ok(!is_subtask_num('x'),      'non-numeric is not a subtask');
+    ok(!is_subtask_num(undef),    'undef is not a subtask');
 };
 
 subtest 'TC-V8 current_version: absent vs present' => sub {
