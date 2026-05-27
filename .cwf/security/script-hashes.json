@@ -101,7 +101,7 @@
     },
     "CWF::Validate::Consistency" : {
       "path" : ".cwf/lib/CWF/Validate/Consistency.pm",
-      "sha256" : "d2849f8b06f1107f2dc38071e6695252a71a77b3546525fae4c6a15281eb0d92"
+      "sha256" : "d772d571b1949210792c0efa34b95ff507355b52d030bdc660d3df457a3f95dd"
     },
     "CWF::Validate::PerlConventions" : {
       "path" : ".cwf/lib/CWF/Validate/PerlConventions.pm",
