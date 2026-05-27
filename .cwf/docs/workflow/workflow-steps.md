@@ -269,7 +269,7 @@ When planning, explicitly consider:
 
 ## Testing Planning
 
-**File**: `e-testing-plan.md` (v2.1 - moved from f position) OR `f-testing-plan.md` (v2.0 only)
+**File**: `e-testing-plan.md` (v2.1) OR `e-testing.md` (v2.0)
 
 **Purpose**: Define test strategy and validate both functional and non-functional requirements through comprehensive test coverage.
 
@@ -316,7 +316,7 @@ When planning, explicitly consider:
 **Purpose**: Execute the test plan, record test results, and document failures with reproduction steps.
 
 **Focus on**:
-- Executing test cases from testing plan file (e-testing-plan.md for v2.1, f-testing-plan.md for v2.0) sequentially
+- Executing test cases from testing plan file (e-testing-plan.md for v2.1, e-testing.md for v2.0) sequentially
 - Setting up test environment as specified
 - Recording PASS/FAIL status for each test case
 - Documenting test failures with reproduction steps

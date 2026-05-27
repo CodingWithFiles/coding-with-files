@@ -16,8 +16,8 @@ Defines workflow file names and task-type-specific file lists for v2.1 format.
 v2.1 uses 10 workflow phases (a-j) with explicit separation of planning and execution.
 
 Key changes from v2.0:
-- Added e-implementation-exec.md (execution phase after d-implementation-plan.md)
-- Added g-testing-exec.md (execution phase after f-testing-plan.md)
+- Added f-implementation-exec.md (execution phase after d-implementation-plan.md)
+- Added g-testing-exec.md (execution phase after e-testing-plan.md)
 - Sequential a-j lettering for clean alphabetical progression
 
 =cut

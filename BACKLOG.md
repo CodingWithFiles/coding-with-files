@@ -543,42 +543,6 @@ Execute three edge case tests for the task context inference system (Task 32) th
 - System is production-ready without these tests
 - No known bugs in these scenarios (just untested)
 
-## Task: Create Template Reference Linter for Pre-Commit Hook
-
-### Task-Type: chore
-### Priority: Medium
-### Status: Recommended from Task 29 retrospective
-### Problem: Template filename references must be updated manually across codebase:
-### Solution: Create `template-reference-linter` script:
-### Benefits: 
-### Implementation: 
-### Estimated Effort: 0.5-1 day
-
-Create automated linter to detect hardcoded template filename references and verify they point to current template names.
-
-- No automated way to detect orphaned template filename references
-- Manual grep required for verification (e.g., Task 29 found 60+ references)
-- Risk of missing references during template changes
-- Version-specific references (v2.0 vs v2.1) need distinction
-
-- Detect hardcoded template filenames in `.md`, `.pl`, `.pm` files
-- Verify references point to current template names (not deprecated)
-- Distinguish v2.0 refs (acceptable in V20.pm) from v2.1 refs (should use new names)
-- Run as pre-commit hook or CI check
-- Report orphaned references with file:line information
-
-- Prevents orphaned references during template renames
-- Automates manual grep verification step
-- Catches errors before commit
-- Documents expected template filenames
-
-1. Add to `.cwf/scripts/` as `template-reference-linter`
-2. Parse all `.md`, `.pl`, `.pm` files for template filename patterns
-3. Cross-reference against current template pool contents
-4. Flag deprecated names (e.g., "e-implementation-exec.md" in v2.1 context)
-5. Allow v2.0-specific references (V20.pm uses "f-testing-plan.md" correctly)
-6. Integrate with pre-commit hook or CI pipeline
-
 ## Task: Add Status Calculation Overview to Workflow Documentation
 
 ### Task-Type: chore
@@ -1243,3 +1207,31 @@ Task 160 replaced sed-based section-extraction guidance in COMMANDS.md and DESIG
 Task 162 fixed the security-review misclassification at the parser level (security-review-classify; deterministic unit suite green). The live end-to-end check could not run in the editing session because agent definitions are loaded at session start, so the live subagent exercised the old contract. In a FRESH session, re-run cwf-security-reviewer-changeset (new definition) against bucket-B changesets (e.g. Tasks 140/142/143/158) and confirm: (a) the subagent ends its response with a cwf-review block, (b) clean reviews classify no findings via the helper, and (c) the SubagentStop guard fires (blocks) when the block is absent. Corroboration only — not a code change unless a discrepancy is found.
 
 Additional evidence (Task 163): both exec-phase reviews (f-implementation-exec.md, g-testing-exec.md "## Security Review") classified `error` because the subagent omitted the cwf-review block on otherwise-clean verdicts — two more negative data points consistent with the session-cached-definition hypothesis. Worth prioritising; reference Task 163's f/g sections alongside the bucket-B set.
+
+## Task: Task context inference not subtask-aware: inconclusive for active subtask
+
+### Task-Type: bugfix
+### Priority: High
+### Status: Reported by external CWF user
+### Identified in: External user error report
+
+Reported by a CWF user: task context inference fails to resolve the active subtask, returning an inconclusive/uncorrelated result instead of the subtask the user is working on.
+
+Observed (user transcript): in a repo with an active subtask 28.2 (working on f-implementation-exec, uncommitted wf files present), running the inference helper produced:
+
+- current: inconclusive
+- confidence: uncorrelated
+- task_nums: 28,20
+- task_slugs: page-render-caching-and-pii-erasure,reminder-panel-and-email-notifications
+- workflow_steps: f-implementation-exec,a-task-plan
+- candidates: 2
+- (exit code 1)
+
+The user attributes this to the location/inference path "not being subtask-aware": the active subtask 28.2 is never offered as a candidate — only top-level tasks 28 and 20 are. Skills that rely on inference when invoked without an explicit task argument (e.g. /cwf-implementation-exec with no number) therefore cannot determine the current subtask and stall.
+
+Investigate:
+- Whether the defect is in task-context-inference's correlation logic (branch/dirty-file -> task scoring) or in how context-manager enumerates candidates (subtasks not walked).
+- Why 28.2 is absent from candidates while its parent 28 appears: is the inference flattening to top-level task dirs and ignoring nested decimal-numbered subtask dirs?
+- Whether branch-name correlation handles subtask branch patterns (NN.M-...) at all.
+
+Expected: with an active subtask checked out and its wf files dirty, inference should resolve to that subtask (e.g. 28.2) conclusively, or at minimum list it among candidates.

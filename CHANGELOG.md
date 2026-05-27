@@ -2,6 +2,48 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 165: Template reference linter
+
+### Status: Complete (2026-05-27)
+### Duration: single session (estimate 0.5–1 day, Medium complexity). On estimate.
+### Impact: Chore — adds `CWF::Validate::TemplateRefs`, a new sibling validator wired into `cwf-manage validate` (and therefore run by `cwf-checkpoint-commit` on every CWF commit). It flags any `[a-j]-<phase>.md`-shaped reference in tracked `*.md`/`*.pl`/`*.pm` source that names **no** known template in any supported workflow version (v1.0/v2.0/v2.1). **Design narrowing**: the backlog's original "flag v2.0 names used in v2.1 context" goal is infeasible — current skills and lib modules legitimately reference older names for backward-compat (e.g. a skill that opens the v2.1 file "or" the v2.0 file), so the same token is both a valid mention and a potential orphan, separable only by intent a linter cannot read. The reliable invariant "every template-shaped reference names a real template somewhere" catches the real risk (rename orphans, typos) at near-zero false-positive cost. **KNOWN set** is derived at runtime — pool basenames ∪ `V21`/`V20::get_workflow_files` (over all task types) ∪ both sides of `workflow_file_mappings()` — nothing hardcoded; a fail-closed `die` refuses to run if the set is under-populated rather than passing everything. **Grammar** is boundary-anchored (`(?<![A-Za-z0-9-])[a-j]-[a-z][a-z-]*\.md(?![A-Za-z0-9])`) so it never matches the tail of a longer hyphenated filename. **Scope** excludes `implementation-guide/` (task instances) and `BACKLOG.md`/`CHANGELOG.md` (append-only history, exempt per `docs/conventions/cross-doc-references.md`). On its first real-repo run it surfaced 3 genuine stale references — `V21.pm` POD and `workflow-steps.md` ×2 (v2.0 testing mislabelled `f-testing-plan.md`; it was `e-testing.md`) — all fixed in-task to reach a clean baseline. In-commit `script-hashes.json`: new `TemplateRefs.pm` entry + refreshed `cwf-manage` and `V21.pm`. New `t/validate-template-refs.t` (TC-1…TC-7 + implementation-guide exclusion + fail-closed minimum, 10 subtests); full suite 610 tests pass. Both exec-phase security reviews returned `no findings`.
+
+### Notable
+- **The backlog item's premise was partly wrong, and the investigation proved it.** "Flag v2.0 names in v2.1 context" can't be done without heavy false positives because back-compat references are pervasive and legitimate. Grounding in the actual 37 referencing files reshaped the task before any code was written.
+- **Plan review caught a 12-vs-4 baseline error and two snippet bugs.** Reviewers flagged that the naive scope flags 12 hits (8 of them intentional history in BACKLOG/CHANGELOG, including this task's own backlog entry), citing the existing cross-doc-references exemption; and corrected an arrayref-deref and a `glob` directory-prefix bug — all before exec, zero rework.
+- **Dogfooding found real bugs.** The linter's first run on the live tree surfaced genuine doc inaccuracies, which the task then fixed to reach its own clean baseline.
+- **`cwf-manage fix-security` repairs permissions, not hashes.** Confirmed: a sha256 refresh is a deliberate reviewed JSON edit; there is intentionally no recompute-to-silence tool (surface, don't smooth).
+
+### Retired Backlog Items
+#### Create Template Reference Linter for Pre-Commit Hook
+
+Create automated linter to detect hardcoded template filename references and verify they point to current template names.
+
+- No automated way to detect orphaned template filename references
+- Manual grep required for verification (e.g., Task 29 found 60+ references)
+- Risk of missing references during template changes
+- Version-specific references (v2.0 vs v2.1) need distinction
+
+- Detect hardcoded template filenames in `.md`, `.pl`, `.pm` files
+- Verify references point to current template names (not deprecated)
+- Distinguish v2.0 refs (acceptable in V20.pm) from v2.1 refs (should use new names)
+- Run as pre-commit hook or CI check
+- Report orphaned references with file:line information
+
+- Prevents orphaned references during template renames
+- Automates manual grep verification step
+- Catches errors before commit
+- Documents expected template filenames
+
+1. Add to `.cwf/scripts/` as `template-reference-linter`
+2. Parse all `.md`, `.pl`, `.pm` files for template filename patterns
+3. Cross-reference against current template pool contents
+4. Flag deprecated names (e.g., "e-implementation-exec.md" in v2.1 context)
+5. Allow v2.0-specific references (V20.pm uses "f-testing-plan.md" correctly)
+6. Integrate with pre-commit hook or CI pipeline
+
+<!-- Note: Delivered as CWF::Validate::TemplateRefs wired into cwf-manage validate; semantics narrowed to "known to any version" (see j-retrospective.md). -->
+
 ## Task 164: hierarchy-aware consistency validation
 
 ### Status: Complete (2026-05-27)

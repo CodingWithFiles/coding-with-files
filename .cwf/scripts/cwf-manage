@@ -33,6 +33,7 @@ use CWF::Validate::Consistency      ();
 use CWF::Validate::Security         ();
 use CWF::Validate::PerlConventions  ();
 use CWF::Validate::Templates        ();
+use CWF::Validate::TemplateRefs     ();
 
 # --- Helpers ------------------------------------------------------------------
 
@@ -539,6 +540,7 @@ sub cmd_validate {
         CWF::Validate::Security::validate_install_manifest($git_root),
         CWF::Validate::PerlConventions::validate($git_root),
         CWF::Validate::Templates::validate($git_root),
+        CWF::Validate::TemplateRefs::validate($git_root),
     );
 
     if (!@all_violations) {

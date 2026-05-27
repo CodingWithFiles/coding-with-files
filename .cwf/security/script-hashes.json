@@ -111,6 +111,10 @@
       "path" : ".cwf/lib/CWF/Validate/Security.pm",
       "sha256" : "7c93e0fd686aeff971b159460d8a16459f2ac1d0ce02cfbc7033901597fe6d9b"
     },
+    "CWF::Validate::TemplateRefs" : {
+      "path" : ".cwf/lib/CWF/Validate/TemplateRefs.pm",
+      "sha256" : "aa0e373f79c0fb75d77613912836eb318015a8a58e25e54005fede1282cfd49b"
+    },
     "CWF::Validate::Templates" : {
       "path" : ".cwf/lib/CWF/Validate/Templates.pm",
       "sha256" : "465710235fbb8432f6a030c8d5cc531a7b8a1ba2a6a94b168f70ce7afb1ee58d"
@@ -137,7 +141,7 @@
     },
     "CWF::WorkflowFiles::V21" : {
       "path" : ".cwf/lib/CWF/WorkflowFiles/V21.pm",
-      "sha256" : "8832272bdb51fd91b14af3bebeec02c8bdb1d457acfb2d411f524cf8ad9c13ec"
+      "sha256" : "636deb61d736c17514180fad8f44ce345345e5fa49cfbd3ee51030ef3752d6af"
     }
   },
   "scripts" : {
@@ -209,7 +213,7 @@
     "cwf-manage" : {
       "path" : ".cwf/scripts/cwf-manage",
       "permissions" : "0700",
-      "sha256" : "661990290fa72af54afad5f6a854dad107ea7c2e2b39955de8dbd658f4402f06"
+      "sha256" : "1195212958515776a93412714d7c77017a8356b80ef281161df11532669c060a"
     },
     "cwf-set-status" : {
       "path" : ".cwf/scripts/command-helpers/cwf-set-status",
