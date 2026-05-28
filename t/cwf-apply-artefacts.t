@@ -48,11 +48,9 @@ sub build_source {
     my (%opts) = @_;
     my $tmp = tempdir(CLEANUP => 1);
 
-    my $rules_inject  = $opts{rules_inject_content}  // '';
     my $preamble      = $opts{preamble_content}      // "> CWF preamble line.\n";
     my $rule_file     = $opts{rule_file_content}     // "rule body\n";
 
-    write_file("$tmp/.cwf/templates/install/rules-inject.txt", $rules_inject);
     write_file("$tmp/.cwf/templates/install/claude-md-preamble.md", $preamble);
     write_file("$tmp/.claude/rules/cwf-workflow-files.md", $rule_file);
 
@@ -66,13 +64,6 @@ sub build_source {
                 kind  => 'line-additive',
                 dest  => '.gitignore',
                 lines => [ '.cwf/task-stack', '.cwf/.update.lock' ],
-            },
-            {
-                id     => 'rules-inject',
-                kind   => 'file',
-                source => '.cwf/templates/install/rules-inject.txt',
-                dest   => '.cwf/rules-inject.txt',
-                sha256 => sha($rules_inject),
             },
             {
                 id     => 'cwf-rules-bundle',
@@ -103,13 +94,12 @@ sub build_source {
 }
 
 # Build an installed root: optionally include an existing manifest, .gitignore,
-# .cwf-rules/, .cwf/rules-inject.txt, CLAUDE.md.
+# .cwf-rules/, CLAUDE.md.
 sub build_installed {
     my (%opts) = @_;
     my $tmp = tempdir(CLEANUP => 1);
     write_file("$tmp/$_", '') for ();
     if ($opts{gitignore})    { write_file("$tmp/.gitignore", $opts{gitignore}) }
-    if ($opts{rules_inject}) { write_file("$tmp/.cwf/rules-inject.txt", $opts{rules_inject}) }
     if ($opts{rule_file})    { write_file("$tmp/.cwf-rules/cwf-workflow-files.md", $opts{rule_file}) }
     if ($opts{claude_md})    { write_file("$tmp/CLAUDE.md", $opts{claude_md}) }
     if ($opts{installed_manifest}) {
@@ -176,49 +166,12 @@ subtest 'line-additive: rejects newline injection' => sub {
     like($err, qr/forbidden newline/, 'rejection logged');
 };
 
-# --- TC-RI-1: rules-inject replace — install via bootstrap ----------------
-subtest 'rules-inject: install in bootstrap mode' => sub {
-    my ($src) = build_source(rules_inject_content => "ALPHA\n");
-    my $inst  = build_installed();
-    my ($e, $o, $err) = run_helper($inst, $src, '--bootstrap-init');
-    is($e, 0, 'exit 0') or diag $err;
-    is(read_file("$inst/.cwf/rules-inject.txt"), "ALPHA\n", 'content installed');
-    like($err, qr{rules-inject\.txt updated \(was , now },
-         'audit log line written');
-};
-
-# --- TC-RI-2: rules-inject — already up to date ---------------------------
-subtest 'rules-inject: no-op when on-disk == new' => sub {
-    my ($src) = build_source(rules_inject_content => "BETA\n");
-    my $inst  = build_installed(rules_inject => "BETA\n");
-    my ($e, $o, $err) = run_helper($inst, $src, '--bootstrap-init');
-    is($e, 0, 'exit 0');
-    like($err, qr/rules-inject: already up to date/, 'no-op log');
-};
-
-# --- TC-RI-3: rules-inject conflict — non-TTY default = abort -------------
-subtest 'rules-inject: non-TTY default abort on conflict' => sub {
-    my ($src) = build_source(rules_inject_content => "NEW\n");
-    my $inst  = build_installed(rules_inject => "USER-MOD\n");
-    # Set installed manifest so on-disk != baseline → conflict.
-    write_file("$inst/.cwf/install-manifest.json",
-               JSON::PP->new->canonical->encode({
-                   schema_version => 1,
-                   artefacts => [
-                       { id => 'rules-inject', kind => 'file',
-                         source => '.cwf/templates/install/rules-inject.txt',
-                         dest => '.cwf/rules-inject.txt',
-                         sha256 => sha("BASELINE\n") },
-                   ],
-               }));
-    my ($e, $o, $err) = run_helper($inst, $src);
-    is($e, 1, 'exit 1 (abort)') or diag $err;
-    like($err, qr/no TTY/, 'logs no-TTY reason');
-    is(read_file("$inst/.cwf/rules-inject.txt"), "USER-MOD\n",
-       'on-disk file unchanged');
-};
-
 # --- TC-FR5-INVALID: invalid env exits 1 -----------------------------------
+# Note: TC-RI-1..3 and TC-FR5-KEEP/NEW were retired with Task 167 (rules-inject
+# removed from install-manifest inventory). The CWF_UPGRADE_RESOLVE=keep/new
+# branches of prompt_resolve are no longer covered by a direct artefact-level
+# subtest; see BACKLOG item "Restore CWF_UPGRADE_RESOLVE keep/new coverage
+# without rules-inject" for the follow-up.
 subtest 'CWF_UPGRADE_RESOLVE invalid value exits 1' => sub {
     local $ENV{CWF_UPGRADE_RESOLVE} = 'maybe';
     my ($src) = build_source();
@@ -226,48 +179,6 @@ subtest 'CWF_UPGRADE_RESOLVE invalid value exits 1' => sub {
     my ($e, $o, $err) = run_helper($inst, $src, '--bootstrap-init');
     is($e, 1, 'exit 1') or diag $err;
     like($err, qr/invalid CWF_UPGRADE_RESOLVE/, 'rejection logged');
-};
-
-# --- TC-FR5-KEEP: env=keep skips overwrite ---------------------------------
-subtest 'CWF_UPGRADE_RESOLVE=keep skips conflicting replace' => sub {
-    local $ENV{CWF_UPGRADE_RESOLVE} = 'keep';
-    my ($src) = build_source(rules_inject_content => "NEW\n");
-    my $inst  = build_installed(rules_inject => "USER-MOD\n");
-    write_file("$inst/.cwf/install-manifest.json",
-               JSON::PP->new->canonical->encode({
-                   schema_version => 1,
-                   artefacts => [
-                       { id => 'rules-inject', kind => 'file',
-                         source => '.cwf/templates/install/rules-inject.txt',
-                         dest => '.cwf/rules-inject.txt',
-                         sha256 => sha("BASELINE\n") },
-                   ],
-               }));
-    my ($e) = run_helper($inst, $src);
-    is($e, 0, 'exit 0');
-    is(read_file("$inst/.cwf/rules-inject.txt"), "USER-MOD\n",
-       'on-disk preserved');
-};
-
-# --- TC-FR5-NEW: env=new installs upstream over modified -------------------
-subtest 'CWF_UPGRADE_RESOLVE=new installs upstream' => sub {
-    local $ENV{CWF_UPGRADE_RESOLVE} = 'new';
-    my ($src) = build_source(rules_inject_content => "NEW\n");
-    my $inst  = build_installed(rules_inject => "USER-MOD\n");
-    write_file("$inst/.cwf/install-manifest.json",
-               JSON::PP->new->canonical->encode({
-                   schema_version => 1,
-                   artefacts => [
-                       { id => 'rules-inject', kind => 'file',
-                         source => '.cwf/templates/install/rules-inject.txt',
-                         dest => '.cwf/rules-inject.txt',
-                         sha256 => sha("BASELINE\n") },
-                   ],
-               }));
-    my ($e) = run_helper($inst, $src);
-    is($e, 0, 'exit 0');
-    is(read_file("$inst/.cwf/rules-inject.txt"), "NEW\n",
-       'upstream installed');
 };
 
 # --- TC-EB-1: embedded-block — installs preamble with sentinels ------------

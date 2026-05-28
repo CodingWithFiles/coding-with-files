@@ -489,7 +489,7 @@ sub cmd_update {
     elsif ($rc >> 8)  { die_msg(sprintf("install.bash laydown failed (exit %d)", $rc >> 8)); }
 
     # D7/D9: apply non-script artefacts (.cwf-rules/, .gitignore, CLAUDE.md
-    # preamble, .cwf/rules-inject.txt, .claude/rules/ symlinks).
+    # preamble, .claude/rules/ symlinks).
     run_apply_artefacts($git_root, $clone_dir);
 
     # D7: settle .claude/settings.json (Bash allowlist + Stop hooks).

@@ -1,8 +1,8 @@
 #!/usr/bin/env perl
 #
 # cwf-apply-artefacts — Apply CWF non-script artefacts (CLAUDE.md preamble,
-# .gitignore lines, .cwf-rules/ tree, .cwf/rules-inject.txt, .claude/rules/
-# symlinks) during cwf-manage update or /cwf-init.
+# .gitignore lines, .cwf-rules/ tree, .claude/rules/ symlinks) during
+# cwf-manage update or /cwf-init.
 #
 # Usage:
 #   cwf-apply-artefacts <git_root> <source_root>            # update mode
@@ -64,7 +64,6 @@ my @ALLOWED_SOURCE_PREFIXES = (
 my @ALLOWED_DEST_PREFIXES = (
     '.cwf-rules/',
     '.claude/rules/',
-    '.cwf/rules-inject.txt',
     'CLAUDE.md',
     '.gitignore',
 );
@@ -81,8 +80,6 @@ my $REDACT_PATTERN = qr/\.env(?:\..*)?$/;
 # computes its own source (e.g. regenerate-symlinks reads .cwf-rules/ contents).
 my @INVENTORY = (
     { id => 'gitignore-entries',     strategy => 'line-additive',
-      baseline_source => 'install-manifest' },
-    { id => 'rules-inject',          strategy => 'replace',
       baseline_source => 'install-manifest' },
     { id => 'cwf-rules-bundle',      strategy => 'tree-replace',
       baseline_source => 'install-manifest' },
@@ -114,7 +111,7 @@ Usage: $PROG <git_root> <source_root> [--bootstrap-init] [--dry-run]
        $PROG --help
 
 Apply CWF non-script artefacts (CLAUDE.md preamble, .gitignore lines,
-.cwf-rules/ tree, .cwf/rules-inject.txt, .claude/rules/ symlinks).
+.cwf-rules/ tree, .claude/rules/ symlinks).
 
 In --bootstrap-init mode, <source_root> may equal <git_root> (fresh install),
 conflicts are silently overwritten, and each overwrite is logged.
@@ -204,7 +201,7 @@ sub load_manifests {
             next unless defined $a->{$f};
             eval {
                 my @prefixes = $f eq 'source' ? @ALLOWED_SOURCE_PREFIXES : @ALLOWED_DEST_PREFIXES;
-                # "CLAUDE.md" / ".gitignore" / ".cwf/rules-inject.txt" are exact, allow them.
+                # "CLAUDE.md" / ".gitignore" are exact, allow them.
                 validate_write_path_allowlist($a->{$f}, \@prefixes);
                 1;
             } or do {
@@ -417,11 +414,7 @@ sub _install_file {
     }
     my $blob = read_file_raw($src);
     atomic_write_text($dest, $blob);
-    if ($id eq 'rules-inject') {
-        log_info(".cwf/rules-inject.txt updated (was $old_sha, now $new_sha)");
-    } else {
-        log_info("$id: installed $dest_rel");
-    }
+    log_info("$id: installed $dest_rel");
     return $EXIT_OK;
 }
 

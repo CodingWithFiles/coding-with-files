@@ -40,7 +40,6 @@ my @ALLOWED_SOURCE_PREFIXES = (
 my @ALLOWED_DEST_PREFIXES = (
     '.cwf-rules/',
     '.claude/rules/',
-    '.cwf/rules-inject.txt',
     'CLAUDE.md',
     '.gitignore',
 );

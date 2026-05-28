@@ -31,12 +31,7 @@
     "install-manifest" : {
       "path" : ".cwf/install-manifest.json",
       "permissions" : "0444",
-      "sha256" : "1da39a42f287e3d12facd51d76ea647aad165d6eea6a25dca325aff1c5e27a16"
-    },
-    "rules-inject-template" : {
-      "path" : ".cwf/templates/install/rules-inject.txt",
-      "permissions" : "0444",
-      "sha256" : "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      "sha256" : "e1926a2f6fc5982c6a614e581546978185f6b175f8c43e7c5284328638855cac"
     },
     "claude-md-preamble-template" : {
       "path" : ".cwf/templates/install/claude-md-preamble.md",
@@ -109,7 +104,7 @@
     },
     "CWF::Validate::Security" : {
       "path" : ".cwf/lib/CWF/Validate/Security.pm",
-      "sha256" : "7c93e0fd686aeff971b159460d8a16459f2ac1d0ce02cfbc7033901597fe6d9b"
+      "sha256" : "b8e74cd7072f68c412eb42015dbaba238dea5e4ab224440560207e69081b7b68"
     },
     "CWF::Validate::TemplateRefs" : {
       "path" : ".cwf/lib/CWF/Validate/TemplateRefs.pm",
@@ -188,7 +183,7 @@
     "cwf-apply-artefacts" : {
       "path" : ".cwf/scripts/command-helpers/cwf-apply-artefacts",
       "permissions" : "0500",
-      "sha256" : "b82a77af2a105d9d880346a09563cde132d3bdb87f68099a65b495180199fed4"
+      "sha256" : "d72b4b98f4d862a0c879cb64a9341ace2c4bc77b2bd22efad6970fcc87bc7a93"
     },
     "cwf-check-tree-symlinks" : {
       "path" : ".cwf/scripts/command-helpers/cwf-check-tree-symlinks",
@@ -213,7 +208,7 @@
     "cwf-manage" : {
       "path" : ".cwf/scripts/cwf-manage",
       "permissions" : "0700",
-      "sha256" : "1195212958515776a93412714d7c77017a8356b80ef281161df11532669c060a"
+      "sha256" : "751f0283adcc3279f12fcf1e111977093bec2ea6880abc3303d9ba16d12ff109"
     },
     "cwf-set-status" : {
       "path" : ".cwf/scripts/command-helpers/cwf-set-status",

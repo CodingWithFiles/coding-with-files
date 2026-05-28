@@ -1223,3 +1223,62 @@ Proposed direction: have `security-review-changeset` weight production code more
 Out of scope: deciding whether the cap is the right limit at all. This item is about *what* the cap measures, not whether 500 is the right number.
 
 Identified in: task 166 (bugfix/166-task-inference-not-subtask-aware), f-implementation-exec security-review surfacing.
+
+## Task: Reclassify rules-inject.txt as consumer-owned; add seed-once artefact strategy
+
+### Task-Type: chore
+### Priority: Medium
+### Identified in: Task 167 (downstream bug report — manifest SHA drift discovered the underlying ownership-model confusion)
+
+`.cwf/rules-inject.txt` is currently subtree-shipped and modelled as CWF-owned (apply-artefacts `replace` strategy), but its content — project-specific recurring-process-errors guidance — is naturally consumer-customisable. The original Task-99 intent ("we ship one canonical list, consumers receive it on update") conflicts with the real use case ("each project has different recurring errors and should configure their own").
+
+Reclassify `.cwf/rules-inject.txt` as **consumer-owned, seeded-once**:
+
+- Ship the suggested baseline at a clearly CWF-owned path (e.g. `.cwf/templates/rules-inject.suggested.txt`).
+- `/cwf-init` seeds `.cwf/rules-inject.txt` from the suggested baseline only if the dest does not already exist.
+- `cwf-manage update` never touches `.cwf/rules-inject.txt`.
+- Add a `seed-once` strategy to `cwf-apply-artefacts` for this and any future similarly-owned files (joins the existing club of `BACKLOG.md`, `CHANGELOG.md`, `cwf-project.json`, the `implementation-guide/` tree).
+- Optionally provide `cwf-manage diff-rules-inject` so consumers can see when the suggested baseline drifts upstream and choose whether to adopt — no automation, no prompt.
+- Remove `.cwf/rules-inject.txt` from the `.cwf/` subtree shipping path (move the suggested baseline out of any subtree-tracked location, or scope subtree pulls to exclude it) so the file stops creating subtree merge cliffs at update time.
+- Update Task-99 `i-maintenance.md` to reflect the new ownership: maintainers update the *suggested* baseline; consumers own the active file.
+
+**Depends on** the High-priority bugfix "install manifest baselines disagree with subtree" landing first — that bug must be resolved before the rules-inject manifest entry can be cleanly removed.
+
+**Why now (Medium, not High)**: the immediate consumer-blocking symptom (every update conflicts) is the High bug's surface. This chore fixes the underlying ownership-model confusion so the class of bug cannot recur in a different form, but it is not itself a regression — consumers can be unblocked first.
+
+## Task: Restore CWF_UPGRADE_RESOLVE keep/new coverage without rules-inject
+
+### Task-Type: chore
+### Priority: Low
+### Identified in: task-167
+
+Task 167 removed `rules-inject` from the install-manifest inventory. The
+existing `TC-FR5-KEEP` and `TC-FR5-NEW` subtests in `t/cwf-apply-artefacts.t`
+used `rules-inject` as the conflict surface for `CWF_UPGRADE_RESOLVE=keep|new`
+behaviour against the `apply_replace` strategy; both subtests were retired
+because the rules-inject artefact id no longer exists in the inventory and
+the synthetic-manifest fixture path would be rejected by the path-allowlist
+validator.
+
+`TC-FR5-INVALID` (env-var sanity) survives unchanged. The runtime branches
+of `prompt_resolve` for `keep` and `new` are now exercised indirectly when
+`apply_embedded_block` or `apply_tree_replace` hit a conflict, but no direct
+artefact-level subtest covers them.
+
+Restore the explicit coverage:
+
+- Add `TC-FR5-KEEP` and `TC-FR5-NEW` against `cwf-rules-bundle`
+  (tree-replace path — `apply_tree_replace` calls `prompt_resolve` at
+  the same shape as `apply_replace` did), OR
+- Add them against `claude-md-preamble` (embedded-block path —
+  `apply_embedded_block` likewise).
+
+Tree-replace is the closer functional analogue (per-file content conflict
+on a real artefact). Embedded-block is fine if simpler fixtures are
+preferred. Either keeps `prompt_resolve`'s keep/new branches directly
+covered.
+
+This is **Low** because the underlying machinery is exercised by other
+integration tests (the function is called from three strategies) and the
+runtime hasn't lost behaviour — only direct test coverage. No consumer
+impact.

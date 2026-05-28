@@ -90,14 +90,14 @@ GIT_ROOT="$(git rev-parse --show-toplevel)"
 
 This installs (or refreshes) every non-script artefact CWF ships:
 - `.gitignore` entries (`.cwf/task-stack`, `.cwf/.update.lock`)
-- `.cwf/rules-inject.txt`
 - `.cwf-rules/cwf-*.md` (rule bundle)
 - CLAUDE.md preamble (wrapped in sentinels per step 4)
 - `.claude/rules/cwf-*.md` symlinks → `.cwf-rules/`
 
 **Hard ordering**: this step MUST run before step 6c. Step 6c registers the
 PreToolUse hook whose command (`cat .cwf/rules-inject.txt 2>/dev/null || true`)
-reads the file written here. Future SKILL.md edits must preserve this ordering.
+reads the file shipped in the `.cwf/` subtree. Future SKILL.md edits must
+preserve this ordering.
 
 - If exit code 0: continue.
 - If non-zero: relay stderr to the user verbatim and append `[CWF] /cwf-init aborted: cwf-apply-artefacts failed; resolve the error above and re-run /cwf-init.` Do not proceed.
@@ -167,7 +167,7 @@ Run, using the Bash tool:
 - [ ] Project configuration generated
 - [ ] Navigation index created
 - [ ] Skill permissions registered in `.claude/settings.json` (with user confirmation)
-- [ ] CWF artefacts applied via `cwf-apply-artefacts --bootstrap-init` (gitignore entries, rules-inject, .cwf-rules/, CLAUDE.md preamble, .claude/rules/ symlinks)
+- [ ] CWF artefacts applied via `cwf-apply-artefacts --bootstrap-init` (gitignore entries, .cwf-rules/, CLAUDE.md preamble, .claude/rules/ symlinks)
 - [ ] Rule re-injection hook configured in `.claude/settings.json`
 - [ ] Bash allowlist + Stop hooks registered via `cwf-claude-settings-merge`
 - [ ] PERL5OPT merged into project `.claude/settings.json` via `cwf-claude-settings-merge` (step 6d)
