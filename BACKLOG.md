@@ -1208,30 +1208,18 @@ Task 162 fixed the security-review misclassification at the parser level (securi
 
 Additional evidence (Task 163): both exec-phase reviews (f-implementation-exec.md, g-testing-exec.md "## Security Review") classified `error` because the subagent omitted the cwf-review block on otherwise-clean verdicts — two more negative data points consistent with the session-cached-definition hypothesis. Worth prioritising; reference Task 163's f/g sections alongside the bucket-B set.
 
-## Task: Task context inference not subtask-aware: inconclusive for active subtask
+## Task: security-review-changeset cap should weight production code, not test scaffolding
 
-### Task-Type: bugfix
-### Priority: High
-### Status: Reported by external CWF user
-### Identified in: External user error report
+### Task-Type: chore
+### Priority: Medium
+### Identified in: task 166
 
-Reported by a CWF user: task context inference fails to resolve the active subtask, returning an inconclusive/uncorrelated result instead of the subtask the user is working on.
+The exec-phase security review caps the changeset at 500 lines of unified-diff output. The helper counts every diff line — code, tests, context — so any change carrying its own test suite inflates the count.
 
-Observed (user transcript): in a repo with an active subtask 28.2 (working on f-implementation-exec, uncommitted wf files present), running the inference helper produced:
+In task 166 the substantive code change was ~197 lines (CWF::TaskContextInference.pm refactor); the cap was breached only because the diff also carried ~234 lines of new test subtests and ~40 lines of diff context/headers. The work was reviewed (maintainer authorised invoking the subagent despite the cap; verdict was no findings on the f-exec phase, byte-identical diff in g-exec), but the cap surfaced as friction rather than signal.
 
-- current: inconclusive
-- confidence: uncorrelated
-- task_nums: 28,20
-- task_slugs: page-render-caching-and-pii-erasure,reminder-panel-and-email-notifications
-- workflow_steps: f-implementation-exec,a-task-plan
-- candidates: 2
-- (exit code 1)
+Proposed direction: have `security-review-changeset` weight production code more heavily than test/fixture additions when applying the cap — e.g. count code-path lines only, or apply a separate (higher) cap for diffs whose non-test fraction is below threshold. Single source of truth remains the helper; classifier and subagent prompt unchanged.
 
-The user attributes this to the location/inference path "not being subtask-aware": the active subtask 28.2 is never offered as a candidate — only top-level tasks 28 and 20 are. Skills that rely on inference when invoked without an explicit task argument (e.g. /cwf-implementation-exec with no number) therefore cannot determine the current subtask and stall.
+Out of scope: deciding whether the cap is the right limit at all. This item is about *what* the cap measures, not whether 500 is the right number.
 
-Investigate:
-- Whether the defect is in task-context-inference's correlation logic (branch/dirty-file -> task scoring) or in how context-manager enumerates candidates (subtasks not walked).
-- Why 28.2 is absent from candidates while its parent 28 appears: is the inference flattening to top-level task dirs and ignoring nested decimal-numbered subtask dirs?
-- Whether branch-name correlation handles subtask branch patterns (NN.M-...) at all.
-
-Expected: with an active subtask checked out and its wf files dirty, inference should resolve to that subtask (e.g. 28.2) conclusively, or at minimum list it among candidates.
+Identified in: task 166 (bugfix/166-task-inference-not-subtask-aware), f-implementation-exec security-review surfacing.

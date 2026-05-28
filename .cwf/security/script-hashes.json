@@ -81,7 +81,7 @@
     },
     "CWF::TaskContextInference" : {
       "path" : ".cwf/lib/CWF/TaskContextInference.pm",
-      "sha256" : "085c603632654ca818f527abfa63d4f666caa56ac7b18112b56f4a024e0981ca"
+      "sha256" : "aa2cdc7df9173a9af0f29ae258c0b69710008463f4bdf193b25affb629e29fd4"
     },
     "CWF::TaskPath" : {
       "path" : ".cwf/lib/CWF/TaskPath.pm",

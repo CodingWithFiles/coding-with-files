@@ -2,6 +2,41 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 166: Task context inference not subtask-aware
+
+### Status: Complete (2026-05-28)
+### Duration: single session (estimate ~1 day, Medium complexity). On estimate.
+### Impact: Bugfix — `task-context-inference` now resolves an active subtask (decimal task number, e.g. `28.2`) conclusively instead of stalling on `current: inconclusive, task_nums: 28,20`. **Root cause**: four of the five signal collectors in `CWF::TaskContextInference` (branch, worktree, recency, progress; state-file already decimal-aware) parsed task numbers with `^(\d+)-` and scanned `implementation-guide/` only one level deep, so nested subtask directories were invisible. Crucially, the branch signal returning the *parent's* number is correct behaviour — `/cwf-new-subtask` creates a directory but never `git checkout -b`, so subtasks share the parent's branch — meaning the defect is in *correlation*, not in branch parsing. **Fix lands as one commit per D5**: **D1**: delegate task-path parsing to `CWF::TaskPath` — `_get_branch_signal` now calls `resolve_branch`; the in-module `_get_task_dir` and `_get_task_slug` helpers are deleted outright (~30 LOC); `_infer_workflow_step`'s signature becomes `($task_dir)` to consume the `resolve_num(...)->{full_path}` directly. **D2**: a new private `_enumerate_all_tasks()` builds the candidate set as `{T} ∪ find_descendants(T)` for every top-level `T`; recency and progress signals consume it, so subtask dirs finally enter the candidate set. **D3**: `correlate_signals` gains a deterministic 8-step ancestry-collapse predicate — given the unique top-task set `U`, compute depths via `get_depth`, take the max-depth subset `D`; if `|D|>1` (ties on disjoint branches) → uncorrelated; if `resolve_num(deepest)` is undef (stale reference) → uncorrelated; else form `A = {deepest} ∪ ancestors-by-num`, and if `U ⊆ A` → `correlated, chosen_task = deepest`, else uncorrelated. The correlator stays *pure* (no return-shape change; resolution and disk-state queries happen at the caller boundary in `infer_task_context`). Single-commit constraint (D1+D2+D3+tests must land together — none is independently shippable). In-commit `script-hashes.json` refresh of the one `.pm` (no script edits, no working-perm restore — module entry carries no `permissions` key). New tests TC-1..TC-6 + TC-8a/8b (8 subtests), bound 1-to-1 to c-design-plan §Validation bullets and exercised via `File::Temp::tempdir(CLEANUP => 1)` fixtures with capture-cwd-before-eval discipline; TC-7 covered by the existing top-level baseline subtest. `t/taskcontextinference.t` grows from 11 to 19 subtests; full `prove -r t/` runs 618 tests, all pass. `cwf-manage validate` clean. The exec-phase security review changeset was 543 lines (over the 500-line cap) — maintainer authorised invoking the subagent anyway; verdict was `no findings` (TaskPath adoption tightens input validation, tempdir/cwd ordering is correct, two pattern-level reuse notes recorded as future-audit not findings).
+
+### Notable
+- **The branch-signal "bug" was correct behaviour.** Reading `cwf-new-subtask/SKILL.md` during c-design reframed the defect away from regex-loosening (the original draft direction) toward ancestry-collapse in the correlator. Subtasks share branches with their parent by design; the signal saying so is consistent, not in conflict.
+- **CWF::TaskPath already had everything needed.** `parse_branch`, `resolve_num` (iterative ancestor walk), `find_descendants`, `find_ancestors`, `get_depth` — all decimal-aware, all hashref-shaped. Implementation pivoted from "fix the regexes" to "delete the regexes and delegate", with net code reduction.
+- **The D3 predicate is mechanical — each step binds to one test.** Steps 1-8 with edge cases (ties, stale references, orphaned subtasks) spelled out exhaustively in c-design-plan meant the Perl was transliteration; TC-1..TC-6 each exercise one step or edge case, so failures would localise to a single rule.
+- **The 500-line security-review cap weighs the wrong thing.** Any change carrying its own test suite will trip the cap even when the substantive code is well under 200 LOC. Backlog item filed (Medium chore): cap should weight production code, not test scaffolding.
+
+### Retired Backlog Items
+#### Task context inference not subtask-aware: inconclusive for active subtask
+
+Repro: in a session where subtask `28.2` is active (its wf step files are being edited and a recent commit is on the parent task's branch), `task-context-inference` returns:
+
+```
+current: inconclusive
+confidence: uncorrelated
+task_nums: 28,20
+task_slugs: ...
+workflow_steps: ...
+candidates: 2
+reasons: branch,state,recency,progress
+```
+
+Expected: `current: conclusive`, `task_num: 28.2`. Observed: subtask never enumerated by any signal — the state-file signal correctly carries decimal task numbers, but four of the five collectors strip them; recency and progress signals scan only top-level directories.
+
+The four affected signal collectors all need to (i) accept decimal task numbers from their input and (ii) emit them in their candidate / top fields. Recency and progress also need to walk subtask directories (`find_descendants`).
+
+Bonus (post-fix): the correlator needs an "ancestry-collapse" rule so that `{branch: 28, recency: 28.2, progress: 28.2}` resolves to `28.2` rather than staying inconclusive — the parent appears in the chain because subtasks share their parent's branch.
+
+<!-- Note: Delivered as the D1+D2+D3 single commit. Branch-signal regex deleted and replaced with `resolve_branch` (D1); enumerator widened to descendants (D2); ancestry-collapse predicate added to `correlate_signals` (D3). All in one commit per D5. -->
+
 ## Task 165: Template reference linter
 
 ### Status: Complete (2026-05-27)

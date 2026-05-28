@@ -9,6 +9,7 @@ use File::Find;
 use File::Basename;
 use File::Spec;
 use CWF::TaskState qw(state_achievable);
+use CWF::TaskPath qw(parse_dirname resolve_num resolve_branch find_descendants find_ancestors find_base_dir get_depth);
 
 our $VERSION = '1.0';
 our @EXPORT_OK = qw(
@@ -72,8 +73,9 @@ sub infer_task_context {
 
             # Get slug and workflow step for each candidate
             for my $task (@candidates) {
-                push @task_slugs, _get_task_slug($task) || 'unknown';
-                push @workflow_steps, _infer_workflow_step($task) || 'unknown';
+                my $r = resolve_num($task);
+                push @task_slugs, ($r && $r->{slug}) || 'unknown';
+                push @workflow_steps, _infer_workflow_step($r ? $r->{full_path} : undef) || 'unknown';
             }
 
             # Determine which signals contributed candidates
@@ -100,8 +102,9 @@ sub infer_task_context {
 
         # Correlated - determine task details
         my $task_num = $correlation->{chosen_task};
-        my $task_slug = _get_task_slug($task_num);
-        my $workflow_step = _infer_workflow_step($task_num);
+        my $resolved = resolve_num($task_num);
+        my $task_slug = ($resolved && $resolved->{slug}) || 'unknown';
+        my $workflow_step = _infer_workflow_step($resolved ? $resolved->{full_path} : undef);
 
         my $context = {
             task_num => $task_num,
@@ -158,21 +161,31 @@ sub correlate_signals {
     # Extract top task from each non-null signal
     my @top_tasks = map { $_->{top} } @non_null;
 
-    # Count unique top tasks
+    # Deduplicate
     my %seen;
     $seen{$_}++ for @top_tasks;
     my @unique = keys %seen;
 
+    # D3 step 2: single unique → today's path, unchanged.
     if (@unique == 1) {
-        # All agree - correlated
         return {
             confidence => 'correlated',
             chosen_task => $unique[0],
             signals => $signals,
             top_tasks => \@top_tasks,
         };
-    } else {
-        # Signals disagree - uncorrelated
+    }
+
+    # D3 step 3: compute depth(t) for each t ∈ U; D = max-depth subset.
+    my %depth = map { $_ => get_depth($_) } @unique;
+    my $max_depth = 0;
+    for my $d (values %depth) {
+        $max_depth = $d if $d > $max_depth;
+    }
+    my @deepest = grep { $depth{$_} == $max_depth } @unique;
+
+    # D3 step 4: tied deepest on disjoint branches → uncorrelated.
+    if (@deepest > 1) {
         return {
             confidence => 'uncorrelated',
             candidates => \@unique,
@@ -180,6 +193,50 @@ sub correlate_signals {
             top_tasks => \@top_tasks,
         };
     }
+
+    # D3 step 5: stale deepest (resolve_num undef) → uncorrelated.
+    my $deepest = $deepest[0];
+    my $deepest_resolved = resolve_num($deepest);
+    unless ($deepest_resolved) {
+        return {
+            confidence => 'uncorrelated',
+            candidates => \@unique,
+            signals => $signals,
+            top_tasks => \@top_tasks,
+        };
+    }
+
+    # D3 step 6: A = {deepest} ∪ ancestors(deepest) by num.
+    my %ancestors_set = ($deepest => 1);
+    for my $a (find_ancestors($deepest)) {
+        $ancestors_set{$a->{num}} = 1;
+    }
+
+    # D3 step 7: U ⊆ A → correlated on deepest.
+    my $all_in_chain = 1;
+    for my $t (@unique) {
+        unless ($ancestors_set{$t}) {
+            $all_in_chain = 0;
+            last;
+        }
+    }
+
+    if ($all_in_chain) {
+        return {
+            confidence => 'correlated',
+            chosen_task => $deepest,
+            signals => $signals,
+            top_tasks => \@top_tasks,
+        };
+    }
+
+    # D3 step 8: otherwise uncorrelated.
+    return {
+        confidence => 'uncorrelated',
+        candidates => \@unique,
+        signals => $signals,
+        top_tasks => \@top_tasks,
+    };
 }
 
 sub format_output {
@@ -234,9 +291,13 @@ sub _get_branch_signal {
     return { name => 'branch', weight => WEIGHT_BRANCH, null => 1 }
         unless $branch;
 
-    # Parse task number from branch name: <type>/<num>-<slug>
-    if ($branch =~ m{^[^/]+/(\d+)-}) {
-        my $task = $1;
+    # Parse task number from branch name via canonical TaskPath helper.
+    # Accepts decimal numbers (e.g. "feature/3.1-slug"); subtask branches
+    # are not a convention today, but parsing via the canonical helper is
+    # harmless for top-level branches and removes the last in-module regex.
+    my $resolved = resolve_branch($branch);
+    if ($resolved) {
+        my $task = $resolved->{num};
         return {
             name => 'branch',
             weight => WEIGHT_BRANCH,
@@ -324,32 +385,14 @@ sub _get_state_file_signal {
 }
 
 sub _get_recency_signal {
-    my $task_dir = 'implementation-guide';
+    my @tasks = _enumerate_all_tasks();
     return { name => 'recency', weight => WEIGHT_RECENCY_MAX, null => 1 }
-        unless -d $task_dir;
+        unless @tasks;
 
     my %task_mtimes;
-
-    # Find all task directories
-    opendir my $dh, $task_dir or do {
-        warn "Cannot read $task_dir: $!\n";
-        return { name => 'recency', weight => WEIGHT_RECENCY_MAX, null => 1 };
-    };
-
-    my @entries = readdir $dh;
-    closedir $dh;
-
-    for my $entry (@entries) {
-        next if $entry =~ /^\./;
-        my $path = "$task_dir/$entry";
-        next unless -d $path;
-
-        # Extract task number from directory name: <num>-<type>-<slug>
-        if ($entry =~ /^(\d+)-/) {
-            my $task = $1;
-            my $max_mtime = _get_dir_max_mtime($path);
-            $task_mtimes{$task} = $max_mtime if $max_mtime;
-        }
+    for my $task (@tasks) {
+        my $max_mtime = _get_dir_max_mtime($task->{full_path});
+        $task_mtimes{$task->{num}} = $max_mtime if $max_mtime;
     }
 
     return { name => 'recency', weight => WEIGHT_RECENCY_MAX, null => 1 }
@@ -382,26 +425,14 @@ sub _get_recency_signal {
 }
 
 sub _get_progress_signal {
-    my $task_dir = 'implementation-guide';
+    my @tasks = _enumerate_all_tasks();
     return { name => 'progress', weight => WEIGHT_PROGRESS_MAX, null => 1 }
-        unless -d $task_dir;
+        unless @tasks;
 
     my %task_progress;
-
-    opendir my $dh, $task_dir or return { name => 'progress', weight => WEIGHT_PROGRESS_MAX, null => 1 };
-    my @entries = readdir $dh;
-    closedir $dh;
-
-    for my $entry (@entries) {
-        next if $entry =~ /^\./;
-        my $path = "$task_dir/$entry";
-        next unless -d $path;
-
-        if ($entry =~ /^(\d+)-/) {
-            my $task = $1;
-            my $progress_pct = _calculate_task_progress($path);
-            $task_progress{$task} = $progress_pct if defined $progress_pct;
-        }
+    for my $task (@tasks) {
+        my $progress_pct = _calculate_task_progress($task->{full_path});
+        $task_progress{$task->{num}} = $progress_pct if defined $progress_pct;
     }
 
     return { name => 'progress', weight => WEIGHT_PROGRESS_MAX, null => 1 }
@@ -488,32 +519,9 @@ sub _calculate_task_progress {
     return CWF::TaskState::state_achievable($task_dir);
 }
 
-sub _get_task_slug {
-    my ($task_num) = @_;
-    return 'unknown' unless defined $task_num;
-
-    my $task_dir = 'implementation-guide';
-    return 'unknown' unless -d $task_dir;
-
-    opendir my $dh, $task_dir or return 'unknown';
-    my @entries = readdir $dh;
-    closedir $dh;
-
-    for my $entry (@entries) {
-        if ($entry =~ /^$task_num-[^-]+-(.+)$/) {
-            return $1;
-        }
-    }
-
-    return 'unknown';
-}
-
 sub _infer_workflow_step {
-    my ($task_num) = @_;
-    return 'unknown' unless defined $task_num;
-
-    my $task_dir = _get_task_dir($task_num);
-    return 'unknown' unless $task_dir && -d $task_dir;
+    my ($task_dir) = @_;
+    return 'unknown' unless defined $task_dir && -d $task_dir;
 
     # Look for "In Progress" status in workflow files
     opendir my $dh, $task_dir or return 'unknown';
@@ -557,24 +565,29 @@ sub _infer_workflow_step {
     return 'unknown';
 }
 
-sub _get_task_dir {
-    my ($task_num) = @_;
-    return unless defined $task_num;
+# Enumerate all task directories under implementation-guide, including
+# nested subtasks. Returns a list of {num, full_path} hashrefs (same shape
+# as TaskPath::resolve_num / find_descendants).
+#
+# Delegated to TaskPath rather than re-scanning here. Promotion into
+# TaskPath itself (folding the identical top-level loop in find_siblings)
+# is deferred to the backlog item "Unify implementation-guide
+# directory-scan helpers across CWF::Backlog and CWF::TaskContextInference".
+sub _enumerate_all_tasks {
+    my $base = find_base_dir() // 'implementation-guide';
+    return () unless -d $base;
 
-    my $task_base = 'implementation-guide';
-    return unless -d $task_base;
-
-    opendir my $dh, $task_base or return;
-    my @entries = readdir $dh;
-    closedir $dh;
-
-    for my $entry (@entries) {
-        if ($entry =~ /^$task_num-/ && -d "$task_base/$entry") {
-            return "$task_base/$entry";
-        }
+    my @tasks;
+    for my $dir (glob("$base/*-*-*")) {
+        my $dirname = (File::Spec->splitpath($dir))[2];
+        my ($num) = parse_dirname($dirname);
+        next unless defined $num;
+        next if $num =~ /\./;  # top-level only at this layer
+        push @tasks, { num => $num, full_path => $dir };
+        push @tasks, find_descendants($num);
     }
 
-    return;
+    return @tasks;
 }
 
 sub _format_verbose_breakdown {
