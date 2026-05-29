@@ -2,6 +2,20 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 169: sync README command reference
+
+### Status: Complete (2026-05-29)
+### Duration: single session (estimate <1 day, Low complexity). On estimate.
+### Impact: Chore (docs) — `README.md` had drifted from the shipped command surface over the 62 tasks since it was last touched (Task 106). An audit (documented set vs `.claude/skills/cwf-*`, each `SKILL.md` description, `cwf-manage help`, and `cwf-project.json:supported-task-types`) found four gaps, all now closed: (1) three shipped skills absent from the Commands section — `cwf-delete-task`, `cwf-current-task`, `cwf-backlog-manager`; (2) the `discovery` task type (8 phases, a–g+j) undocumented in Task Types; (3) stale required-`<type>` signatures for `/cwf-new-task` and `/cwf-new-subtask` (both now infer type when omitted → `[<type>]`), plus a third invalid example `/cwf-new-task feature` in the Contributing section corrected during exec; (4) `cwf-manage` under-documented (only `list-releases` was mentioned) — added an Installation Management subsection covering all 7 subcommands, with `fix-security` framed as the narrow integrity-repair carve-out rather than a warning-silencer. Single-file change to `README.md`. Verification is diff-based (TC-1..TC-5, all PASS); `cwf-manage validate` clean; security-review changeset empty (README is non-CWF-internal, no shebang).
+
+### Notable
+- **Plan-review subagents caught a wrong validation oracle.** The d-plan's Step 5 originally diffed documented task types against `.cwf/templates/` directories — which include the non-type `install/` artefact dir, and would have falsely flagged it. Corrected to diff against `cwf-project.json:supported-task-types` before execution.
+- **Reviewers also flagged a parallel signature defect.** The plan fixed only `/cwf-new-task`'s stale `<type>`; `/cwf-new-subtask` (line 110) carried the identical staleness. Folded into the same in-scope edit.
+- **Live confirmation of Task 166.** Subtask-aware inference resolved task 169 `conclusive / correlated` at every phase — the first fresh-task exercise of that fix.
+
+### Retired Backlog Items
+None — this task was maintainer-initiated, not from the backlog.
+
 ## Task 168: security review cap weight production code
 
 ### Status: In Progress

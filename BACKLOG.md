@@ -1266,3 +1266,18 @@ This is **Low** because the underlying machinery is exercised by other
 integration tests (the function is called from three strategies) and the
 runtime hasn't lost behaviour — only direct test coverage. No consumer
 impact.
+
+## Task: README skill-list drift guard (documented vs shipped /cwf-* set)
+
+### Task-Type: chore
+### Priority: Low
+### Status: Follow-up from Task 169
+### Identified in: Task 169 retrospective (j-retrospective.md)
+
+README's documented command/skill reference drifted from the shipped surface for 62 tasks (last touched Task 106) before Task 169 resynced it. There is no mechanical gate tying the documented `/cwf-*` set to the shipped `.claude/skills/cwf-*` set, so this class of drift recurs silently.
+
+Consider a lightweight check (linter or test) asserting README's documented `/cwf-*` skill set equals the shipped skill set, with the known carve-outs (`cwf-manage` is a script not a skill; `cwf-project` is a `cwf-project.json` false positive; `test-cwf-skill` is a fixture). Optionally extend to task types (vs `cwf-project.json:supported-task-types`).
+
+Open question (why this is a candidate, not a commitment): whether the maintenance cost and false-positive surface of a new gate is worth it for a doc that changes rarely. Decide in the task's planning phase. Could fold into the existing "Skill Cross-Reference Linter" item rather than standing alone.
+
+Identified in: Task 169 retrospective (j-retrospective.md).

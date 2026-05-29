@@ -106,9 +106,11 @@ See **[INSTALL.md](INSTALL.md)** for complete instructions, post-install setup, 
 ### Core Commands
 
 - `/cwf-init` - Initialise CWF system with project configuration
-- `/cwf-new-task <num> <type> "description"` - Create hierarchical implementation guide
-- `/cwf-new-subtask <parent-path> <num> <type> "description"` - Create subtask with context inheritance
+- `/cwf-new-task <num> [<type>] "description"` - Create hierarchical implementation guide (type is inferred from the description when omitted)
+- `/cwf-new-subtask <parent-path> <num> [<type>] "description"` - Create subtask with context inheritance (type inferred when omitted)
+- `/cwf-delete-task <task-path> [--force]` - Delete the most-recent task (reverse of `/cwf-new-task`); refuses non-most-recent, already-merged, or non-leaf tasks
 - `/cwf-status [task-path]` - Show progress across implementation guide hierarchy
+- `/cwf-current-task` - Manage the current task stack for context tracking
 - `/cwf-extract <task-path> <section-name>` - Extract section from implementation guide
 
 ### Workflow Commands
@@ -131,6 +133,20 @@ execution steps — plan first, then execute separately:
 
 - `/cwf-config [init|list|reset]` - Configure CWF system paths and settings
 - `/cwf-security-check [verify|report]` - Verify file integrity and sources for CWF system
+- `/cwf-backlog-manager` - Show or manipulate the project backlog/changelog (list, add, modify, retire entries)
+
+### Installation Management (`cwf-manage`)
+
+`cwf-manage` is a script (not a `/`-skill), run as `.cwf/scripts/cwf-manage <command>`,
+that manages the installed CWF version:
+
+- `status` - Show installed version, method, and source
+- `list-releases [--all]` - List available tagged releases from the CWF remote
+- `update [ref]` - Update to a ref (default: latest tag)
+- `rollback <ref>` - Revert to a previous version
+- `validate` - Validate config and workflow files; non-zero exit on violations
+- `fix-security [--dry-run]` - Narrow integrity repair: restores expected permissions **only when the recorded sha256 still matches**, and exits non-zero on tampering or missing files. It is not a way to clear a warning — content changes must still be surfaced and resolved.
+- `help` - Show usage
 
 ## Task Types
 
@@ -149,6 +165,10 @@ plan → implementation plan → implementation exec → testing plan → testin
 
 ### Chore Tasks (6 phases)
 plan → implementation plan → implementation exec → testing plan → testing exec → retrospective
+
+### Discovery Tasks (8 phases)
+Investigation/spike work, no rollout or maintenance:
+plan → requirements → design → implementation plan → implementation exec → testing plan → testing exec → retrospective
 
 ## Project Structure
 
@@ -222,7 +242,7 @@ Run `git describe --tags --always` for the current working-tree version.
 ## Contributing
 
 1. Create a feature branch following the CWF methodology
-2. Use `/cwf-new-task feature` to structure your work
+2. Use `/cwf-new-task <num> feature "description"` to structure your work
 3. Ensure hierarchical numbering matches directory structure
 4. Test all skills before submission
 
