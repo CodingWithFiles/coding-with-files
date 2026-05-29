@@ -1208,22 +1208,6 @@ Task 162 fixed the security-review misclassification at the parser level (securi
 
 Additional evidence (Task 163): both exec-phase reviews (f-implementation-exec.md, g-testing-exec.md "## Security Review") classified `error` because the subagent omitted the cwf-review block on otherwise-clean verdicts — two more negative data points consistent with the session-cached-definition hypothesis. Worth prioritising; reference Task 163's f/g sections alongside the bucket-B set.
 
-## Task: security-review-changeset cap should weight production code, not test scaffolding
-
-### Task-Type: chore
-### Priority: Medium
-### Identified in: task 166
-
-The exec-phase security review caps the changeset at 500 lines of unified-diff output. The helper counts every diff line — code, tests, context — so any change carrying its own test suite inflates the count.
-
-In task 166 the substantive code change was ~197 lines (CWF::TaskContextInference.pm refactor); the cap was breached only because the diff also carried ~234 lines of new test subtests and ~40 lines of diff context/headers. The work was reviewed (maintainer authorised invoking the subagent despite the cap; verdict was no findings on the f-exec phase, byte-identical diff in g-exec), but the cap surfaced as friction rather than signal.
-
-Proposed direction: have `security-review-changeset` weight production code more heavily than test/fixture additions when applying the cap — e.g. count code-path lines only, or apply a separate (higher) cap for diffs whose non-test fraction is below threshold. Single source of truth remains the helper; classifier and subagent prompt unchanged.
-
-Out of scope: deciding whether the cap is the right limit at all. This item is about *what* the cap measures, not whether 500 is the right number.
-
-Identified in: task 166 (bugfix/166-task-inference-not-subtask-aware), f-implementation-exec security-review surfacing.
-
 ## Task: Reclassify rules-inject.txt as consumer-owned; add seed-once artefact strategy
 
 ### Task-Type: chore

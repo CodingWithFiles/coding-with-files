@@ -560,4 +560,209 @@ subtest 'TC-Task141-uncommitted: helper sees staged and unstaged changes' => sub
          'stderr summary anchors disclosure suffix to summary line, count=2');
 };
 
+# ===========================================================================
+# Production-weighted cap (--max-lines) — Task 168
+# ===========================================================================
+
+# Build a repo where cwf-project.json is committed on main BEFORE the recorded
+# baseline, so it stays OUT of the diff window (and cannot pollute the
+# production count), while task-branch changes land inside it. Returns
+# ($repo, $baseline, $branch, $task_dir). %opt: config_json (required),
+# num/type/slug (optional).
+sub make_cap_repo {
+    my (%opt) = @_;
+    my $base = tempdir(CLEANUP => 1);
+    my $repo = "$base/repo";
+    make_path($repo);
+    git_in($repo, 'init', '-q', '--initial-branch=main');
+    git_in($repo, 'config', 'user.email', 'test@example.com');
+    git_in($repo, 'config', 'user.name', 'CWFTest');
+    git_in($repo, 'config', 'commit.gpgsign', 'false');
+
+    open my $fh, '>', "$repo/README.md" or die;
+    print $fh "seed\n";
+    close $fh;
+    git_in($repo, 'add', 'README.md');
+    git_in($repo, 'commit', '-q', '-m', 'seed');
+
+    # cwf-project.json on main, before the baseline → outside the diff window.
+    make_path("$repo/implementation-guide");
+    open my $c, '>', "$repo/implementation-guide/cwf-project.json" or die;
+    print $c $opt{config_json};
+    close $c;
+    git_in($repo, 'add', 'implementation-guide/cwf-project.json');
+    git_in($repo, 'commit', '-q', '-m', 'cwf-project.json');
+
+    my $num  = $opt{num}  // '1';
+    my $type = $opt{type} // 'chore';
+    my $slug = $opt{slug} // 'cap-test';
+    my $baseline = git_capture($repo, 'rev-parse', 'HEAD');
+
+    my $task_dir = "$repo/implementation-guide/${num}-${type}-${slug}";
+    make_path($task_dir);
+    open my $a, '>', "$task_dir/a-task-plan.md" or die;
+    print $a "# Plan\n\n## Task Reference\n";
+    print $a "- **Branch**: ${type}/${num}-${slug}\n";
+    print $a "- **Baseline Commit**: $baseline\n";
+    print $a "- **Template Version**: 2.1\n";
+    close $a;
+    git_in($repo, 'add', 'implementation-guide/');
+    git_in($repo, 'commit', '-q', '-m', "task $num a-plan");
+
+    my $branch = "${type}/${num}-${slug}";
+    git_in($repo, 'checkout', '-q', '-b', $branch);
+    return ($repo, $baseline, $branch, $task_dir);
+}
+
+my $CFG_NO_TESTPATHS = <<'JSON';
+{ "versioning": { "major_minor": "v1.0" } }
+JSON
+
+my $CFG_T_GLOB = <<'JSON';
+{ "versioning": { "major_minor": "v1.0" },
+  "security": { "review": { "test-paths": ["t/**"] } } }
+JSON
+
+# Write a script with a shebang and $n total lines (shebang counts as line 1).
+sub write_script {
+    my ($path, $n) = @_;
+    open my $fh, '>', $path or die "open $path: $!";
+    print $fh "#!/usr/bin/perl\n";
+    print $fh "print \"line $_\";\n" for (2 .. $n);
+    close $fh;
+}
+
+# ---------------------------------------------------------------------------
+# TC-CAP1: production-only diff over the cap → exit 2
+# ---------------------------------------------------------------------------
+subtest 'TC-CAP1: production-only diff exceeding --max-lines exits 2' => sub {
+    my ($repo) = make_cap_repo(config_json => $CFG_NO_TESTPATHS);
+
+    make_path("$repo/.cwf/scripts");
+    write_script("$repo/.cwf/scripts/big-script", 30);
+    git_in($repo, 'add', '.cwf/scripts/big-script');
+    git_in($repo, 'commit', '-q', '-m', 'big script');
+
+    my ($out, $err, $rc) = run_helper($repo, '--max-lines=10');
+    is($rc, 2, 'helper exits 2 on cap breach');
+    like($err, qr{cap exceeded: \d+ production lines > 10}, 'stderr names the breach');
+    like($out, qr{\.cwf/scripts/big-script}, 'full diff still printed to stdout');
+};
+
+# ---------------------------------------------------------------------------
+# TC-CAP2: task-166 shape — small production + large test diff stays under cap
+# ---------------------------------------------------------------------------
+subtest 'TC-CAP2: large t/ diff is discounted; production stays under cap' => sub {
+    my ($repo) = make_cap_repo(config_json => $CFG_T_GLOB);
+
+    make_path("$repo/.cwf/scripts");
+    write_script("$repo/.cwf/scripts/small", 5);          # ~production
+    make_path("$repo/t");
+    write_script("$repo/t/big.t", 50);                    # test scaffolding
+    git_in($repo, 'add', '.cwf/scripts/small', 't/big.t');
+    git_in($repo, 'commit', '-q', '-m', 'small prod + big test');
+
+    my ($out, $err, $rc) = run_helper($repo, '--max-lines=20');
+    is($rc, 0, 'helper exits 0 (production under cap despite large raw diff)');
+    like($out, qr{t/big\.t}, 'test file is in the changeset (shebang-included)');
+    ($err =~ /(\d+) lines \((\d+) production\)/)
+        or do { fail('stderr summary has the "(P production)" field'); return };
+    my ($raw, $prod) = ($1, $2);
+    cmp_ok($prod, '<', $raw, 'production count is below the raw line count');
+    cmp_ok($prod, '<=', 20, 'production count is within the cap (t/ excluded)');
+};
+
+# ---------------------------------------------------------------------------
+# TC-CAP3: no --max-lines → never caps (back-compat)
+# ---------------------------------------------------------------------------
+subtest 'TC-CAP3: absent --max-lines never caps regardless of size' => sub {
+    my ($repo) = make_cap_repo(config_json => $CFG_NO_TESTPATHS);
+
+    make_path("$repo/.cwf/scripts");
+    write_script("$repo/.cwf/scripts/huge", 200);
+    git_in($repo, 'add', '.cwf/scripts/huge');
+    git_in($repo, 'commit', '-q', '-m', 'huge script');
+
+    my ($out, $err, $rc) = run_helper($repo);
+    is($rc, 0, 'helper exits 0 with no --max-lines');
+    unlike($err, qr{cap exceeded}, 'no cap message emitted');
+};
+
+# ---------------------------------------------------------------------------
+# TC-CAP4: production count excludes test + context/header lines
+# ---------------------------------------------------------------------------
+subtest 'TC-CAP4: production count is added+deleted of non-test files only' => sub {
+    my ($repo) = make_cap_repo(config_json => $CFG_T_GLOB);
+
+    make_path("$repo/.cwf/scripts");
+    write_script("$repo/.cwf/scripts/prod", 4);           # exactly 4 added lines
+    make_path("$repo/t");
+    write_script("$repo/t/extra.t", 20);
+    git_in($repo, 'add', '.cwf/scripts/prod', 't/extra.t');
+    git_in($repo, 'commit', '-q', '-m', 'prod + test');
+
+    my ($out, $err, $rc) = run_helper($repo, '--max-lines=1000');
+    is($rc, 0, 'helper exits 0 (well under cap)');
+    like($err, qr{\(4 production\)},
+         'production = 4 added lines of the non-test file (test + context excluded)');
+    ($err =~ /(\d+) lines \(\d+ production\)/)
+        and cmp_ok($1, '>', 4, 'raw line count is larger (headers/context/test included)');
+};
+
+# ---------------------------------------------------------------------------
+# TC-CAP5: --max-lines argument validation → exit 1
+# ---------------------------------------------------------------------------
+subtest 'TC-CAP5: invalid --max-lines values are rejected with exit 1' => sub {
+    my ($repo) = make_cap_repo(config_json => $CFG_NO_TESTPATHS);
+    make_path("$repo/.cwf/scripts");
+    write_script("$repo/.cwf/scripts/x", 3);
+    git_in($repo, 'add', '.cwf/scripts/x');
+    git_in($repo, 'commit', '-q', '-m', 'x');
+
+    for my $bad (qw(abc 0 007)) {
+        my ($out, $err, $rc) = run_helper($repo, "--max-lines=$bad");
+        is($rc, 1, "--max-lines=$bad exits 1");
+        like($err, qr{invalid --max-lines}, "--max-lines=$bad names the validation failure");
+    }
+};
+
+# ---------------------------------------------------------------------------
+# TC-CAP6: binary production file contributes 0 to the count
+# ---------------------------------------------------------------------------
+subtest 'TC-CAP6: binary file in the diff contributes 0 production lines' => sub {
+    my ($repo) = make_cap_repo(config_json => $CFG_NO_TESTPATHS);
+
+    make_path("$repo/.cwf/scripts");
+    open my $b, '>:raw', "$repo/.cwf/scripts/blob" or die;
+    print $b "\xff\xfe\x00\x00binarystuff\xa3\xa4" x 100;   # large binary
+    close $b;
+    write_script("$repo/.cwf/scripts/txt", 3);              # 3 text lines
+    git_in($repo, 'add', '.cwf/scripts/blob', '.cwf/scripts/txt');
+    git_in($repo, 'commit', '-q', '-m', 'binary + small text');
+
+    my ($out, $err, $rc) = run_helper($repo, '--max-lines=10');
+    is($rc, 0, 'helper exits 0 (binary counted as 0, not its byte size)');
+    like($err, qr{\(3 production\)}, 'production = 3 (text only); binary numstat "-" → 0');
+};
+
+# ---------------------------------------------------------------------------
+# TC-CAP7: malformed test-paths pattern fails safe (exit 1, no silent discount)
+# ---------------------------------------------------------------------------
+subtest 'TC-CAP7: outside-repo test-paths pattern makes git fatal → exit 1' => sub {
+    my $cfg = <<'JSON';
+{ "versioning": { "major_minor": "v1.0" },
+  "security": { "review": { "test-paths": ["../escape"] } } }
+JSON
+    my ($repo) = make_cap_repo(config_json => $cfg);
+
+    make_path("$repo/.cwf/scripts");
+    write_script("$repo/.cwf/scripts/prod", 5);
+    git_in($repo, 'add', '.cwf/scripts/prod');
+    git_in($repo, 'commit', '-q', '-m', 'prod');
+
+    my ($out, $err, $rc) = run_helper($repo, '--max-lines=100');
+    is($rc, 1, 'helper exits 1 when git rejects the exclude pathspec (safe fail)');
+    unlike($err, qr{cap exceeded}, 'no cap verdict — bad config never yields a silent discount');
+};
+
 done_testing();

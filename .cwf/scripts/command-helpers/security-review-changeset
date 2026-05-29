@@ -22,20 +22,37 @@
 #      interpreter basename matches the anchored regex below.
 #   3. Other paths are excluded.
 #
+# Production-weighted cap (--max-lines):
+#   The full diff is always emitted to stdout. When --max-lines=N is given,
+#   the helper also computes a production-weighted line count: added+deleted
+#   lines (git diff --numstat) over the included files, minus any path
+#   matching a `security.review.test-paths` pattern from cwf-project.json.
+#   Those patterns are gitignore/git pathspec globs, applied by git's own
+#   :(glob,exclude) engine — no Perl-side path matching. Default unset =>
+#   no excludes => count == raw production lines. If the production count
+#   exceeds N, the helper exits 2 (stdout already printed). Unconfigured /
+#   unmatched layouts count as production, so the cap fires earlier, never
+#   later; a malformed pattern makes git fatal => capture_git exits 1.
+#
 # Usage:
-#   security-review-changeset [--phase=implementation|testing] [--task-num=NUM] [--verbose]
+#   security-review-changeset [--phase=implementation|testing] [--task-num=NUM]
+#                             [--max-lines=N] [--verbose]
 #
 # Output:
 #   stdout: filtered git diff output (the changeset for the subagent).
-#   stderr: one-line summary `reviewed N files, M lines, anchor=<sha7>`,
+#   stderr: one-line summary
+#           `reviewed N files, M lines (P production), anchor=<sha7>`,
 #           with optional `, includes uncommitted` suffix when the working
 #           tree has staged or unstaged changes (Task 141; diff window
 #           covers anchor to working tree, not just anchor..HEAD).
-#           Plus one path per line under --verbose.
+#           Plus one path per line under --verbose. On a cap breach, an
+#           extra `cap exceeded: P production lines > N` line precedes exit 2.
 #
 # Exit:
 #   0 ok (changeset may be empty)
-#   1 error (unparseable branch, task not found, malformed trunk, etc.)
+#   1 error (unparseable branch, task not found, malformed trunk,
+#     invalid --max-lines, malformed test-paths pattern, etc.)
+#   2 production-weighted line count exceeds --max-lines (changeset on stdout)
 
 use strict;
 use warnings;
@@ -83,10 +100,11 @@ my $SCRIPT_INTERPRETER_RE = qr/^(?:perl|bash|sh|ksh|zsh|fish|python\d?|ruby|node
 # ---------------------------------------------------------------------------
 # CLI parsing
 # ---------------------------------------------------------------------------
-my %opt = (phase => undef, task_num => undef, verbose => 0);
+my %opt = (phase => undef, task_num => undef, max_lines => undef, verbose => 0);
 for my $arg (@ARGV) {
     if    ($arg =~ /^--phase=(implementation|testing)$/) { $opt{phase} = $1 }
     elsif ($arg =~ /^--task-num=(.+)$/)                  { $opt{task_num} = $1 }
+    elsif ($arg =~ /^--max-lines=(.+)$/)                 { $opt{max_lines} = $1 }
     elsif ($arg eq '--verbose')                          { $opt{verbose} = 1 }
     elsif ($arg eq '--help' || $arg eq '-h') {
         print_usage();
@@ -102,6 +120,12 @@ for my $arg (@ARGV) {
 # before any FS access — guard against path-traversal-shaped values.
 if (defined $opt{task_num} && $opt{task_num} !~ /^\d+(?:\.\d+)*$/) {
     warn "$PROG: invalid --task-num '$opt{task_num}' (expected /^\\d+(\\.\\d+)*\$/)\n";
+    exit 1;
+}
+
+# --max-lines must be a positive integer (rejects 0, leading zeros, non-numeric).
+if (defined $opt{max_lines} && $opt{max_lines} !~ /^[1-9]\d*$/) {
+    warn "$PROG: invalid --max-lines '$opt{max_lines}' (expected a positive integer)\n";
     exit 1;
 }
 
@@ -167,7 +191,7 @@ my $dirty_suffix = $dirty_rc == 1 ? ', includes uncommitted' : '';
 # The primary diff has already succeeded; the disclosure is informational.
 
 if (!@included) {
-    warn "reviewed 0 files, 0 lines, anchor=$short$dirty_suffix\n";
+    warn "reviewed 0 files, 0 lines (0 production), anchor=$short$dirty_suffix\n";
     exit 0;
 }
 
@@ -175,10 +199,22 @@ my $diff = capture_git('diff', "$anchor", '--', @included);
 my $line_count = ($diff =~ tr/\n//);
 print $diff;
 
-warn sprintf("reviewed %d files, %d lines, anchor=%s%s\n",
-             scalar @included, $line_count, $short, $dirty_suffix);
+# Production-weighted count: added+deleted lines over the included files,
+# minus any path matching a consumer-declared test-path glob. Git owns the
+# matching (:(glob,exclude) magic pathspecs) — no Perl path classification.
+my @exclude = test_path_excludes();
+my $production = count_production_lines($anchor, \@included, \@exclude);
+
+warn sprintf("reviewed %d files, %d lines (%d production), anchor=%s%s\n",
+             scalar @included, $line_count, $production, $short, $dirty_suffix);
 if ($opt{verbose}) {
     warn "  $_\n" for @included;
+}
+
+# Cap on production-weighted lines (stdout already carries the full diff).
+if (defined $opt{max_lines} && $production > $opt{max_lines}) {
+    warn "cap exceeded: $production production lines > $opt{max_lines}\n";
+    exit 2;
 }
 exit 0;
 
@@ -188,7 +224,8 @@ exit 0;
 
 sub print_usage {
     print <<"USAGE";
-Usage: $PROG [--phase=implementation|testing] [--task-num=NUM] [--verbose]
+Usage: $PROG [--phase=implementation|testing] [--task-num=NUM]
+                            [--max-lines=N] [--verbose]
 
 Constructs the changeset reviewed by the exec-phase security-review subagent.
 
@@ -197,12 +234,16 @@ Options:
                    effect on the changeset). PHASE is 'implementation' or 'testing'.
   --task-num=NUM   Override task-number inference from the current branch name.
                    NUM must match /^\\d+(\\.\\d+)*\$/.
+  --max-lines=N    Cap on production-weighted lines (added+deleted over included
+                   files, minus security.review.test-paths globs). N is a positive
+                   integer. When the count exceeds N, exit 2 after emitting the diff.
   --verbose        On stderr, list the included paths after the summary line.
   --help           Show this message.
 
 Exit codes:
   0  Changeset emitted (may be empty).
   1  Error.
+  2  Production-weighted line count exceeds --max-lines (changeset on stdout).
 USAGE
 }
 
@@ -350,6 +391,67 @@ sub list_changed_files {
     return () unless length $out;
     my @paths = split /\0/, $out;
     return grep { length } @paths;
+}
+
+# ---------------------------------------------------------------------------
+# Read consumer-declared test-path globs from cwf-project.json's
+# security.review.test-paths and return them as git exclude pathspecs.
+# The repo owns the truth about its own test layout (as a test runner's
+# config already does); the helper does NO path matching itself.
+# Reuses the eval-guarded read_config() (also used on the fallback anchor
+# path): missing / unreadable / malformed config => empty list (never fatal,
+# never a silent discount — unmatched paths count as production). Entries
+# that are not non-empty NUL-free strings are skipped defensively.
+# ---------------------------------------------------------------------------
+sub test_path_excludes {
+    my $cfg = eval {
+        require CWF::Versioning;
+        CWF::Versioning::read_config();
+    };
+    return () unless $cfg && ref $cfg eq 'HASH';
+    my $sec = $cfg->{security};
+    return () unless ref $sec eq 'HASH';
+    my $review = $sec->{review};
+    return () unless ref $review eq 'HASH';
+    my $paths = $review->{'test-paths'};
+    return () unless ref $paths eq 'ARRAY';
+
+    my @excludes;
+    for my $p (@$paths) {
+        next if ref $p;                # skip nested structures
+        next unless defined $p && length $p;
+        next if $p =~ /\0/;            # NUL would corrupt the pathspec
+        push @excludes, ":(glob,exclude)$p";
+    }
+    return @excludes;
+}
+
+# ---------------------------------------------------------------------------
+# Production-weighted line count: sum of added+deleted columns from
+# `git diff --numstat <anchor> -- <included> <exclude-pathspecs>`. Git
+# intersects the positive included paths with the exclude globs and reports
+# only surviving files, so there is no Perl path classification and no
+# diff-body parsing. Binary files (numstat reports `-`) count as 0. A
+# malformed exclude pattern makes git fatal => capture_git exits 1 (safe
+# fail). Returns 0 for an empty included list.
+# ---------------------------------------------------------------------------
+sub count_production_lines {
+    my ($anchor, $included, $exclude) = @_;
+    return 0 unless @$included;
+
+    my $out = capture_git('diff', '--numstat', $anchor, '--', @$included, @$exclude);
+    my $total = 0;
+    for my $line (split /\n/, $out) {
+        # numstat row: <added>\t<deleted>\t<path>. We only read the two
+        # numeric columns, so path quoting/renames cannot misclassify.
+        my ($added, $deleted) = split /\t/, $line;
+        next unless defined $added && defined $deleted;
+        $added   = 0 if $added   eq '-';   # binary
+        $deleted = 0 if $deleted eq '-';
+        next unless $added =~ /^\d+$/ && $deleted =~ /^\d+$/;
+        $total += $added + $deleted;
+    }
+    return $total;
 }
 
 # ---------------------------------------------------------------------------

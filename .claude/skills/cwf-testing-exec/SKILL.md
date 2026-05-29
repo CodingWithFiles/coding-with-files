@@ -43,9 +43,11 @@ allowed-tools:
 - Read `.cwf/docs/skills/security-review.md` § "Exec-phase prompt template" and § "Pathspec coverage".
 - Determine current branch: `git rev-parse --abbrev-ref HEAD`.
   - If `main`: append `## Security Review\n\n**State**: no findings\n\nno findings: on main\n` to `g-testing-exec.md` and proceed to Step 9.
-- Construct changeset: capture stdout of `.cwf/scripts/command-helpers/security-review-changeset --phase=testing`. The helper resolves the anchor and applies CWF-internal-dir + shebang-sniff classification per § "Pathspec coverage".
-  - If empty: append `## Security Review\n\n**State**: no findings\n\nno findings: empty changeset\n` and proceed to Step 9.
-  - If >500 lines (count via `wc -l`): append `## Security Review\n\n**State**: error\n\nerror: changeset exceeds 500-line review cap; split the change or perform manual review\n` and proceed to Step 9.
+- Construct changeset: run `.cwf/scripts/command-helpers/security-review-changeset --phase=testing --max-lines=500`, capturing **both stdout and the exit code** (and stderr, for the cap reason). The helper resolves the anchor, applies CWF-internal-dir + shebang-sniff classification per § "Pathspec coverage", and enforces the production-weighted review cap. Branch on the exit code:
+  - **exit 0, empty stdout**: append `## Security Review\n\n**State**: no findings\n\nno findings: empty changeset\n` and proceed to Step 9.
+  - **exit 0, non-empty stdout**: continue to the Agent call below with the captured stdout as `{changeset}`.
+  - **exit 2** (production-weighted count exceeds the cap): append `## Security Review\n\n**State**: error\n\nerror: <the helper's `cap exceeded:` stderr line>\n` and proceed to Step 9. Do not invoke the subagent.
+  - **any other non-zero** (e.g. `1` — changeset construction failed, including a malformed `security.review.test-paths` pattern git rejected): append `## Security Review\n\n**State**: error\n\nerror: changeset construction failed (<helper stderr>)\n` and proceed to Step 9. Do not invoke the subagent.
 - Invoke ONE Agent call with `subagent_type="cwf-security-reviewer-changeset"` using the prompt template, `{phase}` = `"testing"`.
 - Write the verbatim subagent output to a file in the task scratch dir (derive the dir per `.cwf/docs/conventions/tmp-paths.md`; `mkdir -m 0700` on first use), then classify deterministically: `.cwf/scripts/command-helpers/security-review-classify < <file>` prints one of `no findings|findings|error`. Append `## Security Review\n\n**State**: <token>\n\n<verbatim subagent output>\n` to `g-testing-exec.md`. Do not apply any prose/heuristic rule — the helper is the sole classifier (a tool-level Agent failure is recorded as `error`).
 - Do NOT block on `findings`. Surface them; the user decides whether to fix-and-re-run or accept-and-record before Step 9.

@@ -44,6 +44,14 @@ The helper's classification rules over the resulting changed-files list are:
 
 If a user rebases their task branch onto a newer trunk mid-task, the recorded baseline names the old fork point and the diff over-includes trunk drift. Mid-task rebase is not a CWF workflow (tasks land via squash + `git branch -f`); accepting this trade-off keeps the design simple.
 
+### Production-weighted review cap
+
+The full changeset is always emitted to the subagent. Independently, both exec SKILLs pass `--max-lines=500` so the helper enforces a review cap on a **production-weighted** line count rather than the raw diff. The production count is the sum of added+deleted lines (`git diff --numstat`) over the included files, **minus** any path matching a `security.review.test-paths` glob. Those patterns are gitignore/git pathspec globs declared in `cwf-project.json`; git's own `:(glob,exclude)` engine does the matching — the helper performs no path classification of its own and the count excludes diff context/hunk-header lines by construction.
+
+Contract: when the production count exceeds the cap the helper exits `2` (the full diff has already been printed to stdout, so a manual reviewer can still see it); the exec SKILL records `**State**: error` with the helper's `cap exceeded:` reason and does not invoke the subagent. Exit `1` (any construction failure, including a malformed `test-paths` pattern git rejects) is likewise surfaced as `error` — never silently read as an empty "no findings" changeset.
+
+Fail-safe direction and limitation: `security.review.test-paths` defaults unset, so with no configuration there is no discount and the cap measures raw production lines (no regression for any repo). Any layout that is unconfigured or unmatched counts as *production* — the cap fires earlier, never later. Directory-based test layouts (e.g. `t/**`, `tests/**`) are covered cleanly; co-located suffix conventions (`**/*_test.go`, `**/*.spec.ts`) are expressible as globs but not exhaustively pursued. An uncovered test file is a *coverage* gap (counts as production), never an *unsafe* one. The helper (`.cwf/scripts/command-helpers/security-review-changeset`) is the source of truth for this count.
+
 ## Threat categories
 
 Five categories the subagent must cover. Each carries (i) a one-line definition, (ii) an anti-pattern example with file:line citation if a real instance exists in the codebase, otherwise an `# illustrative` snippet using CWF-shaped names, (iii) a one-line "do instead" pointer.

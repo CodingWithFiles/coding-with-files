@@ -2,6 +2,26 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 168: security review cap weight production code
+
+### Status: In Progress
+### Impact: Task in progress.
+
+### Retired Backlog Items
+#### security-review-changeset cap should weight production code, not test scaffolding
+
+The exec-phase security review caps the changeset at 500 lines of unified-diff output. The helper counts every diff line — code, tests, context — so any change carrying its own test suite inflates the count.
+
+In task 166 the substantive code change was ~197 lines (CWF::TaskContextInference.pm refactor); the cap was breached only because the diff also carried ~234 lines of new test subtests and ~40 lines of diff context/headers. The work was reviewed (maintainer authorised invoking the subagent despite the cap; verdict was no findings on the f-exec phase, byte-identical diff in g-exec), but the cap surfaced as friction rather than signal.
+
+Proposed direction: have `security-review-changeset` weight production code more heavily than test/fixture additions when applying the cap — e.g. count code-path lines only, or apply a separate (higher) cap for diffs whose non-test fraction is below threshold. Single source of truth remains the helper; classifier and subagent prompt unchanged.
+
+Out of scope: deciding whether the cap is the right limit at all. This item is about *what* the cap measures, not whether 500 is the right number.
+
+Identified in: task 166 (bugfix/166-task-inference-not-subtask-aware), f-implementation-exec security-review surfacing.
+
+<!-- Note: Moved the cap into security-review-changeset as a production-weighted count; test paths are consumer-declared git pathspecs (security.review.test-paths) matched by git :(glob,exclude). -->
+
 ## Task 167: install manifest baselines disagree with subtree
 
 ### Status: Complete (2026-05-28)
