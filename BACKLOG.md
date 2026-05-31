@@ -2,6 +2,51 @@
 
 Future tasks and improvements for the Coding with Files system.
 
+## Task: Adopt guarded EnterWorktree/ExitWorktree for CWF scratch-worktree flows
+
+### Task-Type: feature
+### Priority: High
+### Status: Follow-up from Task 172 (recommendation R1, P0)
+### Identified in: Task 172 f-implementation-exec.md §2/§3/§6, j-retrospective.md §Future Work
+
+Adopt the harness's guarded worktree tools as CWF's scratch-worktree create/remove path so the uncommitted-changes guard (`ExitWorktree(action: remove)` refuses without `discard_changes: true`) actually protects CWF work. The guard only applies to worktrees **created by `EnterWorktree`** — CWF's raw `git worktree add`/`remove --force` flows (incl. the self-worktree guard in `task-workflow.d/delete`) are unprotected today. Scope: route worktree create/teardown through `EnterWorktree`/`ExitWorktree`; set `worktree.baseRef: head` (default `fresh` branches from origin/<default>, conflicting with CWF's branch-off-HEAD rule per `feedback_branch_from_current_commit`); update `tmp-paths.md`. **Never pass `discard_changes: true` unprompted** — the guard friction is the feature (cites `feedback_surface_security_dont_smooth.md`). Hash refresh for any edited helper. Subsumes R6 (no-needless-`cd`/absolute-path discipline so the dominant permission prompts stop arising; explicitly reject allowlist-broadening as the fix).
+
+## Task: Audit the 13 `git rev-parse --show-toplevel` call sites for worktree-safety
+
+### Task-Type: bugfix
+### Priority: High
+### Status: Follow-up from Task 172 (recommendation R2, P0)
+### Identified in: Task 172 f-implementation-exec.md §3(b), j-retrospective.md §Future Work
+
+`git rev-parse --show-toplevel` returns the *worktree* root when run inside a linked worktree, so the `cd "$(git rev-parse --show-toplevel)"` "go to repo root" idiom silently keeps you in a disposable tree (data-loss mechanism (b), reproduced first-hand in Task 172). The idiom appears in **13** files: `CWF/Common.pm`, `CWF/TaskPath.pm`, `CWF/WorkflowFiles.pm`, `command-helpers/task-stack`, `command-helpers/task-workflow.d/delete` (load-bearing — the self-worktree guard *inside* the deletion flow), `command-helpers/checkpoints-branch-manager`, `command-helpers/context-manager.d/location`, `command-helpers/template-copier-v2.0`, `command-helpers/template-copier-v2.1`, `scripts/update-cwf-skill-docs.sh`, `scripts/migrations/migrate-v2.1-file-order`, `skills/cwf-init/SKILL.md:87`, `tmp-paths.md`. Scope: for each site reachable while inside a worktree, replace with worktree-safe root resolution (e.g. `git rev-parse --git-common-dir`-derived main tree, or explicit paths). A fix scoped only to the `cwf-init` prose would under-remediate. Hash refresh for edited helpers.
+
+## Task: Add a lost-uncommitted-work recovery runbook
+
+### Task-Type: chore
+### Priority: Medium
+### Status: Follow-up from Task 172 (recommendation R3, P1)
+### Identified in: Task 172 f-implementation-exec.md §3(d), j-retrospective.md §Future Work
+
+Document that never-committed work leaves **no HEAD-reflog trace** — it survives only as dangling objects (e.g. a `git stash push -u`/`pop` leaves a dangling stash commit) recoverable via `git fsck --unreachable` / `git reflog stash`, not the HEAD reflog. In the Task 172 anchor incident the lost 11-file changeset was recovered from dangling commit `a49e33b`, but only after the wrong tool (HEAD reflog) was tried first. Scope: a short `.cwf/docs` runbook + a MEMORY pointer. Docs-only.
+
+## Task: Security-review convention — verify tool-rule semantics against live output
+
+### Task-Type: chore
+### Priority: Medium
+### Status: Follow-up from Task 172 (recommendation R4, P1)
+### Identified in: Task 172 f-implementation-exec.md §2 (FR1-2), j-retrospective.md §Future Work
+
+The new model reasoned from **remembered tool-rule semantics** and was wrong: phases a–e of the anchor task assumed `G703` was not a real gosec rule (gosec emits `G703: Path traversal via taint analysis`), caught only when the tool was actually run. Scope: a `security-review.md` skill-doc convention reinforcing the standing no-fabrication rule (`feedback_no_fabricated_citations`) — verify external-tool rule semantics against live tool output, never assert a remembered rule catalogue. Docs/convention.
+
+## Task: Add a "workflow" keyword-disambiguation guard
+
+### Task-Type: chore
+### Priority: Medium
+### Status: Follow-up from Task 172 (recommendation R5, P1)
+### Identified in: Task 172 f-implementation-exec.md §4, j-retrospective.md §Future Work
+
+The harness reserves "workflow" for its multi-agent `Workflow` orchestration tool, colliding with CWF's pervasive "workflow" vocabulary (a system-reminder steers toward the tool on the word; witnessed in-session during Task 172). Scope: **start with option 1 (behavioural guard)** — a short note in CLAUDE.md/skills: "in CWF, 'workflow' = the CWF phase system, not the harness `Workflow` tool; never spawn multi-agent orchestration for CWF phases." Hold option 2 (targeted wording: "Workflow Skills"→"CWF phase skills", update `glossary.md:157`) as a fast-follow. Option 3 (full rename across filenames/`workflow-manager`/`wf` abbrev) is a deferred **major-version** decision, not a first move.
+
 ## Task: Plan-time helper-path verification gate
 
 ### Task-Type: chore

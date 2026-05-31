@@ -2,6 +2,22 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 172: Adapt CWF to new Claude Code harness (discovery)
+
+### Status: Complete (2026-05-31)
+### Duration: ~1 day (estimate 1–2 days, Medium complexity). Under estimate.
+### Impact: Discovery — assesses how the new Claude Code client + Opus 4.8 model affect CWF processes, targeting two objectives: (1) drastically reduce loss of uncommitted work/files, (2) reduce momentum loss from permission prompts. **No CWF code/doc changes** (by design); the deliverable is a §1–§7 assessment in `f-implementation-exec.md` plus 6 seeded follow-up tasks. Anchor evidence: a real data-loss-then-recovery on `dircachefilehash` Task 6 (captured transcript + a 71 908-line raw terminal backlog supplied by the user). The four-mechanism data-loss chain was **fully evidenced (zero `pending`)**: (a) persistent shell CWD left inside a disposable worktree; (b) `git rev-parse --show-toplevel` resolving to the *worktree* not the main tree — **reproduced first-hand** and found in **13** CWF call sites incl. `task-workflow.d/delete`; (c) `git worktree remove --force` discarding uncommitted edits; (d) recovery only via `git fsck --unreachable`/stash-reflog, not the HEAD reflog (lost work recovered as dangling commit `a49e33b`, re-verified clean). TC-1…TC-8 all PASS; AC6 (safety) and AC8 (redaction) gates clear; both exec-phase security reviews `no findings` (Markdown-only).
+
+### Notable
+- **The harness's guarded worktree tools are real but opt-in.** `ExitWorktree(action: remove)` refuses to delete a worktree with uncommitted changes unless `discard_changes: true` — a fail-safe `git worktree remove --force`. But its own schema (loaded this session) restricts it to worktrees **created by `EnterWorktree`**, not raw `git worktree add`. CWF uses raw git, so the guard is inert until CWF adopts `EnterWorktree` — and `worktree.baseRef` defaults to `fresh` (origin/main), conflicting with CWF's branch-off-HEAD rule. This sharpened R1 from "prefer the tools" to "adopt `EnterWorktree` + set `worktree.baseRef: head`".
+- **Model self-checking regression captured.** Phases a–e of the anchor task *assumed from memory* that `G703` was not a real gosec rule and were wrong (gosec emits it) — the "trusted remembered semantics over tool output" pattern, caught only by running the tool. Seeds R4 (verify tool-rule semantics against live output).
+- **The AC6 safety gate did its job.** The cheapest way to kill the dominant prompt friction (`cd "$(git rev-parse --show-toplevel)" && …`, 8× early in the backlog) is to allowlist `cd`/`git` compounds — which would also auto-approve `worktree remove --force`. **Rejected** (R6): friction is cut by removing the command shape, not by broadening auto-approve. No recommendation silently trades safety for momentum.
+- **Live dogfooding.** During exec the assessing agent's own Bash CWD drifted into the scratch dir after a `cd` (mechanism (a) reproducing itself), caught when a `.cwf/...` relative path failed. Recorded as evidence in g.
+- **Keyword-collision is in-session evidence.** The harness twice surfaced the multi-agent `Workflow` tool off the word "workflow"; declined. Options scoped guard→wording→rename, none pre-selected.
+
+### Retired Backlog Items
+None — user-initiated from a real incident on another repo, not from the backlog. Seeds 6 new follow-up items (R1–R6) added to BACKLOG.md.
+
 ## Task 171: exclude completed tasks from recency signal
 
 ### Status: Complete (2026-05-31)
