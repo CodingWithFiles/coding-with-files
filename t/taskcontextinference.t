@@ -28,6 +28,20 @@ sub _build_fixture {
     }
 }
 
+# Helper: write a workflow file carrying a real "## Status" / "**Status**:"
+# marker so CWF::TaskState::state_done parses it. $rel must be a path relative
+# to the current dir; the file MUST be named f-implementation-exec.md for v2.1
+# detection (TaskState.pm:304) and the status section is what state_done reads.
+# Unlike the bare "x" files TC-8a writes (which yield state_done == 0), this
+# produces a genuine completion percentage — load-bearing for the recency-gate
+# regression (the guard keys on state_done >= 100).
+sub _write_status {
+    my ($rel, $status) = @_;
+    open my $fh, '>', $rel or die "open $rel: $!";
+    print $fh "# fixture task\n\n## Status\n**Status**: $status\n";
+    close $fh;
+}
+
 #==============================================================================
 # correlate_signals() - pure function
 #==============================================================================
@@ -385,6 +399,76 @@ subtest 'TC-8b: get_all_signals — progress includes subtask candidates' => sub
     chdir $saved;
     ok(defined $progress && exists $progress->{null},
        'progress signal returns a well-formed hash after enumeration');
+};
+
+subtest 'TC-9: recency excludes a completed task even when newest-touched' => sub {
+    plan tests => 1;
+
+    # Regression for the false-uncorrelated leak (Task 171): a 100%-complete task
+    # whose dir is the most-recently-touched must NOT win the recency signal.
+    # Fixture is load-bearing — each task carries a real **Status** marker so
+    # state_done reflects true completion (a bare "x" file would yield
+    # state_done == 0 and pass even WITHOUT the fix).
+    my $tmp = File::Temp::tempdir(CLEANUP => 1);
+    my $saved = Cwd::getcwd();
+    _build_fixture($tmp, [
+        'implementation-guide/40-feature-active',
+        'implementation-guide/41-feature-done',
+    ]);
+    chdir $tmp;
+
+    _write_status('implementation-guide/40-feature-active/f-implementation-exec.md',
+                  'In Progress');   # state_done = 25 (live)
+    _write_status('implementation-guide/41-feature-done/f-implementation-exec.md',
+                  'Finished');      # state_done = 100 (complete)
+
+    # Make the COMPLETED task the newest dir — the exact condition (merges,
+    # commits, hash refreshes touch finished dirs) that produced the false top.
+    my $now = time();
+    utime $now - 100, $now - 100,
+        'implementation-guide/40-feature-active/f-implementation-exec.md';
+    utime $now, $now,
+        'implementation-guide/41-feature-done/f-implementation-exec.md';
+
+    my @signals = get_all_signals();
+    my ($recency) = grep { $_->{name} eq 'recency' } @signals;
+
+    chdir $saved;
+    is($recency && $recency->{top}, '40',
+       'recency top = 40 (live task); completed 41 gated out despite newest mtime');
+};
+
+subtest 'TC-10: recency retains a fresh/live task (no over-filter)' => sub {
+    plan tests => 1;
+
+    # Boundary guard against the rejected state_achievable == 0 predicate: a
+    # fresh To-Do task (state_done = 0) is live work and must stay a candidate
+    # even when it is the newest dir.
+    my $tmp = File::Temp::tempdir(CLEANUP => 1);
+    my $saved = Cwd::getcwd();
+    _build_fixture($tmp, [
+        'implementation-guide/50-feature-fresh',
+        'implementation-guide/51-feature-other',
+    ]);
+    chdir $tmp;
+
+    _write_status('implementation-guide/50-feature-fresh/f-implementation-exec.md',
+                  'To-Do');         # state_done = 0 (fresh, live)
+    _write_status('implementation-guide/51-feature-other/f-implementation-exec.md',
+                  'In Progress');   # state_done = 25 (live)
+
+    my $now = time();
+    utime $now - 100, $now - 100,
+        'implementation-guide/51-feature-other/f-implementation-exec.md';
+    utime $now, $now,
+        'implementation-guide/50-feature-fresh/f-implementation-exec.md';
+
+    my @signals = get_all_signals();
+    my ($recency) = grep { $_->{name} eq 'recency' } @signals;
+
+    chdir $saved;
+    is($recency && $recency->{top}, '50',
+       'recency top = 50 (fresh task retained — guard excludes only completed)');
 };
 
 done_testing();

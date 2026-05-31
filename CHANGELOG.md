@@ -2,6 +2,21 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 171: exclude completed tasks from recency signal
+
+### Status: Complete (2026-05-31)
+### Duration: ~1 day (estimate <1 day, Low complexity). On estimate.
+### Impact: Bugfix — the `recency` task-candidate signal in `CWF::TaskContextInference` was the only one of the five signals that nominated a current-task candidate **without** consulting the work-potential framework. It scored tasks purely by directory mtime, so a finished (100%) task whose dir kept getting touched by merges, commits and hash refreshes could win recency and disagree with `branch`/`progress` — producing the reported false `current: inconclusive` / `confidence: uncorrelated` / `candidates: 2` results (e.g. completed tasks `3/3.1/3.3/4/5` pairing against the genuinely-active task `6`). **Fix**: one guard line in `_get_recency_signal`'s mtime-collection loop — `next if CWF::TaskState::state_done($task->{full_path}) >= 100;` — gating the recency candidate set through the same `CWF::TaskState` framework the `progress` signal already uses. Completed tasks no longer enter the recency pool; `recency` now agrees with `branch`/`progress` on the live task. Single-line production diff (no import edit — the call is fully-qualified, matching the module's existing `state_achievable` precedent at `:519`); same-commit `script-hashes.json` digest refresh. Two regression tests added (`t/taskcontextinference.t` 19→21 subtests; full suite 634→636, all green). `cwf-manage validate` clean; both exec-phase security reviews `no findings`.
+
+### Notable
+- **Predicate corrected at design time, before any code.** The a-plan framed the gate as `state_achievable == 0` (the prospective work-potential measure the `progress` signal uses). Reading the existing TC-8a/TC-8b fixtures during design revealed that predicate over-filters: those fixtures carry no status markers → `state_achievable == 0` for every dir → the recency-enumeration tests would break. Switched to `state_done >= 100` (the retrospective *completion* measure), which returns 0 for no-status dirs and so preserves them. The two measures coincide for status-bearing completed tasks but differ precisely on the no-marker case — exactly the existing fixtures.
+- **Plan-review subagents shaped the final diff.** The misalignment reviewer flagged the module's existing fully-qualified `TaskState` call precedent, collapsing the change to one line with no second unused import; the robustness reviewer flagged that a copy-paste fixture (TC-8a's bare `"x"` files yield `state_done == 0`) would pass *without* the fix, which became the load-bearing `_write_status` helper writing real `**Status**:` markers.
+- **TC-9 proven load-bearing.** Temporarily removed the guard and re-ran: TC-9 turned `not ok` (recency top = the completed `'41'`); restored the module (digest matching the committed `sha256`) → green. Converts a plausible regression test into a verified one.
+- **`>= 100`, not `== 100`.** `state_done` is documented 0–100 so `> 100` is unreachable today, but `>=` is robust against any future formula change and is annotated not to be "tidied" to `==`.
+
+### Retired Backlog Items
+None — user-initiated from a false-positive observed on another repo, not from the backlog. (Broader inference items — "Create Integration Test for Inconclusive Inference Scenarios", "Test Edge Cases for Task Context Inference System" — remain open; this fix addresses one specific recency leak, not those harnesses.)
+
 ## Task 170: Enforce recorded permissions as upper bound
 
 ### Status: Complete (2026-05-31)

@@ -391,6 +391,11 @@ sub _get_recency_signal {
 
     my %task_mtimes;
     for my $task (@tasks) {
+        # Completed tasks have no live work, but their dirs keep getting touched
+        # by merges, commits and hash refreshes — which would let a finished task
+        # win recency and disagree with branch/progress (false uncorrelated).
+        # Gate via the same CWF::TaskState framework progress relies on. (Task 171)
+        next if CWF::TaskState::state_done($task->{full_path}) >= 100;
         my $max_mtime = _get_dir_max_mtime($task->{full_path});
         $task_mtimes{$task->{num}} = $max_mtime if $max_mtime;
     }
