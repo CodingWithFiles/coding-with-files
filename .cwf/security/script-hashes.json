@@ -56,7 +56,7 @@
     },
     "CWF::Common" : {
       "path" : ".cwf/lib/CWF/Common.pm",
-      "sha256" : "c8a3f2e542a42043a828ee445219b96d235ab3a628550d63bf696cac73c5d442"
+      "sha256" : "55eee06c1c9557bdebaeeb6e2f52b7f0d37d80173562290a61e9f25a201a7c8d"
     },
     "CWF::ContextInheritance::Core" : {
       "path" : ".cwf/lib/CWF/ContextInheritance/Core.pm",
@@ -80,7 +80,7 @@
     },
     "CWF::TaskPath" : {
       "path" : ".cwf/lib/CWF/TaskPath.pm",
-      "sha256" : "bfc9e4b9d6ebd3e128122660043b2439b421853930fd278bd8ba6ffe8024a842"
+      "sha256" : "45eabdd56a59c88e972b677ad5f7e5ed8c8e33b0c3130786277aacbdd241a91d"
     },
     "CWF::TaskState" : {
       "path" : ".cwf/lib/CWF/TaskState.pm",
@@ -128,7 +128,7 @@
     },
     "CWF::WorkflowFiles" : {
       "path" : ".cwf/lib/CWF/WorkflowFiles.pm",
-      "sha256" : "4d9d9a439b97caf9d09c592c3323d9ade93e555d51b4b39f4f2ba2af186962c2"
+      "sha256" : "10de7d7d28ab1f10eac0c15c4199b6da99d5bc39aa34f391d0dee96897eadf82"
     },
     "CWF::WorkflowFiles::V20" : {
       "path" : ".cwf/lib/CWF/WorkflowFiles/V20.pm",
@@ -173,7 +173,7 @@
     "context-manager.d/location" : {
       "path" : ".cwf/scripts/command-helpers/context-manager.d/location",
       "permissions" : "0500",
-      "sha256" : "d745e9103994c71d63d5c260c118eebfd7090973cf4f24ea2f6aa73f16610cfb"
+      "sha256" : "3c25f201c75669a0f505fee60fa2949d36fbf8b0896062e47e27188815955652"
     },
     "context-manager.d/version" : {
       "path" : ".cwf/scripts/command-helpers/context-manager.d/version",
@@ -208,7 +208,7 @@
     "cwf-manage" : {
       "path" : ".cwf/scripts/cwf-manage",
       "permissions" : "0700",
-      "sha256" : "419190b81ed4ccd944fd841343ec9a6a2904e8df651a819f9fe7d6a10aa3e29d"
+      "sha256" : "39f1fddcae7d0ef114dd5665f6c829d7459ba520eb151f12d3323a49051f2979"
     },
     "cwf-set-status" : {
       "path" : ".cwf/scripts/command-helpers/cwf-set-status",
@@ -238,7 +238,7 @@
     "migrate-v2.1-file-order" : {
       "path" : ".cwf/scripts/migrations/migrate-v2.1-file-order",
       "permissions" : "0500",
-      "sha256" : "22b8d6da84337abfc0dd90a420cdca7c6fee1395caa66e375154af292a4d1a04"
+      "sha256" : "ff8466eda633ba97be0e218915ab7e739a129f49a5b2379c6dfc46b9f0b1e24d"
     },
     "rollback-migration.sh" : {
       "path" : ".cwf/scripts/rollback-migration.sh",
@@ -298,7 +298,7 @@
     "template-copier-v2.0" : {
       "path" : ".cwf/scripts/command-helpers/template-copier-v2.0",
       "permissions" : "0500",
-      "sha256" : "ea1a873cfd57d5c0e0b025271a85b7079fc856b43f13849814cacdca436c3409"
+      "sha256" : "fca4c9ca7bed1d1fefdd1f7b3bc13fdfb63cc6cbd2bd2bf9efee6a8c8ee180e6"
     },
     "security-review-changeset" : {
       "path" : ".cwf/scripts/command-helpers/security-review-changeset",
@@ -313,7 +313,7 @@
     "template-copier-v2.1" : {
       "path" : ".cwf/scripts/command-helpers/template-copier-v2.1",
       "permissions" : "0700",
-      "sha256" : "3e34496f32be254e286cd2af5ae09cae330ea5e3b75fa8ef6a42525a68662d4e"
+      "sha256" : "82f7df009806b9411dbe9d75cf10e62c64deb222a873affd7a7573386c48092a"
     },
     "validate-migration.sh" : {
       "path" : ".cwf/scripts/validate-migration.sh",

@@ -11,15 +11,6 @@ Future tasks and improvements for the Coding with Files system.
 
 Adopt the harness's guarded worktree tools as CWF's scratch-worktree create/remove path so the uncommitted-changes guard (`ExitWorktree(action: remove)` refuses without `discard_changes: true`) actually protects CWF work. The guard only applies to worktrees **created by `EnterWorktree`** — CWF's raw `git worktree add`/`remove --force` flows (incl. the self-worktree guard in `task-workflow.d/delete`) are unprotected today. Scope: route worktree create/teardown through `EnterWorktree`/`ExitWorktree`; set `worktree.baseRef: head` (default `fresh` branches from origin/<default>, conflicting with CWF's branch-off-HEAD rule per `feedback_branch_from_current_commit`); update `tmp-paths.md`. **Never pass `discard_changes: true` unprompted** — the guard friction is the feature (cites `feedback_surface_security_dont_smooth.md`). Hash refresh for any edited helper. Subsumes R6 (no-needless-`cd`/absolute-path discipline so the dominant permission prompts stop arising; explicitly reject allowlist-broadening as the fix).
 
-## Task: Audit the 13 `git rev-parse --show-toplevel` call sites for worktree-safety
-
-### Task-Type: bugfix
-### Priority: High
-### Status: Follow-up from Task 172 (recommendation R2, P0)
-### Identified in: Task 172 f-implementation-exec.md §3(b), j-retrospective.md §Future Work
-
-`git rev-parse --show-toplevel` returns the *worktree* root when run inside a linked worktree, so the `cd "$(git rev-parse --show-toplevel)"` "go to repo root" idiom silently keeps you in a disposable tree (data-loss mechanism (b), reproduced first-hand in Task 172). The idiom appears in **13** files: `CWF/Common.pm`, `CWF/TaskPath.pm`, `CWF/WorkflowFiles.pm`, `command-helpers/task-stack`, `command-helpers/task-workflow.d/delete` (load-bearing — the self-worktree guard *inside* the deletion flow), `command-helpers/checkpoints-branch-manager`, `command-helpers/context-manager.d/location`, `command-helpers/template-copier-v2.0`, `command-helpers/template-copier-v2.1`, `scripts/update-cwf-skill-docs.sh`, `scripts/migrations/migrate-v2.1-file-order`, `skills/cwf-init/SKILL.md:87`, `tmp-paths.md`. Scope: for each site reachable while inside a worktree, replace with worktree-safe root resolution (e.g. `git rev-parse --git-common-dir`-derived main tree, or explicit paths). A fix scoped only to the `cwf-init` prose would under-remediate. Hash refresh for edited helpers.
-
 ## Task: Add a lost-uncommitted-work recovery runbook
 
 ### Task-Type: chore

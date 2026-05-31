@@ -12,6 +12,7 @@ use utf8;
 use Exporter 'import';
 use File::Basename;
 use Cwd 'abs_path';
+use CWF::Common qw(find_git_root);
 
 our @EXPORT_OK = qw(
     normalize validate build_glob find_base_dir get_parent get_depth
@@ -34,9 +35,8 @@ sub find_base_dir {
         '../../implementation-guide',
     );
 
-    # Try to find from git root
-    my $git_root = `git rev-parse --show-toplevel 2>/dev/null`;
-    chomp $git_root;
+    # Try to find from git root (worktree-safe: main tree, not a linked worktree)
+    my $git_root = find_git_root();
     if ($git_root && -d "$git_root/implementation-guide") {
         return "$git_root/implementation-guide";
     }

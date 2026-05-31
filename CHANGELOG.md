@@ -2,6 +2,24 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 173: Audit show-toplevel sites for worktree-safety
+
+### Status: Complete (2026-05-31)
+### Duration: ~1 day (estimate ~1 day, Medium complexity). On estimate.
+### Impact: Bugfix — closes data-loss mechanism (b) from Task 172: `git rev-parse --show-toplevel` returns the *worktree* root inside a linked worktree, so the "go to repo root" idiom silently anchored canonical CWF state to a disposable tree. The audit reframed the backlog's literal "13 sites" into a **consumption-pattern** classification: repointed the single choke-point `CWF::Common::find_git_root` to derive the main tree via `git rev-parse --path-format=absolute --git-common-dir` (literal `/.git`-suffix strip; `--show-toplevel` fallback; `undef`-outside-repo contract preserved), which **transitively** fixed `Versioning.pm`/`Backlog.pm`/`backlog-manager` with zero edits. Routed 5 inline-backtick sites to `find_git_root()`; repointed `cwf-manage`'s own list-form resolver (`die` contract + fallback preserved); made `context-manager location` a **dual reporter** (main + worktree, OQ-2); made `cwf-init`/`tmp-paths` prose and `update-cwf-skill-docs.sh` worktree-safe (OQ-3 — the `GIT_ROOT` arg to `cwf-apply-artefacts` is load-bearing, no internal fallback). **No-change dispositions** (recorded): the load-bearing Class C self-worktree guard in `task-workflow.d/delete`, and the error-message-only captures in `task-stack` (OQ-1) and `checkpoints-branch-manager` (reclassified at exec); plus `install.bash` (bootstrap) and a test helper. New TDD test `t/find-git-root-worktree.t` (TC-1 failed pre-fix). Full suite **640 green**; same-commit `script-hashes.json` refresh for 8 edited hashed artefacts; `cwf-manage validate` clean; both exec-phase security reviews `no findings`.
+
+### Notable
+- **"13 sites" was a grep count, not a work unit.** Plan-review subagents corrected the design's false "find_git_root has no callers" claim (it has 3), turning 13 rewrites into one repointed choke-point + transitive fixes. Classify by *how the resolved root is consumed*, not by file type.
+- **An existing test forced a design deviation.** The design mandated `File::Spec` derivation, but `t/cwf-manage-update.t` TC-8 asserts `cwf-manage` carries no `File::Spec` import. Since `--path-format=absolute` guarantees an absolute path, a literal `/.git`-suffix strip is equally safe and was applied to both resolvers — respecting the invariant and keeping them identical.
+- **Error-message-only captures must stay worktree-local.** `checkpoints-branch-manager` was reclassified at exec: its `$git_root` only relativises the script's *own* path for diagnostics; routing it to the main tree would be wrong from a worktree.
+
+### Retired Backlog Items
+#### Audit the 13 `git rev-parse --show-toplevel` call sites for worktree-safety
+
+`git rev-parse --show-toplevel` returns the *worktree* root when run inside a linked worktree, so the `cd "$(git rev-parse --show-toplevel)"` "go to repo root" idiom silently keeps you in a disposable tree (data-loss mechanism (b), reproduced first-hand in Task 172). The idiom appears in **13** files: `CWF/Common.pm`, `CWF/TaskPath.pm`, `CWF/WorkflowFiles.pm`, `command-helpers/task-stack`, `command-helpers/task-workflow.d/delete` (load-bearing — the self-worktree guard *inside* the deletion flow), `command-helpers/checkpoints-branch-manager`, `command-helpers/context-manager.d/location`, `command-helpers/template-copier-v2.0`, `command-helpers/template-copier-v2.1`, `scripts/update-cwf-skill-docs.sh`, `scripts/migrations/migrate-v2.1-file-order`, `skills/cwf-init/SKILL.md:87`, `tmp-paths.md`. Scope: for each site reachable while inside a worktree, replace with worktree-safe root resolution (e.g. `git rev-parse --git-common-dir`-derived main tree, or explicit paths). A fix scoped only to the `cwf-init` prose would under-remediate. Hash refresh for edited helpers.
+
+**Resolution**: Repointed the `CWF::Common::find_git_root` choke-point (+ `cwf-manage`'s twin) to the `--git-common-dir`-derived main tree; routed the 5 path-anchoring sites and the prose/shell sites; left the Class C delete guard and the two error-message-only captures unchanged with rationale. See the Task 173 Impact above and `j-retrospective.md`.
+
 ## Task 172: Adapt CWF to new Claude Code harness (discovery)
 
 ### Status: Complete (2026-05-31)

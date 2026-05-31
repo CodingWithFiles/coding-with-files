@@ -33,6 +33,7 @@ use File::Path qw(make_path);
 use Cwd qw(abs_path);
 use CWF::TaskPath qw(validate get_parent);
 use CWF::WorkflowFiles qw(load_config);
+use CWF::Common qw(find_git_root);
 
 # Parse command-line parameters
 sub parse_parameters {
@@ -116,9 +117,8 @@ USAGE
 
 # Find git repository root and templates directory
 sub find_templates_directory {
-    # Try git to find repository root
-    my $git_root = `git rev-parse --show-toplevel 2>/dev/null`;
-    chomp $git_root;
+    # Try git to find repository root (worktree-safe: main tree, not a linked worktree)
+    my $git_root = find_git_root();
 
     my $templates_dir;
 

@@ -4,20 +4,26 @@ use warnings;
 use utf8;
 use FindBin;
 use lib "$FindBin::Bin/../../../lib";
-use CWF::Common qw(check_perl5opt);
+use CWF::Common qw(check_perl5opt find_git_root);
 use Cwd qw(getcwd abs_path);
 
 check_perl5opt();
 
-# Get git root
-my $git_root = `git rev-parse --show-toplevel 2>&1`;
-chomp $git_root;
+# Diagnostic: this is the *current* tree (the linked worktree, if we are in one).
+# Keep 2>&1 so a git error string surfaces in the reported value (Task 173, OQ-2).
+my $worktree_root = `git rev-parse --show-toplevel 2>&1`;
+chomp $worktree_root;
+
+# The MAIN worktree root (where canonical CWF state lives). Worktree-safe: inside
+# a linked worktree this differs from $worktree_root and is the tree CWF anchors to.
+my $main_root = find_git_root();
 
 # Get current working directory
 my $cwd = getcwd();
 
-# Output
-print "Git repo root: \"$git_root\"\n";
+# Output: report both so a linked worktree is never silently hidden.
+print "Git repo root (main): \"" . (defined $main_root ? $main_root : '') . "\"\n";
+print "Git worktree root: \"$worktree_root\"\n";
 print "Current directory: \"$cwd\"\n";
 
 exit 0;

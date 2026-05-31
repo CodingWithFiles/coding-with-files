@@ -46,9 +46,30 @@ sub parse_semver {
     return @p ? ($p[0]+0, $p[1]+0, $p[2]+0) : ();
 }
 
-# Resolve the current git repository root.
+# Resolve the MAIN git repository root (Task 173, worktree-safe).
+#
+# `git rev-parse --show-toplevel` returns the *worktree* root when run inside a
+# linked worktree, so anchoring canonical CWF state (task dirs, config, backlog)
+# to it risks operating in a disposable tree (data-loss vector, Task 172).
+# Instead derive the main tree from the common git dir: `--git-common-dir`
+# resolves to the MAIN repo's `.git` even from a linked worktree, so its parent
+# is the main worktree root. Fall back to `--show-toplevel` when the common dir
+# is not a `.../.git` directory (e.g. submodule gitdirs under `.git/modules/`).
+#
+# The git invocation is argument-free, so the backtick form carries no
+# interpolation surface; the single-value output needs only chomp (no NUL/list
+# parsing). `--path-format=absolute` must precede `--git-common-dir` and
+# guarantees an absolute path, so stripping the literal `/.git` suffix is a
+# well-defined parent derivation (no need for File::Spec canonicalisation).
+#
 # Returns: absolute path string, or undef if not inside a git repo.
 sub find_git_root {
+    my $common = `git rev-parse --path-format=absolute --git-common-dir 2>/dev/null`;
+    chomp $common;
+    $common =~ s{/+$}{};                      # normalise trailing slash before matching
+    if (length $common && $common =~ s{/\.git$}{}) {
+        return $common if length $common;     # parent of the common .git dir == main root
+    }
     my $root = `git rev-parse --show-toplevel 2>/dev/null`;
     chomp $root;
     return length $root ? $root : undef;

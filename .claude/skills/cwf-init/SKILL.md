@@ -84,7 +84,9 @@ chmod "$PERMS" .cwf/scripts/cwf-manage
 Run, using the Bash tool, from the git root:
 
 ```bash
-GIT_ROOT="$(git rev-parse --show-toplevel)"
+# Worktree-safe: resolve the MAIN tree, not a linked worktree (Task 173).
+# cwf-apply-artefacts has no internal root fallback — the argument is load-bearing.
+GIT_ROOT="$(cd "$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")" && pwd)"
 .cwf/scripts/command-helpers/cwf-apply-artefacts "$GIT_ROOT" "$GIT_ROOT" --bootstrap-init
 ```
 

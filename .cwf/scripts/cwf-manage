@@ -84,6 +84,22 @@ sub git_capture {
 # --- Version file -------------------------------------------------------------
 
 sub find_git_root {
+    # Worktree-safe (Task 173): cwf-manage installs/validates against the MAIN
+    # tree, so derive it from the common git dir rather than --show-toplevel
+    # (which returns a linked worktree's root). Keep list-form git_capture and
+    # the die-on-no-repo contract. Fall back to --show-toplevel when the common
+    # dir is not a .../.git directory (e.g. submodule gitdirs).
+    my ($cd, $crc) = git_capture('rev-parse', '--path-format=absolute', '--git-common-dir');
+    if ($crc == 0) {
+        my $common = $cd->[0] // '';
+        $common =~ s{/+$}{};
+        # --path-format=absolute guarantees an absolute path, so a literal
+        # /.git suffix strip is a well-defined parent derivation (no File::Spec;
+        # cwf-manage deliberately carries no File::Spec import).
+        if (length $common && $common =~ s{/\.git$}{}) {
+            return $common if length $common;
+        }
+    }
     my ($out, $rc) = git_capture('rev-parse', '--show-toplevel');
     my $root = $rc == 0 ? ($out->[0] // '') : '';
     die_msg("Not inside a git repository") unless length $root;

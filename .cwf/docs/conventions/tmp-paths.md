@@ -25,7 +25,9 @@ Worked example (this repository, task 145):
 Derivation snippet (copy-pastable):
 
 ```bash
-repo_root=$(git rev-parse --show-toplevel)
+# Worktree-safe: resolve the MAIN tree, not a linked worktree (Task 173), so the
+# scratch namespace is stable whether you run from the main tree or a worktree.
+repo_root=$(cd "$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")" && pwd)
 num=145
 scratch="/tmp/${repo_root//\//-}-task-${num}"
 mkdir -m 0700 -p "$scratch"

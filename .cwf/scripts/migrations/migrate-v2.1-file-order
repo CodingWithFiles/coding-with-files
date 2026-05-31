@@ -15,8 +15,10 @@ use strict;
 use warnings;
 use utf8;
 use FindBin;
+use lib "$FindBin::Bin/../../lib";
 use File::Basename;
 use Cwd 'abs_path';
+use CWF::Common qw(find_git_root);
 
 # Validate arguments
 unless (@ARGV == 1 && $ARGV[0] =~ /^\d+(\.\d+)*$/) {
@@ -27,9 +29,8 @@ unless (@ARGV == 1 && $ARGV[0] =~ /^\d+(\.\d+)*$/) {
 
 my $task_path = $ARGV[0];
 
-# Find git root
-my $git_root = `git rev-parse --show-toplevel 2>/dev/null`;
-chomp $git_root;
+# Find git root (worktree-safe: main tree, not a linked worktree)
+my $git_root = find_git_root();
 die "ERROR: Not in a git repository\n" unless $git_root && -d $git_root;
 
 # Use hierarchy-resolver to find task directory

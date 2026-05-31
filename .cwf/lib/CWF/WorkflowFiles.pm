@@ -12,6 +12,7 @@ use utf8;
 use Exporter 'import';
 use File::Basename;
 use JSON::PP;
+use CWF::Common qw(find_git_root);
 
 our @EXPORT_OK = qw(list get_template_version status_to_percent load_config workflow_file_mappings);
 
@@ -155,9 +156,8 @@ sub load_config {
     # Find config file
     my @search_paths;
 
-    # Try git root first
-    my $git_root = `git rev-parse --show-toplevel 2>/dev/null`;
-    chomp $git_root;
+    # Try git root first (worktree-safe: main tree, not a linked worktree)
+    my $git_root = find_git_root();
 
     if ($git_root) {
         push @search_paths,
