@@ -136,6 +136,9 @@ sub file_perms {
 
 sub append_byte {
     my ($path) = @_;
+    # Source scripts ship read-only (0500); make writable before appending so
+    # the mutation does not die "Permission denied" on a copied 0500 fixture.
+    chmod((stat($path))[2] & 07777 | 0200, $path) if -e $path;
     open my $fh, '>>', $path or die "append $path: $!";
     print $fh "X";
     close $fh;
@@ -162,27 +165,31 @@ subtest 'TC-1: clean install — no-op, exit 0' => sub {
     is($vrc, 0, 'validate still passes after no-op');
 };
 
-subtest 'TC-2: stripped perms, sha intact — repair to recorded perms' => sub {
+subtest 'TC-2: stripped perms, sha intact — clamp to ceiling, validate passes' => sub {
     plan tests => 5;
     my $tmp = build_fixture();
-    strip_perms_recursive("$tmp/.cwf/scripts");
+    strip_perms_recursive("$tmp/.cwf/scripts");   # all scripts → 0644
 
-    # Sanity: pre-validate must fail on permissions
+    # Sanity: pre-validate must fail on permissions (0644 carries g/o-read
+    # excess over a 0500/0700 ceiling).
     my ($pre_rc, $pre_out) = run_validate($tmp);
-    isnt($pre_rc, 0, 'pre-validate fails (perms wrong)');
+    isnt($pre_rc, 0, 'pre-validate fails (perms over ceiling)');
     like($pre_out, qr{permissions}, 'pre-validate names "permissions" field');
 
     my ($rc, $out) = run_fix_security($tmp);
     is($rc, 0, 'fix-security exits 0 after repair');
 
-    # Post-validate must pass
+    # Post-validate must pass — clamp lands every stripped script ≤ its ceiling.
     my ($post_rc) = run_validate($tmp);
     is($post_rc, 0, 'post-validate passes');
 
-    # cwf-manage's recorded perms come from script-hashes.json (no magic numbers).
-    my $cwf_manage = "$tmp/.cwf/scripts/cwf-manage";
-    is(file_perms($cwf_manage), _read_recorded_perms($tmp, 'cwf-manage'),
-       "cwf-manage perms restored to recorded value (not blanket 0755)");
+    # Clamp a non-bootstrap 0500-recorded script: 0644 & 0500 = 0400 (excess
+    # g/o-read stripped, owner-x NOT raised). Recorded perms read from JSON, no
+    # magic numbers. (cwf-manage is excluded — the executable-bootstrap helper
+    # restores it to recorded before the run, so it never exercises the clamp.)
+    my $vt = "$tmp/.cwf/scripts/command-helpers/cwf-version-tag";
+    is(file_perms($vt), 0644 & _read_recorded_perms($tmp, 'cwf-version-tag'),
+       'stripped script clamped to (0644 & recorded), not raised to recorded');
 };
 
 subtest 'TC-3: sha mismatch — refuse, no chmod, recovery hint' => sub {
@@ -222,9 +229,10 @@ subtest 'TC-4: missing tracked file — refuse, recovery hint, best-effort fix o
     like($out, qr{git pull}, 'recovery hint mentions git pull');
     like($out, qr{cwf-manage update}, 'recovery hint mentions cwf-manage update');
 
-    # Best-effort: the still-present file should have been repaired
-    is(file_perms($other), _read_recorded_perms($tmp, 'cwf-version-tag'),
-       'other file repaired (best-effort fix despite unfixable peer)');
+    # Best-effort: the still-present file should have been clamped (excess
+    # stripped, never raised): 0644 & recorded.
+    is(file_perms($other), 0644 & _read_recorded_perms($tmp, 'cwf-version-tag'),
+       'other file clamped (best-effort fix despite unfixable peer)');
 };
 
 subtest 'TC-5: mixed — repair fixable, refuse unfixable' => sub {
@@ -243,7 +251,7 @@ subtest 'TC-5: mixed — repair fixable, refuse unfixable' => sub {
     like($out, qr{cwf-version-tag}, 'output mentions repaired A');
     like($out, qr{task-stack},      'output mentions unfixable B');
 
-    is(file_perms($fileA), _read_recorded_perms($tmp, 'cwf-version-tag'), 'fixable A repaired');
+    is(file_perms($fileA), 0644 & _read_recorded_perms($tmp, 'cwf-version-tag'), 'fixable A clamped');
     # B sha mismatch — no chmod attempted, content unchanged
     like(slurp($fileB), qr{X$}, 'tampered B content unchanged');
 };
@@ -276,6 +284,37 @@ subtest 'TC-7: idempotency — second run is a no-op' => sub {
     my ($rc2, $out2) = run_fix_security($tmp);
     is($rc2, 0, 'second run exits 0');
     like($out2, qr{repaired 0 file}i, 'second run reports zero repairs');
+};
+
+subtest 'TC-9: over-permissive — excess stripped to ceiling' => sub {
+    plan tests => 3;
+    my $tmp = build_fixture();
+    # Non-bootstrap 0500-recorded script bumped over its ceiling (owner-w).
+    my $file = "$tmp/.cwf/scripts/command-helpers/cwf-version-tag";
+    my $recorded = _read_recorded_perms($tmp, 'cwf-version-tag');
+    chmod 0700, $file;
+
+    my ($rc, $out) = run_fix_security($tmp);
+    is($rc, 0, 'fix-security exits 0');
+    # 0700 ⊇ 0500, so clamp lands exactly on recorded (excess owner-w stripped).
+    is(file_perms($file), 0700 & $recorded, 'clamped to ceiling (0700 & recorded)');
+    my ($vrc) = run_validate($tmp);
+    is($vrc, 0, 'validate passes after clamp');
+};
+
+subtest 'TC-10: under-permissive — left untouched, validate passes' => sub {
+    plan tests => 4;
+    my $tmp = build_fixture();
+    # 0400 is strictly less permissive than a 0500 ceiling → allowed, no-op.
+    my $file = "$tmp/.cwf/scripts/command-helpers/cwf-version-tag";
+    chmod 0400, $file;
+
+    my ($rc, $out) = run_fix_security($tmp);
+    is($rc, 0, 'fix-security exits 0');
+    like($out, qr{repaired 0 file}i, 'reports zero repairs (under-permissive is allowed)');
+    is(file_perms($file), 0400, 'file left at 0400 (not raised to recorded)');
+    my ($vrc) = run_validate($tmp);
+    is($vrc, 0, 'validate passes (less permissive than ceiling is OK)');
 };
 
 # TC-8 pins _provision_extra_manifest_paths directly, independent of TC-1's

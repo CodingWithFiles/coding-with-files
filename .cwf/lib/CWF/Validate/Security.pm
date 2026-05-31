@@ -4,7 +4,9 @@ package CWF::Validate::Security;
 #
 # Reads .cwf/security/script-hashes.json and verifies each listed file:
 #   - exists at the recorded path
-#   - has permissions >= 0500 (for scripts) or any valid perms (for lib files)
+#   - is no more permissive than its recorded permissions (a ceiling: a file
+#     less permissive than recorded is allowed; excess bits are flagged).
+#     Entries without a recorded `permissions` value (lib files) are not checked.
 #   - has a SHA256 hash matching the recorded value
 #
 # Uses Digest::SHA (Perl core since 5.10) — no shell subprocess.
@@ -109,17 +111,24 @@ sub validate {
                 next;
             }
 
-            # Check permissions only when explicitly recorded
+            # Check permissions only when explicitly recorded. Recorded perms
+            # are a ceiling: flag iff the file is MORE permissive than recorded
+            # (has bits outside the recorded mask). A file less permissive than
+            # recorded is allowed. ~$expected & 07777 confines the complement to
+            # the 12 mode bits, so setuid/setgid/sticky acquisition is caught.
             if (defined $expected_perms) {
                 my $actual_perms = (stat($file))[2] & oct('07777');
-                my $min_perms    = oct($expected_perms);
-                if (($actual_perms & $min_perms) != $min_perms) {
+                my $expected     = oct($expected_perms);
+                my $excess       = $actual_perms & ~$expected & oct('07777');
+                if ($excess != 0) {
                     push @violations, _violation(
                         $file,
                         'permissions',
                         sprintf('0%o', $actual_perms),
                         $expected_perms,
-                        "Run: chmod $expected_perms $file",
+                        sprintf('File is more permissive than recorded '
+                              . '(excess 0%o). Clear excess bits or run: '
+                              . 'cwf-manage fix-security', $excess),
                     );
                 }
             }

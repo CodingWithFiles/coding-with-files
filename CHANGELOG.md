@@ -2,6 +2,21 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 170: Enforce recorded permissions as upper bound
+
+### Status: Complete (2026-05-31)
+### Duration: ~1 day across sessions (estimate ~1 day, Medium complexity). On estimate.
+### Impact: Feature (security hardening) — inverts the recorded-permissions check in `CWF::Validate::Security` from a **floor** (`(actual & recorded) == recorded` — require the recorded bits) to a **ceiling** (`actual & ~recorded & 07777 != 0` — forbid any bit beyond recorded). A file *less* permissive than recorded is now allowed; a file *more* permissive is flagged — including setuid/setgid/sticky acquisition, which the old floor check ignored entirely. `cwf-manage fix-security` switches from `additive` repair (raise missing bits) to **`clamp`** (`actual & recorded` — strip excess, never raise); the now-unreachable `additive` mode was removed, leaving `_apply_recorded_perms` with two modes (`exact` laydown, `clamp` repair). The `exact`-mode laydown is unchanged (exact ⊆ ceiling, so a laid-down tree validates clean). This repo's **31 scripts recorded `0500` were flipped on-disk `0700`→`0500`** (derived from the manifest, not hardcoded); the 8 `0700` and 9 `0444` entries are unchanged. The flip is invisible to `git status` (git tracks only the owner-x bit), so the full `prove t/` suite — not diff review — is the gate that surfaced the one regression: the read-only-source break in `t/install-bash-reinstall.t` (the Task 162 "Permission denied" failure), now fixed in the harness itself (`write_file`/`append_byte` `chmod u+w` before opening a copied `0500` script) rather than by the retired `0700` working-perms convention. Two edited code files (`Security.pm`, `cwf-manage`) got in-commit `sha256` refreshes; the perm-only flip needs none. Docs: `hash-updates.md` gained a "recorded permissions are a ceiling" section (+ the executable g/o write-or-execute & setuid/setgid/sticky bound); the working-perms memory was rewritten (working perms now *match* recorded, not bumped to `0700`). Full suite 634 tests green; `cwf-manage validate` clean; both exec-phase security reviews `no findings`.
+
+### Notable
+- **The model was corrected mid-plan, before any code.** The first b/c drafts modelled floor+ceiling (= exact match); the user clarified the intent was **ceiling-only** — under-permissive must be *allowed*. Captured in commit `0f49239` during the plan-review pause the user requested, so it cost a plan revision, not rework. Process lesson recorded: semantic-inversion questions belong at requirements, not design.
+- **Clamp vs exact differ only for both-over-and-under files.** For a purely over-permissive file `actual & recorded == recorded`, so clamp and "set to recorded" coincide; they diverge only at e.g. `0640`/rec-`0500` → `0400`. That edge is the whole justification for adding `clamp` rather than reusing `exact`.
+- **The security reviewer surfaced a standing audit target unprompted**: the validator-flag and clamp-repair predicates are algebraically equivalent over the 12 mode bits *because* both derive from the same `recorded` mask — any future edit touching one mask expression without the other would let a flagged file resist repair. Recorded in i-maintenance.
+- **The before/after repair report was corrected** to print the actual clamp target (`sprintf('0%o', $want)`), not the recorded value — otherwise a `0640`→`0400` clamp would mis-report as `→ 0500`. Invisible for `exact` mode (where `want == recorded`).
+
+### Retired Backlog Items
+None — this task was maintainer-initiated. (The two `0444`-data-file perm items remain open: a `0600`/rec-`0444` file still flags under the ceiling — for owner-w excess rather than missing g/o-read — and the git-checkout-resets-perms structural issue is unchanged. Recording those files at `0644`/`0664` would let a checkout-restored `0600` pass under ceiling semantics, but changing recorded values was out of this task's scope per D1.)
+
 ## Task 169: sync README command reference
 
 ### Status: Complete (2026-05-29)

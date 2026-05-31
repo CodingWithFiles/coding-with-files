@@ -15,6 +15,12 @@ Each `sha256` entry in `.cwf/security/script-hashes.json` signs the file at the 
 3. Edit the matching `sha256` entry in `.cwf/security/script-hashes.json` in the same commit.
 4. `cwf-manage validate` to confirm clean.
 
+## Recorded permissions are a ceiling
+
+A manifest entry's `permissions` value is an **upper bound**, not an exact target. `cwf-manage validate` flags a file only when it is *more* permissive than recorded (carries a bit outside the recorded mask, including setuid/setgid/sticky); a file *less* permissive than recorded is always allowed. `cwf-manage fix-security` repairs by **clamping** — it clears the excess bits (`actual & recorded`) and never raises a bit. Working perms therefore *match* the recorded value (e.g. a script edited under `0500` is restored to `0500`, not bumped higher).
+
+When a hash refresh also records or changes a `permissions` value, the recorded ceiling for an **executable** entry MUST NOT carry group/other **write or execute** bits, nor setuid/setgid/sticky — otherwise a future refresh could silently re-open the exposure that the ceiling check exists to catch. Data entries legitimately keep group/other **read** (e.g. `0444`); the prohibition is on write/execute, not all group/other bits. Lib `.pm` modules carry no `permissions` key and are excluded from the check.
+
 ## Plan-time disclosure
 
 Any implementation plan whose Files-to-Modify list includes a hashed path MUST list `.cwf/security/script-hashes.json` as a Supporting Change. The check is one grep against `.cwf/security/script-hashes.json` — perform it during d-plan, not at f-exec when validate fires.

@@ -75,6 +75,9 @@ sub write_file {
     my ($path, $content) = @_;
     (my $dir = $path) =~ s{/[^/]+$}{};
     system('mkdir', '-p', $dir) if length $dir;
+    # Tracked scripts ship read-only (0500); overwriting a copied fixture script
+    # would die "Permission denied". Make it writable first.
+    chmod((stat($path))[2] & 07777 | 0200, $path) if -e $path;
     open my $fh, '>', $path or die "write $path: $!";
     print $fh $content;
     close $fh;

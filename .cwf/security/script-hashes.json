@@ -104,7 +104,7 @@
     },
     "CWF::Validate::Security" : {
       "path" : ".cwf/lib/CWF/Validate/Security.pm",
-      "sha256" : "b8e74cd7072f68c412eb42015dbaba238dea5e4ab224440560207e69081b7b68"
+      "sha256" : "9aa5474bed63956c3921a83316dbb1c1f29e7a710c49b6baf8c1c58e4a330017"
     },
     "CWF::Validate::TemplateRefs" : {
       "path" : ".cwf/lib/CWF/Validate/TemplateRefs.pm",
@@ -208,7 +208,7 @@
     "cwf-manage" : {
       "path" : ".cwf/scripts/cwf-manage",
       "permissions" : "0700",
-      "sha256" : "751f0283adcc3279f12fcf1e111977093bec2ea6880abc3303d9ba16d12ff109"
+      "sha256" : "419190b81ed4ccd944fd841343ec9a6a2904e8df651a819f9fe7d6a10aa3e29d"
     },
     "cwf-set-status" : {
       "path" : ".cwf/scripts/command-helpers/cwf-set-status",

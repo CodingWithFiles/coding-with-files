@@ -187,8 +187,10 @@ subtest 'FR2/FR3/FR5: cross-version-gap subtree update runs target laydown' => s
     is(slurp("$consumer/.cwf/E2E-MARKER"), "v0.0.3\n",
        'marker now v0.0.3 — target version laydown ran (FR2)');
 
+    # Exact laydown sets perms to recorded; recorded == ceiling, so the
+    # ceiling check passes. Guards exact-mode from drifting above the ceiling.
     my ($vrc, $vout) = consumer_manage($consumer, 'validate');
-    is($vrc, 0, 'validate passes post-update (exact perms, FR5)') or diag $vout;
+    is($vrc, 0, 'validate passes post-update (exact perms ≤ ceiling, FR5)') or diag $vout;
 };
 
 subtest 'FR6: manifest-SHA pin survives a second update' => sub {
