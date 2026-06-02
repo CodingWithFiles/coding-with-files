@@ -26,7 +26,7 @@ allowed-tools:
 
 **Steps 1-4 (Preamble)**: Read `.cwf/docs/skills/workflow-preamble.md` and follow Steps 1-4 (argument parsing, task resolution, parent context, LLM decision).
 
-**Step 5**: Read `.cwf/docs/workflow/workflow-steps.md#rollout` for detailed rollout phase guidance.
+**Step 5**: Read `.cwf/docs/workflow/workflow-steps/rollout.md` for detailed rollout phase guidance.
 
 **Step 6 (Execute)**:
 - Open h-rollout.md (v2.1) or f-rollout.md (v2.0) or rollout.md (v1.0)

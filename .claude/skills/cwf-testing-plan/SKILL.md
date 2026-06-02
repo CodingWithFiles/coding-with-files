@@ -26,7 +26,7 @@ allowed-tools:
 
 **Steps 1-4 (Preamble)**: Read `.cwf/docs/skills/workflow-preamble.md` and follow Steps 1-4 (argument parsing, task resolution, parent context, LLM decision).
 
-**Step 5**: Read `.cwf/docs/workflow/workflow-steps.md#testing` for detailed testing phase guidance.
+**Step 5**: Read `.cwf/docs/workflow/workflow-steps/testing-planning.md` for detailed testing phase guidance.
 
 **Step 6 (Execute)**:
 - Open e-testing-plan.md (v2.1) or e-testing.md (v2.0) or testing.md (v1.0)

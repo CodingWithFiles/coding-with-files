@@ -33,7 +33,7 @@ allowed-tools:
 
 **Steps 1-4 (Preamble)**: Read `.cwf/docs/skills/workflow-preamble.md` and follow Steps 1-4 (argument parsing, task resolution, parent context, LLM decision).
 
-**Step 5**: Read `.cwf/docs/workflow/workflow-steps.md#design` for detailed design phase guidance.
+**Step 5**: Read `.cwf/docs/workflow/workflow-steps/design.md` for detailed design phase guidance.
 
 **Step 6 (Execute)**:
 - Open c-design-plan.md (v2.1) or c-design.md (v2.0) or design.md (v1.0)

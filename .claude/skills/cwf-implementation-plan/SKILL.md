@@ -33,7 +33,7 @@ allowed-tools:
 
 **Steps 1-4 (Preamble)**: Read `.cwf/docs/skills/workflow-preamble.md` and follow Steps 1-4 (argument parsing, task resolution, parent context, LLM decision).
 
-**Step 5**: Read `.cwf/docs/workflow/workflow-steps.md#implementation` for detailed implementation phase guidance.
+**Step 5**: Read `.cwf/docs/workflow/workflow-steps/implementation-planning.md` for detailed implementation phase guidance.
 
 **Step 6 (Execute)**:
 - Open d-implementation-plan.md (v2.1) or d-implementation.md (v2.0) or implementation.md (v1.0)

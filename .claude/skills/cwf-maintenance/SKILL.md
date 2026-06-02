@@ -26,7 +26,7 @@ allowed-tools:
 
 **Steps 1-4 (Preamble)**: Read `.cwf/docs/skills/workflow-preamble.md` and follow Steps 1-4 (argument parsing, task resolution, parent context, LLM decision).
 
-**Step 5**: Read `.cwf/docs/workflow/workflow-steps.md#maintenance` for detailed maintenance phase guidance.
+**Step 5**: Read `.cwf/docs/workflow/workflow-steps/maintenance.md` for detailed maintenance phase guidance.
 
 **Step 6 (Execute)**:
 - Open i-maintenance.md (v2.1) or g-maintenance.md (v2.0) or maintenance.md (v1.0)

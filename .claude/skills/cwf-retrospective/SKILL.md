@@ -35,7 +35,7 @@ allowed-tools:
 
 **Steps 1-4 (Preamble)**: Read `.cwf/docs/skills/workflow-preamble.md` and follow Steps 1-4. Also read all task workflow files for retrospective context.
 
-**Step 5**: Read `.cwf/docs/workflow/workflow-steps.md#retrospective` for detailed retrospective guidance.
+**Step 5**: Read `.cwf/docs/workflow/workflow-steps/retrospective.md` for detailed retrospective guidance.
 
 **Step 6**: Verify task status. Read `.cwf/docs/skills/retrospective-extras.md#verify-task-status`. All phases must be "Finished" (100%) before retrospective.
 

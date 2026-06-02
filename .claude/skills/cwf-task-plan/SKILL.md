@@ -26,7 +26,7 @@ allowed-tools:
 
 **Steps 1-4 (Preamble)**: Read `.cwf/docs/skills/workflow-preamble.md` and follow Steps 1-4 (argument parsing, task resolution, parent context, LLM decision).
 
-**Step 5**: Read `.cwf/docs/workflow/workflow-steps.md#planning` for detailed planning phase guidance.
+**Step 5**: Read `.cwf/docs/workflow/workflow-steps/planning.md` for detailed planning phase guidance.
 
 **Step 6 (Execute)**:
 - Open a-task-plan.md (v2.1) or a-plan.md (v2.0) or plan.md (v1.0)

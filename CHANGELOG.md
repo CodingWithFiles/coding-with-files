@@ -2,6 +2,20 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 176: Split `workflow-steps.md` into per-anchor docs
+
+### Status: Complete (2026-06-02)
+### Duration: one session (estimate ~0.5 day, Low complexity). On estimate.
+### Impact: Chore — removes a recurring mid-skill halt. The 8 plan-phase SKILLs fetched phase guidance via a markdown anchor (`workflow-steps.md#planning`). The Read tool ignores the fragment, so an agent would improvise section extraction — typically `sed -n '/^## planning/,/^##/p'` — and Claude Code's permission gate flags `sed`, halting the skill mid-run for a prompt. Every alternative was strictly worse than reading a dedicated file (whole-file Read over-reads ~460 lines; `grep`+`Read` is a two-call round-trip). **Fix**: split the 10 phase sections of `.cwf/docs/workflow/workflow-steps.md` into self-contained `workflow-steps/{name}.md` files (each an H1 + a `../workflow-steps.md` up-link + the section body verbatim), repointed the 8 SKILL Step-5 references to plain single-`Read` paths, and reduced `workflow-steps.md` to a title + intro + Version Differences + Status Values + a `## Steps` table of contents. Fetching any phase's guidance is now one `Read` of one file — no shell, no permission prompt, no over-read. **Design decisions**: (D1) all 10 sections get a file, including the two execution sections that no skill references today, for uniformity; (D2) `Status Values` (anchor `#status-values`, 12 live referrers across templates + `glossary.md` + `workflow-preamble.md`) and `Version Differences` stay inline in the ToC — splitting them would ripple into 12 files for no gain; (D3) bodies preserved verbatim, machine-checked as substrings of the baseline section; (D4) no `install-manifest.json` edit needed — both installers copy `.cwf/` recursively, so the new subdir ships automatically. The split also fixed two latent broken anchors: `cwf-implementation-plan` / `cwf-testing-plan` referenced `#implementation` / `#testing`, which never resolved to the real `## Implementation Planning` / `## Testing Planning` headers; they now point at `implementation-planning.md` / `testing-planning.md`. TC-1..TC-8 all PASS; `cwf-manage validate` clean; `installmanifest-integrity.t` 6/6. Implementation-phase security review `no findings` (Markdown-only); testing-phase review hit the production-line cap (839 > 500, the new doc bodies count as production) and was recorded as `error` per the exit-2 contract without re-reviewing the same markdown.
+
+### Notable
+- **A markdown anchor is a false affordance for the Read tool.** `file.md#anchor` reads as "fetch this section" but Read ignores the fragment, so agents improvise extraction — the exact `sed` friction this task removes. One file per anchor makes the cheapest path the only path needed.
+- **The change dogfooded itself before merge.** The retrospective SKILL's own Step 5 read the relocated `workflow-steps/retrospective.md` directly — the feature proved out within the same task.
+- **A before/after verification script must pin the baseline SHA, not `HEAD`.** TC-2/TC-3 flashed a false red on the testing re-run because the content-checker diffed against `HEAD` (by then the post-rewrite ToC) instead of baseline `91d0b4c`. Product was correct; the harness was aimed at a moving ref. Pin the recorded **Baseline Commit**.
+
+### Retired Backlog Items
+None — task originated from a user request, not the backlog. One discretionary follow-up was noted in the retrospective (repoint the two exec SKILLs and the whole-file `checkpoint-commit.md` reference at the new files) but not backlogged, as those skills don't currently link phase guidance.
+
 ## Task 175: Record commit SHA, not annotated-tag object SHA, in `.cwf/version`
 
 ### Status: Complete (2026-06-02)
