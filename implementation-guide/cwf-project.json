@@ -27,8 +27,9 @@
       "scripts" : ".cwf/scripts/command-helpers/cwf-*"
     },
     "review" : {
-      "test-paths" : [
-        "t/**"
+      "max-lines-exclude-paths" : [
+        "t/**",
+        "implementation-guide/**"
       ]
     },
     "version-tracking" : "v0.2.1"
@@ -90,7 +91,7 @@
   },
   "version" : "v0.2.1",
   "versioning" : {
-    "last_released" : "v1.1.173",
+    "last_released" : "v1.1.174",
     "major_minor" : "v1.1"
   },
   "wf_step_config" : {

@@ -126,9 +126,12 @@ sub run_helper {
 }
 
 # ---------------------------------------------------------------------------
-# TC-F1: Extension-less CWF-internal script is reviewed
+# TC-F1: A changed file under .cwf/ is reviewed (path-independent inclusion).
+# Pairs with TC-F5/F6/WIDEN1 (non-.cwf files) to show inclusion ignores path.
+# The diff window also contains the fixture's a-task-plan.md (committed after
+# the __MAIN__ baseline), so the file count is 2: the script + the plan.
 # ---------------------------------------------------------------------------
-subtest 'TC-F1: extensionless CWF-internal script with shebang is included' => sub {
+subtest 'TC-F1: extensionless file under .cwf/scripts/ is reviewed' => sub {
     my ($repo, $main_sha, $branch, $task_dir) = make_synthetic_repo(baseline => '__MAIN__');
 
     make_path("$repo/.cwf/scripts");
@@ -140,14 +143,14 @@ subtest 'TC-F1: extensionless CWF-internal script with shebang is included' => s
 
     my ($out, $err, $rc) = run_helper($repo);
     is($rc, 0, 'helper exits 0');
-    like($out, qr{\.cwf/scripts/cwf-foo}, 'changeset includes the extensionless script');
-    like($err, qr{reviewed 1 files}, 'stderr summary names 1 file');
+    like($out, qr{\.cwf/scripts/cwf-foo}, 'changeset includes the extensionless file');
+    like($err, qr{reviewed 2 files}, 'stderr summary names 2 files (script + a-task-plan.md)');
 };
 
 # ---------------------------------------------------------------------------
-# TC-F2: Consumer-stack file with shebang is reviewed without override
+# TC-F2: Consumer-stack source file is reviewed
 # ---------------------------------------------------------------------------
-subtest 'TC-F2: consumer-stack python file with shebang is included' => sub {
+subtest 'TC-F2: consumer-stack python file is included' => sub {
     my ($repo) = make_synthetic_repo(baseline => '__MAIN__');
 
     make_path("$repo/app");
@@ -159,7 +162,7 @@ subtest 'TC-F2: consumer-stack python file with shebang is included' => sub {
 
     my ($out, $err, $rc) = run_helper($repo);
     is($rc, 0, 'helper exits 0');
-    like($out, qr{app/main\.py}, 'changeset includes consumer-stack python file via shebang sniff');
+    like($out, qr{app/main\.py}, 'changeset includes consumer-stack python file (all files reviewed)');
 };
 
 # ---------------------------------------------------------------------------
@@ -224,9 +227,9 @@ subtest 'TC-F3: unmerged predecessor branch does not pollute the changeset' => s
 };
 
 # ---------------------------------------------------------------------------
-# TC-F4: Binary blob in CWF-internal dir is included unconditionally
+# TC-F4: Binary file under .cwf/ is reviewed (no file-type or path filter)
 # ---------------------------------------------------------------------------
-subtest 'TC-F4: binary blob under .cwf/scripts/ is included unconditionally' => sub {
+subtest 'TC-F4: binary file under .cwf/scripts/ is reviewed' => sub {
     my ($repo) = make_synthetic_repo(baseline => '__MAIN__');
 
     make_path("$repo/.cwf/scripts");
@@ -238,13 +241,13 @@ subtest 'TC-F4: binary blob under .cwf/scripts/ is included unconditionally' => 
 
     my ($out, $err, $rc) = run_helper($repo);
     is($rc, 0, 'helper exits 0');
-    like($out, qr{\.cwf/scripts/blob}, 'binary in CWF-internal dir is included regardless of shebang');
+    like($out, qr{\.cwf/scripts/blob}, 'binary file is included (all files reviewed)');
 };
 
 # ---------------------------------------------------------------------------
-# TC-F5: Binary blob outside CWF dirs is excluded
+# TC-F5: Binary blob outside CWF dirs is reviewed (all files included)
 # ---------------------------------------------------------------------------
-subtest 'TC-F5: binary blob outside CWF dirs is excluded' => sub {
+subtest 'TC-F5: binary blob outside CWF dirs is reviewed' => sub {
     my ($repo) = make_synthetic_repo(baseline => '__MAIN__');
 
     make_path("$repo/tools");
@@ -256,25 +259,25 @@ subtest 'TC-F5: binary blob outside CWF dirs is excluded' => sub {
 
     my ($out, $err, $rc) = run_helper($repo);
     is($rc, 0, 'helper exits 0');
-    unlike($out, qr{tools/blob}, 'binary outside CWF dirs is excluded');
-    like($err, qr{reviewed 0 files}, 'no files included');
+    like($out, qr{tools/blob}, 'binary outside CWF dirs is now reviewed (all files included)');
+    like($err, qr{reviewed 2 files}, 'two files: tools/blob + the fixture a-task-plan.md');
 };
 
 # ---------------------------------------------------------------------------
-# TC-F6: Plain-text file outside CWF dirs is excluded
+# TC-F6: Plain-text file outside CWF dirs is reviewed (all files included)
 # ---------------------------------------------------------------------------
-subtest 'TC-F6: plain-text notes outside CWF dirs are excluded' => sub {
+subtest 'TC-F6: plain-text notes outside CWF dirs are reviewed' => sub {
     my ($repo) = make_synthetic_repo(baseline => '__MAIN__');
 
     open my $fh, '>', "$repo/notes.txt" or die;
-    print $fh "Just a plain text file. No shebang.\n";
+    print $fh "Just a plain text file.\n";
     close $fh;
     git_in($repo, 'add', 'notes.txt');
     git_in($repo, 'commit', '-q', '-m', 'notes');
 
     my ($out, $err, $rc) = run_helper($repo);
     is($rc, 0, 'helper exits 0');
-    unlike($out, qr{notes\.txt}, 'plain text outside CWF dirs is excluded');
+    like($out, qr{notes\.txt}, 'plain text outside CWF dirs is reviewed');
 };
 
 # ---------------------------------------------------------------------------
@@ -406,76 +409,65 @@ subtest 'TC-NF2: --task-num with non-numeric input is rejected up front' => sub 
 };
 
 # ---------------------------------------------------------------------------
-# TC-NF3 (Reliability): Symlink in changed-files list is skipped
+# TC-GUARD1a (guard-removal safety): symlink is reviewed; git emits the
+# link-TARGET text as the blob and never dereferences/reads the target. Sole
+# evidence that deleting looks_like_script's -l guard is DoS-net-neutral (D1).
 # ---------------------------------------------------------------------------
-subtest 'TC-NF3: symlink path is skipped (does not follow target)' => sub {
+subtest 'TC-GUARD1a: symlink is reviewed without dereferencing the target' => sub {
     SKIP: {
         # Symlinks may not be supported on the test filesystem.
-        skip 'symlinks not supported here', 1 unless eval { symlink('', ''); 1 } || $!;
+        skip 'symlinks not supported here', 3 unless eval { symlink('', ''); 1 } || $!;
 
         my ($repo) = make_synthetic_repo(baseline => '__MAIN__');
 
-        # Create a symlink outside CWF dirs pointing at /dev/null.
+        # Symlink outside CWF dirs pointing at /dev/null. git stores the link
+        # TARGET as the blob content; it does not open/read /dev/null.
         symlink('/dev/null', "$repo/dangerous-link") or do {
-            skip 'cannot create symlink in tempdir', 1;
+            skip 'cannot create symlink in tempdir', 3;
         };
         git_in($repo, 'add', 'dangerous-link');
         git_in($repo, 'commit', '-q', '-m', 'add symlink');
 
         my ($out, $err, $rc) = run_helper($repo);
         is($rc, 0, 'helper exits 0');
-        unlike($out, qr{dangerous-link}, 'symlink path is excluded by -l guard');
+        like($out, qr{dangerous-link}, 'symlink path is now reviewed (no -l guard skips it)');
+        like($out, qr{^\+/dev/null$}m,
+             'diff body is the link-target string, proving git did not dereference it');
     }
 };
 
 # ---------------------------------------------------------------------------
-# TC-NF4 (Reliability): FIFO/non-regular-file is skipped
+# TC-GUARD1b (guard-removal safety): a FIFO in the working tree does not make
+# the helper hang. With the content sniff (looks_like_script) deleted, the
+# helper never opens working-tree files, so non-regular files cannot block it.
 # ---------------------------------------------------------------------------
-subtest 'TC-NF4: FIFO is skipped (does not block on sysread)' => sub {
+subtest 'TC-GUARD1b: FIFO in working tree does not block the helper' => sub {
     SKIP: {
-        my $can_mkfifo = eval { POSIX::mkfifo("/dev/null/__nope__", 0) };  # always fails
-        # Actually test mkfifo availability via attempted import.
         eval { require POSIX; POSIX->can('mkfifo') or die "no mkfifo" };
-        skip 'POSIX::mkfifo unavailable', 1 if $@;
+        skip 'POSIX::mkfifo unavailable', 2 if $@;
 
         my ($repo) = make_synthetic_repo(baseline => '__MAIN__');
 
+        # A real committed change so the diff is non-empty.
+        make_path("$repo/.cwf/scripts");
+        open my $w, '>', "$repo/.cwf/scripts/real-work" or die;
+        print $w "#!/usr/bin/perl\nprint 'x';\n";
+        close $w;
+        git_in($repo, 'add', '.cwf/scripts/real-work');
+        git_in($repo, 'commit', '-q', '-m', 'real work');
+
+        # A FIFO in the working tree (untracked; git ignores it for diff, and
+        # the helper never opens it). Pre-fix, a sniff of this would block.
         my $fifo = "$repo/dangerous-fifo";
         my $rc_fifo = POSIX::mkfifo($fifo, oct('0600'));
-        skip "mkfifo failed: $!", 1 unless defined $rc_fifo && $rc_fifo == 0;
+        skip "mkfifo failed: $!", 2 unless defined $rc_fifo && $rc_fifo == 0;
 
-        # git treats a FIFO oddly; create a regular file in the index for the
-        # path while having the working tree be a FIFO. Easier: stage a regular
-        # file then replace it with a fifo before helper runs. The helper's -f
-        # check should still skip it.
-        # Simplest: create a regular placeholder, commit it, then replace with fifo.
-        unlink $fifo;
-        open my $fh, '>', $fifo or die;
-        print $fh "placeholder\n";
-        close $fh;
-        git_in($repo, 'add', 'dangerous-fifo');
-        git_in($repo, 'commit', '-q', '-m', 'placeholder');
-
-        # Now overwrite working-tree path with a FIFO.
-        unlink $fifo;
-        my $rc2 = POSIX::mkfifo($fifo, oct('0600'));
-        skip "mkfifo overwrite failed: $!", 1 unless defined $rc2 && $rc2 == 0;
-
-        # The helper sees the path as changed only if it's been re-committed,
-        # but we want it in the diff window. Easier path: include a *separate*
-        # extensionless file with no shebang that lives where -f && !-l holds,
-        # and assert it's excluded. The FIFO scenario is genuinely awkward
-        # to set up cleanly via git. Mark the test pass on the looser
-        # assertion: the helper completes within a few seconds without hanging
-        # on any path classified for sniffing.
-
-        # Instead: assert the helper completes (non-blocking) on a synthetic
-        # repo containing a FIFO at a path NOT in the diff. The FIFO simply
-        # exists in the working tree; the helper never sniffs it because it
-        # isn't in the diff. This is a weaker test but kept here as a
-        # regression smoke for the !-l/-f guards.
+        my $t0 = time();
         my ($out, $err, $rc) = run_helper($repo);
-        ok(1, 'helper completed without hanging when FIFO exists in working tree');
+        my $elapsed = time() - $t0;
+
+        is($rc, 0, 'helper exits 0 with a FIFO present (does not hang)');
+        cmp_ok($elapsed, '<', 5, 'helper completes promptly — never blocks on the FIFO');
     }
 };
 
@@ -485,13 +477,10 @@ subtest 'TC-NF4: FIFO is skipped (does not block on sysread)' => sub {
 subtest 'TC-NF5: helper completes quickly with large working tree but small diff' => sub {
     my ($repo) = make_synthetic_repo(baseline => '__MAIN__');
 
-    # Add 200 noise files OUTSIDE the diff window (they were added before
-    # the baseline commit was recorded? — no, the baseline = main's tip,
-    # so files committed after that ARE in the diff). To keep them OUT of
-    # the diff, we'd need to commit them on main before recording the
-    # baseline. Easier scope: commit them on the task branch, accept they're
-    # in the diff, but most should be classified-out (no shebang). The
-    # measurement is still bounded by diff-size, not repo-size.
+    # Add 200 noise files committed on the task branch (baseline = main's tip,
+    # so they ARE in the diff). All 200 are now reviewed (every changed file is
+    # included), yet the helper stays fast: git diff is O(diff size) and the
+    # helper does no per-file content sniff. Bounded by diff size, not repo size.
     make_path("$repo/noise");
     for my $i (1 .. 200) {
         open my $fh, '>', "$repo/noise/file$i.txt" or die;
@@ -507,7 +496,7 @@ subtest 'TC-NF5: helper completes quickly with large working tree but small diff
 
     is($rc, 0, 'helper exits 0');
     cmp_ok($elapsed, '<', 5, 'helper completes in under 5 seconds with 200-file diff');
-    unlike($out, qr{noise/file}, 'noise files (no shebang) excluded from changeset');
+    like($out, qr{noise/file}, 'all 200 changed files are reviewed');
 };
 
 # ---------------------------------------------------------------------------
@@ -556,19 +545,23 @@ subtest 'TC-Task141-uncommitted: helper sees staged and unstaged changes' => sub
          'modified tracked file appears in diff');
     like($out, qr{UNSTAGED_MOD_141},
          'working-tree-only modification content appears in diff (not just the committed baseline)');
-    like($err, qr{^reviewed 2 files,.+anchor=[0-9a-f]{7}, includes uncommitted$}m,
-         'stderr summary anchors disclosure suffix to summary line, count=2');
+    like($err, qr{^reviewed 3 files,.+anchor=[0-9a-f]{7}, includes uncommitted$}m,
+         'stderr summary anchors disclosure suffix to summary line, count=3 (2 scripts + a-task-plan.md)');
 };
 
 # ===========================================================================
 # Production-weighted cap (--max-lines) — Task 168
 # ===========================================================================
 
-# Build a repo where cwf-project.json is committed on main BEFORE the recorded
-# baseline, so it stays OUT of the diff window (and cannot pollute the
-# production count), while task-branch changes land inside it. Returns
-# ($repo, $baseline, $branch, $task_dir). %opt: config_json (required),
-# num/type/slug (optional).
+# Build a repo where cwf-project.json AND the task's a-task-plan.md are both
+# committed on main, then the task branch is created from main. The a-task-plan
+# carries NO baseline line, so the helper anchors on merge-base(HEAD, main) —
+# the branch point — and the diff window contains ONLY what each test commits on
+# the branch. Now that the review covers every changed file (Task 174), pinning
+# the anchor at the branch point is what keeps production counts measuring
+# exactly the test's own files (no a-task-plan.md / config noise). Returns
+# ($repo, $baseline, $branch, $task_dir); $baseline is the merge-base commit.
+# %opt: config_json (required), num/type/slug (optional).
 sub make_cap_repo {
     my (%opt) = @_;
     my $base = tempdir(CLEANUP => 1);
@@ -585,7 +578,7 @@ sub make_cap_repo {
     git_in($repo, 'add', 'README.md');
     git_in($repo, 'commit', '-q', '-m', 'seed');
 
-    # cwf-project.json on main, before the baseline → outside the diff window.
+    # cwf-project.json on main.
     make_path("$repo/implementation-guide");
     open my $c, '>', "$repo/implementation-guide/cwf-project.json" or die;
     print $c $opt{config_json};
@@ -596,18 +589,22 @@ sub make_cap_repo {
     my $num  = $opt{num}  // '1';
     my $type = $opt{type} // 'chore';
     my $slug = $opt{slug} // 'cap-test';
-    my $baseline = git_capture($repo, 'rev-parse', 'HEAD');
 
+    # a-task-plan.md on main too, with NO baseline line → the helper falls back
+    # to merge-base(HEAD, main). Committing it at the branch point keeps it OUT
+    # of the measured diff window.
     my $task_dir = "$repo/implementation-guide/${num}-${type}-${slug}";
     make_path($task_dir);
     open my $a, '>', "$task_dir/a-task-plan.md" or die;
     print $a "# Plan\n\n## Task Reference\n";
     print $a "- **Branch**: ${type}/${num}-${slug}\n";
-    print $a "- **Baseline Commit**: $baseline\n";
     print $a "- **Template Version**: 2.1\n";
     close $a;
     git_in($repo, 'add', 'implementation-guide/');
     git_in($repo, 'commit', '-q', '-m', "task $num a-plan");
+
+    # Branch point = the merge-base the helper will anchor on.
+    my $baseline = git_capture($repo, 'rev-parse', 'HEAD');
 
     my $branch = "${type}/${num}-${slug}";
     git_in($repo, 'checkout', '-q', '-b', $branch);
@@ -620,10 +617,10 @@ JSON
 
 my $CFG_T_GLOB = <<'JSON';
 { "versioning": { "major_minor": "v1.0" },
-  "security": { "review": { "test-paths": ["t/**"] } } }
+  "security": { "review": { "max-lines-exclude-paths": ["t/**"] } } }
 JSON
 
-# Write a script with a shebang and $n total lines (shebang counts as line 1).
+# Write a file of $n total lines (line 1 is a #!/usr/bin/perl header line).
 sub write_script {
     my ($path, $n) = @_;
     open my $fh, '>', $path or die "open $path: $!";
@@ -664,7 +661,7 @@ subtest 'TC-CAP2: large t/ diff is discounted; production stays under cap' => su
 
     my ($out, $err, $rc) = run_helper($repo, '--max-lines=20');
     is($rc, 0, 'helper exits 0 (production under cap despite large raw diff)');
-    like($out, qr{t/big\.t}, 'test file is in the changeset (shebang-included)');
+    like($out, qr{t/big\.t}, 'test file is in the changeset (all files reviewed)');
     ($err =~ /(\d+) lines \((\d+) production\)/)
         or do { fail('stderr summary has the "(P production)" field'); return };
     my ($raw, $prod) = ($1, $2);
@@ -746,12 +743,12 @@ subtest 'TC-CAP6: binary file in the diff contributes 0 production lines' => sub
 };
 
 # ---------------------------------------------------------------------------
-# TC-CAP7: malformed test-paths pattern fails safe (exit 1, no silent discount)
+# TC-CAP7: malformed exclude-paths pattern fails safe (exit 1, no silent discount)
 # ---------------------------------------------------------------------------
-subtest 'TC-CAP7: outside-repo test-paths pattern makes git fatal → exit 1' => sub {
+subtest 'TC-CAP7: outside-repo max-lines-exclude-paths pattern makes git fatal → exit 1' => sub {
     my $cfg = <<'JSON';
 { "versioning": { "major_minor": "v1.0" },
-  "security": { "review": { "test-paths": ["../escape"] } } }
+  "security": { "review": { "max-lines-exclude-paths": ["../escape"] } } }
 JSON
     my ($repo) = make_cap_repo(config_json => $cfg);
 
@@ -763,6 +760,118 @@ JSON
     my ($out, $err, $rc) = run_helper($repo, '--max-lines=100');
     is($rc, 1, 'helper exits 1 when git rejects the exclude pathspec (safe fail)');
     unlike($err, qr{cap exceeded}, 'no cap verdict — bad config never yields a silent discount');
+};
+
+# ===========================================================================
+# Review-all-files behaviour — Task 174
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# TC-WIDEN1: a non-script consumer source file is reviewed AND counts as
+# production. The headline of the bugfix — a consumer's application code
+# (no special treatment, outside .cwf/.claude) now reaches both the review
+# and the cap count.
+# ---------------------------------------------------------------------------
+subtest 'TC-WIDEN1: consumer source file is reviewed and counts as production' => sub {
+    my ($repo) = make_cap_repo(config_json => $CFG_NO_TESTPATHS);
+
+    make_path("$repo/src");
+    open my $fh, '>', "$repo/src/app.js" or die;
+    print $fh "function hello() {\n";
+    print $fh "  return 'hi';\n";
+    print $fh "}\n";
+    close $fh;
+    git_in($repo, 'add', 'src/app.js');
+    git_in($repo, 'commit', '-q', '-m', 'consumer app code');
+
+    my ($out, $err, $rc) = run_helper($repo, '--max-lines=1000');
+    is($rc, 0, 'helper exits 0');
+    like($out, qr{src/app\.js}, 'consumer source file is in the reviewed changeset');
+    ($err =~ /\((\d+) production\)/)
+        or do { fail('stderr summary has the production field'); return };
+    cmp_ok($1, '>', 0, 'consumer source lines count toward the production total');
+};
+
+# ---------------------------------------------------------------------------
+# TC-CAP8: with NO test-paths configured, a changed test file counts as
+# production (fail-safe direction — the cap fires earlier, never later).
+# Pairs with TC-CAP2 (configured t/** → discounted → under cap).
+# ---------------------------------------------------------------------------
+subtest 'TC-CAP8: unconfigured test path counts as production' => sub {
+    my ($repo) = make_cap_repo(config_json => $CFG_NO_TESTPATHS);
+
+    make_path("$repo/t");
+    write_script("$repo/t/foo.t", 50);
+    git_in($repo, 'add', 't/foo.t');
+    git_in($repo, 'commit', '-q', '-m', 'test file, no test-paths config');
+
+    my ($out, $err, $rc) = run_helper($repo, '--max-lines=10');
+    is($rc, 2, 'cap fires: test file counts as production when test-paths unset');
+    like($err, qr{cap exceeded: \d+ production lines > 10}, 'breach names the production count');
+};
+
+# ---------------------------------------------------------------------------
+# TC-EMPTY1: a genuinely empty diff (anchor == worktree) yields exit 0,
+# "reviewed 0 files", empty stdout. Proves the !@included guard short-circuits
+# so a bare `git diff $anchor --` (no pathspec → whole-tree) can never run.
+# ---------------------------------------------------------------------------
+subtest 'TC-EMPTY1: empty diff stays empty (no whole-tree leak)' => sub {
+    my $base = tempdir(CLEANUP => 1);
+    my $repo = "$base/repo";
+    make_path($repo);
+    git_in($repo, 'init', '-q', '--initial-branch=main');
+    git_in($repo, 'config', 'user.email', 'test@example.com');
+    git_in($repo, 'config', 'user.name', 'CWFTest');
+    git_in($repo, 'config', 'commit.gpgsign', 'false');
+
+    open my $fh, '>', "$repo/README.md" or die;
+    print $fh "seed\n";
+    close $fh;
+    git_in($repo, 'add', 'README.md');
+    git_in($repo, 'commit', '-q', '-m', 'seed');
+
+    # Task dir with NO baseline line → helper falls back to merge-base HEAD main.
+    my $task_dir = "$repo/implementation-guide/1-bugfix-empty";
+    make_path($task_dir);
+    open my $a, '>', "$task_dir/a-task-plan.md" or die;
+    print $a "# Plan\n\n## Task Reference\n- **Branch**: bugfix/1-empty\n";
+    close $a;
+    git_in($repo, 'add', 'implementation-guide/');
+    git_in($repo, 'commit', '-q', '-m', 'task setup');
+
+    # Task branch points at the same commit as main → merge-base == HEAD →
+    # empty diff window, clean worktree.
+    git_in($repo, 'checkout', '-q', '-b', 'bugfix/1-empty');
+
+    my ($out, $err, $rc) = run_helper($repo, '--task-num=1');
+    is($rc, 0, 'helper exits 0 on an empty changeset');
+    like($err, qr{reviewed 0 files}, 'summary reports zero files');
+    is($out, '', 'stdout is empty — no whole-tree diff leaked');
+};
+
+# ---------------------------------------------------------------------------
+# TC-CAP9: the deprecated `test-paths` key is still honoured (with a warning),
+# so an adopter who set the old name does not silently lose their exclusions
+# when CWF renamed it to max-lines-exclude-paths (Task 174).
+# ---------------------------------------------------------------------------
+subtest 'TC-CAP9: deprecated test-paths key still discounts, with a warning' => sub {
+    my $cfg = <<'JSON';
+{ "versioning": { "major_minor": "v1.0" },
+  "security": { "review": { "test-paths": ["t/**"] } } }
+JSON
+    my ($repo) = make_cap_repo(config_json => $cfg);
+
+    make_path("$repo/.cwf/scripts");
+    write_script("$repo/.cwf/scripts/small", 5);
+    make_path("$repo/t");
+    write_script("$repo/t/big.t", 50);
+    git_in($repo, 'add', '.cwf/scripts/small', 't/big.t');
+    git_in($repo, 'commit', '-q', '-m', 'small prod + big test (legacy key)');
+
+    my ($out, $err, $rc) = run_helper($repo, '--max-lines=20');
+    is($rc, 0, 'legacy test-paths still discounts t/** → production under cap');
+    like($err, qr{'security\.review\.test-paths' is deprecated},
+         'deprecation warning emitted for the legacy key');
 };
 
 done_testing();

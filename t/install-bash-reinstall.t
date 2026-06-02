@@ -13,8 +13,11 @@
 #           `cwf-manage update` caller) never landed PERL5OPT/allowlist. The fix
 #           invokes cwf-claude-settings-merge (`-x` guarded, before the version
 #           write), mirroring cwf-manage's run_settings_merge.
-#   item 3: security-review.md §Pathspec coverage omitted .claude/agents/, which
-#           the helper's @CWF_INTERNAL_PREFIXES already includes.
+#   item 3: (historical) security-review.md §Pathspec coverage omitted
+#           .claude/agents/, which the helper's @CWF_INTERNAL_PREFIXES then
+#           included. The TC-7 sync-check for this was removed by Task 174,
+#           which deleted the prefix classifier (the review now covers every
+#           changed file — no prefix list, nothing to keep in sync).
 #
 # E2E cases reuse the Task-155 fixture-server pattern (t/cwf-manage-update-end-to-end.t).
 #
@@ -274,24 +277,11 @@ subtest 'TC-6 (item 2, guard): missing merge helper is tolerated' => sub {
     ok(-e "$consumer/.cwf/version", '.cwf/version written (install reached completion)');
 };
 
-subtest 'TC-7 (item 3): security-review.md doc lists every helper prefix' => sub {
-    my $helper_src = slurp("$REPO_ROOT/.cwf/scripts/command-helpers/security-review-changeset");
-    my $doc_src    = slurp("$REPO_ROOT/.cwf/docs/skills/security-review.md");
-    ok(defined $helper_src && defined $doc_src, 'helper and doc both readable') or return;
-
-    # Helper prefixes: the quoted entries inside @CWF_INTERNAL_PREFIXES = ( ... );
-    my ($block) = $helper_src =~ /\@CWF_INTERNAL_PREFIXES\s*=\s*\((.*?)\)\s*;/s;
-    ok(defined $block, 'parsed @CWF_INTERNAL_PREFIXES block') or return;
-    my @helper_prefixes = $block =~ /'([^']+)'/g;
-    cmp_ok(scalar @helper_prefixes, '>=', 9, 'helper enumerates the expected prefixes');
-
-    # Doc prefixes: backtick-quoted tokens ending in '/' in the coverage prose.
-    my %doc = map { $_ => 1 } ($doc_src =~ /`(\.[^`]+?\/)`/g);
-
-    for my $p (@helper_prefixes) {
-        ok($doc{$p}, "doc enumerates $p");
-    }
-};
+# TC-7 (item 3) removed by Task 174. It asserted that security-review.md's
+# §"Pathspec coverage" enumerated every entry of the helper's
+# @CWF_INTERNAL_PREFIXES list. Task 174 deleted that classifier entirely — the
+# helper now reviews every changed file, so there is no prefix list to keep the
+# doc in sync with, and the invariant this test guarded no longer exists.
 
 # Structural listing of a tree: sorted "kind relpath" lines (l=symlink, d=dir,
 # f=file). Used to compare copy- vs subtree-produced trees (TC-6).

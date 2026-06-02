@@ -2,6 +2,21 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 174: Review all changed files, not just CWF-internal
+
+### Status: Complete (2026-06-02)
+### Duration: ~1 day across 2 sessions (estimate <1 day, Low complexity). Over estimate; complexity landed nearer Medium.
+### Impact: Bugfix — fixes a shipped correctness defect in the exec-phase security-review gate. `security-review-changeset` classified each changed file and emitted to the reviewer **only** those under a hardcoded CWF-internal prefix (`.cwf/`, `.claude/`) **or** carrying a recognised script shebang. Every other changed file — a consumer's `config.go`, `app.ts`, `Main.java`, any compiled-language source — was excluded by construction, so for a project that is not itself a pile of shell/Perl scripts the gate emitted `reviewed 0 files` and the workflow read that as a clean pass. The one thing the feature exists to do — review the code the user is shipping — was the one thing it never did. **Fix**: deleted the classifier (`@CWF_INTERNAL_PREFIXES`, `%CWF_INTERNAL_FILES`, `$SCRIPT_INTERPRETER_RE`, `is_cwf_internal`, `looks_like_script`, the classification loop) and set `@included = @changed` — every changed file is now reviewed, any path, any language (helper net −156 lines). The `--max-lines=500` cap is unchanged in mechanism: it measures production-weighted lines (added+deleted) minus the configured exclude-path globs; test/doc files are **reviewed but not counted**. The empty-`@included` guard (no pathspec → bare whole-tree diff) was preserved as the highest-consequence invariant and is now directly asserted. **Config-key rename** (user-directed, mid-exec): `security.review.test-paths` → `security.review.max-lines-exclude-paths` (the key never only excluded *test* paths), with a backward-compat fallback — the helper reads the new key, falls back to the legacy key with a stderr deprecation warning, and both exec SKILLs now surface any helper `warning:` line verbatim regardless of exit code so adopters get the upgrade nudge. All living docs (helper header, `security-review.md`, both exec SKILLs, agent prompt) swept of CWF-internal-only framing. Same-commit `script-hashes.json` refresh for the two hash-tracked files (helper + agent). Full suite Files=54, Tests=643 green; `cwf-manage validate` clean; both exec-phase security reviews `no findings`.
+
+### Notable
+- **A gate that silently passes is more dangerous than one that errors.** `reviewed 0 files` was a default-allow gate masquerading as default-deny — a latent correctness defect, not a documented limitation. The fix's net direction is *widening* coverage, the opposite of an attack-surface expansion.
+- **Dogfooding caught the defect on the tool itself.** The cap fired at 706 > 500 on this task's own changeset (its wf docs counted as production lines), materialising a-plan Risk 1 on the very task that fixed it. Resolved by adding `implementation-guide/**` to the cap-discount set — never to review exclusion — which in turn exposed the `test-paths` misnomer and triggered the rename. The cap firing was **not** smoothed by hand-building a smaller changeset (the prior anti-pattern).
+- **Plan review reviews logic, not symbol topology.** The 4-subagent map/reduce found nothing wrong with the reasoning, but the plan scoped test reconciliation to the co-located `t/security-review-changeset.t`; two other test files (`t/cwf-check-tree-symlinks.t`, `t/install-bash-reinstall.t`) asserted on the deleted `@CWF_INTERNAL_PREFIXES` and surfaced only at exec. Seeds a backlog item for a plan-time symbol-deletion reference sweep.
+- **Every preserved invariant fails toward more review:** unconfigured/unmatched paths count as production (cap fires earlier), a malformed exclude pattern makes git fatal (exit 1), an empty diff short-circuits before any bare-tree diff. Widening coverage weakened none of them.
+
+### Retired Backlog Items
+None — user-initiated from a discovered shipped defect, not from the backlog. Seeds 2 follow-up items (Task-173 perm-drift housekeeping; plan-time symbol-deletion reference gate) added to BACKLOG.md.
+
 ## Task 173: Audit show-toplevel sites for worktree-safety
 
 ### Status: Complete (2026-05-31)

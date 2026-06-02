@@ -138,7 +138,7 @@ subtest 'CLI: no roots is a usage error (exit 2)' => sub {
 # processing, mirroring the original `readlink(...) // die_msg`.
 
 # --- TC-7: integrity coverage + tamper detection ---------------------------
-subtest 'TC-7 (Task 161): guard is in the ledger, prefix-covered, and tamper-detected' => sub {
+subtest 'TC-7 (Task 161): guard is in the ledger and tamper-detected' => sub {
     # (a) ledger entry exists and matches the on-disk helper.
     my $ledger = JSON::PP->new->decode(read_file("$REPO/.cwf/security/script-hashes.json"));
     my $entry  = $ledger->{scripts}{'cwf-check-tree-symlinks'};
@@ -147,11 +147,10 @@ subtest 'TC-7 (Task 161): guard is in the ledger, prefix-covered, and tamper-det
     is($entry->{permissions}, '0500', 'recorded permissions 0500');
     is($entry->{sha256}, sha256_hex(read_file($HELPER)), 'recorded sha256 matches the on-disk helper');
 
-    # (b) @CWF_INTERNAL_PREFIXES covers .cwf/scripts/ (the auto-review set).
-    my $rev = read_file("$REPO/.cwf/scripts/command-helpers/security-review-changeset");
-    my ($block) = $rev =~ /\@CWF_INTERNAL_PREFIXES\s*=\s*\((.*?)\)\s*;/s;
-    my %pfx = map { $_ => 1 } ($block =~ /'([^']+)'/g);
-    ok($pfx{'.cwf/scripts/'}, '.cwf/scripts/ is in @CWF_INTERNAL_PREFIXES');
+    # (b) The guard is auto-reviewed by the exec-phase security review because,
+    # as of Task 174, security-review-changeset reviews EVERY changed file —
+    # there is no longer an @CWF_INTERNAL_PREFIXES allow-list to be a member of.
+    # The former "prefix-covered" assertion is now vacuous and was removed.
 
     # (c) tamper detection via the real validator on a tempdir fixture.
     require CWF::Validate::Security;

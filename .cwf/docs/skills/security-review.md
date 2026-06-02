@@ -15,7 +15,7 @@ Both callers restrict the subagent to `Read`, `Grep`, and `Glob` per `.cwf/docs/
 
 **Boundary vs the user-facing `/security-review` built-in.** The Claude Code built-in `/security-review` is a separate, user-invoked, branch-level review tool. It is not callable from a subagent and is not chained from any CWF workflow. Mentioned here only so future readers do not conflate the two.
 
-## Pathspec coverage
+## Changeset coverage
 
 The exec-phase subagent reviews the changeset emitted by:
 
@@ -23,34 +23,28 @@ The exec-phase subagent reviews the changeset emitted by:
 .cwf/scripts/command-helpers/security-review-changeset --phase=<implementation|testing>
 ```
 
-This helper is the **single source of truth** for what counts as security-relevant in CWF. Both exec SKILLs invoke the helper rather than inlining a pathspec or anchor.
+This helper is the **single source of truth** for changeset construction (the diff anchor and the review cap) in CWF. Both exec SKILLs invoke the helper rather than inlining a pathspec or anchor.
 
 The helper resolves its diff anchor in two steps. The success path: read the recorded `**Baseline Commit**: <sha>` field from the task's `a-task-plan.md` (written by `cwf-new-task` and `cwf-new-subtask` at branch creation). The fallback path (in-flight tasks created before this field existed): `git merge-base HEAD <trunk>`, where `<trunk>` is taken from the optional top-level `trunk` field of `cwf-project.json`, or from `git symbolic-ref refs/remotes/origin/HEAD`, or hardcoded `main`. The resolved trunk name is validated via `git check-ref-format --branch` before reaching `git merge-base`.
 
-The helper's classification rules over the resulting changed-files list are:
+The helper emits the full `git diff` (anchor → working tree) over **every**
+changed file. There is no path, directory, or language filtering: the security
+review must see every line the task ships, whatever stack the consumer's
+project uses. Test-vs-production weighting applies only to the review cap
+(below), never to what is reviewed — test files are reviewed, but discounted
+from the cap's line count.
 
-1. **CWF-internal coverage (unconditional include)**: paths under `.cwf/scripts/`, `.cwf/lib/`, `.cwf/docs/skills/`, `.cwf/templates/`, `.claude/scripts/`, `.claude/skills/`, `.claude/agents/`, `.claude/hooks/`, `.claude/rules/`, plus the exact files `.claude/settings.json`, `.claude/settings.local.json`, `implementation-guide/cwf-project.json`. Reviewed regardless of file type — markdown skills/rules carry instructions interpreted by Claude.
-2. **Shebang sniff (conditional include)**: any path *outside* (1) is included only if its first line begins with `#!` and the interpreter basename matches the anchored regex `^(?:perl|bash|sh|ksh|zsh|fish|python\d?|ruby|node|deno|php|lua|pwsh|powershell)$`. Symlinks and non-regular files (FIFOs, sockets, devices) are skipped to avoid following arbitrary targets and to defend against DoS-shaped diff entries.
-3. **Default exclude**: anything else.
-
-**Maintainer note**: when adding a new security-relevant tree (e.g. a future `.cwf/scripts/post-install/` or a new hook directory), update the `@CWF_INTERNAL_PREFIXES` list inside the helper script. Silent expansion of the attack surface is the failure mode this single-source-of-truth rule prevents. The shebang interpreter regex is anchored at both ends (`^…$`); future maintainers extending it MUST preserve anchoring.
-
-**Known limitations** (each acceptable for v1; tracked as separate backlog items if a consumer reports a gap):
-
-- Library files outside the CWF-internal directories are missed if they have no shebang (the v2 add-an-`always-included-paths`-config-field follow-up would address this if needed).
-- Shebang-less scripts loaded via `source`/`.` are missed.
-- Uncommon interpreters (`awk`, `tcl`, `make`) are missed; the regex covers the common-case stack.
-- UTF-8 BOM-prefixed shebangs (vanishingly rare on POSIX) are missed.
+**Known limitation**:
 
 If a user rebases their task branch onto a newer trunk mid-task, the recorded baseline names the old fork point and the diff over-includes trunk drift. Mid-task rebase is not a CWF workflow (tasks land via squash + `git branch -f`); accepting this trade-off keeps the design simple.
 
 ### Production-weighted review cap
 
-The full changeset is always emitted to the subagent. Independently, both exec SKILLs pass `--max-lines=500` so the helper enforces a review cap on a **production-weighted** line count rather than the raw diff. The production count is the sum of added+deleted lines (`git diff --numstat`) over the included files, **minus** any path matching a `security.review.test-paths` glob. Those patterns are gitignore/git pathspec globs declared in `cwf-project.json`; git's own `:(glob,exclude)` engine does the matching — the helper performs no path classification of its own and the count excludes diff context/hunk-header lines by construction.
+The full changeset is always emitted to the subagent. Independently, both exec SKILLs pass `--max-lines=500` so the helper enforces a review cap on a **production-weighted** line count rather than the raw diff. The production count is the sum of added+deleted lines (`git diff --numstat`) over all changed files, **minus** any path matching a `security.review.max-lines-exclude-paths` glob. Those patterns are gitignore/git pathspec globs declared in `cwf-project.json`; git's own `:(glob,exclude)` engine does the matching — the helper performs no path classification of its own and the count excludes diff context/hunk-header lines by construction. Excluded paths are still **reviewed** (emitted in the changeset) — they are only discounted from the cap count (tests, generated code, the repo's own process docs, etc.). The former key name `test-paths` is deprecated but still honoured (with a warning) when the new key is absent.
 
-Contract: when the production count exceeds the cap the helper exits `2` (the full diff has already been printed to stdout, so a manual reviewer can still see it); the exec SKILL records `**State**: error` with the helper's `cap exceeded:` reason and does not invoke the subagent. Exit `1` (any construction failure, including a malformed `test-paths` pattern git rejects) is likewise surfaced as `error` — never silently read as an empty "no findings" changeset.
+Contract: when the production count exceeds the cap the helper exits `2` (the full diff has already been printed to stdout, so a manual reviewer can still see it); the exec SKILL records `**State**: error` with the helper's `cap exceeded:` reason and does not invoke the subagent. Exit `1` (any construction failure, including a malformed `max-lines-exclude-paths` pattern git rejects) is likewise surfaced as `error` — never silently read as an empty "no findings" changeset.
 
-Fail-safe direction and limitation: `security.review.test-paths` defaults unset, so with no configuration there is no discount and the cap measures raw production lines (no regression for any repo). Any layout that is unconfigured or unmatched counts as *production* — the cap fires earlier, never later. Directory-based test layouts (e.g. `t/**`, `tests/**`) are covered cleanly; co-located suffix conventions (`**/*_test.go`, `**/*.spec.ts`) are expressible as globs but not exhaustively pursued. An uncovered test file is a *coverage* gap (counts as production), never an *unsafe* one. The helper (`.cwf/scripts/command-helpers/security-review-changeset`) is the source of truth for this count.
+Fail-safe direction and limitation: `security.review.max-lines-exclude-paths` defaults unset, so with no configuration there is no discount and the cap measures raw production lines (no regression for any repo). Any layout that is unconfigured or unmatched counts as *production* — the cap fires earlier, never later. Directory-based test layouts (e.g. `t/**`, `tests/**`) are covered cleanly; co-located suffix conventions (`**/*_test.go`, `**/*.spec.ts`) are expressible as globs but not exhaustively pursued. An uncovered test file is a *coverage* gap (counts as production), never an *unsafe* one. The helper (`.cwf/scripts/command-helpers/security-review-changeset`) is the source of truth for this count.
 
 ## Threat categories
 
@@ -134,7 +128,7 @@ holds the full review instructions and the verdict-block contract;
 the SKILL-side prompt only needs to pass `{phase}` and `{changeset}`.
 
 Substitute `{changeset}` (the `git diff` output produced per
-§ "Pathspec coverage") and `{phase}` (= `"implementation"` or
+§ "Changeset coverage") and `{phase}` (= `"implementation"` or
 `"testing"`).
 
 ```

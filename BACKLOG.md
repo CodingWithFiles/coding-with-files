@@ -2,6 +2,43 @@
 
 Future tasks and improvements for the Coding with Files system.
 
+## Task: Restore Task-173 permission drift on three helper scripts
+
+### Task-Type: chore
+### Priority: Medium
+### Status: Follow-up from Task 174 (j-retrospective.md §Future Work)
+### Identified in: Task 174 f-implementation-exec.md §Blockers, j-retrospective.md
+
+Three scripts content-modified in Task 173 (baseline `c886856`) sit at on-disk `0700`
+against their recorded `0500` ceiling, because Task 173 skipped restoring edited-script
+perms to recorded: `.cwf/scripts/command-helpers/context-manager.d/location`,
+`.cwf/scripts/migrations/migrate-v2.1-file-order`,
+`.cwf/scripts/command-helpers/template-copier-v2.0`. git stores only mode `100755`, so
+the `0700`/`0500` distinction is invisible to `git status` and the drift is not in any
+task diff — `cwf-manage validate` flags the live `0700`, and the drift produced 12
+spurious full-suite failures during Task 174 (worked around by clamping in the working
+tree only). Scope: run `cwf-manage fix-security` (clamp to recorded) on the three files
+and commit, or verify they are already clamped and record the disposition. No source
+change, so no hash refresh. Cites `feedback_hashed_script_working_perms` (recorded perms
+are a ceiling as of Task 170).
+
+## Task: Plan-time symbol-deletion reference sweep
+
+### Task-Type: chore
+### Priority: Low
+### Status: Follow-up from Task 174 (j-retrospective.md §Process Improvements)
+### Identified in: Task 174 d-implementation-plan.md §Lessons Learned, j-retrospective.md
+
+When a plan proposes deleting a named symbol (sub, constant, package var), grep the
+whole repo for every reference and surface them as a plan-review finding. In Task 174
+the plan source-grepped for the deleted `@CWF_INTERNAL_PREFIXES` but did not extend the
+grep to *test assertions* on it, so two test files (`t/cwf-check-tree-symlinks.t`,
+`t/install-bash-reinstall.t`) coupled to the constant surfaced only at exec. Symbol-
+deletion impact is a mechanical dimension distinct from plan logic — complementary to
+the existing "Plan-time helper-path verification gate" backlog item, and could share the
+same plan-review pass. Scope: grep d-plan (and ideally c-plan) for symbols slated for
+deletion, `grep` each across the repo, list references. Cheap; mechanical.
+
 ## Task: Adopt guarded EnterWorktree/ExitWorktree for CWF scratch-worktree flows
 
 ### Task-Type: feature

@@ -13,7 +13,7 @@ tool-tier preference and blocking bash anti-patterns. Honour them.
 
 - `{phase}` — `implementation` or `testing`.
 - `{changeset}` — the `git diff` output produced per
-  `.cwf/docs/skills/security-review.md` § "Pathspec coverage".
+  `.cwf/docs/skills/security-review.md` § "Changeset coverage".
 
 ## Procedure
 

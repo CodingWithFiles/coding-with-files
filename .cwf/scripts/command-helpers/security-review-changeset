@@ -3,7 +3,7 @@
 # security-review-changeset - Construct the changeset reviewed by the
 # exec-phase security-review subagent.
 #
-# Single source of truth for what counts as security-relevant in CWF.
+# Single source of truth for changeset construction (anchor + cap) in CWF.
 # Called from the Step 8 of cwf-implementation-exec/SKILL.md and
 # cwf-testing-exec/SKILL.md. Documents its contract in
 # .cwf/docs/skills/security-review.md.
@@ -16,17 +16,16 @@
 #      git symbolic-ref refs/remotes/origin/HEAD, or hardcoded 'main'.
 #      The resolved trunk name is validated by `git check-ref-format --branch`.
 #
-# File classification (over the diff window only):
-#   1. Paths under CWF-internal directories are included unconditionally.
-#   2. Other paths are included only if they begin with `#!` and the
-#      interpreter basename matches the anchored regex below.
-#   3. Other paths are excluded.
+# Changeset scope:
+#   The full diff (anchor → working tree) over every changed file. No path,
+#   directory, or language filtering — the security review must see every line
+#   the task ships. Test-vs-production weighting applies only to the cap below.
 #
 # Production-weighted cap (--max-lines):
 #   The full diff is always emitted to stdout. When --max-lines=N is given,
 #   the helper also computes a production-weighted line count: added+deleted
 #   lines (git diff --numstat) over the included files, minus any path
-#   matching a `security.review.test-paths` pattern from cwf-project.json.
+#   matching a `security.review.max-lines-exclude-paths` pattern from cwf-project.json.
 #   Those patterns are gitignore/git pathspec globs, applied by git's own
 #   :(glob,exclude) engine — no Perl-side path matching. Default unset =>
 #   no excludes => count == raw production lines. If the production count
@@ -39,7 +38,7 @@
 #                             [--max-lines=N] [--verbose]
 #
 # Output:
-#   stdout: filtered git diff output (the changeset for the subagent).
+#   stdout: git diff output (the full changeset for the subagent).
 #   stderr: one-line summary
 #           `reviewed N files, M lines (P production), anchor=<sha7>`,
 #           with optional `, includes uncommitted` suffix when the working
@@ -51,7 +50,7 @@
 # Exit:
 #   0 ok (changeset may be empty)
 #   1 error (unparseable branch, task not found, malformed trunk,
-#     invalid --max-lines, malformed test-paths pattern, etc.)
+#     invalid --max-lines, malformed max-lines-exclude-paths pattern, etc.)
 #   2 production-weighted line count exceeds --max-lines (changeset on stdout)
 
 use strict;
@@ -65,37 +64,6 @@ use CWF::TaskPath qw(parse_branch resolve_num);
 check_perl5opt();
 
 my $PROG = 'security-review-changeset';
-
-# ---------------------------------------------------------------------------
-# CWF-internal coverage. Unconditional include for these paths/prefixes.
-# Maintainers extending the security-relevant directory set edit this list.
-# ---------------------------------------------------------------------------
-my @CWF_INTERNAL_PREFIXES = (
-    '.cwf/scripts/',
-    '.cwf/lib/',
-    '.cwf/docs/skills/',
-    '.cwf/templates/',
-    '.claude/scripts/',
-    '.claude/skills/',
-    '.claude/agents/',
-    '.claude/hooks/',
-    '.claude/rules/',
-);
-my %CWF_INTERNAL_FILES = map { $_ => 1 } (
-    '.claude/settings.json',
-    '.claude/settings.local.json',
-    'implementation-guide/cwf-project.json',
-);
-
-# ---------------------------------------------------------------------------
-# Shebang interpreter regex. Anchored at both ends.
-# Future maintainers extending this list MUST preserve `^…$`. An unanchored
-# alternative could match arbitrary substrings inside a shebang line and
-# wrongly include unrelated files.
-# CWF presently uses SHA-1 baseline hashes. If CWF migrates SHAs, the
-# 40-char regex in parse_baseline_line() must update separately.
-# ---------------------------------------------------------------------------
-my $SCRIPT_INTERPRETER_RE = qr/^(?:perl|bash|sh|ksh|zsh|fish|python\d?|ruby|node|deno|php|lua|pwsh|powershell)$/;
 
 # ---------------------------------------------------------------------------
 # CLI parsing
@@ -166,23 +134,13 @@ $anchor //= resolve_anchor_from_fallback();
 my @changed = list_changed_files($anchor);
 
 # ---------------------------------------------------------------------------
-# Classify changed files: CWF-internal dirs unconditionally, others
-# only if shebang sniff matches a known script interpreter.
+# Review the full changeset: every changed file, no path/language filter.
+# Test-vs-production weighting happens only in the cap (count_production_lines).
 # ---------------------------------------------------------------------------
-my @included;
-for my $path (@changed) {
-    if (is_cwf_internal($path)) {
-        push @included, $path;
-        next;
-    }
-    if (looks_like_script($path)) {
-        push @included, $path;
-        next;
-    }
-}
+my @included = @changed;
 
 # ---------------------------------------------------------------------------
-# Emit filtered diff (or empty changeset) and stderr summary
+# Emit the full diff (or empty changeset) and stderr summary
 # ---------------------------------------------------------------------------
 my $short = substr($anchor, 0, 7);
 my $dirty_rc = git_check('diff', '--quiet', 'HEAD');
@@ -202,7 +160,7 @@ print $diff;
 # Production-weighted count: added+deleted lines over the included files,
 # minus any path matching a consumer-declared test-path glob. Git owns the
 # matching (:(glob,exclude) magic pathspecs) — no Perl path classification.
-my @exclude = test_path_excludes();
+my @exclude = max_lines_exclude_paths();
 my $production = count_production_lines($anchor, \@included, \@exclude);
 
 warn sprintf("reviewed %d files, %d lines (%d production), anchor=%s%s\n",
@@ -234,9 +192,9 @@ Options:
                    effect on the changeset). PHASE is 'implementation' or 'testing'.
   --task-num=NUM   Override task-number inference from the current branch name.
                    NUM must match /^\\d+(\\.\\d+)*\$/.
-  --max-lines=N    Cap on production-weighted lines (added+deleted over included
-                   files, minus security.review.test-paths globs). N is a positive
-                   integer. When the count exceeds N, exit 2 after emitting the diff.
+  --max-lines=N    Cap on production-weighted lines (added+deleted over all changed
+                   files, minus security.review.max-lines-exclude-paths globs). N is a
+                   positive integer. When the count exceeds N, exit 2 after emitting the diff.
   --verbose        On stderr, list the included paths after the summary line.
   --help           Show this message.
 
@@ -394,16 +352,20 @@ sub list_changed_files {
 }
 
 # ---------------------------------------------------------------------------
-# Read consumer-declared test-path globs from cwf-project.json's
-# security.review.test-paths and return them as git exclude pathspecs.
-# The repo owns the truth about its own test layout (as a test runner's
-# config already does); the helper does NO path matching itself.
+# Read consumer-declared exclude globs from cwf-project.json's
+# security.review.max-lines-exclude-paths and return them as git exclude
+# pathspecs. These paths are still REVIEWED (emitted in the diff) — they are
+# only discounted from the --max-lines production count (e.g. tests, generated
+# code, process docs). The repo owns the truth about its own layout (as a test
+# runner's config already does); the helper does NO path matching itself.
 # Reuses the eval-guarded read_config() (also used on the fallback anchor
 # path): missing / unreadable / malformed config => empty list (never fatal,
 # never a silent discount — unmatched paths count as production). Entries
 # that are not non-empty NUL-free strings are skipped defensively.
+# Back-compat: the former key name `test-paths` is still honoured (with a
+# deprecation warning) when the new key is absent.
 # ---------------------------------------------------------------------------
-sub test_path_excludes {
+sub max_lines_exclude_paths {
     my $cfg = eval {
         require CWF::Versioning;
         CWF::Versioning::read_config();
@@ -413,7 +375,12 @@ sub test_path_excludes {
     return () unless ref $sec eq 'HASH';
     my $review = $sec->{review};
     return () unless ref $review eq 'HASH';
-    my $paths = $review->{'test-paths'};
+    my $paths = $review->{'max-lines-exclude-paths'};
+    if (!defined $paths && defined $review->{'test-paths'}) {
+        warn "$PROG: warning: 'security.review.test-paths' is deprecated; "
+           . "rename it to 'security.review.max-lines-exclude-paths'\n";
+        $paths = $review->{'test-paths'};
+    }
     return () unless ref $paths eq 'ARRAY';
 
     my @excludes;
@@ -452,65 +419,4 @@ sub count_production_lines {
         $total += $added + $deleted;
     }
     return $total;
-}
-
-# ---------------------------------------------------------------------------
-# Path classification: CWF-internal directory or exact-file match.
-# ---------------------------------------------------------------------------
-sub is_cwf_internal {
-    my ($path) = @_;
-    return 1 if exists $CWF_INTERNAL_FILES{$path};
-    for my $prefix (@CWF_INTERNAL_PREFIXES) {
-        return 1 if index($path, $prefix) == 0;
-    }
-    return 0;
-}
-
-# ---------------------------------------------------------------------------
-# Shebang sniff. Skips deleted, symlinks, and non-regular files (FIFOs,
-# sockets, devices) — DoS guard. Reads up to 128 bytes <:raw, takes the
-# first line, checks for #!, parses the interpreter basename, matches
-# against the anchored regex.
-# ---------------------------------------------------------------------------
-sub looks_like_script {
-    my ($path) = @_;
-    return 0 unless -e $path;
-    return 0 if -l $path;
-    return 0 unless -f $path;
-
-    open(my $fh, '<:raw', $path) or return 0;
-    my $buf;
-    my $n = sysread($fh, $buf, 128);
-    close $fh;
-    return 0 unless defined $n && $n >= 2;
-
-    # Take the first line — bytes up to first \n or \r.
-    my $first;
-    if ($buf =~ /^([^\r\n]*)/) {
-        $first = $1;
-    } else {
-        return 0;
-    }
-    return 0 unless $first =~ /^#!/;
-
-    # Strip the leading `#!` and any whitespace after.
-    my $rest = substr($first, 2);
-    $rest =~ s/^\s+//;
-
-    # `#!/usr/bin/env <name>...` → interpreter is the token after env.
-    my $interp;
-    if ($rest =~ m{^(?:/[^ \t]+/)?env\s+(\S+)}) {
-        $interp = $1;
-    }
-    elsif ($rest =~ m{^(\S+)}) {
-        my $cmd = $1;
-        # basename: drop any leading path component.
-        $cmd =~ s{.*/}{};
-        $interp = $cmd;
-    }
-    else {
-        return 0;
-    }
-
-    return $interp =~ $SCRIPT_INTERPRETER_RE ? 1 : 0;
 }
