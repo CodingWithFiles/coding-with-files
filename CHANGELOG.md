@@ -2,6 +2,20 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 175: Record commit SHA, not annotated-tag object SHA, in `.cwf/version`
+
+### Status: Complete (2026-06-02)
+### Duration: part of one session (estimate <0.5 day, Low complexity). On estimate.
+### Impact: Bugfix — a tagged install/update recorded the wrong `cwf_sha` in `.cwf/version`. `git rev-parse <ref>` returns the *tag-object* SHA for an annotated tag, not the commit it points to, and both SHA-recording sites used the bare form: `scripts/install.bash:310` (`resolved_sha="$(git … rev-parse "$resolved_ref")"`) and `.cwf/scripts/cwf-manage` `resolve_sha:225` (`'rev-parse', $ref`). So installing at `v1.1.169` recorded `cwf_sha=473baea…` (the tag object) while the tag's commit was `0764380…`. The field is display-only — `cwf-manage status` prints it and nothing verifies against it — but the false mismatch misled a real upgrade session into wrongly concluding "subtree installs HEAD, can't pin a tag" (it pins correctly). **Fix**: peel the resolved ref to its commit with `^{commit}` at both sites (`rev-parse "${resolved_ref}^{commit}"` / `'rev-parse', "$ref^{commit}"`) — a no-op for branches, lightweight tags, raw SHAs, and `HEAD`; only annotated tags change. Matches the established `^{commit}` idiom at `security-review-changeset:285` and `task-workflow.d/delete:209`; no new helper (Rule of Three not met). New TDD test `t/version-records-commit-sha.t` builds an upstream with **annotated** tags (`git tag -a`) — the discriminator the shared lightweight-tag fixtures lack — and asserts `cwf_sha == rev-parse <tag>^{commit}` and `!= rev-parse <tag>` for both install.bash and `cwf-manage update`, with a `cwf_version=<tag>` regression guard (red pre-fix, green after). Same-commit `script-hashes.json` refresh for `cwf-manage`. Full suite **Files=55, Tests=645** green; `cwf-manage validate` clean; both exec-phase security reviews `no findings`. Forward-only — existing installs keep their recorded tag-object SHA until the next install/update rewrites it.
+
+### Notable
+- **The annotated-vs-lightweight distinction is the whole test.** The shared `build_upstream` fixtures create *lightweight* tags, for which `rev-parse <tag>` already equals the commit and the bug cannot reproduce. Surfaced at plan review; the test creating its own annotated tag is what gives every assertion discriminating power.
+- **`fix-security` is the wrong tool for a missing-bits drift.** During testing, `t/cwf-manage-fix-security.t` TC-8 failed: `.claude/agents/cwf-security-reviewer-changeset.md` sat at `0400`, below its recorded **floor** `0444`. An earlier `fix-security` in the same session had *clamped* the drift (`0600 & 0444 = 0400`) — clamping only removes bits, so it satisfied `validate`'s **ceiling** but couldn't restore the missing read bits. Resolved with `chmod 0444` (the recorded value, exactly what `install.bash` provisions). Local working-tree repair only — perms aren't git-tracked for non-executables, so no diff and outside this task's changeset.
+- **A green `validate` is not proof perms are correct.** `validate` is a one-sided ceiling check; TC-8 is the complementary floor. Recorded perms satisfy both only when on-disk perms *equal* the recorded value.
+
+### Retired Backlog Items
+None — task originated from an upgrade-log assessment, not the backlog. The pre-existing "Restore Task-173 permission drift on three helper scripts" item remains open (this task touched a different drifted file opportunistically).
+
 ## Task 174: Review all changed files, not just CWF-internal
 
 ### Status: Complete (2026-06-02)

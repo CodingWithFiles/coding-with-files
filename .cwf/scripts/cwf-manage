@@ -222,7 +222,7 @@ sub resolve_ref {
 
 sub resolve_sha {
     my ($clone_dir, $ref) = @_;
-    open my $fh, '-|', 'git', '-C', $clone_dir, 'rev-parse', $ref
+    open my $fh, '-|', 'git', '-C', $clone_dir, 'rev-parse', "$ref^{commit}"
         or die_msg("Failed to run git rev-parse: $!");
     my $sha = <$fh>;
     close $fh;

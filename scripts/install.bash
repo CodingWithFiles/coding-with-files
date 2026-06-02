@@ -307,7 +307,7 @@ main() {
 
     # Get the SHA for the version file
     local resolved_sha
-    resolved_sha="$(git -C "$TMPDIR_CWF/cwf-source" rev-parse "$resolved_ref")"
+    resolved_sha="$(git -C "$TMPDIR_CWF/cwf-source" rev-parse "${resolved_ref}^{commit}")"
 
     # Install
     case "$CWF_METHOD" in
