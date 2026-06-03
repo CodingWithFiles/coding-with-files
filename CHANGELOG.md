@@ -2,6 +2,21 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 177: Ground EnterWorktree/ExitWorktree adoption in latest docs and CWF code (discovery)
+
+### Status: Complete (2026-06-03)
+### Duration: one session (estimate <1 day, Low complexity). On estimate.
+### Impact: Discovery — re-grounds the "Adopt guarded EnterWorktree/ExitWorktree" backlog item against the **live** tool schemas and a fresh code inventory, replacing Task-172-era inference with citation. **No CWF code changes** (by design); the deliverable is a cited findings file (`f-implementation-exec.md`) plus one rewritten backlog entry. Verdicts: **C1** (guard applies only to `EnterWorktree`-created worktrees), **C3** (`worktree.baseRef` defaults to `fresh` = origin/default, conflicting with branch-off-HEAD), **C4** (`baseRef: head` branches from current HEAD) **Confirmed** from verbatim schema fragments; **C2** (`ExitWorktree remove` refuses on uncommitted changes unless `discard_changes: true`) **Confirmed-by-schema** with the runtime residual logged **Unverifiable-by-safe-probe** (the only guard-exercising path, `EnterWorktree`, switches CWD and is gated — no probe run, per design Decision 4). **C5 Refuted**: CWF's scripts contain **no** raw `git worktree add`/`remove --force` — only two read-only `git worktree list` calls; the old backlog body's "`task-workflow.d/delete` raw flow" example was false (that check is read-only `list` + `die`). **C6 Confirmed** (the actual gap): worktrees *are* used with CWF via undefined/unguarded paths — most dangerously the model self-initiating raw `git worktree add` mid-task (evidenced first-hand in Task 136 `f-implementation-exec.md:82-83`), plus manual procedures (Tasks 136/32) and the Agent `isolation: worktree`. **Outcome**: the backlog item is **reframed, not retired** — from "guard CWF's raw flows" to "define a robust, guarded CWF worktree process" built on the harness tools (create via `EnterWorktree` so the guard applies, set `baseRef: head`, never `discard_changes: true` unprompted). Rewrite went through `cwf-backlog-manager` (delete+add, `--body-file`); single live entry confirmed (validate exit 0). TC-1…TC-6 all PASS; both exec-phase security reviews `no findings` (docs-only).
+
+### Notable
+- **Refuted ≠ nothing to do.** A falsified premise (C5: no scripted worktree flow) left a real gap (C6: no *defined* process for the worktree use that happens anyway). Separating the harness-behaviour verdict from a relevance-to-CWF axis (design Decision 2) kept a dead premise from killing a live feature; an operator clarification mid-planning is what surfaced C6 and drove the b–e revision (`b07e787`).
+- **The unsafe probe was correctly refused.** C2's removal-refusal could only be watched-it-happen via `EnterWorktree`, which switches the session CWD (the `feedback_worktree_cwd_dataloss` hazard) and is gated. The residual was logged Unverifiable-by-safe-probe rather than smoothed into a false Confirmed — honouring `feedback_surface_security_dont_smooth`.
+- **Deferred + gated is a feature, not a blocker.** `EnterWorktree`/`ExitWorktree` load via `ToolSearch` and are gated to "user directly **or** project instructions (CLAUDE.md/memory)" — so a documented CWF worktree process *is* the authorisation that legitimises automated use.
+- **Re-derived beats remembered.** A fresh grep found 6 actual `--show-toplevel` sites, not the stale "13" carried in `feedback_worktree_cwd_dataloss` (Task 173 had since routed most through a worktree-safe resolver).
+
+### Retired Backlog Items
+None — user-initiated to re-ground an existing backlog item, not to complete it. The item "Adopt guarded EnterWorktree/ExitWorktree as CWF's defined worktree process" remains open (rewritten in place), ready to plan as a feature; two carry-forward notes (confirm the C2 refusal when wiring `EnterWorktree`; the feature's security review must keep the `discard_changes` gate from being auto-authorised) live in that entry and `j-retrospective.md`.
+
 ## Task 176: Split `workflow-steps.md` into per-anchor docs
 
 ### Status: Complete (2026-06-02)
