@@ -1364,3 +1364,21 @@ Define a robust, guarded CWF worktree process built on the harness's `EnterWorkt
 **Scope.** (1) Create scratch worktrees via `EnterWorktree` so the C2 guard applies at all — model/manual raw `git worktree add` must be steered onto this path. (2) Set `worktree.baseRef: head`. (3) **Never** pass `discard_changes: true` unprompted — the guard friction is the feature (`feedback_surface_security_dont_smooth.md`); surface teardown to the operator rather than auto-removing. (4) A CWF skill must `ToolSearch` (`select:EnterWorktree,ExitWorktree`) to load these deferred tools, and rely on the gate's "project instructions (CLAUDE.md/memory)" clause — a documented CWF process *is* that authorisation. (5) Update `tmp-paths.md`; hash-refresh any edited helper. (6) Subsumes R6: no-needless-`cd`/absolute-path discipline so the dominant permission prompts stop; explicitly reject allowlist-broadening as the fix.
 
 **Open question (runtime residual).** C2's refusal is Confirmed-by-schema but not watched-it-happen: the only path that exercises it (`EnterWorktree`) switches the session CWD and is gated, so Task 177 did not run a removal probe (data-loss/gating risk). The feature task should confirm the refusal behaviour the first time it wires `EnterWorktree` in, against scratch-only content.
+
+## Task: CWF-managed Claude Code sandboxing config (R2 credential deny-list, R1 phase-scoped writes, R3 violation logging)
+
+### Task-Type: feature
+### Priority: Medium
+
+Discovery Task 178 assessed CWF-managed Claude Code sandboxing for three operator asks and recommends BUILD, staged, decomposed at /cwf-new-task time. CWF *advises* config and *observes* via hooks; Claude Code + the OS enforce; the operator can widen/disable — CWF cannot guarantee any boundary (state "advises", never "enforces").
+
+Shared prerequisite (build first): extend `.cwf/scripts/command-helpers/cwf-claude-settings-merge` to (a) manage `sandbox.*` and `permissions.deny` (it writes `permissions.allow` only today), and (b) widen its hook-event allowlist beyond `{Stop, SubagentStop}` to `PreToolUse` (and `PostToolUseFailure` for R3). The helper is hash-tracked — each edit MUST land its `.cwf/security/script-hashes.json` refresh in the SAME commit (`docs/conventions/hash-updates.md`); add no surface that silences `cwf-manage validate`.
+
+Staging (by verdict strength):
+1. R2 credential deny-list (Feasible-with-caveats; cleanest). The sandbox is Bash-only, so ship PAIRED `sandbox.filesystem.denyRead` (Bash subprocess path) + `Read(...)` permission deny (Read tool path) — neither alone is sufficient. Defaults `~/.ssh`, `~/.aws`; editable list in `cwf-project.json`; `~` expands to `$HOME`; cross-scope merge is union, so an adopter narrows a shipped default via `allowRead`, not by deleting the entry. Recommend pairing with `allowUnsandboxedCommands:false` guidance to make the Bash path enforceable.
+2. R1 phase-scoped writes (Feasible-with-caveats via a PreToolUse hook; NOT feasible as a static per-phase sandbox switch — no such key, and Edit/Write tools never enter the sandbox). Hook keyed on the wf step inferred from on-disk task files / `task-stack`, gating Edit/Write to the task's planning files during phases a–e.
+3. R3 issue logging (Feasible-with-caveats — UNRELIABLE; default OFF switch in `cwf-project.json`). No structured "sandbox violated" hook event exists; only proxies: PreToolUse observing the `dangerouslyDisableSandbox` param before the unsandboxed retry, and PostToolUseFailure (noisy). Logging observes only — it must never silence or disable a boundary (`feedback_surface_security_dont_smooth`).
+
+Don't-build: R1 as a static `allowWrite` switch; R3 as reliable violation detection. Managed-only lockdowns (`allowManagedReadPathsOnly`, `failIfUnavailable`, `allowManagedDomainsOnly`) are an operator/MDM concern, not config CWF writes into a project's `.claude/settings.json`.
+
+Weaknesses to carry into the build: default read leaks credentials; non-TLS-inspecting egress proxy (domain fronting); `excludedCommands` has no managed lockdown; fail-open unless `failIfUnavailable:true`; agent-reachable `dangerouslyDisableSandbox`; subprocess env inheritance (use `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB`). Full evidence + citations: implementation-guide/178-discovery-integrate-claude-code-sandboxing-into-cwf/f-implementation-exec.md.
