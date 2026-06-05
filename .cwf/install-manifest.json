@@ -9,7 +9,8 @@
       "dest": ".gitignore",
       "lines": [
         ".cwf/task-stack",
-        ".cwf/.update.lock"
+        ".cwf/.update.lock",
+        ".cwf/sandbox-violations.log"
       ]
     },
     {

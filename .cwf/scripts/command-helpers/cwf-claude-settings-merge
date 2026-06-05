@@ -10,9 +10,9 @@
 # matcher via header-comment directives in its first 15 lines:
 #   # cwf-hook-event: SubagentStop
 #   # cwf-hook-matcher: cwf-security-reviewer-changeset
-# Directive values are validated (event in {Stop,SubagentStop}; matcher is
-# [A-Za-z0-9_-]+) before they reach a settings key; anything else falls back to
-# the Stop / no-matcher default.
+# Directive values are validated (event in {Stop,SubagentStop,PreToolUse};
+# matcher is [A-Za-z0-9_-]+) before they reach a settings key; anything else
+# falls back to the Stop / no-matcher default.
 #
 # Idempotent: re-running adds only missing entries; existing user entries are
 # preserved (env.PERL5OPT is added only when absent; a differing value is
@@ -57,6 +57,18 @@ my $settings_path = "$settings_dir/settings.json";
 
 my @ALLOWED_MANIFEST_PATH_PREFIXES = ('.cwf/scripts/');
 
+# Task 179 — CWF-managed Claude Code sandboxing.
+# cwf-project.json is the single source of truth for the sandbox knobs; the
+# relative path matches this helper's existing cwd==git-root invariant (it is
+# NOT CWF::Versioning's absolute config_path — a different cwd model).
+my $config_path = 'implementation-guide/cwf-project.json';
+# The R3 logging hook is registered ONLY when sandbox.violation-logging is true,
+# even though it is always present in the integrity manifest. Compile-time
+# literal so the gate can never be redirected by manifest content.
+my $R3_HOOK_PATH = '.cwf/scripts/hooks/pretooluse-sandbox-logging';
+# dep → package, compile-time literals (FR4(e)): never sourced from probe output.
+my %SANDBOX_DEPS = ( bwrap => 'bubblewrap', socat => 'socat' );
+
 # --- Manifest reader -------------------------------------------------------
 sub read_manifest { return read_json_file($manifest_path); }
 
@@ -79,7 +91,7 @@ sub read_hook_directives {
         last if ++$n > 15;
         if ($line =~ /^#\s*cwf-hook-event:\s*(\S+)/) {
             my $v = $1;
-            $event = $v if $v =~ /^(?:Stop|SubagentStop)$/;
+            $event = $v if $v =~ /^(?:Stop|SubagentStop|PreToolUse)$/;
         }
         elsif ($line =~ /^#\s*cwf-hook-matcher:\s*(\S+)/) {
             my $v = $1;
@@ -96,7 +108,7 @@ sub read_hook_directives {
 #  - hook_entries:  list of { entry => { type, command, timeout }, event,
 #                             matcher } where matcher may be undef.
 sub partition_manifest {
-    my ($json) = @_;
+    my ($json, $register_r3) = @_;
     my (@allow, @hooks);
 
     my $scripts = $json->{scripts} || {};
@@ -123,6 +135,10 @@ sub partition_manifest {
             next;
         }
         elsif ($path =~ m{^\.cwf/scripts/hooks/[^/]+$}) {
+            # R3 logging hook: registered only when opted in (sandbox on +
+            # violation-logging true). Skipped entirely otherwise, so the
+            # sandbox-OFF output is byte-for-byte today's behaviour.
+            next if $path eq $R3_HOOK_PATH && !$register_r3;
             push @allow, "Bash($path)";
             my ($event, $matcher) = read_hook_directives($path);
             push @hooks, {
@@ -291,24 +307,175 @@ sub atomic_write {
     return;
 }
 
+# --- Sandbox config (Task 179) ---------------------------------------------
+# Mirrors CWF::Validate::Config::_is_bool: a JSON boolean, or 0/1 from a
+# round-trip. The helper re-checks types itself — it does not assume
+# cwf-manage validate ran (the merge_env "no trust-gate" stance).
+sub _cfg_is_bool {
+    my ($v) = @_;
+    return ref($v) =~ /^JSON::PP::Boolean$/
+        || (defined $v && !ref($v) && $v =~ /^[01]$/);
+}
+
+# Re-validate the sandbox block; die [CWF] ERROR: on any malformed field. A
+# corrupt credential boundary must surface, never silently degrade to OFF
+# (feedback_surface_security_dont_smooth).
+sub validate_sandbox_block_or_die {
+    my ($s) = @_;
+    for my $k (qw(enabled fail-if-unavailable violation-logging)) {
+        next unless exists $s->{$k};
+        next if _cfg_is_bool($s->{$k});
+        die "[CWF] ERROR: $config_path: sandbox.$k must be a boolean\n";
+    }
+    if (exists $s->{'credential-deny-list'}) {
+        my $list = $s->{'credential-deny-list'};
+        die "[CWF] ERROR: $config_path: sandbox.credential-deny-list must be an array\n"
+            unless ref $list eq 'ARRAY';
+        for my $e (@$list) {
+            die "[CWF] ERROR: $config_path: sandbox.credential-deny-list entries must be path strings\n"
+                unless defined $e && !ref $e;
+        }
+    }
+    return;
+}
+
+# Read the optional sandbox block. undef ⇒ feature OFF (today's behaviour):
+# config file absent (the -f guard is required — read_json_file DIES on a
+# missing file, which would regress fresh installs), or no `sandbox` block.
+# A present-but-malformed block dies (above); unparseable JSON dies inside
+# read_json_file. Returns the validated sandbox hashref otherwise.
+sub read_sandbox_config {
+    return undef unless -f $config_path && !-l $config_path;
+    my $config = read_json_file($config_path);
+    return undef unless ref $config eq 'HASH';
+    my $s = $config->{sandbox};
+    return undef unless defined $s;
+    die "[CWF] ERROR: $config_path: sandbox must be a JSON object\n"
+        unless ref $s eq 'HASH';
+    validate_sandbox_block_or_die($s);
+    return $s;
+}
+
+# A permissions.deny entry is CWF-owned iff it is a Read(...) rule — the only
+# deny shape CWF emits (R2). In the generated settings.json the whole Read(...)
+# deny region is therefore CWF-owned (ownership-by-shape, c-design D2): user
+# Read overrides belong in settings.local.json (higher precedence, untouched).
+# Non-Read denies (e.g. Bash(curl *)) are user-owned and preserved. No sidecar,
+# no persisted provenance — removal touches only what CWF can itself re-derive.
+sub is_cwf_read_deny {
+    my ($e) = @_;
+    return defined $e && !ref $e && $e =~ /^Read\(.+\)$/;
+}
+
+# Authoritatively reconcile the CWF-owned sandbox region. Every run first
+# removes the whole region (the sandbox.* block + all CWF-shaped Read(...) deny
+# entries) so a changed-then-disabled list leaves no orphans; then, when ON,
+# rewrites the desired set. failIfUnavailable is part of the CWF-owned block:
+# the cwf-project.json knob is authoritative and always reflected (overrides
+# belong in the knob / settings.local.json, never the generated file).
+# Returns the number of credential paths written.
+sub reconcile_sandbox {
+    my ($settings, $on, $fail_if_unavailable, @deny) = @_;
+
+    delete $settings->{sandbox};
+    if (ref $settings->{permissions} eq 'HASH'
+        && ref $settings->{permissions}{deny} eq 'ARRAY') {
+        @{ $settings->{permissions}{deny} }
+            = grep { !is_cwf_read_deny($_) } @{ $settings->{permissions}{deny} };
+        delete $settings->{permissions}{deny}
+            unless @{ $settings->{permissions}{deny} };
+    }
+
+    return 0 unless $on;
+
+    $settings->{sandbox} = {
+        enabled           => JSON::PP::true,
+        failIfUnavailable => ($fail_if_unavailable ? JSON::PP::true : JSON::PP::false),
+    };
+    if (@deny) {
+        $settings->{sandbox}{filesystem} = { denyRead => [ @deny ] };
+        $settings->{permissions}      ||= {};
+        $settings->{permissions}{deny} ||= [];
+        my %seen = map { $_ => 1 } @{ $settings->{permissions}{deny} };
+        for my $p (@deny) {
+            for my $rule ("Read($p)", "Read($p/**)") {
+                next if $seen{$rule};
+                push @{ $settings->{permissions}{deny} }, $rule;
+                $seen{$rule} = 1;
+            }
+        }
+    }
+    return scalar @deny;
+}
+
+# Pure-Perl PATH probe: no shell, no `which`, no `command -v` builtin (avoids
+# the FR4(a) command-spawning surface). Empty and '.' segments are skipped so a
+# bare dep name is never resolved against the current directory.
+sub dep_on_path {
+    my ($name) = @_;
+    for my $seg (split /:/, ($ENV{PATH} // '')) {
+        next if !length $seg || $seg eq '.';
+        return 1 if -x "$seg/$name";
+    }
+    return 0;
+}
+
+# Advisory first-run guard (FR3/AC3b): warn — never block — when the Linux
+# sandbox backend deps are absent, naming the package and the knob to flip.
+# Fixed-token message; no probe output interpolated. No-op on macOS (Seatbelt
+# needs no bwrap/socat).
+sub sandbox_dep_guard {
+    return if $^O eq 'darwin';
+    for my $dep (sort keys %SANDBOX_DEPS) {
+        next if dep_on_path($dep);
+        my $pkg = $SANDBOX_DEPS{$dep};
+        warn "[CWF] WARN: sandbox enabled but '$dep' (package: $pkg) was not "
+           . "found on PATH. Claude Code's sandbox backend needs it; while "
+           . "sandbox.fail-if-unavailable is true Claude Code refuses to start. "
+           . "Install $pkg, or set sandbox.fail-if-unavailable to false in "
+           . "$config_path.\n";
+    }
+    return;
+}
+
 # --- Main ------------------------------------------------------------------
+my $sandbox = read_sandbox_config();          # undef ⇒ OFF; dies on malformed
+my $sandbox_on           = ($sandbox && $sandbox->{enabled}) ? 1 : 0;
+my $fail_if_unavailable  = (!$sandbox || !exists $sandbox->{'fail-if-unavailable'})
+                           ? 1 : ($sandbox->{'fail-if-unavailable'} ? 1 : 0);
+my $violation_logging_on = ($sandbox && $sandbox->{'violation-logging'}) ? 1 : 0;
+my @deny = ($sandbox_on && ref $sandbox->{'credential-deny-list'} eq 'ARRAY')
+         ? @{ $sandbox->{'credential-deny-list'} } : ();
+my $register_r3 = ($sandbox_on && $violation_logging_on) ? 1 : 0;
+
 my $manifest = read_manifest();
-my ($allow_entries, $hook_entries) = partition_manifest($manifest);
+my ($allow_entries, $hook_entries) = partition_manifest($manifest, $register_r3);
 
 my $settings = read_settings();
 my $allow_added = merge_allow($settings, $allow_entries);
 my $hook_added  = merge_hooks($settings, $hook_entries);
 my $env_added   = merge_env($settings);
+my $deny_paths  = reconcile_sandbox($settings, $sandbox_on, $fail_if_unavailable, @deny);
+
+sandbox_dep_guard() if $sandbox_on;
 
 my $encoder = JSON::PP->new->pretty->indent_length(2)->canonical;
 my $blob    = $encoder->encode($settings);
 
+my $sandbox_note = $sandbox_on
+    ? "[CWF] sandbox: on (failIfUnavailable="
+      . ($fail_if_unavailable ? 'true' : 'false')
+      . ", $deny_paths credential path(s))"
+    : '';
+
 if ($dry_run) {
     print $blob;
     print "[CWF] settings: would add $allow_added allowlist entries, $hook_added hook entries, $env_added env keys (dry-run)\n";
+    print "$sandbox_note (dry-run)\n" if $sandbox_on;
     exit 0;
 }
 
 atomic_write($blob);
 print "[CWF] settings: added $allow_added allowlist entries, $hook_added hook entries, $env_added env keys\n";
+print "$sandbox_note\n" if $sandbox_on;
 exit 0;

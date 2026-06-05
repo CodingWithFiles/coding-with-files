@@ -31,7 +31,7 @@
     "install-manifest" : {
       "path" : ".cwf/install-manifest.json",
       "permissions" : "0444",
-      "sha256" : "e1926a2f6fc5982c6a614e581546978185f6b175f8c43e7c5284328638855cac"
+      "sha256" : "74fb7e26d2e3ac9bee9a92aedbba905090dc6f42b685a4fa7f7315cad78f4a95"
     },
     "claude-md-preamble-template" : {
       "path" : ".cwf/templates/install/claude-md-preamble.md",
@@ -92,7 +92,7 @@
     },
     "CWF::Validate::Config" : {
       "path" : ".cwf/lib/CWF/Validate/Config.pm",
-      "sha256" : "6a6913f75ba4b6e905e7823419eef1c8d5099554d6834b398a43a7464c62d2b3"
+      "sha256" : "1dc989ce045221bb4015ed8367bf5c1a3995830111fb7329ad0af602a937bf54"
     },
     "CWF::Validate::Consistency" : {
       "path" : ".cwf/lib/CWF/Validate/Consistency.pm",
@@ -203,7 +203,7 @@
     "cwf-claude-settings-merge" : {
       "path" : ".cwf/scripts/command-helpers/cwf-claude-settings-merge",
       "permissions" : "0500",
-      "sha256" : "5e4efc8b44bf95839edb940471310c0ce304962f93735159f1be09aa6091835f"
+      "sha256" : "b189ca75b7d36f3bfc910eec1270fd63d5efe5ea3878358fc246877336e77a4b"
     },
     "cwf-manage" : {
       "path" : ".cwf/scripts/cwf-manage",
@@ -254,6 +254,11 @@
       "path" : ".cwf/scripts/command-helpers/status-aggregator-v2.1",
       "permissions" : "0700",
       "sha256" : "e57dce296bb828db51b354db4556e3f852e17cda9bd6e7eb0ca82e80fca8349e"
+    },
+    "pretooluse-sandbox-logging" : {
+      "path" : ".cwf/scripts/hooks/pretooluse-sandbox-logging",
+      "permissions" : "0500",
+      "sha256" : "a0d970ac36a20b451cda482600c4672fc8275f250003c075373bac05f94a98cd"
     },
     "stop-stale-status-detector" : {
       "path" : ".cwf/scripts/hooks/stop-stale-status-detector",

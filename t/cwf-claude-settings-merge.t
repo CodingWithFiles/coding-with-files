@@ -521,4 +521,250 @@ subtest 'TC-M5: symlinked hook path → directives not read (default Stop)' => s
        'hook registered under default Stop event');
 };
 
+#=============================================================================
+# Task 179 — CWF-managed sandboxing
+#=============================================================================
+
+# Write implementation-guide/cwf-project.json into the fixture. $sandbox is a
+# hashref for the `sandbox` block, or undef to omit the block entirely.
+sub write_config {
+    my ($tmp, $sandbox) = @_;
+    make_path("$tmp/implementation-guide");
+    my %cfg = (
+        'supported-task-types' => [qw(feature bugfix hotfix chore discovery)],
+        'source-management'    => { 'branch-naming-convention' => 'x' },
+    );
+    $cfg{sandbox} = $sandbox if defined $sandbox;
+    open(my $fh, '>:raw', "$tmp/implementation-guide/cwf-project.json") or die $!;
+    print $fh JSON::PP->new->pretty->canonical->encode(\%cfg);
+    close $fh;
+}
+
+sub deny_set { return { map { $_ => 1 } @{ $_[0]{permissions}{deny} || [] } } }
+
+# ----- TC-1: sandbox OFF — no sandbox surface, no regression ----------------
+subtest 'TC-1: OFF (no config / block absent) adds zero sandbox surface' => sub {
+    plan tests => 8;
+    # (a) config file absent entirely
+    my $tmp = build_fixture(manifest => standard_manifest());
+    my ($e1) = run_helper($tmp);
+    is($e1, 0, '(a) exit 0');
+    my $s = read_settings($tmp);
+    ok(!exists $s->{sandbox}, '(a) no sandbox key');
+    ok(!exists $s->{permissions}{deny}, '(a) no permissions.deny key');
+    ok($s->{permissions}{allow} && @{ $s->{permissions}{allow} }, '(a) allow still populated');
+
+    # (b) config present, sandbox block absent
+    my $tmp2 = build_fixture(manifest => standard_manifest());
+    write_config($tmp2, undef);
+    my ($e2) = run_helper($tmp2);
+    is($e2, 0, '(b) exit 0');
+    my $s2 = read_settings($tmp2);
+    ok(!exists $s2->{sandbox}, '(b) no sandbox key');
+    ok(!exists $s2->{permissions}{deny}, '(b) no permissions.deny key');
+    is($s2->{env}{PERL5OPT}, '-CDSLA', '(b) env.PERL5OPT still added');
+};
+
+# ----- TC-2: absent vs malformed -------------------------------------------
+subtest 'TC-2: malformed sandbox config surfaces (never silent-OFF)' => sub {
+    plan tests => 6;
+    # unparseable JSON
+    my $tmp = build_fixture(manifest => standard_manifest());
+    make_path("$tmp/implementation-guide");
+    open(my $bad, '>', "$tmp/implementation-guide/cwf-project.json") or die $!;
+    print $bad "{ not valid";
+    close $bad;
+    my ($e1, $o1, $err1) = run_helper($tmp);
+    isnt($e1, 0, 'unparseable JSON → non-zero exit');
+    like($err1, qr/\Q[CWF] ERROR:\E/, 'unparseable surfaces [CWF] ERROR');
+
+    # wrong-typed switch
+    my $tmp2 = build_fixture(manifest => standard_manifest());
+    write_config($tmp2, { enabled => 'yes' });
+    my ($e2, $o2, $err2) = run_helper($tmp2);
+    isnt($e2, 0, 'non-bool enabled → non-zero exit');
+    like($err2, qr/\Qsandbox.enabled must be a boolean\E/, 'names the bad field');
+
+    # non-array deny-list
+    my $tmp3 = build_fixture(manifest => standard_manifest());
+    write_config($tmp3, { enabled => JSON::PP::true, 'credential-deny-list' => '~/.ssh' });
+    my ($e3, $o3, $err3) = run_helper($tmp3);
+    isnt($e3, 0, 'non-array deny-list → non-zero exit');
+    like($err3, qr/\Qcredential-deny-list must be an array\E/, 'names the bad field');
+};
+
+# ----- TC-4/TC-5: paired rules + exact form ---------------------------------
+subtest 'TC-4/5: ON emits paired denyRead + Read(...) in the doc-specified form' => sub {
+    plan tests => 7;
+    my $tmp = build_fixture(manifest => standard_manifest());
+    write_config($tmp, {
+        enabled                => JSON::PP::true,
+        'credential-deny-list' => ['~/.ssh', '~/.aws'],
+    });
+    my ($exit) = run_helper($tmp);
+    is($exit, 0, 'exit 0');
+    my $s = read_settings($tmp);
+    ok($s->{sandbox}{enabled}, 'sandbox.enabled true');
+    is_deeply($s->{sandbox}{filesystem}{denyRead}, ['~/.ssh', '~/.aws'],
+              'denyRead == the list (~ form, expands to $HOME per Task 178)');
+    my $deny = deny_set($s);
+    # Exact string-form (Perl cannot exercise Claude Code's runtime matcher).
+    ok($deny->{'Read(~/.ssh)'},    'Read(~/.ssh) present');
+    ok($deny->{'Read(~/.ssh/**)'}, 'Read(~/.ssh/**) present');
+    ok($deny->{'Read(~/.aws)'},    'Read(~/.aws) present');
+    ok($deny->{'Read(~/.aws/**)'}, 'Read(~/.aws/**) present');
+};
+
+# ----- TC-6: ownership-by-shape reconcile -----------------------------------
+subtest 'TC-6: reconcile by shape — removal, preservation, no orphan, AC1c' => sub {
+    plan tests => 9;
+    my $on = {
+        enabled                => JSON::PP::true,
+        'credential-deny-list' => ['~/.ssh'],
+    };
+
+    # Non-CWF deny + a user-authored Read(~/.ssh) collision pre-seeded.
+    my $tmp = build_fixture(manifest => standard_manifest());
+    write_settings($tmp, {
+        permissions => { deny => ['Bash(curl *)', 'Read(~/.ssh)'] },
+    });
+    write_config($tmp, $on);
+    run_helper($tmp);
+    my $s = read_settings($tmp);
+    my $d = deny_set($s);
+    ok($d->{'Read(~/.ssh)'},    'ON: managed Read present');
+    ok($d->{'Read(~/.ssh/**)'}, 'ON: managed Read/** present');
+    ok($d->{'Bash(curl *)'},    'ON: non-CWF deny preserved');
+
+    # Change the list while still ON → old entry must not orphan.
+    write_config($tmp, { enabled => JSON::PP::true, 'credential-deny-list' => ['~/.aws'] });
+    run_helper($tmp);
+    $d = deny_set(read_settings($tmp));
+    ok(!$d->{'Read(~/.ssh)'},   'changed list: old Read(~/.ssh) removed (no orphan)');
+    ok($d->{'Read(~/.aws)'},    'changed list: new Read(~/.aws) present');
+    ok($d->{'Bash(curl *)'},    'changed list: non-CWF deny still preserved');
+
+    # Toggle OFF → whole managed family gone, including the AC1c collision entry.
+    write_config($tmp, { enabled => JSON::PP::false });
+    run_helper($tmp);
+    $s = read_settings($tmp);
+    ok(!exists $s->{sandbox}, 'OFF: sandbox block removed');
+    ok(!grep({ /^Read\(/ } @{ $s->{permissions}{deny} || [] }),
+       'OFF: every CWF-shaped Read(...) removed (incl. identical user entry — AC1c)');
+    is_deeply($s->{permissions}{deny}, ['Bash(curl *)'], 'OFF: only non-CWF deny remains');
+};
+
+# ----- TC-6b: idempotent ON re-run ------------------------------------------
+subtest 'TC-6b: ON re-run is byte-identical (idempotent)' => sub {
+    plan tests => 1;
+    my $tmp = build_fixture(manifest => standard_manifest());
+    write_config($tmp, { enabled => JSON::PP::true, 'credential-deny-list' => ['~/.ssh'] });
+    run_helper($tmp);
+    open(my $f1, '<:raw', "$tmp/.claude/settings.json") or die $!;
+    my $first = do { local $/; <$f1> }; close $f1;
+    run_helper($tmp);
+    open(my $f2, '<:raw', "$tmp/.claude/settings.json") or die $!;
+    my $second = do { local $/; <$f2> }; close $f2;
+    is($first, $second, 'second ON run byte-identical');
+};
+
+# ----- TC-7: failIfUnavailable authoritative (knob wins) --------------------
+subtest 'TC-7: failIfUnavailable is authoritative from the knob' => sub {
+    plan tests => 3;
+    # default true
+    my $tmp = build_fixture(manifest => standard_manifest());
+    write_config($tmp, { enabled => JSON::PP::true });
+    run_helper($tmp);
+    ok(read_settings($tmp)->{sandbox}{failIfUnavailable}, 'default → true');
+
+    # knob false reflected
+    my $tmp2 = build_fixture(manifest => standard_manifest());
+    write_config($tmp2, { enabled => JSON::PP::true, 'fail-if-unavailable' => JSON::PP::false });
+    run_helper($tmp2);
+    ok(!read_settings($tmp2)->{sandbox}{failIfUnavailable}, 'knob false → false (reflected)');
+
+    # hand-set settings.json value is overwritten by the knob (authoritative;
+    # overrides belong in the knob / settings.local.json — c-design D2).
+    my $tmp3 = build_fixture(manifest => standard_manifest());
+    write_settings($tmp3, { sandbox => { enabled => JSON::PP::true, failIfUnavailable => JSON::PP::false } });
+    write_config($tmp3, { enabled => JSON::PP::true });   # knob default true
+    run_helper($tmp3);
+    ok(read_settings($tmp3)->{sandbox}{failIfUnavailable},
+       'hand-set false overwritten → knob true wins (authoritative)');
+};
+
+# ----- TC-8: dep probe + first-run guard ------------------------------------
+SKIP: {
+    skip 'dep-probe guard is a no-op on darwin (Seatbelt)', 1 if $^O eq 'darwin';
+    subtest 'TC-8: missing-dep guard warns; empty/. PATH segment not resolved' => sub {
+        plan tests => 4;
+        my $tmp = build_fixture(manifest => standard_manifest());
+        write_config($tmp, { enabled => JSON::PP::true });
+        # A bin dir with ONLY a perl symlink (so the #!/usr/bin/env perl shebang
+        # still resolves) and neither bwrap nor socat.
+        my $bin = "$tmp/fakebin";
+        make_path($bin);
+        symlink($^X, "$bin/perl")
+            or do { plan skip_all => 'symlink not supported'; return };
+        # Plant a fake `bwrap` in the fixture cwd to prove '.'/'' are skipped.
+        open(my $fb, '>', "$tmp/bwrap") or die $!;
+        print $fb "#!/bin/sh\n"; close $fb;
+        chmod 0755, "$tmp/bwrap";
+
+        local $ENV{PATH} = "$bin:.:";   # '.' + trailing empty segment
+        my ($exit, $out, $err) = run_helper($tmp);
+        is($exit, 0, 'guard never blocks (exit 0)');
+        like($err, qr/\Q'bwrap' (package: bubblewrap)\E/,
+             "bwrap reported missing — '.'/'' segments not resolved to cwd");
+        like($err, qr/\Q'socat' (package: socat)\E/, 'socat reported missing');
+        like($err, qr/\Qsandbox.fail-if-unavailable\E/, 'message names the knob to flip');
+    };
+}
+
+# ----- TC-9: R3 hook registration gated on violation-logging ----------------
+subtest 'TC-9: R3 hook registers only when violation-logging is true' => sub {
+    plan tests => 4;
+    my $manifest = standard_manifest();
+    $manifest->{'r3'} = mk_entry('.cwf/scripts/hooks/pretooluse-sandbox-logging');
+
+    # ON + violation-logging true → registers under PreToolUse with Bash matcher
+    my $tmp = build_fixture(manifest => $manifest);
+    overwrite_file($tmp, '.cwf/scripts/hooks/pretooluse-sandbox-logging',
+        "#!/usr/bin/env perl\n# cwf-hook-event: PreToolUse\n# cwf-hook-matcher: Bash\n");
+    write_config($tmp, { enabled => JSON::PP::true, 'violation-logging' => JSON::PP::true });
+    run_helper($tmp);
+    my $s = read_settings($tmp);
+    my $grp = $s->{hooks}{PreToolUse};
+    is($grp->[0]{matcher}, 'Bash', 'registered under PreToolUse with Bash matcher');
+    ok((grep { $_->{command} eq '.cwf/scripts/hooks/pretooluse-sandbox-logging' }
+            @{ $grp->[0]{hooks} }), 'R3 hook command present');
+
+    # ON + violation-logging false → not registered, not in allow
+    my $tmp2 = build_fixture(manifest => $manifest);
+    overwrite_file($tmp2, '.cwf/scripts/hooks/pretooluse-sandbox-logging',
+        "#!/usr/bin/env perl\n# cwf-hook-event: PreToolUse\n# cwf-hook-matcher: Bash\n");
+    write_config($tmp2, { enabled => JSON::PP::true, 'violation-logging' => JSON::PP::false });
+    run_helper($tmp2);
+    my $s2 = read_settings($tmp2);
+    ok(!exists $s2->{hooks}{PreToolUse}, 'logging off → no PreToolUse registration');
+    my %allow = map { $_ => 1 } @{ $s2->{permissions}{allow} };
+    ok(!$allow{'Bash(.cwf/scripts/hooks/pretooluse-sandbox-logging)'},
+       'logging off → R3 hook not in allowlist');
+};
+
+# ----- TC-10: PreToolUse event accepted; `|` matcher still rejected ----------
+subtest 'TC-10: event allowlist widened to PreToolUse; matcher regex unchanged' => sub {
+    plan tests => 3;
+    my $manifest = { 'gen' => mk_entry('.cwf/scripts/hooks/gen-hook') };
+    my $tmp = build_fixture(manifest => $manifest);
+    overwrite_file($tmp, '.cwf/scripts/hooks/gen-hook',
+        "#!/usr/bin/env perl\n# cwf-hook-event: PreToolUse\n# cwf-hook-matcher: Edit|Write\n");
+    my ($exit) = run_helper($tmp);
+    is($exit, 0, 'exit 0');
+    my $s = read_settings($tmp);
+    ok($s->{hooks}{PreToolUse}, 'PreToolUse event accepted (allowlist widened)');
+    ok(!exists $s->{hooks}{PreToolUse}[0]{matcher},
+       'Edit|Write matcher rejected (regex unchanged) → matcher-less group');
+};
+
 done_testing();

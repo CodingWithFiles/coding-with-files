@@ -33,6 +33,13 @@
     "default-assignee": "",
     "reviewers": []
   },
+  "_sandbox-note": "CWF-managed Claude Code sandboxing — off by default. See .cwf/docs/sandboxing.md before enabling.",
+  "sandbox": {
+    "enabled": false,
+    "fail-if-unavailable": true,
+    "credential-deny-list": ["~/.ssh", "~/.aws"],
+    "violation-logging": false
+  },
   "templates": {
     "task-reference-format": "standard",
     "branch-name-max-length": 50,

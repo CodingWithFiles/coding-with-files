@@ -1,0 +1,63 @@
+#!/usr/bin/env perl
+#
+# pretooluse-sandbox-logging — PreToolUse observe-only logger for CWF (Task 179, R3)
+#
+# Opt-in (cwf-project.json sandbox.violation-logging: true). Registered by
+# cwf-claude-settings-merge ONLY when that knob is true, even though the hook is
+# always present in the integrity manifest. It observes the one proxy signal
+# Claude Code exposes for a sandbox bypass: a Bash tool call carrying
+# `dangerouslyDisableSandbox`. On observing it, it appends ONE minimal JSON
+# record (timestamp + a presence flag + the tool name — never the raw command)
+# as a single line to a bounded, gitignored log under .cwf/.
+#
+# The log is OPERATOR-FACING ONLY and MUST NOT be re-fed into LLM context; a
+# future reader must treat its contents as untrusted (FR4(c)). Recording only a
+# presence flag — not the command — keeps attacker-controlled strings out of it.
+#
+# Registration directives (read by cwf-claude-settings-merge):
+# cwf-hook-event: PreToolUse
+# cwf-hook-matcher: Bash
+#
+# FAIL-OPEN INVARIANT (security-critical): observe-only. The whole body runs in
+# eval; on malformed stdin, an unwritable log, or any exception it does nothing
+# and ALLOWS the tool call (empty stdout). It never blocks, relaxes, or silences
+# any boundary — a log-write failure is swallowed. Must always exit 0.
+#
+use strict;
+use warnings;
+use utf8;
+use FindBin;
+use JSON::PP;
+use POSIX ();
+
+eval {
+    my $raw = do { local $/; <STDIN> };
+    return unless defined $raw && length $raw;
+
+    my $data = JSON::PP->new->decode($raw);
+    return unless ref $data eq 'HASH';
+
+    my $input = $data->{tool_input};
+    return unless ref $input eq 'HASH';
+
+    # Flag derived from presence only — the raw command is never recorded.
+    my $bypass = (exists $input->{dangerouslyDisableSandbox}
+                  && $input->{dangerouslyDisableSandbox}) ? 1 : 0;
+    return unless $bypass;
+
+    my $tool = $data->{tool_name};
+    my $rec  = JSON::PP->new->canonical->encode({
+        ts                        => POSIX::strftime('%Y-%m-%dT%H:%M:%SZ', gmtime),
+        event                     => 'pretooluse',
+        tool                      => (defined $tool && !ref $tool) ? $tool : 'unknown',
+        dangerouslyDisableSandbox => JSON::PP::true,
+    });
+
+    # Persistent, gitignored, never re-fed into LLM context. FindBin gives the
+    # absolute hook dir, so the path is cwd-independent: .cwf/sandbox-violations.log
+    my $log = "$FindBin::Bin/../../sandbox-violations.log";
+    open(my $fh, '>>', $log) or return;   # unwritable → swallow (fail-open)
+    print {$fh} $rec, "\n";
+    close $fh;
+};
+exit 0;

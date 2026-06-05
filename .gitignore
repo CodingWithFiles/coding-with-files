@@ -7,6 +7,9 @@
 # CWF update lock (transient, runtime-only)
 .cwf/.update.lock
 
+# CWF sandbox violation log (R3, runtime-only, operator-facing)
+.cwf/sandbox-violations.log
+
 # Scratchpad - working notes not to be committed
 scratchpad.md
 scratchpad

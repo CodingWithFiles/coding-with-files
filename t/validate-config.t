@@ -237,4 +237,72 @@ subtest 'TC-X8 full valid config (CwF actual settings) → no violations' => sub
     is(scalar @v, 0, 'CwF-style config validates clean');
 };
 
+#==============================================================================
+# Schema extension: sandbox block (Task 179, TC-3 / FR1-AC1e)
+#==============================================================================
+
+subtest 'TC-S1 sandbox block absent → no violations (back-compat)' => sub {
+    plan tests => 1;
+    my @v = validate_config_hash(base_cfg(), '/fake/cwf-project.json');
+    is(scalar @v, 0, 'absent sandbox block still valid');
+};
+
+subtest 'TC-S2 sandbox switches non-boolean → violation' => sub {
+    plan tests => 3;
+    for my $k (qw(enabled fail-if-unavailable violation-logging)) {
+        my $cfg = base_cfg();
+        $cfg->{sandbox} = { $k => 'true' };   # string, not JSON bool
+        my @v = validate_config_hash($cfg, '/fake/cwf-project.json');
+        ok((grep { $_->{field} eq "sandbox.$k" } @v),
+           "non-bool sandbox.$k → violation");
+    }
+};
+
+subtest 'TC-S3 credential-deny-list not an array → violation' => sub {
+    plan tests => 1;
+    my $cfg = base_cfg();
+    $cfg->{sandbox} = { 'credential-deny-list' => '~/.ssh' };  # scalar
+    my @v = validate_config_hash($cfg, '/fake/cwf-project.json');
+    ok((grep { $_->{field} eq 'sandbox.credential-deny-list' } @v),
+       'scalar credential-deny-list → violation');
+};
+
+subtest 'TC-S4 credential-deny-list non-string entry → violation' => sub {
+    plan tests => 1;
+    my $cfg = base_cfg();
+    $cfg->{sandbox} = { 'credential-deny-list' => ['~/.ssh', { x => 1 }] };
+    my @v = validate_config_hash($cfg, '/fake/cwf-project.json');
+    ok((grep { $_->{field} eq 'sandbox.credential-deny-list[1]' } @v),
+       'non-string entry → indexed violation');
+};
+
+subtest 'TC-S5 enabled:true + absent credential-deny-list → no violation' => sub {
+    plan tests => 1;
+    my $cfg = base_cfg();
+    $cfg->{sandbox} = { enabled => JSON::PP::true };
+    my @v = validate_config_hash($cfg, '/fake/cwf-project.json');
+    is(scalar @v, 0, 'enabled with no list is valid (empty deny set)');
+};
+
+subtest 'TC-S6 sandbox not an object → violation' => sub {
+    plan tests => 1;
+    my $cfg = base_cfg();
+    $cfg->{sandbox} = 'on';
+    my @v = validate_config_hash($cfg, '/fake/cwf-project.json');
+    ok((grep { $_->{field} eq 'sandbox' } @v), 'scalar sandbox → violation');
+};
+
+subtest 'TC-S7 full valid sandbox block → no violations' => sub {
+    plan tests => 1;
+    my $cfg = base_cfg();
+    $cfg->{sandbox} = {
+        enabled                => JSON::PP::false,
+        'fail-if-unavailable'  => JSON::PP::true,
+        'credential-deny-list' => ['~/.ssh', '~/.aws'],
+        'violation-logging'    => JSON::PP::false,
+    };
+    my @v = validate_config_hash($cfg, '/fake/cwf-project.json');
+    is(scalar @v, 0, 'well-formed sandbox block validates clean');
+};
+
 done_testing();

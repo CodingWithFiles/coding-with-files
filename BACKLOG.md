@@ -1365,20 +1365,34 @@ Define a robust, guarded CWF worktree process built on the harness's `EnterWorkt
 
 **Open question (runtime residual).** C2's refusal is Confirmed-by-schema but not watched-it-happen: the only path that exercises it (`EnterWorktree`) switches the session CWD and is gated, so Task 177 did not run a removal probe (data-loss/gating risk). The feature task should confirm the refusal behaviour the first time it wires `EnterWorktree` in, against scratch-only content.
 
-## Task: CWF-managed Claude Code sandboxing config (R2 credential deny-list, R1 phase-scoped writes, R3 violation logging)
+## Task: R1: phase-scoped planning-write PreToolUse guard (CWF sandboxing 179.1)
 
 ### Task-Type: feature
 ### Priority: Medium
+### Identified in: 179
 
-Discovery Task 178 assessed CWF-managed Claude Code sandboxing for three operator asks and recommends BUILD, staged, decomposed at /cwf-new-task time. CWF *advises* config and *observes* via hooks; Claude Code + the OS enforce; the operator can widen/disable — CWF cannot guarantee any boundary (state "advises", never "enforces").
+Phase-scoped planning-write isolation (R1), split from Task 179 (c-design D7,
+b-AC4d). During planning phases (a–e) with sandboxing on, gate Edit/Write to
+the current task's own planning files; block edits to production
+code/skills/helpers.
 
-Shared prerequisite (build first): extend `.cwf/scripts/command-helpers/cwf-claude-settings-merge` to (a) manage `sandbox.*` and `permissions.deny` (it writes `permissions.allow` only today), and (b) widen its hook-event allowlist beyond `{Stop, SubagentStop}` to `PreToolUse` (and `PostToolUseFailure` for R3). The helper is hash-tracked — each edit MUST land its `.cwf/security/script-hashes.json` refresh in the SAME commit (`docs/conventions/hash-updates.md`); add no surface that silences `cwf-manage validate`.
+Scope this subtask must carry that 179 deliberately did not:
 
-Staging (by verdict strength):
-1. R2 credential deny-list (Feasible-with-caveats; cleanest). The sandbox is Bash-only, so ship PAIRED `sandbox.filesystem.denyRead` (Bash subprocess path) + `Read(...)` permission deny (Read tool path) — neither alone is sufficient. Defaults `~/.ssh`, `~/.aws`; editable list in `cwf-project.json`; `~` expands to `$HOME`; cross-scope merge is union, so an adopter narrows a shipped default via `allowRead`, not by deleting the entry. Recommend pairing with `allowUnsandboxedCommands:false` guidance to make the Bash path enforceable.
-2. R1 phase-scoped writes (Feasible-with-caveats via a PreToolUse hook; NOT feasible as a static per-phase sandbox switch — no such key, and Edit/Write tools never enter the sandbox). Hook keyed on the wf step inferred from on-disk task files / `task-stack`, gating Edit/Write to the task's planning files during phases a–e.
-3. R3 issue logging (Feasible-with-caveats — UNRELIABLE; default OFF switch in `cwf-project.json`). No structured "sandbox violated" hook event exists; only proxies: PreToolUse observing the `dangerouslyDisableSandbox` param before the unsandboxed retry, and PostToolUseFailure (noisy). Logging observes only — it must never silence or disable a boundary (`feedback_surface_security_dont_smooth`).
-
-Don't-build: R1 as a static `allowWrite` switch; R3 as reliable violation detection. Managed-only lockdowns (`allowManagedReadPathsOnly`, `failIfUnavailable`, `allowManagedDomainsOnly`) are an operator/MDM concern, not config CWF writes into a project's `.claude/settings.json`.
-
-Weaknesses to carry into the build: default read leaks credentials; non-TLS-inspecting egress proxy (domain fronting); `excludedCommands` has no managed lockdown; fail-open unless `failIfUnavailable:true`; agent-reachable `dangerouslyDisableSandbox`; subprocess env inheritance (use `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB`). Full evidence + citations: implementation-guide/178-discovery-integrate-claude-code-sandboxing-into-cwf/f-implementation-exec.md.
+- **Matcher-regex widening.** 179 widened only the `read_hook_directives`
+  *event* allowlist (to admit `PreToolUse`). R1 also needs the *matcher* regex
+  (`/^[A-Za-z0-9_-]+$/`, helper line ~86) widened to admit `Edit|Write`. Restate
+  the inert-string rationale when touching it.
+- **Fail-closed without bricking.** The wf-step signal is partly
+  attacker-influenceable on-disk state, so on ambiguous / malformed / absent
+  inference (empty task-stack, multiple in-progress tasks,
+  `task-context-inference` exit 1, a call outside any task) the gate fails
+  closed (most-restrictive) AND surfaces a message — but must deny only the
+  production crown jewels (`.cwf/`, `.claude/`, skills, helpers), never brick
+  legitimate work. Derive the task path from a trusted source, not free-form
+  file content.
+- **Reuse, don't reinvent.** Build on `task-context-inference` /
+  `CWF::TaskContextInference.pm` (already emits `workflow_step:`); do not
+  re-parse branch/task-stack.
+- **NFR1 cost.** The hook runs per Edit/Write call and inference shells out to
+  git — bound and measure the per-call overhead.
+- Same-commit `script-hashes.json` refresh for the new hook + the edited helper.

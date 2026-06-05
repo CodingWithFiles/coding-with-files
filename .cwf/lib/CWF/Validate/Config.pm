@@ -128,6 +128,7 @@ sub validate_config_hash {
 
     push @violations, _validate_versioning_block($config, $file);
     push @violations, _validate_wf_step_config_block($config, $file);
+    push @violations, _validate_sandbox_block($config, $file);
 
     return @violations;
 }
@@ -213,6 +214,62 @@ sub _validate_wf_step_config_block {
                 'boolean (true or false)',
                 "Change wf_step_config.$step.$k to true or false in " . $file,
             );
+        }
+    }
+    return @viol;
+}
+
+# Validate the optional `sandbox` block (Task 179). Mirrors the gated
+# pattern of _validate_versioning_block: absent block ⇒ no violation. The
+# three switches must be boolean; credential-deny-list, when present, must be
+# an array of strings. An absent credential-deny-list with enabled:true is
+# valid (no deny entries — logged, not an error).
+sub _validate_sandbox_block {
+    my ($config, $file) = @_;
+    return () unless exists $config->{sandbox};
+
+    my $s = $config->{sandbox};
+    if (ref $s ne 'HASH') {
+        return _violation(
+            $file, 'sandbox',
+            ref($s) || 'scalar',
+            'object (JSON object)',
+            'Change sandbox to a JSON object',
+        );
+    }
+
+    my @viol;
+    for my $k (qw(enabled fail-if-unavailable violation-logging)) {
+        next unless exists $s->{$k};
+        next if _is_bool($s->{$k});
+        push @viol, _violation(
+            $file, "sandbox.$k",
+            _scalar_repr($s->{$k}),
+            'boolean (true or false)',
+            "Change sandbox.$k to true or false in " . $file,
+        );
+    }
+
+    if (exists $s->{'credential-deny-list'}) {
+        my $list = $s->{'credential-deny-list'};
+        if (ref $list ne 'ARRAY') {
+            push @viol, _violation(
+                $file, 'sandbox.credential-deny-list',
+                ref($list) || 'scalar',
+                'array of path strings',
+                'Change sandbox.credential-deny-list to a JSON array of strings',
+            );
+        } else {
+            for my $i (0 .. $#$list) {
+                my $e = $list->[$i];
+                next if defined $e && !ref $e;
+                push @viol, _violation(
+                    $file, "sandbox.credential-deny-list[$i]",
+                    _scalar_repr($e),
+                    'path string',
+                    'Each sandbox.credential-deny-list entry must be a path string',
+                );
+            }
         }
     }
     return @viol;

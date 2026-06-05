@@ -14,6 +14,15 @@
     }
   },
   "project-name" : "Coding with Files (CWF)",
+  "sandbox" : {
+    "credential-deny-list" : [
+      "~/.ssh",
+      "~/.aws"
+    ],
+    "enabled" : false,
+    "fail-if-unavailable" : true,
+    "violation-logging" : false
+  },
   "security" : {
     "canonical-source" : {
       "base-url" : "https://api.github.com/repos/OWNER/REPO/contents",
@@ -91,7 +100,7 @@
   },
   "version" : "v0.2.1",
   "versioning" : {
-    "last_released" : "v1.1.178",
+    "last_released" : "v1.1.179",
     "major_minor" : "v1.1"
   },
   "wf_step_config" : {

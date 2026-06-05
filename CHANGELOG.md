@@ -2,6 +2,36 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 179: Integrate Claude Code sandboxing into CWF (feature)
+
+### Status: Complete (2026-06-05)
+### Duration: planning across prior sessions + f→j in one session (estimate 2–4 days, Medium–High complexity). Under estimate — TDD groundwork + a fully-pinned design made exec largely mechanical.
+### Impact: Implements the 178-seeded feature: a master `sandbox.enabled` toggle in `cwf-project.json` (**default OFF** — writes zero `sandbox.*`/`permissions.deny` keys while off, no regression, verified against the current helper) gating CWF-managed Claude Code sandbox/permission config. When on: **R2** credential deny-list compiles each entry to **paired** `sandbox.filesystem.denyRead` (Bash-subprocess path) **and** `Read(P)`/`Read(P/**)` permission denies (Read-tool path) — neither alone, because the sandbox is Bash-only (Task 178); `failIfUnavailable` written **authoritatively** from a knob (default `true`) with a pure-Perl `$PATH`+`-x` dep guard for `bwrap`/`socat` (advisory, fixed-token message, never blocks, no shell/`which`); **R3** opt-in (default OFF) `PreToolUse` logging hook recording only a `dangerouslyDisableSandbox` **presence flag** (never the raw command) to a gitignored `.cwf/sandbox-violations.log`. Shipped with `.cwf/docs/sandboxing.md` (advises-not-enforces, Bash-only, agent-reachable escape hatch, no reliable violation event, `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` env-credential caveat). Built by extending `cwf-claude-settings-merge` + `CWF::Validate::Config` (`_validate_sandbox_block`); the hook-event allowlist widened to add `PreToolUse` (matcher regex unchanged). **Reversibility via ownership-by-shape — no provenance sidecar** (dropped at c-review as a credential-boundary-removal oracle): toggle-OFF removes the whole `sandbox.*` block + every CWF-shaped `Read(...)` deny, orphan-free, user keys untouched. **R1 (phase-scoped planning writes) split to subtask 179.1** (pre-authorised, SC4/AC4d) — needs a matcher-regex widening (`Edit|Write`) + a fail-closed-without-bricking design; 179 widened only the event allowlist (the clean seam R1 reuses). Same-commit `script-hashes.json` refresh (helper + `Config.pm` + `install-manifest` + new hook). TC-1..TC-13 all PASS; full suite **665 green**; `cwf-manage validate` clean; both exec-phase security reviews **`no findings`**.
+
+### Notable
+- **Bash-only sandbox → paired rules.** Carried first-hand from Task 178: Read/Edit/Write bypass the sandbox, so credential denial needs both a `denyRead` and a `Read(...)` deny; neither half closes the boundary alone.
+- **Ownership-by-shape beat a provenance sidecar.** The c-design review flagged a non-hash-tracked sidecar driving deletions as a credential-boundary-removal oracle; it was dropped pre-implementation for removal-by-generation-shape (the `^Read\(.+\)$` region of the generated `settings.json` is CWF-owned) — no persisted state, no second write, no oracle. The cost (a user entry identical to a CWF default in the *generated* file is reclaimed) is documented; overrides belong in `settings.local.json`.
+- **A plan contradiction surfaced at exec.** D5/AC3a/TC-7 asked for `failIfUnavailable` to be both *authoritative* and *warn-not-overwrite* — mutually exclusive without the provenance the sidecar was dropped to avoid. Resolved **authoritative** (the `cwf-project.json` knob is the single source of truth; fail-safe), recorded as a deviation. Process lesson logged: plan review should flag *mutually-contradictory* requirements, not just per-item soundness.
+- **The unprovable was flagged, not faked.** Runtime `~`→`$HOME` expansion in the `Read()` permission matcher can't be exercised by the Perl suite; the emitted string-forms are tested and a one-off live confirmation is carried to rollout (h) rather than claimed verified.
+
+### Retired Backlog Items
+#### CWF-managed Claude Code sandboxing config (R2 credential deny-list, R1 phase-scoped writes, R3 violation logging)
+
+Discovery Task 178 assessed CWF-managed Claude Code sandboxing for three operator asks and recommends BUILD, staged, decomposed at /cwf-new-task time. CWF *advises* config and *observes* via hooks; Claude Code + the OS enforce; the operator can widen/disable — CWF cannot guarantee any boundary (state "advises", never "enforces").
+
+Shared prerequisite (build first): extend `.cwf/scripts/command-helpers/cwf-claude-settings-merge` to (a) manage `sandbox.*` and `permissions.deny` (it writes `permissions.allow` only today), and (b) widen its hook-event allowlist beyond `{Stop, SubagentStop}` to `PreToolUse` (and `PostToolUseFailure` for R3). The helper is hash-tracked — each edit MUST land its `.cwf/security/script-hashes.json` refresh in the SAME commit (`docs/conventions/hash-updates.md`); add no surface that silences `cwf-manage validate`.
+
+Staging (by verdict strength):
+1. R2 credential deny-list (Feasible-with-caveats; cleanest). The sandbox is Bash-only, so ship PAIRED `sandbox.filesystem.denyRead` (Bash subprocess path) + `Read(...)` permission deny (Read tool path) — neither alone is sufficient. Defaults `~/.ssh`, `~/.aws`; editable list in `cwf-project.json`; `~` expands to `$HOME`; cross-scope merge is union, so an adopter narrows a shipped default via `allowRead`, not by deleting the entry. Recommend pairing with `allowUnsandboxedCommands:false` guidance to make the Bash path enforceable.
+2. R1 phase-scoped writes (Feasible-with-caveats via a PreToolUse hook; NOT feasible as a static per-phase sandbox switch — no such key, and Edit/Write tools never enter the sandbox). Hook keyed on the wf step inferred from on-disk task files / `task-stack`, gating Edit/Write to the task's planning files during phases a–e.
+3. R3 issue logging (Feasible-with-caveats — UNRELIABLE; default OFF switch in `cwf-project.json`). No structured "sandbox violated" hook event exists; only proxies: PreToolUse observing the `dangerouslyDisableSandbox` param before the unsandboxed retry, and PostToolUseFailure (noisy). Logging observes only — it must never silence or disable a boundary (`feedback_surface_security_dont_smooth`).
+
+Don't-build: R1 as a static `allowWrite` switch; R3 as reliable violation detection. Managed-only lockdowns (`allowManagedReadPathsOnly`, `failIfUnavailable`, `allowManagedDomainsOnly`) are an operator/MDM concern, not config CWF writes into a project's `.claude/settings.json`.
+
+Weaknesses to carry into the build: default read leaks credentials; non-TLS-inspecting egress proxy (domain fronting); `excludedCommands` has no managed lockdown; fail-open unless `failIfUnavailable:true`; agent-reachable `dangerouslyDisableSandbox`; subprocess env inheritance (use `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB`). Full evidence + citations: implementation-guide/178-discovery-integrate-claude-code-sandboxing-into-cwf/f-implementation-exec.md.
+
+<!-- Note: Implemented in Task 179: master toggle (default OFF) + R2 paired deny-list + authoritative failIfUnavailable + opt-in R3 logging + limitations doc. R1 split to live follow-up 179.1. -->
+
 ## Task 178: Integrate Claude Code sandboxing into CWF (discovery)
 
 ### Status: Complete (2026-06-04)
