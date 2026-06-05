@@ -70,6 +70,10 @@
       "path" : ".cwf/lib/CWF/Options.pm",
       "sha256" : "4a2173ec40734da78622c7a311ae288d4a78f26f8aee633f1d87ada3843352f6"
     },
+    "CWF::PlanningGuard" : {
+      "path" : ".cwf/lib/CWF/PlanningGuard.pm",
+      "sha256" : "beec9f0af5ff00bd3f13cf0774ed72b38be4225cd7528a89a3e792ae14c2401b"
+    },
     "CWF::StatusAggregator::Core" : {
       "path" : ".cwf/lib/CWF/StatusAggregator/Core.pm",
       "sha256" : "a778f61dde2176da9d4abb25600b6568b0a04bc5e38dcba29db265e03c85830a"
@@ -92,7 +96,7 @@
     },
     "CWF::Validate::Config" : {
       "path" : ".cwf/lib/CWF/Validate/Config.pm",
-      "sha256" : "1dc989ce045221bb4015ed8367bf5c1a3995830111fb7329ad0af602a937bf54"
+      "sha256" : "fea750bf35ce77c131392021a8f5de466367cd1f510223013e80908757fa1a19"
     },
     "CWF::Validate::Consistency" : {
       "path" : ".cwf/lib/CWF/Validate/Consistency.pm",
@@ -203,7 +207,7 @@
     "cwf-claude-settings-merge" : {
       "path" : ".cwf/scripts/command-helpers/cwf-claude-settings-merge",
       "permissions" : "0500",
-      "sha256" : "b189ca75b7d36f3bfc910eec1270fd63d5efe5ea3878358fc246877336e77a4b"
+      "sha256" : "487c447796723ae2a166f32cf2d6e3be1e6ef512df8a7ee6f9d5533959941871"
     },
     "cwf-manage" : {
       "path" : ".cwf/scripts/cwf-manage",
@@ -254,6 +258,11 @@
       "path" : ".cwf/scripts/command-helpers/status-aggregator-v2.1",
       "permissions" : "0700",
       "sha256" : "e57dce296bb828db51b354db4556e3f852e17cda9bd6e7eb0ca82e80fca8349e"
+    },
+    "pretooluse-planning-write-guard" : {
+      "path" : ".cwf/scripts/hooks/pretooluse-planning-write-guard",
+      "permissions" : "0500",
+      "sha256" : "d6651e72788196a91536005e12eca12aee283acb43e18d7aa54d4fe0bc1d0f40"
     },
     "pretooluse-sandbox-logging" : {
       "path" : ".cwf/scripts/hooks/pretooluse-sandbox-logging",

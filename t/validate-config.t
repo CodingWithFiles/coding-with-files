@@ -305,4 +305,37 @@ subtest 'TC-S7 full valid sandbox block → no violations' => sub {
     is(scalar @v, 0, 'well-formed sandbox block validates clean');
 };
 
+#==============================================================================
+# Schema extension: sandbox.planning-write-guard enum (Task 180, FR1/FR5/AC1e)
+#==============================================================================
+
+subtest 'TC-S8 planning-write-guard valid enum values → no violation' => sub {
+    plan tests => 3;
+    for my $val (qw(off observe enforce)) {
+        my $cfg = base_cfg();
+        $cfg->{sandbox} = { 'planning-write-guard' => $val };
+        my @v = validate_config_hash($cfg, '/fake/cwf-project.json');
+        is(scalar @v, 0, "planning-write-guard:$val accepted");
+    }
+};
+
+subtest 'TC-S9 planning-write-guard invalid value → violation' => sub {
+    plan tests => 3;
+    for my $bad ('on', '', { x => 1 }) {
+        my $cfg = base_cfg();
+        $cfg->{sandbox} = { 'planning-write-guard' => $bad };
+        my @v = validate_config_hash($cfg, '/fake/cwf-project.json');
+        ok((grep { $_->{field} eq 'sandbox.planning-write-guard' } @v),
+           'invalid planning-write-guard → violation');
+    }
+};
+
+subtest 'TC-S10 planning-write-guard absent → no violation (default off)' => sub {
+    plan tests => 1;
+    my $cfg = base_cfg();
+    $cfg->{sandbox} = { enabled => JSON::PP::true };
+    my @v = validate_config_hash($cfg, '/fake/cwf-project.json');
+    is(scalar @v, 0, 'absent planning-write-guard is valid (defaults off)');
+};
+
 done_testing();

@@ -38,7 +38,8 @@
     "enabled": false,
     "fail-if-unavailable": true,
     "credential-deny-list": ["~/.ssh", "~/.aws"],
-    "violation-logging": false
+    "violation-logging": false,
+    "planning-write-guard": "off"
   },
   "templates": {
     "task-reference-format": "standard",

@@ -21,6 +21,7 @@
     ],
     "enabled" : false,
     "fail-if-unavailable" : true,
+    "planning-write-guard" : "off",
     "violation-logging" : false
   },
   "security" : {
@@ -100,7 +101,7 @@
   },
   "version" : "v0.2.1",
   "versioning" : {
-    "last_released" : "v1.1.179",
+    "last_released" : "v1.1.180",
     "major_minor" : "v1.1"
   },
   "wf_step_config" : {

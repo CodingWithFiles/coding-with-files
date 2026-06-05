@@ -1364,35 +1364,3 @@ Define a robust, guarded CWF worktree process built on the harness's `EnterWorkt
 **Scope.** (1) Create scratch worktrees via `EnterWorktree` so the C2 guard applies at all — model/manual raw `git worktree add` must be steered onto this path. (2) Set `worktree.baseRef: head`. (3) **Never** pass `discard_changes: true` unprompted — the guard friction is the feature (`feedback_surface_security_dont_smooth.md`); surface teardown to the operator rather than auto-removing. (4) A CWF skill must `ToolSearch` (`select:EnterWorktree,ExitWorktree`) to load these deferred tools, and rely on the gate's "project instructions (CLAUDE.md/memory)" clause — a documented CWF process *is* that authorisation. (5) Update `tmp-paths.md`; hash-refresh any edited helper. (6) Subsumes R6: no-needless-`cd`/absolute-path discipline so the dominant permission prompts stop; explicitly reject allowlist-broadening as the fix.
 
 **Open question (runtime residual).** C2's refusal is Confirmed-by-schema but not watched-it-happen: the only path that exercises it (`EnterWorktree`) switches the session CWD and is gated, so Task 177 did not run a removal probe (data-loss/gating risk). The feature task should confirm the refusal behaviour the first time it wires `EnterWorktree` in, against scratch-only content.
-
-## Task: R1: phase-scoped planning-write PreToolUse guard (CWF sandboxing 179.1)
-
-### Task-Type: feature
-### Priority: Medium
-### Identified in: 179
-
-Phase-scoped planning-write isolation (R1), split from Task 179 (c-design D7,
-b-AC4d). During planning phases (a–e) with sandboxing on, gate Edit/Write to
-the current task's own planning files; block edits to production
-code/skills/helpers.
-
-Scope this subtask must carry that 179 deliberately did not:
-
-- **Matcher-regex widening.** 179 widened only the `read_hook_directives`
-  *event* allowlist (to admit `PreToolUse`). R1 also needs the *matcher* regex
-  (`/^[A-Za-z0-9_-]+$/`, helper line ~86) widened to admit `Edit|Write`. Restate
-  the inert-string rationale when touching it.
-- **Fail-closed without bricking.** The wf-step signal is partly
-  attacker-influenceable on-disk state, so on ambiguous / malformed / absent
-  inference (empty task-stack, multiple in-progress tasks,
-  `task-context-inference` exit 1, a call outside any task) the gate fails
-  closed (most-restrictive) AND surfaces a message — but must deny only the
-  production crown jewels (`.cwf/`, `.claude/`, skills, helpers), never brick
-  legitimate work. Derive the task path from a trusted source, not free-form
-  file content.
-- **Reuse, don't reinvent.** Build on `task-context-inference` /
-  `CWF::TaskContextInference.pm` (already emits `workflow_step:`); do not
-  re-parse branch/task-stack.
-- **NFR1 cost.** The hook runs per Edit/Write call and inference shells out to
-  git — bound and measure the per-call overhead.
-- Same-commit `script-hashes.json` refresh for the new hook + the edited helper.

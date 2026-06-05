@@ -18,7 +18,8 @@ not an enforced boundary CWF stands behind.
   "enabled": false,
   "fail-if-unavailable": true,
   "credential-deny-list": ["~/.ssh", "~/.aws"],
-  "violation-logging": false
+  "violation-logging": false,
+  "planning-write-guard": "off"
 }
 ```
 
@@ -37,6 +38,8 @@ the knobs above.
   **both** a `sandbox.filesystem.denyRead` entry (the Bash-subprocess path) and
   `Read(<path>)` + `Read(<path>/**)` permission denials (the Read-tool path).
 - **`violation-logging`** — opt-in, default off. See *Violation logging* below.
+- **`planning-write-guard`** — enum `off` (default) | `observe` | `enforce`,
+  even when `enabled` is true. See *Planning-write guard* below.
 
 To **narrow** a shipped default, add an `allowRead` entry (or use
 `settings.local.json`) — do **not** delete the deny line, as the next merge
@@ -76,3 +79,37 @@ a presence flag — **never the raw command**) to `.cwf/sandbox-violations.log`
 (gitignored). It is **observe-only**: it never blocks, relaxes, or silences a
 boundary, and a failed log write is swallowed. The log is operator-facing — do
 not feed it back into an LLM; treat its contents as untrusted.
+
+## Planning-write guard
+
+With `planning-write-guard` set to `observe` or `enforce` (and `enabled: true`),
+CWF registers a PreToolUse hook (`pretooluse-planning-write-guard`) on the
+`Edit|Write` tools. It protects CWF's **crown jewels** — anything under `.cwf/`
+or `.claude/` (the workflow machinery, helper scripts, hooks, skills, and the
+Claude Code config that drives them) — from being rewritten during a planning
+phase. Writes to a task's own files, `BACKLOG.md`, scratch files, and anything
+outside `.cwf/`/`.claude/` are never touched.
+
+The guard reuses `task-context-inference` to decide the current workflow step. A
+crown-jewel `Edit`/`Write` is permitted **only** when inference positively
+resolves (correlated) to a recognised **exec** phase (`implementation-exec`);
+during planning phases — or whenever inference is ambiguous — it is blocked.
+
+- **`off`** (default) — the hook is not registered; today's behaviour.
+- **`observe`** — would-block writes are permitted but a minimal fixed-key
+  record (no raw path) is appended to `.cwf/sandbox-violations.log` (shared with
+  violation logging). Use this to dry-run the policy before enforcing.
+- **`enforce`** — crown-jewel writes outside an exec phase are **denied**.
+
+**Posture — fail-closed (deliberately the opposite of violation logging).** The
+guard denies on *any* ambiguity (inference uncorrelated / no signals / error /
+unknown step) rather than allowing. The reason surfaced to the agent is a fixed
+token (e.g. `crown-jewel:.cwf|.claude phase:design-plan`) — never the target
+path or any tool input. A consequence: editing `.cwf/`/`.claude/` *outside* a
+recognised exec phase (ad-hoc maintenance, or during planning) is blocked while
+`enforce` is on; drop the knob to `observe`/`off` for that work.
+
+**Still advisory, like the rest of this feature.** `Edit`/`Write` are not
+sandboxed by the OS — this is a Claude Code permission/hook gate, not an
+enforced boundary. The `dangerouslyDisableSandbox` escape hatch and the
+agent-reachability caveats above apply here too.

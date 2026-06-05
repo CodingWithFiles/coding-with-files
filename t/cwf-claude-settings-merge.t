@@ -521,6 +521,29 @@ subtest 'TC-M5: symlinked hook path → directives not read (default Stop)' => s
        'hook registered under default Stop event');
 };
 
+# ----- TC-M6: directives are read from the whole leading comment block -------
+# (Task 180) The real CWF hooks place their registration directives at ~line 18,
+# inside a long header comment. The directive scan must cover the leading
+# comment block (stop at the first non-comment line), not a too-small fixed
+# window — otherwise a hook's directives are silently missed and it falls back
+# to Stop/no-matcher (the latent miss this rewrite fixes for the R3 + R1 hooks).
+subtest 'TC-M6: directives deep in the header block are still read' => sub {
+    plan tests => 3;
+    my $tmp = build_fixture(manifest => { 'deep' => mk_entry('.cwf/scripts/hooks/deep') });
+    # A realistic header: shebang + 16 comment lines, THEN the directives, THEN
+    # the first code line. Directives sit at lines 18-19, past the old 15 cap.
+    my $hdr = "#!/usr/bin/env perl\n" . ("# filler\n" x 16)
+            . "# cwf-hook-event: PreToolUse\n# cwf-hook-matcher: Edit|Write\n"
+            . "use strict;\n# cwf-hook-event: Stop\n";   # post-code line ignored
+    overwrite_file($tmp, '.cwf/scripts/hooks/deep', $hdr);
+    my ($exit) = run_helper($tmp);
+    is($exit, 0, 'exit 0');
+    my $s = read_settings($tmp);
+    ok($s->{hooks}{PreToolUse}, 'PreToolUse event read from line ~18');
+    is($s->{hooks}{PreToolUse}[0]{matcher}, 'Edit|Write',
+       'matcher read from the header block (post-code directive ignored)');
+};
+
 #=============================================================================
 # Task 179 — CWF-managed sandboxing
 #=============================================================================
@@ -752,19 +775,164 @@ subtest 'TC-9: R3 hook registers only when violation-logging is true' => sub {
        'logging off → R3 hook not in allowlist');
 };
 
-# ----- TC-10: PreToolUse event accepted; `|` matcher still rejected ----------
-subtest 'TC-10: event allowlist widened to PreToolUse; matcher regex unchanged' => sub {
-    plan tests => 3;
-    my $manifest = { 'gen' => mk_entry('.cwf/scripts/hooks/gen-hook') };
-    my $tmp = build_fixture(manifest => $manifest);
+# ----- TC-10: matcher widened to a pipe-alternation of tool-name tokens ------
+# (Task 180, FR1/AC1a-b/d, D5). Rewritten: the old TC-10 asserted Edit|Write was
+# REJECTED (matcher-less fallback). Widening the regex to admit a pipe-separated
+# allowlist of [A-Za-z0-9_-]+ tokens inverts that — Edit|Write now registers as a
+# real matcher group — while every malformed alternation still falls back.
+subtest 'TC-10: Edit|Write matcher accepted; malformed alternations rejected' => sub {
+    plan tests => 8;
+    # (a) well-formed two-token alternation → real matcher group
+    my $tmp = build_fixture(manifest => { 'gen' => mk_entry('.cwf/scripts/hooks/gen-hook') });
     overwrite_file($tmp, '.cwf/scripts/hooks/gen-hook',
         "#!/usr/bin/env perl\n# cwf-hook-event: PreToolUse\n# cwf-hook-matcher: Edit|Write\n");
     my ($exit) = run_helper($tmp);
-    is($exit, 0, 'exit 0');
+    is($exit, 0, '(a) exit 0');
     my $s = read_settings($tmp);
-    ok($s->{hooks}{PreToolUse}, 'PreToolUse event accepted (allowlist widened)');
-    ok(!exists $s->{hooks}{PreToolUse}[0]{matcher},
-       'Edit|Write matcher rejected (regex unchanged) → matcher-less group');
+    ok($s->{hooks}{PreToolUse}, '(a) PreToolUse event present');
+    is($s->{hooks}{PreToolUse}[0]{matcher}, 'Edit|Write',
+       '(a) matcher registered as "Edit|Write"');
+
+    # (b) malformed alternations → matcher-less fallback (no matcher key, no
+    # attacker string reaches a settings key). Edit|;rm fails because `;` is
+    # outside [A-Za-z0-9_-], so the anchored alternation rejects the whole value.
+    for my $bad ('Edit|', '|Write', '||', 'Edit|;rm') {
+        my $t = build_fixture(manifest => { 'gen' => mk_entry('.cwf/scripts/hooks/gen-hook') });
+        overwrite_file($t, '.cwf/scripts/hooks/gen-hook',
+            "#!/usr/bin/env perl\n# cwf-hook-event: PreToolUse\n# cwf-hook-matcher: $bad\n");
+        run_helper($t);
+        my $st = read_settings($t);
+        ok(!exists $st->{hooks}{PreToolUse}[0]{matcher},
+           "(b) malformed matcher '$bad' → matcher-less fallback");
+    }
+
+    # (c) single-token matcher still works (TC-M2 semantics unchanged)
+    my $t2 = build_fixture(manifest => { 'gen' => mk_entry('.cwf/scripts/hooks/gen-hook') });
+    overwrite_file($t2, '.cwf/scripts/hooks/gen-hook',
+        "#!/usr/bin/env perl\n# cwf-hook-event: PreToolUse\n# cwf-hook-matcher: Bash\n");
+    run_helper($t2);
+    is(read_settings($t2)->{hooks}{PreToolUse}[0]{matcher}, 'Bash',
+       '(c) single-token matcher unchanged');
+};
+
+#=============================================================================
+# Task 180 — planning-write guard
+#=============================================================================
+
+# ----- TC-PG1: merge-time enum validator dies on a malformed knob -----------
+# validate_sandbox_block_or_die rejects a bad planning-write-guard at merge
+# time (not only cwf-manage validate) — a corrupt enum must surface, never
+# silently degrade.
+subtest 'TC-PG1: malformed planning-write-guard → [CWF] ERROR (helper dies)' => sub {
+    plan tests => 4;
+    # valid value merges cleanly
+    my $ok = build_fixture(manifest => standard_manifest());
+    write_config($ok, { enabled => JSON::PP::true, 'planning-write-guard' => 'observe' });
+    my ($e_ok) = run_helper($ok);
+    is($e_ok, 0, 'valid planning-write-guard:observe → exit 0');
+
+    # bogus string value dies
+    my $bad = build_fixture(manifest => standard_manifest());
+    write_config($bad, { enabled => JSON::PP::true, 'planning-write-guard' => 'on' });
+    my ($e_bad, undef, $err_bad) = run_helper($bad);
+    isnt($e_bad, 0, 'bogus planning-write-guard → non-zero exit');
+    like($err_bad, qr/\Q[CWF] ERROR:\E/, 'surfaces [CWF] ERROR');
+    like($err_bad, qr/\Qsandbox.planning-write-guard\E/, 'names the bad field');
+};
+
+# Manifest that includes the guard hook (with its real PreToolUse + Edit|Write
+# directives), the R3 hook, and the standard one-of-each set.
+sub guard_manifest {
+    my $m = standard_manifest();
+    $m->{'guard'} = mk_entry('.cwf/scripts/hooks/pretooluse-planning-write-guard');
+    $m->{'r3'}    = mk_entry('.cwf/scripts/hooks/pretooluse-sandbox-logging');
+    return $m;
+}
+sub stub_guard_directives {
+    my ($tmp) = @_;
+    overwrite_file($tmp, '.cwf/scripts/hooks/pretooluse-planning-write-guard',
+        "#!/usr/bin/env perl\n# cwf-hook-event: PreToolUse\n# cwf-hook-matcher: Edit|Write\n");
+    overwrite_file($tmp, '.cwf/scripts/hooks/pretooluse-sandbox-logging',
+        "#!/usr/bin/env perl\n# cwf-hook-event: PreToolUse\n# cwf-hook-matcher: Bash\n");
+}
+sub guard_group {
+    my ($s) = @_;
+    for my $g (@{ $s->{hooks}{PreToolUse} || [] }) {
+        for my $h (@{ $g->{hooks} || [] }) {
+            return $g if $h->{command} eq '.cwf/scripts/hooks/pretooluse-planning-write-guard';
+        }
+    }
+    return undef;
+}
+
+# ----- TC-PG2: guard registration gated on the knob, independent of R3 ------
+subtest 'TC-PG2: guard hook registers only when planning-write-guard ne off' => sub {
+    plan tests => 11;
+
+    # (a) ON + guard off → not registered, not in allow
+    my $off = build_fixture(manifest => guard_manifest());
+    stub_guard_directives($off);
+    write_config($off, { enabled => JSON::PP::true, 'planning-write-guard' => 'off' });
+    run_helper($off);
+    my $s_off = read_settings($off);
+    ok(!guard_group($s_off), '(a) guard off → not registered');
+    my %allow_off = map { $_ => 1 } @{ $s_off->{permissions}{allow} };
+    ok(!$allow_off{'Bash(.cwf/scripts/hooks/pretooluse-planning-write-guard)'},
+       '(a) guard off → not in allowlist');
+
+    # (b) ON + guard observe → registered under PreToolUse, matcher Edit|Write
+    my $obs = build_fixture(manifest => guard_manifest());
+    stub_guard_directives($obs);
+    write_config($obs, { enabled => JSON::PP::true, 'planning-write-guard' => 'observe' });
+    run_helper($obs);
+    my $g_obs = guard_group(read_settings($obs));
+    ok($g_obs, '(b) guard observe → registered');
+    is($g_obs->{matcher}, 'Edit|Write', '(b) matcher is Edit|Write');
+
+    # (c) ON + guard enforce → registered too
+    my $enf = build_fixture(manifest => guard_manifest());
+    stub_guard_directives($enf);
+    write_config($enf, { enabled => JSON::PP::true, 'planning-write-guard' => 'enforce' });
+    run_helper($enf);
+    my $g_enf = guard_group(read_settings($enf));
+    ok($g_enf, '(c) guard enforce → registered');
+    is($g_enf->{matcher}, 'Edit|Write', '(c) matcher is Edit|Write');
+    my %allow_enf = map { $_ => 1 } @{ read_settings($enf)->{permissions}{allow} };
+    ok($allow_enf{'Bash(.cwf/scripts/hooks/pretooluse-planning-write-guard)'},
+       '(c) guard enforce → in allowlist');
+
+    # (d) sandbox OFF + guard enforce → not registered (gate needs sandbox on)
+    my $sboff = build_fixture(manifest => guard_manifest());
+    stub_guard_directives($sboff);
+    write_config($sboff, { enabled => JSON::PP::false, 'planning-write-guard' => 'enforce' });
+    run_helper($sboff);
+    ok(!guard_group(read_settings($sboff)),
+       '(d) sandbox off → guard not registered even at enforce');
+
+    # (e) R3 independence: guard enforce + violation-logging false → R3 absent,
+    #     guard present; and guard off + violation-logging true → R3 present,
+    #     guard absent.
+    my $only_guard = build_fixture(manifest => guard_manifest());
+    stub_guard_directives($only_guard);
+    write_config($only_guard, { enabled => JSON::PP::true,
+        'planning-write-guard' => 'enforce', 'violation-logging' => JSON::PP::false });
+    run_helper($only_guard);
+    my $s1 = read_settings($only_guard);
+    ok(guard_group($s1), '(e) guard present');
+    my $r3_cmds = join ' ', map { @{ $_->{hooks} } ? map { $_->{command} } @{ $_->{hooks} } : () }
+                            @{ $s1->{hooks}{PreToolUse} || [] };
+    unlike($r3_cmds, qr/pretooluse-sandbox-logging/,
+       '(e) R3 absent (violation-logging false) — gates independent');
+
+    my $only_r3 = build_fixture(manifest => guard_manifest());
+    stub_guard_directives($only_r3);
+    write_config($only_r3, { enabled => JSON::PP::true,
+        'planning-write-guard' => 'off', 'violation-logging' => JSON::PP::true });
+    run_helper($only_r3);
+    my $s2 = read_settings($only_r3);
+    ok(!guard_group($s2) && grep({ grep { $_->{command} eq '.cwf/scripts/hooks/pretooluse-sandbox-logging' } @{ $_->{hooks} } }
+            @{ $s2->{hooks}{PreToolUse} || [] }),
+       '(e) R3 present, guard absent — gates independent');
 };
 
 done_testing();

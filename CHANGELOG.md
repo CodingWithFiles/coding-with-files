@@ -2,6 +2,48 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 180: phase-scoped planning-write PreToolUse guard (feature)
+
+### Status: Complete (2026-06-05)
+### Duration: ~1 session for exec→j (estimate 2–4 days, Medium–High). Under estimate — the Task-179 substrate did most of the structural work; this was the policy core + one hook + wiring.
+### Impact: Implements **R1** of the CWF sandboxing feature (split from Task 179). When sandboxing is on and the new `sandbox.planning-write-guard` enum knob (`off`|`observe`|`enforce`, **default `off`** even with sandbox on) is not `off`, a fail-closed `PreToolUse` hook (`pretooluse-planning-write-guard`, matcher `Edit|Write`) guards CWF's **crown jewels** (`.cwf/`, `.claude/`): a crown-jewel Edit/Write is **denied** unless `task-context-inference` positively resolves (correlated) to a recognised **exec** phase (`implementation-exec`). The no-brick guarantee comes from *scope* — only crown jewels are ever denied; task-own files, `BACKLOG`, scratch, and anything outside `.cwf/`/`.claude/` pass through. Policy lives in a new pure lib `CWF::PlanningGuard` (`classify_path` canonicalises `..`/symlinks, conservative-crown on unresolvable; `decide` is confidence-first fail-closed with a **fixed enumerated deny token** — never a path/slug/command, FR4(c)/(e)); the hook is a thin I/O wrapper (tool-gate-first → crown-jewel-first short-circuit → root-anchored knob → STDERR-contained TCI → deny / observe-log / allow). `observe` mode logs would-block writes (fixed-key, no raw path) to the gitignored `.cwf/sandbox-violations.log` and permits — the de-risk dial before `enforce`. Built by widening the `cwf-claude-settings-merge` matcher regex to a `|`-alternation of tool-name tokens (admits no shell/settings metachar), threading a second independent registration gate (`$register_guard`), and adding the enum to **both** validators via a single shared `PLANNING_GUARD_VALUES` literal. Ships off-by-default; `.cwf/docs/sandboxing.md` § "Planning-write guard" documents it. Same-commit `script-hashes.json` refresh (new lib + hook + refreshed helper/`Config.pm`). NFR1 measured: crown 36.9 ms/call, non-crown 25.9 ms/call (both under ~50 ms). 77 task-specific tests; full suite **686 green**; `cwf-manage validate` clean; both exec-phase security reviews **`no findings`**.
+
+### Notable
+- **Latent Task-179 defect found + fixed.** `read_hook_directives` scanned only the first 15 header lines, but the canonical hook header places its `cwf-hook-event`/`cwf-hook-matcher` directives at ~line 18 — so **both** the R3 logging hook (shipped in 179) **and** the new guard silently fell back to `Stop`/no-matcher instead of `PreToolUse`. Caught by a dry-run (registration is an emergent property of helper ∘ header — source-grep would miss it). Fixed by scanning the **leading comment block** (stop at the first code line — no arbitrary cap; an interim 50-line backstop was removed on review feedback). Repairs R3's registration as a tested consequence (regression TC-M6).
+- **Crown-jewel deny-list (Option A) collapsed the policy.** Reframing fail-closed as "deny a crown jewel unless positively in an exec phase" reconciled "fail closed" with "never brick", and sidestepped the allow-list bricking trap.
+- **Lib/hook split made the matrix unit-testable.** The whole policy is exercised deterministically without git/TCI in `t/planning-guard.t`; the hermetic git-repo hook test only binds I/O (incl. a real-payload deny-envelope fixture — the binding check for Claude Code schema drift).
+
+### Retired Backlog Items
+#### R1: phase-scoped planning-write PreToolUse guard (CWF sandboxing 179.1)
+
+Phase-scoped planning-write isolation (R1), split from Task 179 (c-design D7,
+b-AC4d). During planning phases (a–e) with sandboxing on, gate Edit/Write to
+the current task's own planning files; block edits to production
+code/skills/helpers.
+
+Scope this subtask must carry that 179 deliberately did not:
+
+- **Matcher-regex widening.** 179 widened only the `read_hook_directives`
+  *event* allowlist (to admit `PreToolUse`). R1 also needs the *matcher* regex
+  (`/^[A-Za-z0-9_-]+$/`, helper line ~86) widened to admit `Edit|Write`. Restate
+  the inert-string rationale when touching it.
+- **Fail-closed without bricking.** The wf-step signal is partly
+  attacker-influenceable on-disk state, so on ambiguous / malformed / absent
+  inference (empty task-stack, multiple in-progress tasks,
+  `task-context-inference` exit 1, a call outside any task) the gate fails
+  closed (most-restrictive) AND surfaces a message — but must deny only the
+  production crown jewels (`.cwf/`, `.claude/`, skills, helpers), never brick
+  legitimate work. Derive the task path from a trusted source, not free-form
+  file content.
+- **Reuse, don't reinvent.** Build on `task-context-inference` /
+  `CWF::TaskContextInference.pm` (already emits `workflow_step:`); do not
+  re-parse branch/task-stack.
+- **NFR1 cost.** The hook runs per Edit/Write call and inference shells out to
+  git — bound and measure the per-call overhead.
+- Same-commit `script-hashes.json` refresh for the new hook + the edited helper.
+
+<!-- Note: Delivered as Task 180. Matcher widened to Edit|Write; fail-closed crown-jewel deny-list (deny unless positively in an exec phase); reuses task-context-inference; NFR1 measured. Also fixed the latent directive-scan misregistration affecting R3. -->
+
 ## Task 179: Integrate Claude Code sandboxing into CWF (feature)
 
 ### Status: Complete (2026-06-05)

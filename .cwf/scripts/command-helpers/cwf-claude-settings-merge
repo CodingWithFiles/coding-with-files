@@ -7,12 +7,13 @@
 #
 # A hook under .cwf/scripts/hooks/ registers under the Stop event with no
 # matcher by default. A hook may opt into a different event or an agent_type
-# matcher via header-comment directives in its first 15 lines:
+# matcher via header-comment directives in its leading comment block:
 #   # cwf-hook-event: SubagentStop
 #   # cwf-hook-matcher: cwf-security-reviewer-changeset
 # Directive values are validated (event in {Stop,SubagentStop,PreToolUse};
-# matcher is [A-Za-z0-9_-]+) before they reach a settings key; anything else
-# falls back to the Stop / no-matcher default.
+# matcher is a single [A-Za-z0-9_-]+ tool-name token or a `|`-alternation of
+# them, e.g. Edit|Write) before they reach a settings key; anything else falls
+# back to the Stop / no-matcher default.
 #
 # Idempotent: re-running adds only missing entries; existing user entries are
 # preserved (env.PERL5OPT is added only when absent; a differing value is
@@ -30,6 +31,7 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use JSON::PP;
 use CWF::ArtefactHelpers qw(read_json_file atomic_write_text validate_write_path_allowlist);
+use CWF::PlanningGuard qw(PLANNING_GUARD_VALUES);
 
 my $PROG = 'cwf-claude-settings-merge';
 
@@ -66,13 +68,17 @@ my $config_path = 'implementation-guide/cwf-project.json';
 # even though it is always present in the integrity manifest. Compile-time
 # literal so the gate can never be redirected by manifest content.
 my $R3_HOOK_PATH = '.cwf/scripts/hooks/pretooluse-sandbox-logging';
+# The R1 planning-write guard hook is registered ONLY when sandbox is on AND
+# sandbox.planning-write-guard is not 'off'. Compile-time literal, same as
+# $R3_HOOK_PATH, so the gate can never be redirected by manifest content.
+my $GUARD_HOOK_PATH = '.cwf/scripts/hooks/pretooluse-planning-write-guard';
 # dep → package, compile-time literals (FR4(e)): never sourced from probe output.
 my %SANDBOX_DEPS = ( bwrap => 'bubblewrap', socat => 'socat' );
 
 # --- Manifest reader -------------------------------------------------------
 sub read_manifest { return read_json_file($manifest_path); }
 
-# Read a hook's registration directives from its first 15 lines. Returns
+# Read a hook's registration directives from its leading comment block. Returns
 # ($event, $matcher): $event defaults to 'Stop', $matcher to undef. Values are
 # validated before use — an invalid or absent directive yields the default, so
 # an unvalidated parsed string never reaches a .claude/settings.json key.
@@ -88,14 +94,30 @@ sub read_hook_directives {
     open(my $fh, '<', $path) or return ($event, $matcher);
     my $n = 0;
     while (my $line = <$fh>) {
-        last if ++$n > 15;
+        $n++;
+        # Directives live in the LEADING comment block, which ends at the first
+        # code line. Stop at the first line past the shebang that is neither a
+        # comment nor blank: this reads a directive wherever it sits in the
+        # header (no arbitrary line cap) yet can never pick up a directive-shaped
+        # comment further down in the body.
+        last if $n > 1 && $line !~ /^\s*#/ && $line !~ /^\s*$/;
         if ($line =~ /^#\s*cwf-hook-event:\s*(\S+)/) {
             my $v = $1;
             $event = $v if $v =~ /^(?:Stop|SubagentStop|PreToolUse)$/;
         }
         elsif ($line =~ /^#\s*cwf-hook-matcher:\s*(\S+)/) {
             my $v = $1;
-            $matcher = $v if $v =~ /^[A-Za-z0-9_-]+$/;
+            # A matcher is a single tool-name token OR a pipe-alternation of
+            # them (e.g. "Edit|Write") — Claude Code matches the tool name
+            # against this value. Widened in Task 180 from a single token to an
+            # anchored allowlist of [A-Za-z0-9_-]+ tokens joined by `|`. The
+            # value still admits NO shell/settings metacharacter (no spaces,
+            # `;`, `$`, quotes, `.`, `/`): it is an inert string copied verbatim
+            # into a .claude/settings.json key, never executed, so the only risk
+            # is a malformed key — which the anchors reject (falls back to the
+            # no-matcher default). `|` is safe here precisely because it never
+            # reaches a shell.
+            $matcher = $v if $v =~ /^[A-Za-z0-9_-]+(?:\|[A-Za-z0-9_-]+)*$/;
         }
     }
     close $fh;
@@ -108,7 +130,7 @@ sub read_hook_directives {
 #  - hook_entries:  list of { entry => { type, command, timeout }, event,
 #                             matcher } where matcher may be undef.
 sub partition_manifest {
-    my ($json, $register_r3) = @_;
+    my ($json, $register_r3, $register_guard) = @_;
     my (@allow, @hooks);
 
     my $scripts = $json->{scripts} || {};
@@ -139,6 +161,9 @@ sub partition_manifest {
             # violation-logging true). Skipped entirely otherwise, so the
             # sandbox-OFF output is byte-for-byte today's behaviour.
             next if $path eq $R3_HOOK_PATH && !$register_r3;
+            # R1 planning-write guard: registered only when opted in (sandbox on
+            # + planning-write-guard ne 'off'). Independent of the R3 gate.
+            next if $path eq $GUARD_HOOK_PATH && !$register_guard;
             push @allow, "Bash($path)";
             my ($event, $matcher) = read_hook_directives($path);
             push @hooks, {
@@ -336,6 +361,16 @@ sub validate_sandbox_block_or_die {
                 unless defined $e && !ref $e;
         }
     }
+    # planning-write-guard (Task 180): enum off|observe|enforce, shared literal
+    # from CWF::PlanningGuard. A bad enum must surface at merge time, not only
+    # under cwf-manage validate.
+    if (exists $s->{'planning-write-guard'}) {
+        my $v = $s->{'planning-write-guard'};
+        my %allowed = map { $_ => 1 } PLANNING_GUARD_VALUES;
+        die "[CWF] ERROR: $config_path: sandbox.planning-write-guard must be one of: "
+          . join(', ', PLANNING_GUARD_VALUES) . "\n"
+            unless defined $v && !ref $v && $allowed{$v};
+    }
     return;
 }
 
@@ -447,9 +482,15 @@ my $violation_logging_on = ($sandbox && $sandbox->{'violation-logging'}) ? 1 : 0
 my @deny = ($sandbox_on && ref $sandbox->{'credential-deny-list'} eq 'ARRAY')
          ? @{ $sandbox->{'credential-deny-list'} } : ();
 my $register_r3 = ($sandbox_on && $violation_logging_on) ? 1 : 0;
+# planning-write-guard knob: default 'off' when absent. read_sandbox_config has
+# already validated it against PLANNING_GUARD_VALUES, so a value here is sound.
+my $planning_write_guard = ($sandbox && defined $sandbox->{'planning-write-guard'})
+                         ? $sandbox->{'planning-write-guard'} : 'off';
+my $register_guard = ($sandbox_on && $planning_write_guard ne 'off') ? 1 : 0;
 
 my $manifest = read_manifest();
-my ($allow_entries, $hook_entries) = partition_manifest($manifest, $register_r3);
+my ($allow_entries, $hook_entries) =
+    partition_manifest($manifest, $register_r3, $register_guard);
 
 my $settings = read_settings();
 my $allow_added = merge_allow($settings, $allow_entries);

@@ -1,0 +1,179 @@
+#!/usr/bin/env perl
+#
+# pretooluse-planning-write-guard — fail-closed PreToolUse guard (Task 180, R1)
+#
+# Opt-in (cwf-project.json sandbox on + sandbox.planning-write-guard != off).
+# Registered by cwf-claude-settings-merge ONLY under those conditions, even
+# though the hook is always present in the integrity manifest. It guards CWF's
+# crown jewels — .cwf/ and .claude/ — against Edit/Write tool calls that are NOT
+# positively resolved to an exec phase, so planning-phase work cannot quietly
+# rewrite the machinery it runs on.
+#
+# POSTURE — FAIL-CLOSED ENFORCING (the deliberate opposite of the R3 observe
+# logger): a crown-jewel write is DENIED unless task-context-inference resolves
+# (correlated) to a recognised exec phase. Every ambiguous result
+# (uncorrelated / no_signals / error / unknown step) denies. The no-brick
+# guarantee comes from scope, not leniency: only crown jewels are ever denied —
+# task-own files, BACKLOG, scratch, and everything outside .cwf/.claude pass
+# through untouched. The pure policy lives in CWF::PlanningGuard (unit-tested
+# without git); this wrapper only does I/O.
+#
+# Registration directives (read by cwf-claude-settings-merge):
+# cwf-hook-event: PreToolUse
+# cwf-hook-matcher: Edit|Write
+#
+# Output: a Claude Code PreToolUse decision on stdout (exit 0). To DENY:
+#   {"hookSpecificOutput":{"hookEventName":"PreToolUse",
+#     "permissionDecision":"deny","permissionDecisionReason":"<fixed token>"}}
+# To ALLOW: print nothing (empty stdout) and exit 0. The reason is always a
+# FIXED enumerated token — never the target path, slug, or any tool_input
+# string (FR4(c)/(e)).
+#
+use strict;
+use warnings;
+use utf8;
+use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use JSON::PP;
+use POSIX ();
+use CWF::Common qw(find_git_root);
+use CWF::TaskContextInference qw(infer_task_context);
+use CWF::PlanningGuard qw(classify_path decide PLANNING_GUARD_VALUES);
+
+# Emit a deny decision and exit. $reason is a fixed enumerated token.
+sub emit_deny {
+    my ($reason) = @_;
+    print JSON::PP->new->canonical->encode({
+        hookSpecificOutput => {
+            hookEventName            => 'PreToolUse',
+            permissionDecision       => 'deny',
+            permissionDecisionReason => $reason,
+        },
+    }), "\n";
+    exit 0;
+}
+
+# Read the planning-write-guard knob, root-anchored (NOT cwd-relative — the
+# hook's cwd is not a guaranteed invariant). Deliberate asymmetry vs the merge
+# validators: those reject a bad enum loudly at merge time; this hook cannot
+# die mid-tool-call, so it fails CLOSED (enforce) on anything it cannot read
+# cleanly, and only treats an absent config / absent knob as 'off'.
+sub read_knob {
+    my ($root) = @_;
+    return 'enforce' unless defined $root && length $root;   # no root → fail-closed
+    my $cfg = "$root/implementation-guide/cwf-project.json";
+    return 'off' unless -e $cfg;                  # config absent → feature off
+    return 'enforce' unless -f $cfg && !-l $cfg;  # present but irregular → fail-closed
+    open(my $fh, '<:raw', $cfg) or return 'enforce';
+    my $blob = do { local $/; <$fh> };
+    close $fh;
+    my $json = eval { JSON::PP->new->decode($blob) };
+    return 'enforce' if $@ || ref $json ne 'HASH';   # unparseable → fail-closed
+    my $s = $json->{sandbox};
+    return 'off' unless ref $s eq 'HASH';            # sandbox block absent → off
+    my $v = $s->{'planning-write-guard'};
+    return 'off' unless defined $v && !ref $v;       # knob absent → off (default)
+    my %ok = map { $_ => 1 } PLANNING_GUARD_VALUES;
+    return $ok{$v} ? $v : 'enforce';                 # invalid value → fail-closed
+}
+
+# Append a fixed-key observe record to the shared, FindBin-anchored,
+# gitignored, operator-facing log (.cwf/sandbox-violations.log — same derivation
+# as R3, cwd-independent). No raw path: only fixed enumeration values. Observe
+# is fail-OPEN: a write failure is swallowed.
+sub log_observe {
+    my ($path_class, $token) = @_;
+    my $rec = eval {
+        JSON::PP->new->canonical->encode({
+            ts           => POSIX::strftime('%Y-%m-%dT%H:%M:%SZ', gmtime),
+            event        => 'planning-guard-observe',
+            'path-class' => $path_class,
+            reason       => $token,
+        });
+    };
+    return unless defined $rec;
+    my $log = "$FindBin::Bin/../../sandbox-violations.log";
+    open(my $fh, '>>', $log) or return;    # unwritable → swallow (fail-open)
+    print {$fh} $rec, "\n";
+    close $fh;
+}
+
+# Derive the repo roots to classify against: the MAIN root (find_git_root, which
+# prefers --git-common-dir so it is worktree-safe) PLUS the worktree root when
+# it differs. Most-restrictive two-root rule — a crown jewel under EITHER root
+# is guarded. STDERR of the --show-toplevel shell-out is contained (find_git_root
+# already redirects its own).
+sub derive_roots {
+    my @roots;
+    my $main = find_git_root();
+    push @roots, $main if defined $main && length $main;
+    my $wt = `git rev-parse --show-toplevel 2>/dev/null`;
+    chomp $wt if defined $wt;
+    push @roots, $wt if defined $wt && length $wt && !grep { $_ eq $wt } @roots;
+    return @roots;
+}
+
+# Infer task context with TCI's warn()/STDERR contained, so no path or diagnostic
+# can leak onto a stream the agent sees.
+sub infer_contained {
+    local $SIG{__WARN__} = sub { };
+    return eval { infer_task_context() };
+}
+
+# --- Main ------------------------------------------------------------------
+my $raw  = do { local $/; <STDIN> };
+my $data = (defined $raw && length $raw) ? eval { JSON::PP->new->decode($raw) } : undef;
+my $tool = (ref $data eq 'HASH') ? $data->{tool_name} : undef;
+
+# Tool-name gate FIRST: anything that is not Edit/Write is out of scope and
+# passes through. This is also the defence against matcher-less degradation —
+# if the hook were ever registered without its Edit|Write matcher and fired on
+# every tool, non-write tools still sail through (no total brick).
+if (defined $tool && $tool ne 'Edit' && $tool ne 'Write') {
+    exit 0;
+}
+
+# Extract the target path (same key for Edit and Write).
+my $file_path;
+if (ref $data eq 'HASH' && ref $data->{tool_input} eq 'HASH') {
+    my $fp = $data->{tool_input}{file_path};
+    $file_path = $fp if defined $fp && !ref $fp && length $fp;
+}
+
+my @roots = derive_roots();
+
+# Crown-jewel-first short-circuit: a resolvable NON-crown write is permitted
+# immediately — no knob read, no TCI shell-out (NFR1: non-crown writes pay ~0).
+if (defined $file_path) {
+    exit 0 unless classify_path($file_path, \@roots);
+}
+
+# Here: a crown-jewel write, or an unresolved target (missing file_path /
+# malformed stdin). Both are deny candidates — gated by the knob.
+my $root = $roots[0];
+my $knob = read_knob($root);
+exit 0 if $knob eq 'off';     # opted out → passthrough
+
+my ($decision, $token, $path_class);
+if (!defined $file_path) {
+    # Cannot classify what we cannot resolve → fail-closed deny.
+    ($decision, $token, $path_class) = ('deny', 'target:unresolved', 'unresolved');
+}
+else {
+    my $ctx        = infer_contained();
+    my $confidence = (ref $ctx eq 'HASH') ? $ctx->{confidence} : 'error';
+    # Only a correlated result exposes a scalar workflow_step; every other
+    # confidence collapses to deny inside decide() regardless.
+    my $step = (defined $confidence && $confidence eq 'correlated')
+             ? $ctx->{workflow_step} : undef;
+    ($decision, $token) = decide($tool, 1, $confidence, $step);
+    exit 0 if $decision eq 'allow';      # positively resolved to an exec phase
+    $path_class = 'crown-jewel';
+}
+
+# decision is 'deny': observe logs-and-permits; enforce blocks.
+if ($knob eq 'observe') {
+    log_observe($path_class, $token);
+    exit 0;
+}
+emit_deny($token);    # enforce (or fail-closed invalid knob)

@@ -18,6 +18,7 @@ use utf8;
 use Exporter 'import';
 use JSON::PP;
 use CWF::WorkflowFiles::V21 qw(supported_types);
+use CWF::PlanningGuard qw(PLANNING_GUARD_VALUES);
 
 our @EXPORT_OK = qw(validate validate_config_hash);
 
@@ -270,6 +271,22 @@ sub _validate_sandbox_block {
                     'Each sandbox.credential-deny-list entry must be a path string',
                 );
             }
+        }
+    }
+
+    # planning-write-guard (Task 180): enum off|observe|enforce. Absent ⇒ off
+    # (default, no violation). The allowed set is the shared
+    # CWF::PlanningGuard::PLANNING_GUARD_VALUES literal — never hand-typed here.
+    if (exists $s->{'planning-write-guard'}) {
+        my $v = $s->{'planning-write-guard'};
+        my %allowed = map { $_ => 1 } PLANNING_GUARD_VALUES;
+        unless (defined $v && !ref $v && $allowed{$v}) {
+            push @viol, _violation(
+                $file, 'sandbox.planning-write-guard',
+                _scalar_repr($v),
+                'one of: ' . join(', ', PLANNING_GUARD_VALUES),
+                'Set sandbox.planning-write-guard to off, observe, or enforce in ' . $file,
+            );
         }
     }
     return @viol;
