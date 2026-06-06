@@ -22,23 +22,40 @@
 #   the task ships. Test-vs-production weighting applies only to the cap below.
 #
 # Production-weighted cap (--max-lines):
-#   The full diff is always emitted to stdout. When --max-lines=N is given,
-#   the helper also computes a production-weighted line count: added+deleted
-#   lines (git diff --numstat) over the included files, minus any path
-#   matching a `security.review.max-lines-exclude-paths` pattern from cwf-project.json.
-#   Those patterns are gitignore/git pathspec globs, applied by git's own
-#   :(glob,exclude) engine — no Perl-side path matching. Default unset =>
-#   no excludes => count == raw production lines. If the production count
-#   exceeds N, the helper exits 2 (stdout already printed). Unconfigured /
+#   The full diff is always written to the .out file (see Output). --max-lines
+#   defaults to 500 and is overridable; the helper computes a production-weighted
+#   line count: added+deleted lines (git diff --numstat) over the included files,
+#   minus any path matching a `security.review.max-lines-exclude-paths` pattern
+#   from cwf-project.json. Those patterns are gitignore/git pathspec globs,
+#   applied by git's own :(glob,exclude) engine — no Perl-side path matching.
+#   Default unset => no excludes => count == raw production lines. If the
+#   production count exceeds the cap, the helper exits 2 (the .out file is
+#   already written and the confirmation already printed). Unconfigured /
 #   unmatched layouts count as production, so the cap fires earlier, never
 #   later; a malformed pattern makes git fatal => capture_git exits 1.
 #
+# Agent contract:
+#   This helper is designed to be run by an agent, invoked exactly as
+#     .cwf/scripts/command-helpers/security-review-changeset --wf-step=<step>
+#   with no surrounding boilerplate. It self-manages its output file and reports
+#   the path + line count on stdout, so the agent needs no follow-up
+#   redirect / wc / cat / grep.
+#
 # Usage:
-#   security-review-changeset [--phase=implementation|testing] [--task-num=NUM]
+#   security-review-changeset --wf-step=<step> [--task-num=NUM]
 #                             [--max-lines=N] [--verbose]
+#   <step> is one of the ten canonical workflow-step suffixes
+#   (task-plan, requirements-plan, design-plan, implementation-plan,
+#   testing-plan, implementation-exec, testing-exec, rollout, maintenance,
+#   retrospective).
 #
 # Output:
-#   stdout: git diff output (the full changeset for the subagent).
+#   File:   the full changeset (git diff, anchor → working tree) is written to
+#           /tmp/<dashified-abs-main-root>-task-<num>/security-review-changeset-<step>.out
+#           (mode 0600, dir created mkdir -m 0700 on first use). The agent Reads
+#           this file. An empty changeset still writes a 0-line file.
+#   stdout: exactly one confirmation line —
+#           `security-review-changeset: wrote <N> lines to <abs-path>`.
 #   stderr: one-line summary
 #           `reviewed N files, M lines (P production), anchor=<sha7>`,
 #           with optional `, includes uncommitted` suffix when the working
@@ -48,18 +65,21 @@
 #           extra `cap exceeded: P production lines > N` line precedes exit 2.
 #
 # Exit:
-#   0 ok (changeset may be empty)
-#   1 error (unparseable branch, task not found, malformed trunk,
-#     invalid --max-lines, malformed max-lines-exclude-paths pattern, etc.)
-#   2 production-weighted line count exceeds --max-lines (changeset on stdout)
+#   0 ok (changeset may be empty — a 0-line .out file is still written)
+#   1 error (missing/invalid --wf-step, unparseable branch, task not found,
+#     malformed trunk, invalid --max-lines, uncreatable scratch dir, .out
+#     write failure, malformed max-lines-exclude-paths pattern, etc.)
+#   2 production-weighted line count exceeds --max-lines (.out file written +
+#     confirmation printed before exit)
 
 use strict;
 use warnings;
 use utf8;
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use CWF::Common qw(check_perl5opt);
+use CWF::Common qw(check_perl5opt find_git_root);
 use CWF::TaskPath qw(parse_branch resolve_num);
+use CWF::ArtefactHelpers qw(atomic_write_text);
 
 check_perl5opt();
 
@@ -68,12 +88,21 @@ my $PROG = 'security-review-changeset';
 # ---------------------------------------------------------------------------
 # CLI parsing
 # ---------------------------------------------------------------------------
-my %opt = (phase => undef, task_num => undef, max_lines => undef, verbose => 0);
+# The ten canonical workflow-step skill suffixes. --wf-step is validated against
+# this fixed literal set before it reaches any filesystem path, because the
+# value becomes a component of the output filename (path-injection defence,
+# NFR4). Mirrors the --task-num guard below.
+my %WF_STEP = map { $_ => 1 } qw(
+    task-plan requirements-plan design-plan implementation-plan testing-plan
+    implementation-exec testing-exec rollout maintenance retrospective
+);
+
+my %opt = (wf_step => undef, task_num => undef, max_lines => 500, verbose => 0);
 for my $arg (@ARGV) {
-    if    ($arg =~ /^--phase=(implementation|testing)$/) { $opt{phase} = $1 }
-    elsif ($arg =~ /^--task-num=(.+)$/)                  { $opt{task_num} = $1 }
-    elsif ($arg =~ /^--max-lines=(.+)$/)                 { $opt{max_lines} = $1 }
-    elsif ($arg eq '--verbose')                          { $opt{verbose} = 1 }
+    if    ($arg =~ /^--wf-step=(.+)$/)   { $opt{wf_step} = $1 }
+    elsif ($arg =~ /^--task-num=(.+)$/)  { $opt{task_num} = $1 }
+    elsif ($arg =~ /^--max-lines=(.+)$/) { $opt{max_lines} = $1 }
+    elsif ($arg eq '--verbose')          { $opt{verbose} = 1 }
     elsif ($arg eq '--help' || $arg eq '-h') {
         print_usage();
         exit 0;
@@ -82,6 +111,15 @@ for my $arg (@ARGV) {
         warn "$PROG: unknown argument: $arg\n";
         exit 1;
     }
+}
+
+# --wf-step is mandatory and must be an allowlisted canonical step. A removed
+# --phase, a typo, or a traversal-shaped value all land here.
+unless (defined $opt{wf_step} && $WF_STEP{$opt{wf_step}}) {
+    my $got = defined $opt{wf_step} ? "'$opt{wf_step}'" : '(missing)';
+    warn "$PROG: invalid --wf-step $got (expected one of: "
+       . join(', ', sort keys %WF_STEP) . ")\n";
+    exit 1;
 }
 
 # Defence in depth: --task-num arrives from the command line. Validate
@@ -140,7 +178,12 @@ my @changed = list_changed_files($anchor);
 my @included = @changed;
 
 # ---------------------------------------------------------------------------
-# Emit the full diff (or empty changeset) and stderr summary
+# Resolve the canonical per-task scratch dir, create it with the mandatory
+# 0700 first-use guard, and write the changeset to
+#   <scratch>/security-review-changeset-<wf-step>.out
+# The scratch namespace is derived from the MAIN tree (find_git_root is
+# worktree-safe per Task 173), so invocation from inside a linked worktree
+# does not produce a divergent path (tmp-paths.md).
 # ---------------------------------------------------------------------------
 my $short = substr($anchor, 0, 7);
 my $dirty_rc = git_check('diff', '--quiet', 'HEAD');
@@ -148,17 +191,47 @@ my $dirty_suffix = $dirty_rc == 1 ? ', includes uncommitted' : '';
 # dirty_rc == 0: clean; rc >= 2: git error - skip suffix, don't fail.
 # The primary diff has already succeeded; the disclosure is informational.
 
-if (!@included) {
-    warn "reviewed 0 files, 0 lines (0 production), anchor=$short$dirty_suffix\n";
-    exit 0;
+my $repo_root = find_git_root();
+unless (defined $repo_root && length $repo_root) {
+    warn "$PROG: cannot resolve git repository root\n";
+    exit 1;
 }
+(my $dashed = $repo_root) =~ s{/}{-}g;   # absolute path => canonical leading-dash form
+my $scratch = "/tmp/${dashed}-task-${task_num}";
+# Script-owned mkdir at 0700 BEFORE any write — do not rely on
+# atomic_write_text's umask-default make_path fallback (tmp-paths symlink
+# defence). `unless -d` does not re-assert mode on a pre-existing foreign dir;
+# the fail-closed defence in that case is the 0600 write below failing.
+unless (-d $scratch) {
+    mkdir($scratch, 0700)
+        or do {
+            warn "$PROG: cannot create scratch dir $scratch: $!\n";
+            exit 1;
+        };
+}
+my $out = "$scratch/security-review-changeset-$opt{wf_step}.out";
 
-my $diff = capture_git('diff', "$anchor", '--', @included);
+# Unified path for empty and non-empty changesets: compute the diff ('' when no
+# files changed), normalise to a trailing newline so the reported count equals
+# `wc -l`, then write atomically. atomic_write_text uses a same-dir temp +
+# rename, which REPLACES a pre-planted symlink rather than writing through it
+# (referent untouched), and truncates any prior .out. It dies on failure; map
+# that to this script's warn+exit-1 convention.
+my $diff = @included ? capture_git('diff', "$anchor", '--', @included) : '';
+$diff .= "\n" if length $diff && $diff !~ /\n\z/;
 my $line_count = ($diff =~ tr/\n//);
-print $diff;
+
+eval { atomic_write_text($out, $diff, mode => 0600); 1 } or do {
+    warn "$PROG: cannot write $out: $@";
+    exit 1;
+};
+
+# The whole agent-facing contract: one confirmation line on stdout. No diff is
+# ever written to stdout (the agent Reads the .out file).
+print "$PROG: wrote $line_count lines to $out\n";
 
 # Production-weighted count: added+deleted lines over the included files,
-# minus any path matching a consumer-declared test-path glob. Git owns the
+# minus any path matching a consumer-declared exclude glob. Git owns the
 # matching (:(glob,exclude) magic pathspecs) — no Perl path classification.
 my @exclude = max_lines_exclude_paths();
 my $production = count_production_lines($anchor, \@included, \@exclude);
@@ -169,8 +242,10 @@ if ($opt{verbose}) {
     warn "  $_\n" for @included;
 }
 
-# Cap on production-weighted lines (stdout already carries the full diff).
-if (defined $opt{max_lines} && $production > $opt{max_lines}) {
+# Cap on production-weighted lines. The .out file is already written and the
+# confirmation already printed, so the caller can still recover the path on
+# exit 2. max_lines now always defined (default 500) — no `defined` guard.
+if ($production > $opt{max_lines}) {
     warn "cap exceeded: $production production lines > $opt{max_lines}\n";
     exit 2;
 }
@@ -182,26 +257,37 @@ exit 0;
 
 sub print_usage {
     print <<"USAGE";
-Usage: $PROG [--phase=implementation|testing] [--task-num=NUM]
-                            [--max-lines=N] [--verbose]
+Usage: $PROG --wf-step=<step> [--task-num=NUM] [--max-lines=N] [--verbose]
 
-Constructs the changeset reviewed by the exec-phase security-review subagent.
+Constructs the changeset reviewed by the exec-phase security-review subagent,
+writes it to a per-task .out file, and prints the path + line count. Designed to
+be run by an agent — invoke exactly as shown, with no surrounding boilerplate.
 
 Options:
-  --phase=PHASE    Identify the calling exec phase (informational; no behavioural
-                   effect on the changeset). PHASE is 'implementation' or 'testing'.
+  --wf-step=STEP   REQUIRED. The calling workflow step; becomes a component of
+                   the output filename. One of: task-plan, requirements-plan,
+                   design-plan, implementation-plan, testing-plan,
+                   implementation-exec, testing-exec, rollout, maintenance,
+                   retrospective.
   --task-num=NUM   Override task-number inference from the current branch name.
                    NUM must match /^\\d+(\\.\\d+)*\$/.
   --max-lines=N    Cap on production-weighted lines (added+deleted over all changed
                    files, minus security.review.max-lines-exclude-paths globs). N is a
-                   positive integer. When the count exceeds N, exit 2 after emitting the diff.
+                   positive integer; defaults to 500. When the count exceeds N, exit 2
+                   (the .out file is already written).
   --verbose        On stderr, list the included paths after the summary line.
   --help           Show this message.
 
+Output:
+  Writes the full diff to
+    /tmp/<dashified-abs-main-root>-task-<num>/security-review-changeset-<step>.out
+  and prints one confirmation line to stdout:
+    $PROG: wrote <N> lines to <abs-path>
+
 Exit codes:
-  0  Changeset emitted (may be empty).
+  0  Changeset written (may be empty — a 0-line .out file is still written).
   1  Error.
-  2  Production-weighted line count exceeds --max-lines (changeset on stdout).
+  2  Production-weighted line count exceeds --max-lines (.out written first).
 USAGE
 }
 

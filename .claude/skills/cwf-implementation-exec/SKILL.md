@@ -49,14 +49,19 @@ allowed-tools:
 - Read `.cwf/docs/skills/security-review.md` § "Exec-phase prompt template" and § "Changeset coverage".
 - Determine current branch: `git rev-parse --abbrev-ref HEAD`.
   - If `main`: append `## Security Review\n\n**State**: no findings\n\nno findings: on main\n` to `f-implementation-exec.md` and proceed to Step 9.
-- Construct changeset: run `.cwf/scripts/command-helpers/security-review-changeset --phase=implementation --max-lines=500`, capturing **both stdout and the exit code** (and stderr, for the cap reason). The helper resolves the anchor, emits the full diff over all changed files per § "Changeset coverage", and enforces the production-weighted review cap. Branch on the exit code:
-  - **exit 0, empty stdout**: append `## Security Review\n\n**State**: no findings\n\nno findings: empty changeset\n` and proceed to Step 9.
-  - **exit 0, non-empty stdout**: continue to the Agent call below with the captured stdout as `{changeset}`.
+- Construct the changeset by running the helper **exactly** as below — it is agent-invoked and self-managing; do not add redirects, `wc`, `cat`, `grep`, or any surrounding boilerplate:
+  ```
+  .cwf/scripts/command-helpers/security-review-changeset --wf-step=implementation-exec
+  ```
+  Capture its **stdout, stderr, and exit code**. The helper resolves the anchor, writes the full diff to a `.out` file per § "Changeset coverage", and prints one confirmation line `security-review-changeset: wrote <N> lines to <abs-path>`. Branch on the **exit code first**, then on the reported count:
+  - **exit 0, count > 0**: continue to the Agent call below, passing the `<abs-path>` from the confirmation line as `{changeset_file}`.
+  - **exit 0, count 0**: append `## Security Review\n\n**State**: no findings\n\nno findings: empty changeset\n` and proceed to Step 9.
+  - **exit 0 but no parseable confirmation line**: append `## Security Review\n\n**State**: error\n\nerror: changeset helper produced no parseable confirmation line\n` and proceed to Step 9. Do not invoke the subagent.
   - **exit 2** (production-weighted count exceeds the cap): append `## Security Review\n\n**State**: error\n\nerror: <the helper's `cap exceeded:` stderr line>\n` and proceed to Step 9. Do not invoke the subagent.
   - **any other non-zero** (e.g. `1` — changeset construction failed, including a malformed `security.review.max-lines-exclude-paths` pattern git rejected): append `## Security Review\n\n**State**: error\n\nerror: changeset construction failed (<helper stderr>)\n` and proceed to Step 9. Do not invoke the subagent.
 - **Regardless of exit code**: if the helper's stderr contains a `warning:` line (e.g. the deprecation notice for the legacy `security.review.test-paths` config key), surface it to the user verbatim and note it under the `## Security Review` section. These are upgrade nudges; do not swallow them.
-- Invoke ONE Agent call with `subagent_type="cwf-security-reviewer-changeset"` using the prompt template, `{phase}` = `"implementation"`.
-- Write the verbatim subagent output to a file in the task scratch dir (derive the dir per `.cwf/docs/conventions/tmp-paths.md`; `mkdir -m 0700` on first use), then classify deterministically: `.cwf/scripts/command-helpers/security-review-classify < <file>` prints one of `no findings|findings|error`. Append `## Security Review\n\n**State**: <token>\n\n<verbatim subagent output>\n` to `f-implementation-exec.md`. Do not apply any prose/heuristic rule — the helper is the sole classifier (a tool-level Agent failure is recorded as `error`).
+- Invoke ONE Agent call with `subagent_type="cwf-security-reviewer-changeset"` using the prompt template, `{wf_step}` = `"implementation-exec"`, `{changeset_file}` = the `.out` path from the confirmation line.
+- Write the verbatim subagent output to `security-review-output-implementation-exec.out` in the task scratch dir (derive the dir per `.cwf/docs/conventions/tmp-paths.md`; `mkdir -m 0700` on first use — this is a distinct file from the helper's changeset `.out`), then classify deterministically: `.cwf/scripts/command-helpers/security-review-classify < <file>` prints one of `no findings|findings|error`. Append `## Security Review\n\n**State**: <token>\n\n<verbatim subagent output>\n` to `f-implementation-exec.md`. Do not apply any prose/heuristic rule — the helper is the sole classifier (a tool-level Agent failure is recorded as `error`).
 - Do NOT block on `findings`. Surface them; the user decides whether to fix-and-re-run or accept-and-record before Step 9.
 
 **Step 9**: Checkpoint commit. See `.cwf/docs/skills/checkpoint-commit.md`. Stage: `f-implementation-exec.md` (and any changed files)

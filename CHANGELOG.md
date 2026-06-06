@@ -2,6 +2,17 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 182: harden security-review-changeset agent contract (feature)
+
+### Status: Complete (2026-06-06)
+### Duration: ~1 day, single session (planning a–e earlier in the session; exec f→j after review). On estimate (Medium).
+### Impact: Turns `security-review-changeset` into a one-command, agent-invoked tool so agents stop bolting `> /tmp/…; wc -l; grep` boilerplate onto a call the script can do itself. Five changes, delivered as a single-commit **four-site contract migration**: (1) `--phase=` → mandatory `--wf-step=<step>` validated against a fixed ten-value allowlist (the canonical workflow-step suffixes); the removed `--phase` is an unknown-argument error. (2) `--max-lines` now **defaults to 500** (was: unset = no cap), still overridable — behaviour-neutral for today's callers, which both already passed `--max-lines=500`. (3) The script **self-manages its output**: it derives the worktree-safe per-task scratch dir via `find_git_root()`, creates it `mkdir -m 0700`, and writes the full diff to `<scratch>/security-review-changeset-<wf-step>.out` (mode 0600) via the reused `atomic_write_text` (same-dir temp + `rename`, which truncates and replaces a pre-planted symlink rather than writing through it). (4) stdout carries exactly one confirmation line — `security-review-changeset: wrote <N> lines to <abs-path>` — so the agent needs no follow-up `wc`/`cat`/`grep`; the diff no longer goes to stdout. (5) The two exec SKILLs, the `cwf-security-reviewer-changeset` agent (now Reads `{changeset_file}` instead of an inlined `{changeset}`; `{phase}`→`{wf_step}`), and the canonical `security-review.md` all migrated to the new flag, file-output model, and exit/empty semantics (empty changeset → a 0-line `.out` + count-0 confirmation, not empty stdout). Same-commit `script-hashes.json` refresh for the helper **and** the agent file. Test suite migrated stdout→`.out` and extended to **35 subtests (0 failures)**; both exec-phase security reviews **`no findings`**; `cwf-manage validate` clean.
+
+### Notable
+- **`cwf-manage validate` earned its keep twice.** It caught an un-refreshed hash on the `cwf-security-reviewer-changeset.md` agent (the d-plan's hashed-file list named only the script), and surfaced a pre-existing `cwf-claude-settings-merge` working-tree perm drift (0700 vs 0500) that was then cleared. The integrity gate, not author vigilance, kept the commit consistent.
+- **Reuse delivered the security properties for free.** `find_git_root` (worktree-safe, Task 173) + `atomic_write_text` (`rename`-replace = truncate **and** symlink no-write-through) meant no hand-rolled `O_NOFOLLOW`; the plan review caught and corrected a requirements/design divergence that had described the guarantee as open-failure rather than no-write-through.
+- **Tests consume the contract like the agent does.** Assertions parse the helper's confirmation line for the `.out` path instead of re-deriving it, which sidesteps the macOS `/private/tmp` symlink-resolution divergence; TC-SYMLINK and TC-WORKTREE actively prove the no-write-through and main-tree-namespace properties. A missed stdout→file assertion migration (TC-WIDEN1) was caught by *running* the suite — the standing "rebrand needs an output-level smoke-test" lesson again.
+
 ## Task 181: adopt guarded worktree process (feature)
 
 ### Status: Complete (2026-06-06)

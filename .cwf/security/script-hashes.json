@@ -24,7 +24,7 @@
     "cwf-security-reviewer-changeset" : {
       "path" : ".claude/agents/cwf-security-reviewer-changeset.md",
       "permissions" : "0444",
-      "sha256" : "a26c776572e2b01fcc5af15f60996572fa118f250c8ec15ae3ef37929b0bab7f"
+      "sha256" : "2d2cc05af2ff3d37d1252f4fe67e534aca8cec486be68bf7d9e553ba9265df43"
     }
   },
   "data" : {
@@ -317,7 +317,7 @@
     "security-review-changeset" : {
       "path" : ".cwf/scripts/command-helpers/security-review-changeset",
       "permissions" : "0500",
-      "sha256" : "f2a25dec87e60433afc07a3488561dfd30180db66b4552ebb77668ff4ae0dbba"
+      "sha256" : "828cceb49e5b65341cd957cc01336ae76bc75e3a59c12b64e1a8619acb0db36e"
     },
     "security-review-classify" : {
       "path" : ".cwf/scripts/command-helpers/security-review-classify",

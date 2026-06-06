@@ -99,13 +99,28 @@ sub make_synthetic_repo {
     return ($repo, $main_sha, $branch, $task_dir);
 }
 
-# Run the helper with @args inside $repo, return (stdout, stderr, exit).
-sub run_helper {
-    my ($repo, @args) = @_;
-    my $stdout_file = "$repo/.helper-stdout";
-    my $stderr_file = "$repo/.helper-stderr";
+# Task 182: the helper now self-manages an output file under a main-tree-derived
+# /tmp namespace and prints only a confirmation line to stdout. These .out dirs
+# live OUTSIDE each synthetic repo's tempdir (they hang off the dashified main
+# root), so tempdir(CLEANUP=>1) does not reap them — track and remove them here.
+my @CLEANUP_OUT;
+END {
+    for my $p (@CLEANUP_OUT) {
+        next unless defined $p;
+        unlink $p;
+        (my $d = $p) =~ s{/[^/]+$}{};
+        rmdir $d;   # no-op if other files remain
+    }
+}
+
+# Run the helper with EXACTLY @args inside $cwd (no defaulting), return
+# (stdout, stderr, exit). Any .out the helper reports is queued for cleanup.
+sub run_helper_raw {
+    my ($cwd, @args) = @_;
+    my $stdout_file = "$cwd/.helper-stdout";
+    my $stderr_file = "$cwd/.helper-stderr";
     my $orig = cwd();
-    chdir $repo or die "chdir $repo: $!";
+    chdir $cwd or die "chdir $cwd: $!";
     my $rc;
     {
         my $pid = fork;
@@ -122,7 +137,51 @@ sub run_helper {
 
     my $stdout = do { open my $fh, '<', $stdout_file or die; local $/; <$fh> };
     my $stderr = do { open my $fh, '<', $stderr_file or die; local $/; <$fh> };
-    return ($stdout // '', $stderr // '', $rc);
+    $stdout //= '';
+    if ($stdout =~ /^security-review-changeset: wrote \d+ lines to (.+)$/m) {
+        push @CLEANUP_OUT, $1;
+    }
+    return ($stdout, $stderr // '', $rc);
+}
+
+# Run the helper inside $cwd, injecting a default --wf-step=implementation-exec
+# unless the caller supplied its own --wf-step. Existing subtests assert on
+# changeset *content* and do not care which step labels the file, so the default
+# keeps them green now that --wf-step is mandatory.
+sub run_helper {
+    my ($cwd, @args) = @_;
+    unshift @args, '--wf-step=implementation-exec'
+        unless grep { /^--wf-step=/ } @args;
+    return run_helper_raw($cwd, @args);
+}
+
+# Parse the absolute .out path the helper reported on stdout (undef if none).
+sub out_path {
+    my ($stdout) = @_;
+    return undef unless defined $stdout
+        && $stdout =~ /^security-review-changeset: wrote \d+ lines to (.+)$/m;
+    return $1;
+}
+
+# The count the helper reported in its confirmation line (undef if none).
+sub confirm_count {
+    my ($stdout) = @_;
+    return undef unless defined $stdout
+        && $stdout =~ /^security-review-changeset: wrote (\d+) lines to /m;
+    return $1;
+}
+
+# Read the changeset the helper wrote (the new diff destination). Returns ''
+# when no .out was produced or the file is empty/absent.
+sub changeset_of {
+    my ($stdout) = @_;
+    my $p = out_path($stdout);
+    return '' unless defined $p && -e $p;
+    open my $fh, '<:raw', $p or die "open $p: $!";
+    local $/;
+    my $c = <$fh>;
+    close $fh;
+    return $c // '';
 }
 
 # ---------------------------------------------------------------------------
@@ -143,7 +202,7 @@ subtest 'TC-F1: extensionless file under .cwf/scripts/ is reviewed' => sub {
 
     my ($out, $err, $rc) = run_helper($repo);
     is($rc, 0, 'helper exits 0');
-    like($out, qr{\.cwf/scripts/cwf-foo}, 'changeset includes the extensionless file');
+    like(changeset_of($out), qr{\.cwf/scripts/cwf-foo}, 'changeset includes the extensionless file');
     like($err, qr{reviewed 2 files}, 'stderr summary names 2 files (script + a-task-plan.md)');
 };
 
@@ -162,7 +221,7 @@ subtest 'TC-F2: consumer-stack python file is included' => sub {
 
     my ($out, $err, $rc) = run_helper($repo);
     is($rc, 0, 'helper exits 0');
-    like($out, qr{app/main\.py}, 'changeset includes consumer-stack python file (all files reviewed)');
+    like(changeset_of($out), qr{app/main\.py}, 'changeset includes consumer-stack python file (all files reviewed)');
 };
 
 # ---------------------------------------------------------------------------
@@ -221,9 +280,10 @@ subtest 'TC-F3: unmerged predecessor branch does not pollute the changeset' => s
     git_in($repo, 'commit', '-q', '-m', 'task2 work');
 
     my ($out, $err, $rc) = run_helper($repo);
+    my $cs = changeset_of($out);
     is($rc, 0, 'helper exits 0');
-    like($out, qr{task2-work}, 'task2 work is in the changeset');
-    unlike($out, qr{task1-leak}, 'task1 work is NOT in the changeset (closes BACKLOG axis 3)');
+    like($cs, qr{task2-work}, 'task2 work is in the changeset');
+    unlike($cs, qr{task1-leak}, 'task1 work is NOT in the changeset (closes BACKLOG axis 3)');
 };
 
 # ---------------------------------------------------------------------------
@@ -241,7 +301,7 @@ subtest 'TC-F4: binary file under .cwf/scripts/ is reviewed' => sub {
 
     my ($out, $err, $rc) = run_helper($repo);
     is($rc, 0, 'helper exits 0');
-    like($out, qr{\.cwf/scripts/blob}, 'binary file is included (all files reviewed)');
+    like(changeset_of($out), qr{\.cwf/scripts/blob}, 'binary file is included (all files reviewed)');
 };
 
 # ---------------------------------------------------------------------------
@@ -259,7 +319,7 @@ subtest 'TC-F5: binary blob outside CWF dirs is reviewed' => sub {
 
     my ($out, $err, $rc) = run_helper($repo);
     is($rc, 0, 'helper exits 0');
-    like($out, qr{tools/blob}, 'binary outside CWF dirs is now reviewed (all files included)');
+    like(changeset_of($out), qr{tools/blob}, 'binary outside CWF dirs is now reviewed (all files included)');
     like($err, qr{reviewed 2 files}, 'two files: tools/blob + the fixture a-task-plan.md');
 };
 
@@ -277,7 +337,7 @@ subtest 'TC-F6: plain-text notes outside CWF dirs are reviewed' => sub {
 
     my ($out, $err, $rc) = run_helper($repo);
     is($rc, 0, 'helper exits 0');
-    like($out, qr{notes\.txt}, 'plain text outside CWF dirs is reviewed');
+    like(changeset_of($out), qr{notes\.txt}, 'plain text outside CWF dirs is reviewed');
 };
 
 # ---------------------------------------------------------------------------
@@ -327,7 +387,7 @@ subtest 'TC-F7: subtask num resolves into nested directory' => sub {
 
     my ($out, $err, $rc) = run_helper($repo, '--task-num=1.1');
     is($rc, 0, 'helper exits 0 for subtask');
-    like($out, qr{sub-work}, 'subtask change is in the changeset');
+    like(changeset_of($out), qr{sub-work}, 'subtask change is in the changeset');
 };
 
 # ---------------------------------------------------------------------------
@@ -346,7 +406,7 @@ subtest 'TC-F8: malformed Baseline Commit line warns and falls back to merge-bas
     my ($out, $err, $rc) = run_helper($repo);
     is($rc, 0, 'helper still exits 0 (fell back to merge-base)');
     like($err, qr{Baseline Commit line found but format unexpected}, 'warning emitted');
-    like($out, qr{\.cwf/scripts/foo}, 'changeset still produced via fallback path');
+    like(changeset_of($out), qr{\.cwf/scripts/foo}, 'changeset still produced via fallback path');
 };
 
 # ---------------------------------------------------------------------------
@@ -429,9 +489,10 @@ subtest 'TC-GUARD1a: symlink is reviewed without dereferencing the target' => su
         git_in($repo, 'commit', '-q', '-m', 'add symlink');
 
         my ($out, $err, $rc) = run_helper($repo);
+        my $cs = changeset_of($out);
         is($rc, 0, 'helper exits 0');
-        like($out, qr{dangerous-link}, 'symlink path is now reviewed (no -l guard skips it)');
-        like($out, qr{^\+/dev/null$}m,
+        like($cs, qr{dangerous-link}, 'symlink path is now reviewed (no -l guard skips it)');
+        like($cs, qr{^\+/dev/null$}m,
              'diff body is the link-target string, proving git did not dereference it');
     }
 };
@@ -496,7 +557,7 @@ subtest 'TC-NF5: helper completes quickly with large working tree but small diff
 
     is($rc, 0, 'helper exits 0');
     cmp_ok($elapsed, '<', 5, 'helper completes in under 5 seconds with 200-file diff');
-    like($out, qr{noise/file}, 'all 200 changed files are reviewed');
+    like(changeset_of($out), qr{noise/file}, 'all 200 changed files are reviewed');
 };
 
 # ---------------------------------------------------------------------------
@@ -537,13 +598,14 @@ subtest 'TC-Task141-uncommitted: helper sees staged and unstaged changes' => sub
     git_in($repo, 'add', '.cwf/scripts/staged-script');
 
     my ($out, $err, $rc) = run_helper($repo);
+    my $cs = changeset_of($out);
 
     is($rc, 0, 'helper exits 0');
-    like($out, qr{\.cwf/scripts/staged-script},
+    like($cs, qr{\.cwf/scripts/staged-script},
          'staged-only file appears in diff (index-side change picked up)');
-    like($out, qr{\.cwf/scripts/baseline-script},
+    like($cs, qr{\.cwf/scripts/baseline-script},
          'modified tracked file appears in diff');
-    like($out, qr{UNSTAGED_MOD_141},
+    like($cs, qr{UNSTAGED_MOD_141},
          'working-tree-only modification content appears in diff (not just the committed baseline)');
     like($err, qr{^reviewed 3 files,.+anchor=[0-9a-f]{7}, includes uncommitted$}m,
          'stderr summary anchors disclosure suffix to summary line, count=3 (2 scripts + a-task-plan.md)');
@@ -643,7 +705,10 @@ subtest 'TC-CAP1: production-only diff exceeding --max-lines exits 2' => sub {
     my ($out, $err, $rc) = run_helper($repo, '--max-lines=10');
     is($rc, 2, 'helper exits 2 on cap breach');
     like($err, qr{cap exceeded: \d+ production lines > 10}, 'stderr names the breach');
-    like($out, qr{\.cwf/scripts/big-script}, 'full diff still printed to stdout');
+    like(changeset_of($out), qr{\.cwf/scripts/big-script},
+         'full diff written to the .out file even on cap breach (AC7)');
+    like($out, qr{^security-review-changeset: wrote \d+ lines to }m,
+         'confirmation line printed before exit 2 — caller can recover the path (AC7)');
 };
 
 # ---------------------------------------------------------------------------
@@ -661,7 +726,7 @@ subtest 'TC-CAP2: large t/ diff is discounted; production stays under cap' => su
 
     my ($out, $err, $rc) = run_helper($repo, '--max-lines=20');
     is($rc, 0, 'helper exits 0 (production under cap despite large raw diff)');
-    like($out, qr{t/big\.t}, 'test file is in the changeset (all files reviewed)');
+    like(changeset_of($out), qr{t/big\.t}, 'test file is in the changeset (all files reviewed)');
     ($err =~ /(\d+) lines \((\d+) production\)/)
         or do { fail('stderr summary has the "(P production)" field'); return };
     my ($raw, $prod) = ($1, $2);
@@ -670,19 +735,22 @@ subtest 'TC-CAP2: large t/ diff is discounted; production stays under cap' => su
 };
 
 # ---------------------------------------------------------------------------
-# TC-CAP3: no --max-lines → never caps (back-compat)
+# TC-CAP3: absent --max-lines now DEFAULTS to 500 (Task 182; was: no cap). A
+# sub-500 diff still passes with exit 0 and no cap message — the behaviour-
+# neutral half of the default change. The >500 (default-fires) half is
+# TC-DEFAULTCAP below.
 # ---------------------------------------------------------------------------
-subtest 'TC-CAP3: absent --max-lines never caps regardless of size' => sub {
+subtest 'TC-CAP3: absent --max-lines defaults to 500; a sub-500 diff passes' => sub {
     my ($repo) = make_cap_repo(config_json => $CFG_NO_TESTPATHS);
 
     make_path("$repo/.cwf/scripts");
-    write_script("$repo/.cwf/scripts/huge", 200);
+    write_script("$repo/.cwf/scripts/huge", 200);   # 200 production lines < 500
     git_in($repo, 'add', '.cwf/scripts/huge');
     git_in($repo, 'commit', '-q', '-m', 'huge script');
 
     my ($out, $err, $rc) = run_helper($repo);
-    is($rc, 0, 'helper exits 0 with no --max-lines');
-    unlike($err, qr{cap exceeded}, 'no cap message emitted');
+    is($rc, 0, 'helper exits 0 (200 production < default cap of 500)');
+    unlike($err, qr{cap exceeded}, 'no cap message — under the default cap');
 };
 
 # ---------------------------------------------------------------------------
@@ -786,7 +854,7 @@ subtest 'TC-WIDEN1: consumer source file is reviewed and counts as production' =
 
     my ($out, $err, $rc) = run_helper($repo, '--max-lines=1000');
     is($rc, 0, 'helper exits 0');
-    like($out, qr{src/app\.js}, 'consumer source file is in the reviewed changeset');
+    like(changeset_of($out), qr{src/app\.js}, 'consumer source file is in the reviewed changeset');
     ($err =~ /\((\d+) production\)/)
         or do { fail('stderr summary has the production field'); return };
     cmp_ok($1, '>', 0, 'consumer source lines count toward the production total');
@@ -811,11 +879,13 @@ subtest 'TC-CAP8: unconfigured test path counts as production' => sub {
 };
 
 # ---------------------------------------------------------------------------
-# TC-EMPTY1: a genuinely empty diff (anchor == worktree) yields exit 0,
-# "reviewed 0 files", empty stdout. Proves the !@included guard short-circuits
-# so a bare `git diff $anchor --` (no pathspec → whole-tree) can never run.
+# TC-EMPTY1 (also covers AC4.3): a genuinely empty diff (anchor == worktree)
+# yields exit 0, "reviewed 0 files", and — under the Task 182 contract — a
+# 0-line .out file plus a confirmation line reporting count 0 (NOT empty
+# stdout, the old discriminator). Proves the unified write path produces ''
+# for @included empty, so a bare `git diff $anchor --` (whole-tree) never runs.
 # ---------------------------------------------------------------------------
-subtest 'TC-EMPTY1: empty diff stays empty (no whole-tree leak)' => sub {
+subtest 'TC-EMPTY1: empty diff → 0-line .out + count-0 confirmation (no whole-tree leak)' => sub {
     my $base = tempdir(CLEANUP => 1);
     my $repo = "$base/repo";
     make_path($repo);
@@ -846,7 +916,10 @@ subtest 'TC-EMPTY1: empty diff stays empty (no whole-tree leak)' => sub {
     my ($out, $err, $rc) = run_helper($repo, '--task-num=1');
     is($rc, 0, 'helper exits 0 on an empty changeset');
     like($err, qr{reviewed 0 files}, 'summary reports zero files');
-    is($out, '', 'stdout is empty — no whole-tree diff leaked');
+    like($out, qr{^security-review-changeset: wrote 0 lines to }m,
+         'stdout is the confirmation line reporting count 0 (not empty stdout)');
+    is(confirm_count($out), 0, 'reported count is 0');
+    is(changeset_of($out), '', '.out file written but empty — no whole-tree diff leaked');
 };
 
 # ---------------------------------------------------------------------------
@@ -872,6 +945,270 @@ JSON
     is($rc, 0, 'legacy test-paths still discounts t/** → production under cap');
     like($err, qr{'security\.review\.test-paths' is deprecated},
          'deprecation warning emitted for the legacy key');
+};
+
+# ===========================================================================
+# Agent-invocation contract — Task 182
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# TC-WFSTEP-REJECT (AC1/AC2): the removed --phase, an unknown --wf-step, a
+# traversal-shaped --wf-step, and a missing --wf-step are all rejected with
+# exit 1 and no confirmation line on stdout (no partial output). Uses the RAW
+# runner so the default-injection wrapper does not mask the missing-flag case.
+# ---------------------------------------------------------------------------
+subtest 'TC-WFSTEP-REJECT: bad/missing --wf-step (and removed --phase) exit 1' => sub {
+    my ($repo) = make_synthetic_repo(baseline => '__MAIN__');
+    make_path("$repo/.cwf/scripts");
+    open my $fh, '>', "$repo/.cwf/scripts/foo" or die;
+    print $fh "#!/usr/bin/perl\nprint 'x';\n";
+    close $fh;
+    git_in($repo, 'add', '.cwf/scripts/foo');
+    git_in($repo, 'commit', '-q', '-m', 'foo');
+
+    my @cases = (
+        ['--phase=implementation'],   # removed flag → unknown argument
+        ['--wf-step=bogus'],          # not in the allowlist
+        ['--wf-step=../escape'],      # traversal-shaped
+        [],                           # missing entirely
+    );
+    for my $args (@cases) {
+        my $label = @$args ? $args->[0] : '(no --wf-step)';
+        my ($out, $err, $rc) = run_helper_raw($repo, @$args);
+        is($rc, 1, "$label exits 1");
+        unlike($out, qr{^security-review-changeset: wrote}m,
+               "$label writes no confirmation line (no partial output)");
+    }
+};
+
+# ---------------------------------------------------------------------------
+# TC-WFSTEP-ACCEPT (AC2): a non-exec allowlisted step is accepted and labels
+# the output filename, proving the allowlist breadth is real (not just the two
+# exec steps).
+# ---------------------------------------------------------------------------
+subtest 'TC-WFSTEP-ACCEPT: --wf-step=design-plan accepted; filename carries the step' => sub {
+    my ($repo) = make_synthetic_repo(baseline => '__MAIN__');
+    make_path("$repo/.cwf/scripts");
+    open my $fh, '>', "$repo/.cwf/scripts/foo" or die;
+    print $fh "#!/usr/bin/perl\nprint 'x';\n";
+    close $fh;
+    git_in($repo, 'add', '.cwf/scripts/foo');
+    git_in($repo, 'commit', '-q', '-m', 'foo');
+
+    my ($out, $err, $rc) = run_helper($repo, '--wf-step=design-plan');
+    is($rc, 0, 'design-plan accepted (exit 0)');
+    like(out_path($out), qr{/security-review-changeset-design-plan\.out$},
+         'output filename carries the wf-step');
+};
+
+# ---------------------------------------------------------------------------
+# TC-DEFAULTCAP (AC3): with NO --max-lines, a >500-production diff trips the
+# default cap (exit 2); an explicit large --max-lines override lets it through.
+# ---------------------------------------------------------------------------
+subtest 'TC-DEFAULTCAP: default cap of 500 fires; explicit override lifts it' => sub {
+    my ($repo) = make_cap_repo(config_json => $CFG_NO_TESTPATHS);
+    make_path("$repo/.cwf/scripts");
+    write_script("$repo/.cwf/scripts/big", 520);   # 520 production lines > 500
+    git_in($repo, 'add', '.cwf/scripts/big');
+    git_in($repo, 'commit', '-q', '-m', 'big script');
+
+    my ($o1, $e1, $r1) = run_helper($repo);
+    is($r1, 2, 'no --max-lines: default cap of 500 fires (exit 2)');
+    like($e1, qr{cap exceeded: \d+ production lines > 500}, 'breach names the default cap of 500');
+
+    my ($o2, $e2, $r2) = run_helper($repo, '--max-lines=100000');
+    is($r2, 0, 'explicit --max-lines=100000 override lets the same diff through');
+};
+
+# ---------------------------------------------------------------------------
+# TC-OUTFILE (AC4): a non-empty change is written to the canonical .out path
+# at mode 0600 inside a 0700 dir; the diff is in the file and NOT on stdout.
+# ---------------------------------------------------------------------------
+subtest 'TC-OUTFILE: changeset written to 0600 .out in 0700 dir; stdout carries no diff' => sub {
+    my ($repo) = make_synthetic_repo(baseline => '__MAIN__');
+    make_path("$repo/.cwf/scripts");
+    open my $fh, '>', "$repo/.cwf/scripts/foo" or die;
+    print $fh "#!/usr/bin/perl\nprint 'x';\n";
+    close $fh;
+    git_in($repo, 'add', '.cwf/scripts/foo');
+    git_in($repo, 'commit', '-q', '-m', 'foo');
+
+    my ($out, $err, $rc) = run_helper($repo);
+    is($rc, 0, 'helper exits 0');
+    my $p = out_path($out);
+    ok(defined $p && -f $p, '.out file exists at the reported path');
+    is(((stat($p))[2] & 07777), 0600, '.out file mode is 0600');
+    (my $dir = $p) =~ s{/[^/]+$}{};
+    is(((stat($dir))[2] & 07777), 0700, 'scratch dir mode is 0700');
+    like(changeset_of($out), qr{\.cwf/scripts/foo}, '.out contains the diff');
+    unlike($out, qr{^diff --git}m, 'stdout carries no "diff --git" line');
+    unlike($out, qr{^[-+]}m, 'stdout carries no diff +/- body lines');
+};
+
+# ---------------------------------------------------------------------------
+# TC-CONFIRM (AC5): stdout is exactly one confirmation line; the reported count
+# equals the newline count of the .out file (the wc -l round-trip invariant).
+# ---------------------------------------------------------------------------
+subtest 'TC-CONFIRM: single confirmation line; count == wc -l of the file' => sub {
+    my ($repo) = make_synthetic_repo(baseline => '__MAIN__');
+    make_path("$repo/.cwf/scripts");
+    write_script("$repo/.cwf/scripts/foo", 12);
+    git_in($repo, 'add', '.cwf/scripts/foo');
+    git_in($repo, 'commit', '-q', '-m', 'foo');
+
+    my ($out, $err, $rc) = run_helper($repo);
+    is($rc, 0, 'helper exits 0');
+    like($out, qr{^security-review-changeset: wrote \d+ lines to \S+\n\z},
+         'stdout is exactly one confirmation line');
+    is(scalar(split /\n/, $out), 1, 'exactly one line on stdout');
+    my $n  = confirm_count($out);
+    my $cs = changeset_of($out);
+    is(($cs =~ tr/\n//), $n, 'reported count equals the newline count of the .out file');
+};
+
+# ---------------------------------------------------------------------------
+# TC-TRUNCATE (AC4.2): a second, smaller run fully REPLACES the prior .out —
+# no leftover content from run 1 and a smaller line count (truncate, not append).
+# ---------------------------------------------------------------------------
+subtest 'TC-TRUNCATE: re-run fully replaces the prior .out (no stale content)' => sub {
+    my ($repo) = make_cap_repo(config_json => $CFG_NO_TESTPATHS);
+    make_path("$repo/.cwf/scripts");
+
+    # Run 1: a large diff carrying a unique marker line.
+    open my $fh, '>', "$repo/.cwf/scripts/work" or die;
+    print $fh "#!/usr/bin/perl\n";
+    print $fh "print \"RUN1_ONLY_MARKER\";\n";
+    print $fh "print \"filler $_\";\n" for (1 .. 40);
+    close $fh;
+    git_in($repo, 'add', '.cwf/scripts/work');
+    git_in($repo, 'commit', '-q', '-m', 'run1 big');
+    my ($o1, $e1, $r1) = run_helper($repo, '--max-lines=100000');
+    is($r1, 0, 'run 1 exits 0');
+    my $n1 = confirm_count($o1);
+    like(changeset_of($o1), qr{RUN1_ONLY_MARKER}, 'run 1 .out contains the marker');
+
+    # Run 2: shrink the same file (no marker) → much smaller diff, same .out path.
+    open my $fh2, '>', "$repo/.cwf/scripts/work" or die;
+    print $fh2 "#!/usr/bin/perl\nprint \"small\";\n";
+    close $fh2;
+    git_in($repo, 'add', '.cwf/scripts/work');
+    git_in($repo, 'commit', '-q', '-m', 'run2 small');
+    my ($o2, $e2, $r2) = run_helper($repo, '--max-lines=100000');
+    is($r2, 0, 'run 2 exits 0');
+    is(out_path($o2), out_path($o1), 'run 2 writes the SAME .out path');
+    my $cs2 = changeset_of($o2);
+    unlike($cs2, qr{RUN1_ONLY_MARKER}, 'run 2 .out has no leftover run-1 content (full replace)');
+    cmp_ok(confirm_count($o2), '<', $n1, 'run 2 line count is smaller (truncate, not append)');
+};
+
+# ---------------------------------------------------------------------------
+# TC-SYMLINK (AC4.2, security): a pre-planted symlink at the target .out path
+# is REPLACED by the atomic rename; its referent file is never written through.
+# ---------------------------------------------------------------------------
+subtest 'TC-SYMLINK: pre-planted symlink at the target is replaced, referent untouched' => sub {
+    SKIP: {
+        skip 'symlinks not supported here', 4 unless eval { symlink('', ''); 1 } || $!;
+
+        my ($repo) = make_cap_repo(config_json => $CFG_NO_TESTPATHS);
+        make_path("$repo/.cwf/scripts");
+        write_script("$repo/.cwf/scripts/work", 5);
+        git_in($repo, 'add', '.cwf/scripts/work');
+        git_in($repo, 'commit', '-q', '-m', 'work');
+
+        # Run once to discover the canonical .out path, then remove it.
+        my ($o1) = run_helper($repo, '--max-lines=100000');
+        my $p = out_path($o1);
+        ok(defined $p, 'helper reported an .out path');
+        skip 'no .out path to target', 3 unless defined $p;
+        unlink $p;
+
+        # Plant a sentinel and a symlink at the .out path pointing at it.
+        my $sentinel = "$repo/sentinel";
+        open my $sf, '>', $sentinel or die; print $sf "SENTINEL_ORIG\n"; close $sf;
+        symlink($sentinel, $p) or skip 'cannot create symlink at target', 3;
+
+        # Re-run: rename-replace must not write through the symlink.
+        my ($o2) = run_helper($repo, '--max-lines=100000');
+        my $sc = do { open my $fh, '<', $sentinel or die; local $/; <$fh> };
+        is($sc, "SENTINEL_ORIG\n", 'symlink referent is unmodified (no write-through)');
+        ok(-f $p && !-l $p, '.out is now a regular file (symlink replaced)');
+        like(changeset_of($o2), qr{\.cwf/scripts/work}, '.out contains the diff');
+    }
+};
+
+# ---------------------------------------------------------------------------
+# TC-WORKTREE (AC4.1): run from inside a linked worktree, the .out resolves to
+# the MAIN-tree namespace — identical to the main-tree run, never the worktree.
+# ---------------------------------------------------------------------------
+subtest 'TC-WORKTREE: .out resolves to the main-tree namespace from a linked worktree' => sub {
+    SKIP: {
+        my ($repo) = make_cap_repo(config_json => $CFG_NO_TESTPATHS);
+        make_path("$repo/.cwf/scripts");
+        write_script("$repo/.cwf/scripts/work", 5);
+        git_in($repo, 'add', '.cwf/scripts/work');
+        git_in($repo, 'commit', '-q', '-m', 'work');
+
+        my $wt = "$repo-wt";
+        my $rc_wt = git_in($repo, 'worktree', 'add', '--detach', '-q', $wt, 'HEAD');
+        skip 'git worktree unavailable', 3 unless $rc_wt == 0 && -d $wt;
+
+        # --task-num avoids branch parsing in the detached worktree checkout.
+        my ($om) = run_helper($repo, '--task-num=1', '--max-lines=100000');
+        my ($ow) = run_helper($wt,   '--task-num=1', '--max-lines=100000');
+        my $pm = out_path($om);
+        my $pw = out_path($ow);
+        is($pw, $pm, 'worktree run resolves the SAME main-tree .out path');
+        (my $wt_base = $wt) =~ s{.*/}{};
+        unlike($pw, qr/\Q$wt_base\E/, '.out path does not contain the worktree dir name');
+        like(changeset_of($ow), qr{\.cwf/scripts/work}, 'worktree run still produces the diff');
+
+        git_in($repo, 'worktree', 'remove', '--force', $wt);
+    }
+};
+
+# ---------------------------------------------------------------------------
+# TC-DOCS (AC6): the four consumer sites carry the new contract and no stale
+# strings. Output-level smoke test over the real installed files.
+# ---------------------------------------------------------------------------
+subtest 'TC-DOCS: four consumer sites migrated, no stale --phase/--max-lines=500/{changeset}' => sub {
+    my %site = (
+        'impl-exec' => "$FindBin::Bin/../.claude/skills/cwf-implementation-exec/SKILL.md",
+        'test-exec' => "$FindBin::Bin/../.claude/skills/cwf-testing-exec/SKILL.md",
+        'agent'     => "$FindBin::Bin/../.claude/agents/cwf-security-reviewer-changeset.md",
+        'doc'       => "$FindBin::Bin/../.cwf/docs/skills/security-review.md",
+    );
+    my %txt;
+    for my $name (sort keys %site) {
+        my $f = $site{$name};
+        $txt{$name} = do { open my $fh, '<:encoding(UTF-8)', $f or die "open $f: $!"; local $/; <$fh> };
+        unlike($txt{$name}, qr{--phase\b},        "$name: no --phase flag");
+        unlike($txt{$name}, qr{--max-lines=500},  "$name: no --max-lines=500");
+        unlike($txt{$name}, qr{\{changeset\}},    "$name: no inline {changeset} placeholder");
+    }
+    like($txt{'impl-exec'}, qr{--wf-step=implementation-exec}, 'impl-exec names the exact invocation');
+    like($txt{'test-exec'}, qr{--wf-step=testing-exec},        'test-exec names the exact invocation');
+    like($txt{'agent'},     qr{\{changeset_file\}},            'agent consumes {changeset_file} (path it Reads)');
+    like($txt{'doc'},       qr{--wf-step},                     'doc describes the --wf-step flag');
+    like($txt{'doc'},       qr{\.out\b},                       'doc describes the .out file-output model');
+};
+
+# ---------------------------------------------------------------------------
+# TC-VALIDATE (AC8): cwf-manage validate reports no integrity violation for the
+# changed script (or its agent) — the same-commit hash refresh is consistent.
+# ---------------------------------------------------------------------------
+subtest 'TC-VALIDATE: cwf-manage validate is clean for the changed script + agent' => sub {
+    my $mgr = "$FindBin::Bin/../.cwf/scripts/cwf-manage";
+    my $pid = open(my $fh, '-|', $mgr, 'validate') or die "fork cwf-manage: $!";
+    my $output = do { local $/; <$fh> };
+    close $fh;
+    my $rc = $? >> 8;
+    $output //= '';
+    unlike($output, qr{security-review-changeset},
+           'no integrity violation names the changed helper');
+    unlike($output, qr{cwf-security-reviewer-changeset},
+           'no integrity violation names the migrated agent');
+    is($rc, 0, 'cwf-manage validate exits 0 (fully clean)')
+        or diag($output);
 };
 
 done_testing();

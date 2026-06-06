@@ -11,15 +11,17 @@ tool-tier preference and blocking bash anti-patterns. Honour them.
 
 ## Inputs (from caller)
 
-- `{phase}` — `implementation` or `testing`.
-- `{changeset}` — the `git diff` output produced per
-  `.cwf/docs/skills/security-review.md` § "Changeset coverage".
+- `{wf_step}` — the calling workflow step (e.g. `implementation-exec`
+  or `testing-exec`).
+- `{changeset_file}` — absolute path to the `.out` file holding the
+  `git diff` produced per `.cwf/docs/skills/security-review.md`
+  § "Changeset coverage". **Read** this file to obtain the changeset.
 
 ## Procedure
 
-Review the `{phase}`-phase changeset for security concerns per the
-threat model in `.cwf/docs/skills/security-review.md` § "Threat
-categories" (a)–(e).
+Read the changeset at `{changeset_file}`, then review the
+`{wf_step}` changeset for security concerns per the threat model in
+`.cwf/docs/skills/security-review.md` § "Threat categories" (a)–(e).
 
 Reason through the categories in prose first — describe what you
 checked and what you concluded. Take as much room as the review needs.
@@ -54,6 +56,3 @@ summary: <optional one-line note>
 - Emit exactly one such block. Two blocks, a missing block, or a
   non-token `state:` value are all treated as `error` by the parser, so
   do not echo the placeholder example as a second block.
-
-Changeset:
-{changeset}

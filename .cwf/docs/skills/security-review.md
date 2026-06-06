@@ -17,13 +17,15 @@ Both callers restrict the subagent to `Read`, `Grep`, and `Glob` per `.cwf/docs/
 
 ## Changeset coverage
 
-The exec-phase subagent reviews the changeset emitted by:
+The exec-phase subagent reviews the changeset constructed by:
 
 ```
-.cwf/scripts/command-helpers/security-review-changeset --phase=<implementation|testing>
+.cwf/scripts/command-helpers/security-review-changeset --wf-step=<step>
 ```
 
-This helper is the **single source of truth** for changeset construction (the diff anchor and the review cap) in CWF. Both exec SKILLs invoke the helper rather than inlining a pathspec or anchor.
+where `<step>` is the calling workflow step (`implementation-exec` or `testing-exec`). The helper is **agent-invoked**: run it exactly as shown, with no surrounding redirect / `wc` / `cat` / `grep` boilerplate. It writes the full changeset to a per-task `.out` file and prints one confirmation line `security-review-changeset: wrote <N> lines to <abs-path>` on stdout — the agent Reads that file rather than capturing a diff from stdout.
+
+This helper is the **single source of truth** for changeset construction (the diff anchor, the output file, and the review cap) in CWF. Both exec SKILLs invoke the helper rather than inlining a pathspec or anchor.
 
 The helper resolves its diff anchor in two steps. The success path: read the recorded `**Baseline Commit**: <sha>` field from the task's `a-task-plan.md` (written by `cwf-new-task` and `cwf-new-subtask` at branch creation). The fallback path (in-flight tasks created before this field existed): `git merge-base HEAD <trunk>`, where `<trunk>` is taken from the optional top-level `trunk` field of `cwf-project.json`, or from `git symbolic-ref refs/remotes/origin/HEAD`, or hardcoded `main`. The resolved trunk name is validated via `git check-ref-format --branch` before reaching `git merge-base`.
 
@@ -40,9 +42,9 @@ If a user rebases their task branch onto a newer trunk mid-task, the recorded ba
 
 ### Production-weighted review cap
 
-The full changeset is always emitted to the subagent. Independently, both exec SKILLs pass `--max-lines=500` so the helper enforces a review cap on a **production-weighted** line count rather than the raw diff. The production count is the sum of added+deleted lines (`git diff --numstat`) over all changed files, **minus** any path matching a `security.review.max-lines-exclude-paths` glob. Those patterns are gitignore/git pathspec globs declared in `cwf-project.json`; git's own `:(glob,exclude)` engine does the matching — the helper performs no path classification of its own and the count excludes diff context/hunk-header lines by construction. Excluded paths are still **reviewed** (emitted in the changeset) — they are only discounted from the cap count (tests, generated code, the repo's own process docs, etc.). The former key name `test-paths` is deprecated but still honoured (with a warning) when the new key is absent.
+The full changeset is always written to the `.out` file for the subagent. Independently, the helper enforces a review cap on a **production-weighted** line count rather than the raw diff. `--max-lines` defaults to `500` (the exec SKILLs no longer pass it explicitly) and remains overridable with any positive integer. The production count is the sum of added+deleted lines (`git diff --numstat`) over all changed files, **minus** any path matching a `security.review.max-lines-exclude-paths` glob. Those patterns are gitignore/git pathspec globs declared in `cwf-project.json`; git's own `:(glob,exclude)` engine does the matching — the helper performs no path classification of its own and the count excludes diff context/hunk-header lines by construction. Excluded paths are still **reviewed** (emitted in the changeset) — they are only discounted from the cap count (tests, generated code, the repo's own process docs, etc.). The former key name `test-paths` is deprecated but still honoured (with a warning) when the new key is absent.
 
-Contract: when the production count exceeds the cap the helper exits `2` (the full diff has already been printed to stdout, so a manual reviewer can still see it); the exec SKILL records `**State**: error` with the helper's `cap exceeded:` reason and does not invoke the subagent. Exit `1` (any construction failure, including a malformed `max-lines-exclude-paths` pattern git rejects) is likewise surfaced as `error` — never silently read as an empty "no findings" changeset.
+Contract: when the production count exceeds the cap the helper exits `2` (the `.out` file is already written and the confirmation line already printed, so a manual reviewer can still recover the path); the exec SKILL records `**State**: error` with the helper's `cap exceeded:` reason and does not invoke the subagent. Exit `1` (any construction failure, including an uncreatable scratch dir, a `.out` write failure, or a malformed `max-lines-exclude-paths` pattern git rejects) is likewise surfaced as `error` — never silently read as an empty "no findings" changeset. An empty changeset is **not** an error: the helper writes a 0-line `.out` file, prints the confirmation with count 0, and exits `0`; the exec SKILL reads `**State**: no findings` (`no findings: empty changeset`) from the count, not from empty stdout.
 
 Fail-safe direction and limitation: `security.review.max-lines-exclude-paths` defaults unset, so with no configuration there is no discount and the cap measures raw production lines (no regression for any repo). Any layout that is unconfigured or unmatched counts as *production* — the cap fires earlier, never later. Directory-based test layouts (e.g. `t/**`, `tests/**`) are covered cleanly; co-located suffix conventions (`**/*_test.go`, `**/*.spec.ts`) are expressible as globs but not exhaustively pursued. An uncovered test file is a *coverage* gap (counts as production), never an *unsafe* one. The helper (`.cwf/scripts/command-helpers/security-review-changeset`) is the source of truth for this count.
 
@@ -125,19 +127,20 @@ The plan-review.md criteria-lookup table gains a `Security` column. Each cell is
 
 Invoke the `cwf-security-reviewer-changeset` agent. The agent body
 holds the full review instructions and the verdict-block contract;
-the SKILL-side prompt only needs to pass `{phase}` and `{changeset}`.
+the SKILL-side prompt only needs to pass `{wf_step}` and
+`{changeset_file}`.
 
-Substitute `{changeset}` (the `git diff` output produced per
-§ "Changeset coverage") and `{phase}` (= `"implementation"` or
-`"testing"`).
+Substitute `{wf_step}` (= `"implementation-exec"` or `"testing-exec"`)
+and `{changeset_file}` (the absolute `.out` path from the helper's
+confirmation line, per § "Changeset coverage"). The agent Reads that
+file itself — the diff is not inlined into the prompt.
 
 ```
 Agent call: subagent_type=cwf-security-reviewer-changeset
 
 Inputs:
-- phase: {phase}
-- changeset: |
-{changeset}
+- wf_step: {wf_step}
+- changeset_file: {changeset_file}
 
 Follow the procedure in your agent definition.
 ```
