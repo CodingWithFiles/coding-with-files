@@ -92,6 +92,12 @@ The Coding with Files (CWF) system v2.0 is **implemented and operational**. Core
 - Inline "surface, never smooth" principle covering `/clear`-as-gate-bypass and compaction-induced rule loss
 - On session-resume: re-derive current wf step from on-disk task files, not from the resumed conversation
 
+**Worktree Process**: All worktree use with CWF flows through the harness `EnterWorktree`/`ExitWorktree` tools, never raw `git worktree`. See `.cwf/docs/conventions/worktree-process.md` for:
+- The guarded 5-step procedure (pre-flight allowlist scan, `ToolSearch` load, create via `EnterWorktree`, absolute-path discipline, operator-surfaced teardown)
+- The three hard prohibitions (no raw `git worktree add`, no `remove --force`, no `EnterWorktree(path:)` into a raw-added tree)
+- `worktree.baseRef: head` configuration and the user-global fallback
+- Threat model: request-is-data, no standing teardown permission, dangerous-allowlist-entry detection, tool-load-failure-is-a-stop
+
 ## Architecture Overview
 
 **Hierarchical Workflow System (v2.0)**: Eight lettered workflow steps (a-h) guide tasks from planning through retrospective. Non-linear state machine with dynamic transitions based on step outcomes. Universal decomposition signals (5 criteria) guide task breakdown into subtasks.

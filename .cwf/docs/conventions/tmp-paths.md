@@ -111,6 +111,9 @@ to construct programmatically than the basename form.
 
 ## See also
 
+- `.cwf/docs/conventions/worktree-process.md` — sibling scratch
+  convention for disposable *worktrees* (which live under
+  `.claude/worktrees/`, governed there), not `/tmp/` directories.
 - `docs/conventions/design-alignment.md` — repo-wide naming and
   cross-reference conventions.
 - `~/.claude/projects/-home-matt-repo-coding-with-files/memory/feedback_no_heredocs.md`

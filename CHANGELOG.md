@@ -2,6 +2,34 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 181: adopt guarded worktree process (feature)
+
+### Status: Complete (2026-06-06)
+### Duration: planning a–e in a prior session + exec f→j in one session (estimate ~1 day, Medium). On estimate; effort skewed to review/verification (FR9 robustness, the live data-loss-class probe) over authoring.
+### Impact: Adopts a single guarded CWF worktree process so all worktree use flows through the harness `EnterWorktree`/`ExitWorktree` tools instead of the raw-`git worktree` data-loss chain (Task 172 incident; Task 177 facts C1–C6). Ships **`.cwf/docs/conventions/worktree-process.md`** (the single source of truth: a 5-step Procedure, three hard prohibitions — no raw `git worktree add`, no `remove --force`, no `EnterWorktree(path:)` into a raw-added tree — a `Configuration` section, a `Threat model`, `Why`, and `See also`), sets **`worktree.baseRef: head`** in committed `.claude/settings.json`, and cross-links it from `CLAUDE.md` and `tmp-paths.md`. Mid-stream operator request added **FR9**: a two-touchpoint dangerous-allowlist detector — at install/update (folded into `cwf-claude-settings-merge`) and at worktree usage (the doc's pre-flight step), both a raw whole-file `git worktree` substring scan with **no JSON decode**, best-effort and symlink-guarded so it can never abort the merge (`run_settings_merge` dies on non-zero exit) and never writes the user-owned `settings.local.json`. The helper edit landed its `script-hashes.json` refresh in-commit at recorded perms 0500. The FR8 C2-refusal probe was run **live** under a strict safety envelope — confirming the refusal *and* resolving the design's open question: the harness honours `worktree.baseRef: head` from **project** settings (the worktree based on current HEAD), so the committed key is effective, not dead config. 11/11 test cases PASS; both exec-phase security reviews **`no findings`**; `cwf-manage validate` clean.
+
+### Notable
+- **The live probe paid off twice.** TC-8 confirmed the C2 uncommitted-changes refusal (closing the Task-177 runtime residual) *and* behaviourally resolved design Decision 3 — project-scope `worktree.baseRef` is honoured. Run under the safety envelope (clean pre-check, protective interim commit, no `cd` into the disposable tree, scratch-only, `discard_changes` never set, clean guarded teardown, no orphan).
+- **Not parsing was the robust choice.** For a warning-only scan inside an abort-on-non-zero caller, a raw `git worktree` substring match with no JSON decode is both simplest and safest — a malformed user-edited `settings.local.json` cannot throw. Verified by fixture (TC-11.3/11.4).
+- **Mid-stream scope churn.** FR9 arrived after planning, forcing a 4-agent design re-review and a four-doc re-commit; a stale `settings.local.json:127` citation (the operator removed that entry mid-session) was caught by the re-reviewers. Process lesson: elicit the *generalised* requirement at requirements time.
+
+### Retired Backlog Items
+#### Adopt guarded EnterWorktree/ExitWorktree as CWF's defined worktree process
+
+Define a robust, guarded CWF worktree process built on the harness's `EnterWorktree`/`ExitWorktree` tools. Task 177 re-grounded this item against the live tool schemas and a fresh code inventory; the original "guard CWF's raw worktree flows" framing rested on a false premise and is corrected here.
+
+**Why it exists (the real gap).** CWF has *no* defined worktree process, yet worktrees are used with CWF anyway: a model deciding on its own to run raw `git worktree add` mid-task (evidenced first-hand in Task 136 `f-implementation-exec.md:82-83`), manual scratch-worktree procedures in wf files (Tasks 136, 32), the harness Agent `isolation: worktree`, and the operator directly. Raw/ad-hoc use runs the `feedback_worktree_cwd_dataloss` chain (CWD left in a disposable tree, `--show-toplevel` resolving to the worktree, `git worktree remove --force` discarding uncommitted work). The gap is the **absence of a defined process**, not a missing guard on a scripted flow.
+
+**Correction (Task 177).** CWF's scripts contain **no** raw `git worktree add`/`remove --force` — only two read-only `git worktree list` calls. The previous body's example was wrong: `task-workflow.d/delete` does not create or force-remove a worktree; its Check 7 runs read-only `git worktree list --porcelain` and *dies* ("remove the worktree before deleting") when a task branch is checked out elsewhere.
+
+**Confirmed harness facts (live schemas, Task 177).** (C1) The uncommitted-changes guard applies **only** to worktrees created by `EnterWorktree`; `ExitWorktree` is a no-op on raw-`add` worktrees. (C2) `ExitWorktree(action: remove)` refuses to delete a worktree with uncommitted changes/unmerged commits unless `discard_changes: true`. (C3) `worktree.baseRef` defaults to `fresh` (branches from `origin/<default>`), conflicting with CWF's branch-off-HEAD rule (`feedback_branch_from_current_commit`). (C4) `worktree.baseRef: head` branches from current HEAD — the setting CWF needs.
+
+**Scope.** (1) Create scratch worktrees via `EnterWorktree` so the C2 guard applies at all — model/manual raw `git worktree add` must be steered onto this path. (2) Set `worktree.baseRef: head`. (3) **Never** pass `discard_changes: true` unprompted — the guard friction is the feature (`feedback_surface_security_dont_smooth.md`); surface teardown to the operator rather than auto-removing. (4) A CWF skill must `ToolSearch` (`select:EnterWorktree,ExitWorktree`) to load these deferred tools, and rely on the gate's "project instructions (CLAUDE.md/memory)" clause — a documented CWF process *is* that authorisation. (5) Update `tmp-paths.md`; hash-refresh any edited helper. (6) Subsumes R6: no-needless-`cd`/absolute-path discipline so the dominant permission prompts stop; explicitly reject allowlist-broadening as the fix.
+
+**Open question (runtime residual).** C2's refusal is Confirmed-by-schema but not watched-it-happen: the only path that exercises it (`EnterWorktree`) switches the session CWD and is gated, so Task 177 did not run a removal probe (data-loss/gating risk). The feature task should confirm the refusal behaviour the first time it wires `EnterWorktree` in, against scratch-only content.
+
+<!-- Note: Delivered as Task 181: convention doc + worktree.baseRef:head + FR9 detector; C2 refusal and HEAD-base confirmed live. -->
+
 ## Task 180: phase-scoped planning-write PreToolUse guard (feature)
 
 ### Status: Complete (2026-06-05)

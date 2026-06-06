@@ -1,5 +1,8 @@
 {
   "env": {
     "PERL5OPT": "-CDSLA"
+  },
+  "worktree": {
+    "baseRef": "head"
   }
 }

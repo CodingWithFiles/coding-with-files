@@ -1345,22 +1345,3 @@ Consider a lightweight check (linter or test) asserting README's documented `/cw
 Open question (why this is a candidate, not a commitment): whether the maintenance cost and false-positive surface of a new gate is worth it for a doc that changes rarely. Decide in the task's planning phase. Could fold into the existing "Skill Cross-Reference Linter" item rather than standing alone.
 
 Identified in: Task 169 retrospective (j-retrospective.md).
-
-## Task: Adopt guarded EnterWorktree/ExitWorktree as CWF's defined worktree process
-
-### Task-Type: feature
-### Priority: High
-### Status: Follow-up from Task 172 (R1, P0); re-grounded by Task 177
-### Identified in: Task 172 f-implementation-exec.md §2/§3/§6, j-retrospective.md §Future Work; re-grounded by Task 177
-
-Define a robust, guarded CWF worktree process built on the harness's `EnterWorktree`/`ExitWorktree` tools. Task 177 re-grounded this item against the live tool schemas and a fresh code inventory; the original "guard CWF's raw worktree flows" framing rested on a false premise and is corrected here.
-
-**Why it exists (the real gap).** CWF has *no* defined worktree process, yet worktrees are used with CWF anyway: a model deciding on its own to run raw `git worktree add` mid-task (evidenced first-hand in Task 136 `f-implementation-exec.md:82-83`), manual scratch-worktree procedures in wf files (Tasks 136, 32), the harness Agent `isolation: worktree`, and the operator directly. Raw/ad-hoc use runs the `feedback_worktree_cwd_dataloss` chain (CWD left in a disposable tree, `--show-toplevel` resolving to the worktree, `git worktree remove --force` discarding uncommitted work). The gap is the **absence of a defined process**, not a missing guard on a scripted flow.
-
-**Correction (Task 177).** CWF's scripts contain **no** raw `git worktree add`/`remove --force` — only two read-only `git worktree list` calls. The previous body's example was wrong: `task-workflow.d/delete` does not create or force-remove a worktree; its Check 7 runs read-only `git worktree list --porcelain` and *dies* ("remove the worktree before deleting") when a task branch is checked out elsewhere.
-
-**Confirmed harness facts (live schemas, Task 177).** (C1) The uncommitted-changes guard applies **only** to worktrees created by `EnterWorktree`; `ExitWorktree` is a no-op on raw-`add` worktrees. (C2) `ExitWorktree(action: remove)` refuses to delete a worktree with uncommitted changes/unmerged commits unless `discard_changes: true`. (C3) `worktree.baseRef` defaults to `fresh` (branches from `origin/<default>`), conflicting with CWF's branch-off-HEAD rule (`feedback_branch_from_current_commit`). (C4) `worktree.baseRef: head` branches from current HEAD — the setting CWF needs.
-
-**Scope.** (1) Create scratch worktrees via `EnterWorktree` so the C2 guard applies at all — model/manual raw `git worktree add` must be steered onto this path. (2) Set `worktree.baseRef: head`. (3) **Never** pass `discard_changes: true` unprompted — the guard friction is the feature (`feedback_surface_security_dont_smooth.md`); surface teardown to the operator rather than auto-removing. (4) A CWF skill must `ToolSearch` (`select:EnterWorktree,ExitWorktree`) to load these deferred tools, and rely on the gate's "project instructions (CLAUDE.md/memory)" clause — a documented CWF process *is* that authorisation. (5) Update `tmp-paths.md`; hash-refresh any edited helper. (6) Subsumes R6: no-needless-`cd`/absolute-path discipline so the dominant permission prompts stop; explicitly reject allowlist-broadening as the fix.
-
-**Open question (runtime residual).** C2's refusal is Confirmed-by-schema but not watched-it-happen: the only path that exercises it (`EnterWorktree`) switches the session CWD and is gated, so Task 177 did not run a removal probe (data-loss/gating risk). The feature task should confirm the refusal behaviour the first time it wires `EnterWorktree` in, against scratch-only content.

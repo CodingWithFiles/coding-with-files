@@ -473,6 +473,37 @@ sub sandbox_dep_guard {
     return;
 }
 
+# --- Dangerous worktree allowlist scan (FR9, Task 181) ---------------------
+# Warn — never block — when either settings file contains the substring
+# `git worktree`. Such a substring can sit in a Bash(...) allowlist grant (e.g.
+# Bash(git worktree *)) that auto-approves unguarded `git worktree remove
+# --force` — the data-loss teardown the guarded worktree process forbids
+# (.cwf/docs/conventions/worktree-process.md). The operator owns settings.local.json
+# (tmp-paths.md): CWF surfaces, never edits it.
+#
+# Deliberately a raw whole-file substring search with NO JSON decode. That is the
+# simplest match (the operator judges; a read-only `git worktree list` entry may
+# also warn — accepted) AND the most robust: because it never parses JSON it
+# cannot die on a malformed, user-edited settings.local.json. Every read is
+# best-effort (absent / symlink / non-regular / unreadable → skip — mirroring
+# read_settings's -f && !-l guard), so this scan can NEVER fail install/update
+# (run_settings_merge aborts the whole run on a non-zero exit). Fires under
+# --dry-run too, like the env.PERL5OPT drift warnings. Never writes a file.
+sub warn_on_worktree_allowlist {
+    for my $path ($settings_path, "$settings_dir/settings.local.json") {
+        next unless -f $path && !-l $path;
+        open(my $fh, '<:raw', $path) or next;
+        my $blob = do { local $/; <$fh> };
+        close $fh;
+        next unless defined $blob && index($blob, 'git worktree') >= 0;
+        warn "[CWF] WARN: $path contains \"git worktree\"; a permission "
+           . "allowlist entry such as Bash(git worktree *) can auto-approve "
+           . "unguarded `git worktree remove --force`. Review and remove or "
+           . "narrow it. See .cwf/docs/conventions/worktree-process.md.\n";
+    }
+    return;
+}
+
 # --- Main ------------------------------------------------------------------
 my $sandbox = read_sandbox_config();          # undef ⇒ OFF; dies on malformed
 my $sandbox_on           = ($sandbox && $sandbox->{enabled}) ? 1 : 0;
@@ -499,6 +530,7 @@ my $env_added   = merge_env($settings);
 my $deny_paths  = reconcile_sandbox($settings, $sandbox_on, $fail_if_unavailable, @deny);
 
 sandbox_dep_guard() if $sandbox_on;
+warn_on_worktree_allowlist();
 
 my $encoder = JSON::PP->new->pretty->indent_length(2)->canonical;
 my $blob    = $encoder->encode($settings);
