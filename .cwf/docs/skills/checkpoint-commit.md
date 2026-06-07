@@ -15,6 +15,8 @@ phase, then run:
 
 The script handles: status update → stage wf file → formatted commit → `cwf-manage validate`.
 
+If `validate` reports a **permission** violation, fix it on sight by running `cwf-manage fix-security` — do not defer it. A **sha256** violation is different: surface it, never smooth it. See `.cwf/docs/conventions/hash-updates.md#fix-permission-drift-on-sight`.
+
 Example:
 ```bash
 git add .cwf/scripts/command-helpers/new-script   # stage non-wf files first
@@ -47,7 +49,10 @@ If the script is unavailable or you need finer control:
    ```bash
    .cwf/scripts/cwf-manage validate
    ```
-   If violations are reported, fix them before proceeding to the next skill.
+   If violations are reported, fix them before proceeding to the next skill. A
+   **permission** violation is fix-on-sight — run `cwf-manage fix-security` now,
+   do not defer it; a **sha256** violation must be surfaced, never smoothed. See
+   `.cwf/docs/conventions/hash-updates.md#fix-permission-drift-on-sight`.
 
 ## Rationale
 

@@ -21,6 +21,20 @@ A manifest entry's `permissions` value is an **upper bound**, not an exact targe
 
 When a hash refresh also records or changes a `permissions` value, the recorded ceiling for an **executable** entry MUST NOT carry group/other **write or execute** bits, nor setuid/setgid/sticky — otherwise a future refresh could silently re-open the exposure that the ceiling check exists to catch. Data entries legitimately keep group/other **read** (e.g. `0444`); the prohibition is on write/execute, not all group/other bits. Lib `.pm` modules carry no `permissions` key and are excluded from the check.
 
+## Fix permission drift on sight
+
+When `cwf-manage validate` (or the checkpoint helper that runs it) reports a **permission** violation — a file more permissive than its recorded ceiling — repair it immediately by running:
+
+    cwf-manage fix-security
+
+Do not defer it as "out of scope", "not part of this task", or "a separate backlog item". Permission drift is a security-relevant exposure (an excess group/other write or execute bit, or a setuid/setgid/sticky bit); leaving it set because the surrounding task is about something else is the failure mode this rule exists to stop. The repair is one clamp command and belongs to whoever observes the drift.
+
+**The boundary — what is and is not fix-on-sight.** Permission clamping is the **only** integrity violation an agent repairs on sight, because clamping can only *clear* excess bits (`actual & recorded`), never raise them or alter content — see "Recorded permissions are a ceiling" above. A **sha256/content** violation is the opposite: it signals the file's bytes no longer match what was last reviewed. It is NOT auto-repairable — surface it, never smooth it (see "What NOT to build" below). Never recompute a hash to clear a `validate` warning.
+
+**Persistence — this is a working-tree action, not a commit.** Git records only `100755`/`100644`, so the `0500`-vs-`0700` distinction is invisible to it. Clamping the perms leaves `git status` clean and produces no committable diff; the fix persists in the working tree, not in a commit. Do not promise a git-persisted fix where none exists (see "Recorded permissions are a ceiling" for the mode model).
+
+**The rationalisation to refuse.** Task 182 deferred a `cwf-claude-settings-merge` permission clamp "as a separate backlog item"; Task 174 deferred a clamp likewise. Both left a recorded-ceiling exposure standing across task boundaries for no benefit — the clamp would have cost one command. When you catch yourself reaching for "I'll let permissions drift, it isn't part of this task", that is the exact reflex to override: run `cwf-manage fix-security` now.
+
 ## Plan-time disclosure
 
 Any implementation plan whose Files-to-Modify list includes a hashed path MUST list `.cwf/security/script-hashes.json` as a Supporting Change. The check is one grep against `.cwf/security/script-hashes.json` — perform it during d-plan, not at f-exec when validate fires.

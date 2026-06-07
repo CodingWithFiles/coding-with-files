@@ -2,26 +2,6 @@
 
 Future tasks and improvements for the Coding with Files system.
 
-## Task: Restore Task-173 permission drift on three helper scripts
-
-### Task-Type: chore
-### Priority: Medium
-### Status: Follow-up from Task 174 (j-retrospective.md §Future Work)
-### Identified in: Task 174 f-implementation-exec.md §Blockers, j-retrospective.md
-
-Three scripts content-modified in Task 173 (baseline `c886856`) sit at on-disk `0700`
-against their recorded `0500` ceiling, because Task 173 skipped restoring edited-script
-perms to recorded: `.cwf/scripts/command-helpers/context-manager.d/location`,
-`.cwf/scripts/migrations/migrate-v2.1-file-order`,
-`.cwf/scripts/command-helpers/template-copier-v2.0`. git stores only mode `100755`, so
-the `0700`/`0500` distinction is invisible to `git status` and the drift is not in any
-task diff — `cwf-manage validate` flags the live `0700`, and the drift produced 12
-spurious full-suite failures during Task 174 (worked around by clamping in the working
-tree only). Scope: run `cwf-manage fix-security` (clamp to recorded) on the three files
-and commit, or verify they are already clamped and record the disposition. No source
-change, so no hash refresh. Cites `feedback_hashed_script_working_perms` (recorded perms
-are a ceiling as of Task 170).
-
 ## Task: Plan-time symbol-deletion reference sweep
 
 ### Task-Type: chore

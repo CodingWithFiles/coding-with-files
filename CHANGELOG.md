@@ -2,6 +2,35 @@
 
 All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
 
+## Task 183: permission-drift repair and agent guidance (feature)
+
+### Status: Complete (2026-06-07)
+### Duration: ~1 day across two sessions (planning a–e in a prior session with the full b/c/d plan-review panel; exec f→j this session after a user plan review). On estimate (Low–Medium).
+### Impact: Codifies a standing **fix-on-sight permission-drift** rule so agents clamp drift the moment `cwf-manage validate` surfaces it, instead of the recurring failure mode of deferring it as "out of scope" / "a separate backlog item" (Task 173/174/182). Delivered **docs-only** — the repair engine (`cwf-manage fix-security`, clamp-only: `actual & recorded`, never raises) already existed, so no new code, no `cwf-manage` surface, and no `script-hashes.json` refresh (all three edited files are non-hash-tracked). Three edits: (1) a new `## Fix permission drift on sight` section in `.cwf/docs/conventions/hash-updates.md` carrying the rule (command quoted **byte-identical** to `CWF/Validate/Security.pm`'s `Fix:` line), the **perm-vs-sha256 boundary** (clamping is the *only* auto-repairable violation; sha256/content drift is surfaced, never smoothed — "Never recompute a hash to clear a validate warning"), the working-tree-only persistence note (perms are not a committable diff), and a no-names negative example drawn from the Task-182/174 deferrals; (2) a fix-on-sight note at the `validate` step of `.cwf/docs/skills/checkpoint-commit.md` on **both** the Script and Manual paths, each cross-referencing the new section; (3) a pure-pointer bullet on `CLAUDE.md`'s Hash Updates entry. FR1's repair sweep was a no-op at exec time (drift already cleared), so the mechanism is exercised by the FR6/TC-REPRO induce-drift→fix demonstration. All test cases PASS; both exec-phase security reviews **`no findings`**; `cwf-manage validate` clean.
+
+### Notable
+- **The rule proved itself before it was written.** During phase a, `cwf-manage validate` surfaced live permission drift on two Task-182 files; rather than defer, the drift was clamped on sight — a real instance of the exact behaviour this task codifies.
+- **TC-REPRO double-checked the docs against live output.** The induce-drift→fix run (chmod 0700 on a recorded-0500 script → validate flags → `fix-security` clamps → validate OK → clean `git status`) produced the validate `Fix:` line, which is byte-identical to the command quoted in all three docs — AC2 verified against real tool output, not just source.
+- **Plan-review caught a non-existent landing site.** FR2 originally targeted `CLAUDE.md ## Critical Rules`, which exists only in the user-global `~/.claude/CLAUDE.md` (not checked in, not installable). Re-pointed to the installed `hash-updates.md` convention doc. The cross-ref form and the byte-identical-command target were likewise corrected in planning, before exec.
+
+### Retired Backlog Items
+#### Restore Task-173 permission drift on three helper scripts
+
+Three scripts content-modified in Task 173 (baseline `c886856`) sit at on-disk `0700`
+against their recorded `0500` ceiling, because Task 173 skipped restoring edited-script
+perms to recorded: `.cwf/scripts/command-helpers/context-manager.d/location`,
+`.cwf/scripts/migrations/migrate-v2.1-file-order`,
+`.cwf/scripts/command-helpers/template-copier-v2.0`. git stores only mode `100755`, so
+the `0700`/`0500` distinction is invisible to `git status` and the drift is not in any
+task diff — `cwf-manage validate` flags the live `0700`, and the drift produced 12
+spurious full-suite failures during Task 174 (worked around by clamping in the working
+tree only). Scope: run `cwf-manage fix-security` (clamp to recorded) on the three files
+and commit, or verify they are already clamped and record the disposition. No source
+change, so no hash refresh. Cites `feedback_hashed_script_working_perms` (recorded perms
+are a ceiling as of Task 170).
+
+<!-- Note: Superseded by Task 183: generalised fix-on-sight permission-drift rule + boundary; the three scripts were already clamped (Task 174) and the tree is clean at task end. -->
+
 ## Task 182: harden security-review-changeset agent contract (feature)
 
 ### Status: Complete (2026-06-06)

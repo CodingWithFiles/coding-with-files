@@ -85,6 +85,7 @@ The Coding with Files (CWF) system v2.0 is **implemented and operational**. Core
 - Per-file pre-refresh `git log` verification
 - Narrow carve-out (4 invariants) for dedicated hash-fix tasks
 - What NOT to build: any surface that silences `cwf-manage validate` without surfacing first
+- Fix permission drift on sight: clamp via `cwf-manage fix-security` rather than defer (sha256 drift is surfaced, never smoothed)
 
 **Session Hygiene**: When to `/clear`, when to `/compact` and what to preserve, how to keep memory salient across sessions, and how to re-derive workflow state on resume. See `.cwf/docs/conventions/session-hygiene.md` for:
 - Triggering conditions for `/clear` and `/compact` (vs auto-compaction)
