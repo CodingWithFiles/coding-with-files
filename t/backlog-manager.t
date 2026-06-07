@@ -261,6 +261,37 @@ END
 };
 
 #==============================================================================
+# CHANGELOG-005 (Task 184) — stale brand in intro warns by default, escalates
+# to an error (non-zero exit) under --strict via the generic promotion.
+#==============================================================================
+
+subtest 'CHANGELOG-005: stale intro warns; --strict escalates' => sub {
+    plan tests => 5;
+    my $stale_cl = <<'END';
+# Changelog
+
+All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
+
+## Task 131: Foo
+
+### Status: Complete (2026-05-07)
+### Impact: feature
+END
+    my $dir = make_isolated('BACKLOG.md' => $VALID_BACKLOG_MIN, 'CHANGELOG.md' => $stale_cl);
+
+    # Default: warning printed, exit 0 (not fatal for a consumer).
+    my ($rc, $out, $err) = run_bm($dir, 'validate');
+    is($rc, 0, "exit 0 — CHANGELOG-005 is a warning by default (err: $err)");
+    like($err, qr/CHANGELOG-005/, 'warning names CHANGELOG-005');
+    like($err, qr/WARN/, 'printed as a WARN line');
+
+    # --strict: promoted to error, non-zero exit.
+    my ($rc_s, $out_s, $err_s) = run_bm($dir, 'validate', '--strict');
+    is($rc_s, 1, "exit 1 — --strict escalates CHANGELOG-005 to error (err: $err_s)");
+    like($err_s, qr/CHANGELOG-005/, 'strict error names CHANGELOG-005');
+};
+
+#==============================================================================
 # AC4 — CHANGELOG accepts entries with omitted Duration / Changes / Notable
 #==============================================================================
 

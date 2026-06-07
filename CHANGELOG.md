@@ -1,6 +1,17 @@
 # Changelog
 
-All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.
+All notable changes to the Coding with Files (CWF) project are documented in this file, organized by task.
+
+## Task 184: changelog header brand name (bugfix)
+
+### Status: Complete (2026-06-07)
+### Duration: single session (estimate ~0.5 day; came in under, the migration descope removed the only cost driver).
+### Impact: Completes the Task 59 rebrand in this repo's `CHANGELOG.md` and adds a regression guard. Two deliverables (planned as three): (1) `CHANGELOG.md:3` intro corrected from the stale `Code Implementation Guide (CIG)` to `Coding with Files (CWF)` — a literal substring swap, rest of the line byte-identical, so historical body `(CIG)` fragments (lines 2245, 2854) are untouched; (2) a new **`CHANGELOG-005`** warning in `CWF::Backlog::validate_changelog_tree`, intro-scoped exactly like CHANGELOG-001 (`@{$tree->{intro}}` only, via a literal `index` against the package constant `$STALE_CHANGELOG_BRAND`), so the stale brand cannot silently reappear in the intro while the body's legitimate history never trips it. Severity `warning` (a consumer should not be failed for a cosmetic line they did not author); escalates to error under `--strict` via the existing generic promotion (no rule-specific code). Same-commit `script-hashes.json` sha256 refresh for `CWF::Backlog` (lib module, no perms key). The originally-planned **upgrade migration was dropped**: investigation confirmed no CWF tooling ever seeds the intro into a consumer `CHANGELOG.md` (no template; neither `install.bash` nor `/cwf-init` create the file; bootstrap writes only `# Changelog` + `## Task N` nodes), so a migration would be a no-op in the wild — "the best part is no part". Brand casing held at canonical `CWF`; the project-wide `CWF`→`CwF` rebrand was filed as a separate Low backlog item. All TC-1..TC-8 PASS; full suite 698 tests green; both exec-phase security reviews **`no findings`**; `cwf-manage validate` clean.
+
+### Notable
+- **The migration evaporated under investigation.** The plan's "High Priority Risk" — where to hook a `cwf-manage update` header rewrite — turned out moot once design confirmed nothing writes the stale intro into user installs. Validating the propagation path before building the migration saved two-thirds of the planned scope.
+- **Intro-scoping is the whole correctness story.** A naïve whole-file scan would have flagged the changelog's own retired Task-59 entries; binding the check to `$tree->{intro}` (mirroring CHANGELOG-001) is what makes the guard safe. TC-3 proves it, in-memory and against the live file.
+- **Latent brand drift surfaced.** The repo canonical is all-caps `CWF` (glossary, README, Task 59 entry) but the intended branding is mixed-case `CwF` — pre-existing drift from Task 59. Held `CWF` here to avoid introducing the only `(CwF)` mid-rebrand; filed the rebrand as a backlog item.
 
 ## Task 183: permission-drift repair and agent guidance (feature)
 

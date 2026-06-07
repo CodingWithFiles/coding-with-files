@@ -1325,3 +1325,11 @@ Consider a lightweight check (linter or test) asserting README's documented `/cw
 Open question (why this is a candidate, not a commitment): whether the maintenance cost and false-positive surface of a new gate is worth it for a doc that changes rarely. Decide in the task's planning phase. Could fold into the existing "Skill Cross-Reference Linter" item rather than standing alone.
 
 Identified in: Task 169 retrospective (j-retrospective.md).
+
+## Task: Rebrand TLA from CWF to CwF across project
+
+### Task-Type: chore
+### Priority: Low
+### Identified in: Task 184
+
+The canonical three-letter abbreviation is currently "CWF" (all-caps) across glossary.md, README.md, CLAUDE.md, docs, skills, and committed CHANGELOG entries. The intended branding is the mixed-case "CwF". This is pre-existing design drift not noticed until Task 184 (which used the current canonical CWF for the CHANGELOG header fix rather than mixing conventions). Sweep all production artefacts (glossary, README, CLAUDE.md, .cwf/docs, .cwf/templates, skills, agent defs) replacing the standalone TLA "CWF" -> "CwF", excluding immutable history (implementation-guide/* task docs, retired CHANGELOG entries). Verify with an output-level smoke test per the rebrand-smoke-test process memory. Update the glossary Abbrev definition and pronunciation note accordingly.

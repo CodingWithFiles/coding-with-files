@@ -279,6 +279,44 @@ subtest 'TC-VAL-CHANGELOG-004' => sub {
 };
 
 #==============================================================================
+# CHANGELOG-005 (warning: stale project name in intro) — Task 184
+# Intro-scoped exactly like CHANGELOG-001: the body legitimately carries
+# historical "(CIG)" fragments in retired Task-59 entries, which must not fire.
+#==============================================================================
+subtest 'TC-VAL-CHANGELOG-005' => sub {
+    plan tests => 5;
+
+    my $stale_intro = join('',
+        "# Changelog\n\n",
+        "All notable changes to the Code Implementation Guide (CIG) project are documented in this file, organized by task.\n\n",
+        "## Task 131: Foo\n\n### Status: Complete\n### Impact: Feature\n",
+    );
+    my (undef, $stale) = parse_and_validate_changelog($stale_intro);
+    cmp_ok(has_rule($stale, 'CHANGELOG-005'), '>=', 1, 'neg: stale intro fires CHANGELOG-005');
+    my ($w) = get_rule($stale, 'CHANGELOG-005');
+    is($w->{severity}, 'warning', 'severity is warning');
+    is($w->{line}, 1, 'reports line 1');
+
+    my $canon_intro = join('',
+        "# Changelog\n\n",
+        "All notable changes to the Coding with Files (CWF) project are documented in this file, organized by task.\n\n",
+        "## Task 131: Foo\n\n### Status: Complete\n### Impact: Feature\n",
+    );
+    my (undef, $canon) = parse_and_validate_changelog($canon_intro);
+    is(has_rule($canon, 'CHANGELOG-005'), 0, 'pos: canonical intro → silent');
+
+    # Intro-scoping proof: canonical intro, but a retired-entry body mentions "(CIG)".
+    my $body_only = join('',
+        "# Changelog\n\n",
+        "All notable changes to the Coding with Files (CWF) project are documented in this file, organized by task.\n\n",
+        "## Task 59: Rebrand\n\n### Status: Complete\n### Impact: Feature\n\n",
+        "### Changes\n- Renamed from Code Implementation Guide (CIG) to Coding with Files.\n",
+    );
+    my (undef, $body) = parse_and_validate_changelog($body_only);
+    is(has_rule($body, 'CHANGELOG-005'), 0, 'pos: body-only "(CIG)" → silent (intro-scoped)');
+};
+
+#==============================================================================
 # TC-VAL-FENCE-INVARIANT — single fixture with all "violators" in one fence.
 # All validator rules silent on the fenced content; the file-wide single-source
 # fence map prevents disagreement between rules.

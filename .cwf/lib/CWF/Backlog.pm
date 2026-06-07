@@ -61,6 +61,11 @@ our @EXPORT_OK = qw(
 # helper imports this rather than re-stating the alternation.
 our $VALID_PRIORITIES = qr/^(?:Very High|High|Medium|Very Low|Low)(?:\s*\(.*\))?$/;
 
+# Retired project name (pre-Task-59 brand). Its presence in the CHANGELOG intro
+# means a rebrand was incomplete; CHANGELOG-005 surfaces it. Single source of
+# truth for the stale substring.
+our $STALE_CHANGELOG_BRAND = 'Code Implementation Guide (CIG)';
+
 # Metadata-key character class — `### Foo: value` and the legacy `**Foo**: value`
 # both share this contract. Single source so parser and canonicaliser stay in
 # lockstep.
@@ -438,6 +443,16 @@ sub validate_changelog_tree {
             file => $path, line => 1, rule => 'CHANGELOG-001', severity => 'error',
             message => $count == 0 ? "missing top-level '# Changelog' header"
                                    : "multiple '# Changelog' headers found",
+        };
+    }
+
+    # CHANGELOG-005 (warning): stale project name in the intro. Scan the intro
+    # array only — the body legitimately carries historical "(CIG)" fragments in
+    # retired Task-59 entries, which must never trip this.
+    if (grep { index($_, $STALE_CHANGELOG_BRAND) >= 0 } @{$tree->{intro}}) {
+        push @errors, {
+            file => $path, line => 1, rule => 'CHANGELOG-005', severity => 'warning',
+            message => "stale project name in CHANGELOG intro; expected 'Coding with Files (CWF)'",
         };
     }
 

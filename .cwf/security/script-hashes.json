@@ -1,5 +1,5 @@
 {
-  "last_updated" : "2026-05-16",
+  "last_updated" : "2026-06-07",
   "agents" : {
     "cwf-plan-reviewer-improvements" : {
       "path" : ".claude/agents/cwf-plan-reviewer-improvements.md",
@@ -52,7 +52,7 @@
     },
     "CWF::Backlog" : {
       "path" : ".cwf/lib/CWF/Backlog.pm",
-      "sha256" : "375ce811ecb4f507e304075c96bd99393f75a93ccc09085ece1124b16849b7e7"
+      "sha256" : "8683552461474326312677983e64481355d4f41a0b344d7d0a1275c98de18fd6"
     },
     "CWF::Common" : {
       "path" : ".cwf/lib/CWF/Common.pm",
