@@ -333,6 +333,19 @@ sub run_settings_merge {
     return;
 }
 
+# run_detect_merges — invoke the read-only cwf-detect-merges helper, passing
+# the git root so it scans the consumer repo regardless of cwd. Its rc is
+# deliberately IGNORED (the helper always exits 0; defence-in-depth — a
+# detection fault must never abort a good migration). The helper ships in the
+# same release as this caller, so no pre-flight -x tolerance branch is needed;
+# a missing helper surfaces via system()'s own error, which we also swallow.
+sub run_detect_merges {
+    my ($git_root) = @_;
+    my $helper = "$git_root/.cwf/scripts/command-helpers/cwf-detect-merges";
+    system($helper, $git_root);
+    return;
+}
+
 # --- Subcommands --------------------------------------------------------------
 
 sub cmd_status {
@@ -346,6 +359,14 @@ sub cmd_status {
     printf "  %-12s %s\n", "SHA:",     $v{cwf_sha}     // 'unknown';
     printf "  %-12s %s\n", "Source:",  $v{cwf_source}  // 'unknown';
     printf "  %-12s %s\n", "Installed:", $v{cwf_installed} // 'unknown';
+    return;
+}
+
+sub cmd_check_merges {
+    my ($git_root) = @_;
+    # On-demand, read-only surface (FR7): delegate to the same helper the
+    # migration path uses. No reporting logic of its own; repo is never mutated.
+    run_detect_merges($git_root);
     return;
 }
 
@@ -480,8 +501,16 @@ sub cmd_update {
     # resolved SHA so install.bash cannot re-resolve to a different commit;
     # CWF_SOURCE points at the local clone (no 2nd network clone). system (not
     # exec) keeps the lock scope-guard alive.
-    $method eq 'subtree' || $method eq 'copy'
+    $method eq 'subtree' || $method eq 'copy' || $method eq 'read-tree'
         or die_msg("Unknown install method: $method");
+
+    # Migrate a recorded `subtree` install onto the merge-free method: translate
+    # to `read-tree` BEFORE the CWF_METHOD env is built, so the target
+    # install.bash (which now refuses subtree) never receives it. The recorded
+    # cwf_method is rewritten to the laydown method only on success (below),
+    # keeping a failed migration fail-closed (still `subtree`).
+    my $laydown_method      = ($method eq 'subtree') ? 'read-tree' : $method;
+    my $migrated_subtree    = ($method eq 'subtree');
 
     my $installer = "$clone_dir/scripts/install.bash";
     -f $installer
@@ -492,7 +521,7 @@ sub cmd_update {
     my $rc = do {
         local %ENV = (%ENV,
             CWF_FORCE  => '1',
-            CWF_METHOD => $method,
+            CWF_METHOD => $laydown_method,
             CWF_SOURCE => "file://$clone_dir",
             CWF_REF    => $sha,
         );
@@ -516,9 +545,15 @@ sub cmd_update {
     apply_exact_perms_or_die($git_root);
 
     # Authoritative version-file write (FR6): overwrites any base version file
-    # install.bash wrote on the subtree path — restoring the real cwf_source
+    # install.bash wrote on the laydown path — restoring the real cwf_source
     # (not the transient file:// re-source) and pinning the manifest SHA once.
+    # Record the laydown method: for a migrated subtree install this rewrites
+    # `subtree` to `read-tree` (the loaded %v carries the old value otherwise,
+    # so this assignment, not an edit of an existing key, is what completes the
+    # migration). Reached only after laydown/artefacts/perms succeeded above —
+    # a mid-update failure leaves cwf_method=subtree (fail-closed).
     $v{cwf_version}                = git_describe_version($clone_dir, $sha);
+    $v{cwf_method}                 = $laydown_method;
     $v{cwf_ref}                    = $ref;
     $v{cwf_sha}                    = $sha;
     $v{cwf_installed}              = gmtime_iso();
@@ -526,6 +561,13 @@ sub cmd_update {
     write_version_file($git_root, %v);
 
     log_msg("Updated to $resolved ($sha)");
+
+    # After a subtree→read-tree migration, surface any pre-existing merge
+    # commits (the laydown is merge-free, but the consumer's history may still
+    # carry the old subtree merges). Advisory only; rc is ignored so a
+    # detection bug can never undo an otherwise-good migration.
+    run_detect_merges($git_root) if $migrated_subtree;
+
     return;
 }
 
@@ -811,6 +853,8 @@ Commands:
   list-releases [--all]    List available tagged releases from the CWF remote
   update [ref]     Update to a specific ref (default: latest tag)
   rollback <ref>   Revert to a previous version
+  check-merges     Report merge commits on this branch and the subset that
+                   originate from old CWF subtree installs (read-only, advisory)
   validate         Validate config and workflow files; exit non-zero on violations
   fix-security [--dry-run]  Repair fixable integrity violations (perms when
                    sha256 matches); exit non-zero on tampering or missing files.
@@ -831,6 +875,7 @@ Examples:
   cwf-manage update
   cwf-manage update v2.1.0
   cwf-manage rollback v2.0.0
+  cwf-manage check-merges
   cwf-manage validate
   cwf-manage fix-security --dry-run
 HELP
@@ -848,6 +893,7 @@ sub main {
         'list-releases' => sub { my $all = grep { $_ eq '--all' } @ARGV; cmd_list_releases($git_root, $all) },
         'update'        => sub { cmd_update($git_root, shift @ARGV) },
         'rollback'      => sub { cmd_rollback($git_root, shift @ARGV) },
+        'check-merges'  => sub { cmd_check_merges($git_root) },
         'validate'      => sub { cmd_validate($git_root) },
         'fix-security'  => sub { cmd_fix_security($git_root) },
         'help'          => sub { cmd_help() },

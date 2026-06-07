@@ -21,7 +21,7 @@ git archive --remote=<cwf-repo-url> HEAD scripts/install.bash | tar -xO | bash
 Override defaults with environment variables:
 
 ```bash
-# Use file copy instead of git subtree
+# Use file copy instead of the default read-tree laydown
 curl -fsSL <url> | CWF_METHOD=copy bash
 
 # Install a specific version
@@ -36,7 +36,7 @@ curl -fsSL <url> | CWF_FORCE=1 bash
 
 | Variable | Default | Values |
 |----------|---------|--------|
-| `CWF_METHOD` | `subtree` | `subtree`, `copy` |
+| `CWF_METHOD` | `read-tree` | `read-tree`, `copy` (`subtree` is deprecated and refused) |
 | `CWF_REF` | `latest` | Tag, branch, commit SHA, or `latest` |
 | `CWF_SOURCE` | GitHub URL | Any git URL or `file://` path |
 | `CWF_FORCE` | (unset) | `1` to overwrite existing install |
@@ -99,16 +99,23 @@ This is a one-time manual step; subsequent `update`s use the freshly-installed
 
 ## Manual Install
 
-Three methods are available for manual installation. All are first-class and fully supported.
+Two methods are available for manual installation. **read-tree** is the default and
+preferred method; **copy** is the fallback for environments where read-tree cannot run.
 
-| Method | Best for | Upstream sync | Upgrade path |
-|--------|----------|---------------|--------------|
-| **Git subtree** | Repos that want automatic upstream updates | Yes | `git subtree pull` |
-| **File copy** | Static installs, air-gapped environments, controlled upgrades | No | Re-copy from newer release |
+| Method | Best for | Merge-free | Upgrade path |
+|--------|----------|------------|--------------|
+| **Git read-tree** (default) | Any repo; keeps a linear history | Yes | Re-run the installer / `cwf-manage update` |
+| **File copy** (fallback) | Air-gapped environments, or where `git read-tree` is unavailable | Yes | Re-copy from newer release |
+
+> **`subtree` is deprecated and refused.** Earlier CWF releases laid the trees down with
+> `git subtree add --squash`, which forces a merge commit into your history. The installer
+> now refuses `CWF_METHOD=subtree`. If you have an existing subtree install, `cwf-manage
+> update` migrates it onto read-tree automatically; run `cwf-manage check-merges` to see
+> whether old subtree merge commits remain in your history.
 
 ## Prerequisites
 
-- **Git** 1.7+ (for subtree support)
+- **Git** 1.7+
 - **Perl** 5.20+ (helper scripts)
 - **Bash** 4+ (helper scripts)
 - **Claude Code** (for slash commands / skills)
@@ -121,67 +128,65 @@ perl -v | head -2
 bash --version | head -1
 ```
 
-## Method 1: Git Subtree
+## Method 1: Git read-tree
 
-Git subtree embeds CWF into your repo with a link back to the upstream source. This uses two subtree splits from the single CWF repo — one for the core system (`.cwf/`) and one for the skills (`.cwf-skills/`). Skills are then symlinked into `.claude/skills/` so they coexist with any skills you already have.
+`git read-tree` lays each CWF tree into your repo at a staging prefix using git's native
+plumbing. Unlike `git subtree add --squash`, it creates **no merge commit** — the laydown
+is staged into the index and you commit it as an ordinary single-parent commit, so your
+history stays linear. The four trees map: `.cwf` → `.cwf/`, `.claude/skills` →
+`.cwf-skills/`, `.claude/rules` → `.cwf-rules/`, `.claude/agents` → `.cwf-agents/`. The
+staging prefixes are then symlinked into `.claude/` so CWF skills, rules, and agents
+coexist with any you already have.
 
 ### Install
 
 ```bash
-# Clone the CWF repo locally (if you haven't already)
+# Clone the CWF repo locally and check out the ref you want
 git clone <cwf-repository-url> /tmp/cwf-source
-cd /tmp/cwf-source
-
-# Create split branches for the two directory trees
-git subtree split --prefix=.cwf -b cwf-core
-git subtree split --prefix=.claude/skills -b cwf-skills
+cd /tmp/cwf-source && git checkout <tag-or-branch>
 
 # Switch to your project repo
 cd /path/to/your/repo
 
-# Add both subtrees (.cwf-skills/ is a staging prefix)
-git subtree add --prefix=.cwf /tmp/cwf-source cwf-core --squash
-git subtree add --prefix=.cwf-skills /tmp/cwf-source cwf-skills --squash
+# Bring the CWF objects into your repo's object store (local, no network)
+git fetch --no-tags /tmp/cwf-source HEAD
 
-# Create symlinks from .cwf-skills/ into .claude/skills/
-mkdir -p .claude/skills
-for d in .cwf-skills/cwf-*/; do
-    ln -s "../../.cwf-skills/$(basename "$d")" ".claude/skills/$(basename "$d")"
-done
+# Lay each tree at its staging prefix (read-tree refuses to overlay an existing
+# prefix — if reinstalling, `git rm -r --cached <prefix>` first)
+git read-tree --prefix=.cwf/        "$(git rev-parse FETCH_HEAD:.cwf)"
+git read-tree --prefix=.cwf-skills/ "$(git rev-parse FETCH_HEAD:.claude/skills)"
+git read-tree --prefix=.cwf-rules/  "$(git rev-parse FETCH_HEAD:.claude/rules)"
+git read-tree --prefix=.cwf-agents/ "$(git rev-parse FETCH_HEAD:.claude/agents)"
+
+# Materialise the staged trees into the working tree
+git ls-files -z -- .cwf .cwf-skills .cwf-rules .cwf-agents | git checkout-index -f -z --stdin
+
+# Create symlinks into .claude/ (skills, rules, agents)
+mkdir -p .claude/skills .claude/rules .claude/agents
+for d in .cwf-skills/cwf-*/;  do ln -s "../../.cwf-skills/$(basename "$d")"  ".claude/skills/$(basename "$d")"; done
+for f in .cwf-rules/cwf-*.md;  do ln -s "../../.cwf-rules/$(basename "$f")"  ".claude/rules/$(basename "$f")";  done
+for f in .cwf-agents/cwf-*.md; do ln -s "../../.cwf-agents/$(basename "$f")" ".claude/agents/$(basename "$f")"; done
+
+# Commit — an ordinary single-parent commit, no merge
+git commit -m "Add CWF"
 ```
 
 This installs:
 - `.cwf/` — scripts, templates, documentation, Perl libraries, security hashes
-- `.cwf-skills/cwf-*` — 18 skill definitions (one SKILL.md each)
-- `.claude/skills/cwf-*` — symlinks to `.cwf-skills/cwf-*`
+- `.cwf-skills/cwf-*`, `.cwf-rules/cwf-*.md`, `.cwf-agents/cwf-*.md` — skills, rules, agents
+- `.claude/{skills,rules,agents}/cwf-*` — symlinks into the staging prefixes
 
 ### Update
 
-```bash
-# From the CWF source clone, update the split branches
-cd /tmp/cwf-source
-git pull
-git subtree split --prefix=.cwf -b cwf-core --rejoin
-git subtree split --prefix=.claude/skills -b cwf-skills --rejoin
-
-# Switch to your project repo and pull updates
-cd /path/to/your/repo
-git subtree pull --prefix=.cwf /tmp/cwf-source cwf-core --squash -m "Update CWF core"
-git subtree pull --prefix=.cwf-skills /tmp/cwf-source cwf-skills --squash -m "Update CWF skills"
-
-# Recreate symlinks (handles skill renames across versions)
-rm -f .claude/skills/cwf-*  # remove old symlinks only
-mkdir -p .claude/skills
-for d in .cwf-skills/cwf-*/; do
-    ln -s "../../.cwf-skills/$(basename "$d")" ".claude/skills/$(basename "$d")"
-done
-```
+Re-run the quick-install script, or use `cwf-manage update`. Both clear the staging
+prefixes and re-lay the new trees with no merge commit. Review the CWF CHANGELOG for
+breaking changes before upgrading.
 
 ### Remove
 
 ```bash
-git rm -r .cwf .cwf-skills
-rm -f .claude/skills/cwf-*  # remove symlinks
+git rm -r .cwf .cwf-skills .cwf-rules .cwf-agents
+rm -f .claude/skills/cwf-* .claude/rules/cwf-*.md .claude/agents/cwf-*.md  # remove symlinks
 git commit -m "Remove CWF"
 ```
 

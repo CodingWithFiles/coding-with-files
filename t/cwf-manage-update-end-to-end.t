@@ -114,10 +114,12 @@ sub build_upstream {
 }
 
 # Install CWF into a fresh consumer repo from the upstream via install.bash.
-# $method defaults to 'subtree' (back-compat); pass 'copy' for the copy path.
+# $method defaults to 'copy' (method-agnostic update mechanics); pass 'read-tree'
+# for that path. The subtree method was removed in Task 185; subtree→read-tree
+# migration is covered by t/cwf-manage-update-migrate.t.
 sub install_consumer {
     my ($consumer, $upstream, $ref, $method) = @_;
-    $method //= 'subtree';
+    $method //= 'copy';
     system('mkdir', '-p', $consumer) == 0 or die "mkdir $consumer";
     git_ok($consumer, 'init', '-q');
     write_file("$consumer/README.md", "consumer\n");
@@ -161,7 +163,7 @@ subtest 'FR9: malformed refs rejected before any side effect' => sub {
     my $consumer = "$base/consumer";
     my $upstream = build_upstream("$base/upstream", 1);
     my ($irc, $iout) = install_consumer($consumer, $upstream, 'v0.0.1');
-    is($irc, 0, 'install.bash subtree install succeeds') or diag $iout;
+    is($irc, 0, 'install.bash install succeeds') or diag $iout;
 
     for my $bad ('--foo', ';rm', '$(touch pwned)', '../escape') {
         my ($rc, $out) = consumer_manage($consumer, 'update', $bad);
@@ -171,7 +173,7 @@ subtest 'FR9: malformed refs rejected before any side effect' => sub {
     ok(!-e "$consumer/pwned", 'no injection side effect');
 };
 
-subtest 'FR2/FR3/FR5: cross-version-gap subtree update runs target laydown' => sub {
+subtest 'FR2/FR3/FR5: cross-version-gap update runs target laydown' => sub {
     my $base = tempdir(CLEANUP => 1);
     my $consumer = "$base/consumer";
     my $upstream = build_upstream("$base/upstream", 3);
@@ -180,9 +182,9 @@ subtest 'FR2/FR3/FR5: cross-version-gap subtree update runs target laydown' => s
     is($irc, 0, 'install v0.0.1 succeeds') or diag $iout;
     is(slurp("$consumer/.cwf/E2E-MARKER"), "v0.0.1\n", 'installed marker is v0.0.1');
 
-    # Update across a gap (v0.0.1 -> v0.0.3): no subtree-pull squash conflict.
+    # Update across a gap (v0.0.1 -> v0.0.3): the target version's laydown runs.
     my ($urc, $uout) = consumer_manage($consumer, 'update', 'v0.0.3');
-    is($urc, 0, 'update v0.0.1 -> v0.0.3 succeeds (no squash conflict)') or diag $uout;
+    is($urc, 0, 'update v0.0.1 -> v0.0.3 succeeds') or diag $uout;
     unlike($uout, qr/conflict|CONFLICT/, 'no conflict markers in update output');
     is(slurp("$consumer/.cwf/E2E-MARKER"), "v0.0.3\n",
        'marker now v0.0.3 — target version laydown ran (FR2)');
@@ -238,18 +240,17 @@ subtest 'FR10: unrelated staged work is not swept into the reinstall commit' => 
     write_file("$consumer/UNRELATED.txt", "do not commit me\n");
     git_ok($consumer, 'add', 'UNRELATED.txt');
 
-    # The update may not complete with unrelated staged work present — `git
-    # subtree add` requires a clean index (a pre-existing git-subtree
-    # constraint, out of scope here). What FR10 / the pathspec change
-    # guarantees is that the force-reinstall *remove commit* never captures
-    # unrelated staged work, and that work is never lost.
+    # Since Task 185 neither laydown method creates a commit at all (read-tree
+    # stages; copy writes the worktree) — so there is no reinstall *remove
+    # commit* that could ever capture unrelated staged work. The guarantee is
+    # structural: confirm no such commit exists and the work is never lost.
     consumer_manage($consumer, 'update', 'v0.0.2');
 
     my $files = git_ok($consumer, 'log', '--diff-filter=D', '--name-only',
                        '--pretty=format:', '-1',
                        '--grep=remove existing install');
     unlike($files // '', qr/UNRELATED\.txt/,
-           'UNRELATED.txt not captured by the force-reinstall remove commit');
+           'UNRELATED.txt not captured by any reinstall remove commit');
     # And it is never lost — still present in the working tree.
     ok(-f "$consumer/UNRELATED.txt", 'UNRELATED.txt still present in working tree');
 };

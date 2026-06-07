@@ -2,6 +2,18 @@
 
 All notable changes to the Coding with Files (CWF) project are documented in this file, organized by task.
 
+## Task 185: replace git-subtree with read-tree laydown (feature)
+
+### Status: Complete (2026-06-07)
+### Duration: ~1 day single session (estimate 2–3 days; under, thanks to an early read-tree spike retiring the top risk before any production code).
+### Impact: Stops CWF installs from forcing **merge commits** into consumer repositories — the bug that broke `git bisect --first-parent` and linear-history workflows (and was hypocritical, since CWF itself eschews merge commits). The laydown now uses a merge-free `git read-tree` snapshot-replace (`git read-tree --prefix` into the index → `git checkout-index` materialise → the consumer makes one ordinary single-parent commit; CWF creates no commit itself). `read-tree` is the **default**; `copy` is retained as the documented fallback; `CWF_METHOD=subtree` is **refused** for fresh installs with guidance, and existing `cwf_method=subtree` installs are **migrated** to read-tree on `cwf-manage update` (recorded method translated before laydown, rewritten to `read-tree` only on success — fail-closed). A new read-only helper **`cwf-detect-merges`** (and `cwf-manage check-merges`) reports the **total** merge count plus the **CWF-subtree-fingerprinted subset**, advising — never performing — re-linearisation and pointing the user to the maintainer; it is counts-only (never echoes a commit subject), under-claims on ambiguity (a user's own merge is never over-claimed), and always exits 0. Touched `scripts/install.bash` (new `install_read_tree`, shared `readonly CWF_PAIRS` SoT, default flip, subtree refusal, `install_subtree` removed), `.cwf/scripts/cwf-manage` (migration translate + `cwf_method` version write + `check-merges` + `run_detect_merges`), the new `.cwf/scripts/command-helpers/cwf-detect-merges` (0500), INSTALL.md, and `docs/conventions/design-alignment.md` §4. Same-commit `script-hashes.json` refresh for `cwf-manage` + the new helper. Suite grew 58→61 files, **706 tests green** (TC-1..TC-13 across three new test files; three subtree-fixture test files migrated off the removed method); both exec-phase security reviews **`no findings`**; `cwf-manage validate` clean throughout.
+
+### Notable
+- **Spike-first retired the real risk.** A throwaway-repo spike proved read-tree's tree-identity, merge-freeness, mode preservation, and prefix-collision-on-reinstall behaviour *before* the approach was committed — implementation had no false starts.
+- **The fingerprint was found by probing, not memory.** A real `git subtree add --squash` merge carries **no** `git-subtree-dir` trailer; the signal that actually fires is the squash **second-parent subject** (`Squashed '…' content`). Guessing would have shipped a detector that never matched.
+- **Data-safety caught in plan review.** The materialise step originally used `checkout-index -a` with no clean-tree precondition on the fresh-install path — it could clobber unrelated dirty user files. Re-scoped to the four prefixes, NUL-safe; the smoke test confirmed an unrelated dirty file survives.
+- **A requirement out-ran reality.** AC1's "fresh install → validate clean" is met by *neither* method (git `checkout-index`/`cp` honour umask, not the recorded ceiling); the clamp is delivered by the update/`fix-security` path, which the migration runs. read-tree is no regression vs copy — flagged as a possible follow-up.
+
 ## Task 184: changelog header brand name (bugfix)
 
 ### Status: Complete (2026-06-07)

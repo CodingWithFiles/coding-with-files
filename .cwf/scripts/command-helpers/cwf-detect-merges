@@ -1,0 +1,118 @@
+#!/usr/bin/env perl
+#
+# cwf-detect-merges - Read-only merge-commit detector for CWF consumer repos.
+#
+# Reports the total number of merge commits reachable from HEAD and the subset
+# fingerprinted as old CWF `git subtree add --squash` installs. It NEVER
+# rewrites history, NEVER offers a way to silence the signal, and ALWAYS
+# exits 0 (a detection failure must not abort a caller — e.g. a migration).
+#
+# Fingerprint (a merge is CWF-originated iff BOTH hold):
+#   1. subject matches /^Add CWF (core|skills|rules|agents) /  (the -m message
+#      install_subtree used: install.bash:199-208 in pre-read-tree releases), AND
+#   2. it carries a subtree marker — EITHER a git-subtree-dir: trailer on the
+#      merge, OR a second parent whose subject is "Squashed '...' content ...".
+#      (`subtree add --squash` emits no trailer on the merge; the squash second
+#      parent's subject is the signal that actually fires — verified, Task 185.)
+# On ambiguity (the "Add CWF" subject but no subtree marker) the merge is
+# UNDER-CLAIMED: counted in the total, never attributed to the CWF subset — a
+# user's own merge must never be over-claimed.
+#
+# Output is COUNTS ONLY (never raw commit subjects); classified strings are
+# display-only and never reused as command arguments.
+#
+# Usage:
+#   cwf-detect-merges [git-root]
+#     git-root   optional; chdir there first (callers may invoke from elsewhere).
+#                Falls back to the current directory.
+#
+# Launched from cwf-manage via system(), so it cannot rely on a
+# harness-injected PERL5OPT; it reads only ASCII-safe git porcelain.
+#
+use strict;
+use warnings;
+use utf8;
+use POSIX ();
+
+# capture_git(@args) — run `git @args`, return (stdout, raw $?). List-form
+# fork/exec (no shell, so refs/args are never metacharacter-exposed); child
+# stderr is sent to /dev/null. The forked child bails with POSIX::_exit so an
+# inherited END block cannot run (see CWF Perl conventions).
+sub capture_git {
+    my (@args) = @_;
+    my $pid = open(my $fh, '-|');
+    return ('', -1) unless defined $pid;
+    if ($pid == 0) {
+        open(STDERR, '>', '/dev/null');
+        exec('git', @args) or POSIX::_exit(127);
+    }
+    local $/;
+    my $out = <$fh>;
+    $out = '' unless defined $out;
+    close($fh);
+    return ($out, $?);
+}
+
+# second_parent_is_squash($parents) — true iff the merge's second parent has a
+# subtree-squash subject. $parents is the space-separated %P field.
+sub second_parent_is_squash {
+    my ($parents) = @_;
+    my @p = split /\s+/, ($parents // '');
+    return 0 unless @p >= 2;
+    my ($subj, $rc) = capture_git('show', '-s', '--format=%s', $p[1]);
+    return 0 if $rc != 0;
+    chomp $subj;
+    return $subj =~ /^Squashed '.*' content/ ? 1 : 0;
+}
+
+sub main {
+    my ($root) = @_;
+    if (defined $root && length $root) {
+        chdir $root or do {
+            # Cannot reach the repo: report nothing, never abort the caller.
+            print "[CWF] Merge-commit scan skipped: cannot enter $root.\n";
+            return 0;
+        };
+    }
+
+    # Enumerate merges NUL-separated (subjects can contain anything but NUL;
+    # -z separates commits with NUL, %x1f separates fields). %P is hex parents.
+    my ($raw, $rc) = capture_git(
+        'log', '--merges', '-z',
+        '--format=%H%x1f%s%x1f%P%x1f%(trailers:key=git-subtree-dir,valueonly)',
+        'HEAD');
+
+    # rc != 0 (no HEAD / not a repo) is treated as "no merges" — advisory only.
+    my @records = ($rc == 0) ? (split /\0/, $raw) : ();
+
+    my $total = 0;
+    my $cwf   = 0;
+    for my $rec (@records) {
+        next unless length $rec;
+        $total++;
+        my (undef, $subj, $parents, $trailer) = split /\x1f/, $rec, 4;
+        next unless defined $subj && $subj =~ /^Add CWF (?:core|skills|rules|agents) /;
+        my $marker = (defined $trailer && $trailer =~ /\S/)
+                   || second_parent_is_squash($parents);
+        $cwf++ if $marker;
+    }
+
+    if ($total == 0) {
+        print "[CWF] No merge commits found on this branch.\n";
+        return 0;
+    }
+
+    my $other = $total - $cwf;
+    printf "[CWF] Merge commits on this branch: %d total.\n", $total;
+    printf "[CWF]   %d originate from old CWF subtree installs (fingerprinted).\n", $cwf;
+    printf "[CWF]   %d are from elsewhere in your repo — CWF makes no claim on those.\n", $other;
+    print  "[CWF] CWF will not modify your history. If you want a linear history,\n";
+    print  "[CWF] re-linearisation is required; it is your choice. Contact the\n";
+    print  "[CWF] maintainer for help.\n";
+    return 0;
+}
+
+main(@ARGV) unless caller();
+exit 0;
+
+1;

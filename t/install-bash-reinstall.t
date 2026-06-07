@@ -2,12 +2,12 @@
 #
 # install-bash-reinstall.t — Task 158. Two install.bash defects + one doc drift.
 #
-#   item 1: the CWF_FORCE force-reinstall removal commit hard-coded the full
-#           pathspec (.cwf .cwf-skills .cwf-rules .cwf-agents). When a pre-state
-#           lacked one of them, `git commit -- <missing>` failed, `|| true`
-#           swallowed it, and the staged deletions of the *other* dirs were left
-#           in the index, breaking the subsequent `git subtree add`. The fix
-#           commits only the dirs actually `git rm`'d.
+#   item 1: (removed, Task 185) covered install_subtree's CWF_FORCE
+#           force-reinstall *remove commit*. install_subtree was deleted when
+#           the subtree method was deprecated; read-tree stages its trees and
+#           creates no commit, so the remove-commit defect class no longer
+#           exists. Reinstall determinism now lives in
+#           t/install-bash-read-tree.t.
 #   item 2: post_install never merged .claude/settings.json, so a raw
 #           `CWF_FORCE=1 bash install.bash` migration (no /cwf-init or
 #           `cwf-manage update` caller) never landed PERL5OPT/allowlist. The fix
@@ -131,7 +131,7 @@ sub fresh_consumer {
 # path_prepend (a dir prepended to PATH for the run only).
 sub do_install {
     my ($consumer, $upstream, %opt) = @_;
-    local $ENV{CWF_METHOD} = $opt{method} // 'subtree';
+    local $ENV{CWF_METHOD} = $opt{method} // 'read-tree';
     local $ENV{CWF_SOURCE} = "file://$upstream";
     local $ENV{CWF_REF}    = $opt{ref}    // 'v0.0.1';
     local $ENV{CWF_FORCE}  = $opt{force} ? '1' : '0';
@@ -152,85 +152,20 @@ sub seed_tracked_dirs {
 
 #==============================================================================
 
-subtest 'TC-1 (item 1): reinstall with .cwf-agents absent completes cleanly' => sub {
-    my $base     = tempdir(CLEANUP => 1);
-    my $upstream = build_upstream("$base/upstream");
-    my $consumer = fresh_consumer("$base/consumer");
-
-    # Pre-state lacks .cwf-agents (the reported trigger).
-    seed_tracked_dirs($consumer, '.cwf', '.cwf-skills', '.cwf-rules');
-
-    my ($rc, $out) = do_install($consumer, $upstream, force => 1, method => 'subtree');
-    is($rc, 0, 'force subtree reinstall succeeds with a CWF dir absent') or diag $out;
-
-    for my $d ('.cwf', '.cwf-skills', '.cwf-rules', '.cwf-agents') {
-        ok(-d "$consumer/$d", "$d present after reinstall");
-        ok(length git_ok($consumer, 'ls-files', $d), "$d tracked (subtree add committed it)");
-    }
-    # The subtree adds each commit, so a clean run leaves the index == HEAD.
-    # Leftover staged CWF *deletions* (the bug) would show here. (post_install
-    # artefacts — settings.json, symlinks, .cwf/version — are untracked and
-    # expected; the consumer commits them, as in t/cwf-manage-update-end-to-end.t.)
-    my $staged = git_ok($consumer, 'diff', '--cached', '--name-only');
-    is($staged, '', 'no leftover staged changes after the reinstall (clean index for subtree add)')
-        or diag "staged:\n$staged";
-    # Sanity guard for the rejected Option A: rules-inject.txt ships populated
-    # in the .cwf subtree, so a reinstall lays it down populated (it is not
-    # emptied). See c-design-plan Resolved Decision.
-    ok(-s "$consumer/.cwf/rules-inject.txt", '.cwf/rules-inject.txt non-empty after reinstall');
-};
-
-subtest 'TC-3 (item 1, edge): mixed tracked/untracked pre-state' => sub {
-    my $base     = tempdir(CLEANUP => 1);
-    my $upstream = build_upstream("$base/upstream");
-    my $consumer = fresh_consumer("$base/consumer");
-
-    seed_tracked_dirs($consumer, '.cwf', '.cwf-skills', '.cwf-rules', '.cwf-agents');
-    # Add an untracked file inside a tracked CWF dir.
-    write_file("$consumer/.cwf/untracked.txt", "not in index\n");
-
-    my ($rc, $out) = do_install($consumer, $upstream, force => 1, method => 'subtree');
-    is($rc, 0, 'reinstall succeeds with mixed tracked/untracked pre-state') or diag $out;
-    ok(! -e "$consumer/.cwf/untracked.txt", 'stale untracked file removed by the force block');
-    my $staged = git_ok($consumer, 'diff', '--cached', '--name-only');
-    is($staged, '', 'no leftover staged changes after the reinstall') or diag "staged:\n$staged";
-};
-
-subtest 'TC-2 (item 1, failure path): tracked-dir git-rm failure aborts via die' => sub {
-    my $base     = tempdir(CLEANUP => 1);
-    my $upstream = build_upstream("$base/upstream");
-    my $consumer = fresh_consumer("$base/consumer");
-    seed_tracked_dirs($consumer, '.cwf');
-
-    # A fake `git` that fails the `rm` subcommand without touching the index
-    # (so the dir stays tracked) and passes everything else through to real git.
-    # This deterministically exercises the "tracked but git rm failed" branch
-    # regardless of platform or uid.
-    my $shim_dir = "$base/shim";
-    system('mkdir', '-p', $shim_dir) == 0 or die "mkdir shim";
-    write_file("$shim_dir/git",
-        "#!/usr/bin/env bash\n"
-      . "if [[ \"\${1:-}\" == \"rm\" ]]; then\n"
-      . "  echo 'fatal: simulated git rm failure' >&2\n"
-      . "  exit 1\n"
-      . "fi\n"
-      . "exec $REAL_GIT \"\$@\"\n");
-    chmod 0755, "$shim_dir/git" or die "chmod shim: $!";
-
-    my ($rc, $out) = do_install($consumer, $upstream,
-        force => 1, method => 'subtree', path_prepend => $shim_dir);
-    isnt($rc, 0, 'install aborts when a tracked dir cannot be git-rm-removed');
-    like($out, qr/\[CWF\] ERROR:.*git rm failed for tracked/,
-        'die names the tracked-dir git-rm failure (the removed `|| true` no longer hides it)');
-};
+# Item-1 subtests removed in Task 185. They exercised install_subtree's
+# force-reinstall *remove commit* (the hard-coded pathspec / "git rm failed for
+# tracked" die). install_subtree was deleted when subtree was deprecated; the
+# read-tree laydown stages its trees and creates no commit, so there is no
+# remove-commit to guard. Reinstall determinism for read-tree is covered by
+# t/install-bash-read-tree.t (TC-4 / TC-11).
 
 subtest 'TC-4 (item 2): settings-merge applied on a fresh install (no /cwf-init)' => sub {
     my $base     = tempdir(CLEANUP => 1);
     my $upstream = build_upstream("$base/upstream");
     my $consumer = fresh_consumer("$base/consumer");
 
-    my ($rc, $out) = do_install($consumer, $upstream, method => 'subtree');
-    is($rc, 0, 'fresh subtree install succeeds') or diag $out;
+    my ($rc, $out) = do_install($consumer, $upstream, method => 'read-tree');
+    is($rc, 0, 'fresh read-tree install succeeds') or diag $out;
 
     my $settings = slurp("$consumer/.claude/settings.json");
     ok(defined $settings, '.claude/settings.json written by install.bash');
@@ -253,7 +188,7 @@ subtest 'TC-5 (item 2, failure path): merge failure aborts before version write'
     git_ok($upstream, 'commit', '-q', '-m', 'release v0.0.2 (failing settings-merge)');
     git_ok($upstream, 'tag', 'v0.0.2');
 
-    my ($rc, $out) = do_install($consumer, $upstream, method => 'subtree', ref => 'v0.0.2');
+    my ($rc, $out) = do_install($consumer, $upstream, method => 'read-tree', ref => 'v0.0.2');
     isnt($rc, 0, 'install aborts when settings-merge fails');
     like($out, qr/\[CWF\] ERROR:.*cwf-claude-settings-merge failed/, 'merge failure diagnosed');
     ok(! -e "$consumer/.cwf/version", '.cwf/version NOT written on merge-failure abort');
@@ -272,7 +207,7 @@ subtest 'TC-6 (item 2, guard): missing merge helper is tolerated' => sub {
     git_ok($upstream, 'commit', '-q', '-m', 'release v0.0.2 (no settings-merge helper)');
     git_ok($upstream, 'tag', 'v0.0.2');
 
-    my ($rc, $out) = do_install($consumer, $upstream, method => 'subtree', ref => 'v0.0.2');
+    my ($rc, $out) = do_install($consumer, $upstream, method => 'read-tree', ref => 'v0.0.2');
     is($rc, 0, 'install completes when the merge helper is absent (-x guard skips it)') or diag $out;
     ok(-e "$consumer/.cwf/version", '.cwf/version written (install reached completion)');
 };
@@ -284,7 +219,7 @@ subtest 'TC-6 (item 2, guard): missing merge helper is tolerated' => sub {
 # doc in sync with, and the invariant this test guarded no longer exists.
 
 # Structural listing of a tree: sorted "kind relpath" lines (l=symlink, d=dir,
-# f=file). Used to compare copy- vs subtree-produced trees (TC-6).
+# f=file). Used to compare copy- vs read-tree-produced trees (TC-6).
 sub tree_list {
     my ($root) = @_;
     return '' unless -d $root;
@@ -352,23 +287,23 @@ subtest 'TC-4 (Task 161): existing install survives a refused copy source (guard
     ok(-e "$consumer/.cwf/SENTINEL", 'pre-existing install file survived the refused update');
 };
 
-subtest 'TC-6 (Task 161): copy and subtree installs produce a matching .cwf-rules + rules symlinks' => sub {
+subtest 'TC-6 (Task 161): copy and read-tree installs produce a matching .cwf-rules + rules symlinks' => sub {
     my $base     = tempdir(CLEANUP => 1);
     my $upstream = build_upstream("$base/upstream");
     my $con_copy = fresh_consumer("$base/con_copy");
-    my $con_sub  = fresh_consumer("$base/con_sub");
+    my $con_rt   = fresh_consumer("$base/con_rt");
 
     my ($rcc, $oc) = do_install($con_copy, $upstream, method => 'copy');
-    my ($rcs, $os) = do_install($con_sub,  $upstream, method => 'subtree');
-    is($rcc, 0, 'copy install succeeds')    or diag $oc;
-    is($rcs, 0, 'subtree install succeeds') or diag $os;
+    my ($rcr, $or) = do_install($con_rt,   $upstream, method => 'read-tree');
+    is($rcc, 0, 'copy install succeeds')      or diag $oc;
+    is($rcr, 0, 'read-tree install succeeds') or diag $or;
 
-    is(tree_list("$con_copy/.cwf-rules"), tree_list("$con_sub/.cwf-rules"),
+    is(tree_list("$con_copy/.cwf-rules"), tree_list("$con_rt/.cwf-rules"),
         '.cwf-rules structure identical across methods (no double-handling)');
-    is(tree_list("$con_copy/.claude/rules"), tree_list("$con_sub/.claude/rules"),
+    is(tree_list("$con_copy/.claude/rules"), tree_list("$con_rt/.claude/rules"),
         '.claude/rules symlink set identical across methods');
     ok(-l "$con_copy/.claude/rules/cwf-workflow-files.md", 'copy: rules entry is a symlink');
-    ok(-l "$con_sub/.claude/rules/cwf-workflow-files.md",  'subtree: rules entry is a symlink');
+    ok(-l "$con_rt/.claude/rules/cwf-workflow-files.md",   'read-tree: rules entry is a symlink');
 };
 
 done_testing();

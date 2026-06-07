@@ -107,6 +107,20 @@ upstream renamed yesterday.
   for one minor version, with a one-line stderr deprecation warning
   pointing at the new name. Remove the alias in the next minor.
 
+**Install methods (`CWF_METHOD` values)**: a weak external contract
+like `cwf-manage` — a consumer's CI may pass `CWF_METHOD=<value>`.
+Removing a method is therefore migration-backed, not a hard break:
+
+- `subtree` (Task 185): refused at fresh-install method validation
+  (`scripts/install.bash`) because `git subtree add --squash` forces a
+  merge commit into the consumer's history. There is no alias period —
+  the value is refused with an actionable message naming `read-tree`
+  (default) and `copy` (fallback). Existing `subtree` installs are
+  **migrated** on `cwf-manage update` (the recorded method is
+  translated to `read-tree` before laydown), so an installed project is
+  moved forward rather than broken. `cwf-manage check-merges` surfaces
+  any pre-existing subtree merge commits; CWF never rewrites history.
+
 **Mid-task scope expansion**: if a rename turns out to touch more
 surfaces than planned, escalate to the user with an updated
 estimate. Do not silently expand scope; do not ship a partial

@@ -117,7 +117,11 @@ sub build_upstream {
 
 sub install_consumer {
     my ($consumer, $upstream, $ref, $method) = @_;
-    $method //= 'subtree';
+    # Default to the copy method: these tests assert SHA/version recording, which
+    # is method-agnostic. The subtree method was removed in Task 185; read-tree
+    # and migration recording are covered by t/install-bash-read-tree.t and
+    # t/cwf-manage-update-migrate.t.
+    $method //= 'copy';
     system('mkdir', '-p', $consumer) == 0 or die "mkdir $consumer";
     git_ok($consumer, 'init', '-q');
     write_file("$consumer/README.md", "consumer\n");
@@ -161,7 +165,7 @@ subtest 'TC-1: install.bash records the annotated tag commit SHA, not the tag ob
         'precondition: annotated tag object SHA differs from its commit SHA');
 
     my ($irc, $iout) = install_consumer($consumer, $upstream, 'v0.0.1');
-    is($irc, 0, 'install.bash subtree install of an annotated tag succeeds') or diag $iout;
+    is($irc, 0, 'install.bash install of an annotated tag succeeds') or diag $iout;
 
     my $vf = slurp("$consumer/.cwf/version") // '';
     like($vf,   qr/^cwf_sha=\Q$commit\E$/m, 'cwf_sha is the tag\'s commit SHA');

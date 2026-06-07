@@ -4,13 +4,14 @@
 # Installs Coding with Files (CWF) into the current git repository.
 #
 # Usage:
-#   curl -fsSL <url> | bash                              # defaults
-#   curl -fsSL <url> | CWF_METHOD=copy bash              # file copy
+#   curl -fsSL <url> | bash                              # defaults (read-tree)
+#   curl -fsSL <url> | CWF_METHOD=copy bash              # file-copy fallback
 #   curl -fsSL <url> | CWF_REF=v2.0.0 bash              # specific version
 #   curl -fsSL <url> | CWF_SOURCE=file:///path bash      # custom source
 #
 # Environment variables:
-#   CWF_METHOD   subtree (default) or copy
+#   CWF_METHOD   read-tree (default, merge-free) or copy (fallback).
+#                subtree is deprecated and refused — it forces merge commits.
 #   CWF_REF      latest (default), tag, branch, or commit SHA
 #   CWF_SOURCE   CWF repo URL (default: GitHub)
 #   CWF_FORCE    set to 1 to overwrite existing install
@@ -19,10 +20,18 @@ set -euo pipefail
 
 # --- Configuration -----------------------------------------------------------
 
-readonly CWF_METHOD="${CWF_METHOD:-subtree}"
+readonly CWF_METHOD="${CWF_METHOD:-read-tree}"
 readonly CWF_REF="${CWF_REF:-latest}"
 readonly CWF_SOURCE="${CWF_SOURCE:-https://github.com/CodingWithFiles/coding-with-files.git}"
 readonly CWF_FORCE="${CWF_FORCE:-0}"
+
+# Single source-of-truth list of (source-subpath:dest) laydown pairs. The
+# symlink-escape guard, install_copy, and install_read_tree all iterate this
+# SAME list, so a new source cannot be added without also being guarded. The
+# source elements are BARE subpaths (no clone-dir prefix): copy and the guard
+# prepend "$clone_dir/"; read-tree resolves them as "FETCH_HEAD:<src>".
+readonly CWF_PAIRS=( ".cwf:.cwf" ".claude/skills:.cwf-skills" \
+                     ".claude/rules:.cwf-rules" ".claude/agents:.cwf-agents" )
 
 # --- Helpers ------------------------------------------------------------------
 
@@ -61,22 +70,19 @@ check_prerequisites() {
         die "Must run from git root ($git_root), not $PWD"
     fi
 
-    # Subtree method requires at least one commit in the target repo
-    if [[ "$CWF_METHOD" == "subtree" ]]; then
-        if ! git rev-parse HEAD >/dev/null 2>&1; then
-            die "Repository has no commits. Create an initial commit before installing CWF (subtree method requires at least one commit)."
-        fi
-    fi
-
     # Check for existing install
     if [[ -d ".cwf" && "$CWF_FORCE" != "1" ]]; then
         echo "[CWF] ERROR: CWF is already installed (.cwf/ exists). Set CWF_FORCE=1 to overwrite." >&2
         exit 3
     fi
 
-    # Validate method
-    if [[ "$CWF_METHOD" != "subtree" && "$CWF_METHOD" != "copy" ]]; then
-        die "Invalid CWF_METHOD: $CWF_METHOD (must be 'subtree' or 'copy')"
+    # Validate method. subtree is deprecated and refused: it forces a merge
+    # commit into the consumer's history. read-tree (default) is merge-free;
+    # copy is the fallback for environments where read-tree cannot run.
+    if [[ "$CWF_METHOD" == "subtree" ]]; then
+        die "CWF_METHOD=subtree is deprecated: it forces merge commits into your history. Use 'read-tree' (default) or 'copy' if read-tree cannot run."
+    elif [[ "$CWF_METHOD" != "read-tree" && "$CWF_METHOD" != "copy" ]]; then
+        die "Invalid CWF_METHOD: $CWF_METHOD (must be 'read-tree' or 'copy')"
     fi
 }
 
@@ -156,56 +162,66 @@ create_cwf_symlinks() {
 
 # --- Install methods ----------------------------------------------------------
 
-install_subtree() {
+install_read_tree() {
     local clone_dir="$1"
     local ref="$2"
 
-    log "Installing via subtree method..."
+    log "Installing via read-tree method..."
 
-    # Checkout the resolved ref
+    # Checkout the resolved ref in the clone so the scanned filesystem and the
+    # subsequently-fetched tree are the same object.
     git -C "$clone_dir" checkout --quiet "$ref"
 
-    # Create split branches
-    log "Creating subtree splits..."
-    git -C "$clone_dir" subtree split --prefix=.cwf -b cwf-core >/dev/null
-    git -C "$clone_dir" subtree split --prefix=.claude/skills -b cwf-skills >/dev/null
-    git -C "$clone_dir" subtree split --prefix=.claude/rules -b cwf-rules >/dev/null
-    git -C "$clone_dir" subtree split --prefix=.claude/agents -b cwf-agents >/dev/null
+    # Build the present source roots from the shared pair list (same filter as
+    # install_copy: a source dir absent from this release is simply skipped).
+    local p src dest tree
+    local -a roots=()
+    for p in "${CWF_PAIRS[@]}"; do
+        src="$clone_dir/${p%%:*}"
+        [[ -d "$src" ]] && roots+=("$src")
+    done
 
-    # Remove existing if force
-    if [[ "$CWF_FORCE" == "1" ]]; then
-        # Commit only the dirs actually removed from the index. A hardcoded
-        # pathspec naming an absent dir (e.g. .cwf-agents on a pre-agents copy
-        # install) makes `git commit` fail wholesale, leaving the other staged
-        # deletions in the index and breaking the subtree adds below.
-        local -a removed=()
-        for dir in .cwf .cwf-skills .cwf-rules .cwf-agents; do
-            [[ -d "$dir" ]] || continue
-            if git rm -rf --quiet "$dir"; then
-                removed+=("$dir")
-            elif git ls-files --error-unmatch "$dir" >/dev/null 2>&1; then
-                die "git rm failed for tracked $dir"
-            fi
-            rm -rf "$dir"
-        done
-        if (( ${#removed[@]} > 0 )); then
-            git commit -m "CWF: remove existing install for reinstall" --quiet \
-                -- "${removed[@]}" || die "failed to commit removal of existing CWF install"
-        fi
-    fi
+    # Refuse out-of-tree symlinks in the source BEFORE any change to the
+    # consumer tree (fail-closed; same guard install_copy runs before cp -r).
+    local guard="$clone_dir/.cwf/scripts/command-helpers/cwf-check-tree-symlinks"
+    [[ -x "$guard" ]] || die "symlink-escape guard missing from source tree ($guard); cannot safely install"
+    "$guard" "${roots[@]}" || die "refusing to install: source tree contains an out-of-tree symlink"
 
-    # Add all subtrees
-    log "Adding .cwf/ (subtree split 1/3)..."
-    git subtree add --prefix=.cwf "$clone_dir" cwf-core --squash -m "Add CWF core ($ref)"
+    # Bring source objects into the consumer object store. The clone is local
+    # (no network), so this is a cheap object copy. Fetch the clone's HEAD
+    # (just checked out to $ref above): HEAD is always advertised, so this
+    # works whether $ref arrived as a tag, branch, or raw SHA — a raw SHA not
+    # at a ref tip is not fetchable by name on the local transport.
+    git fetch --no-tags "$clone_dir" HEAD >/dev/null || die "git fetch from clone failed"
 
-    log "Adding .cwf-skills/ (subtree split 2/3)..."
-    git subtree add --prefix=.cwf-skills "$clone_dir" cwf-skills --squash -m "Add CWF skills ($ref)"
+    # Clear all four dest prefixes (index + worktree) FIRST, unconditionally:
+    # read-tree --prefix refuses to overlay an existing prefix, so the clear is
+    # not CWF_FORCE-gated. --ignore-unmatch makes it a no-op on a fresh repo.
+    # Fail-closed (&&) so a partial clear cannot silently precede read-tree.
+    # Clearing all four before reading any keeps a mid-laydown failure recoverable.
+    for p in "${CWF_PAIRS[@]}"; do
+        dest="${p##*:}"
+        git rm -r --cached --quiet --ignore-unmatch -- "$dest" >/dev/null \
+            && rm -rf -- "$dest" || die "failed to clear prefix $dest before laydown"
+    done
 
-    log "Adding .cwf-rules/ (subtree split 3/4)..."
-    git subtree add --prefix=.cwf-rules "$clone_dir" cwf-rules --squash -m "Add CWF rules ($ref)"
+    # Read each mapped source subtree into the index at its dest prefix. Use the
+    # FETCHED object (FETCH_HEAD), never a re-resolved moving tip.
+    for p in "${CWF_PAIRS[@]}"; do
+        src="${p%%:*}"
+        dest="${p##*:}"
+        [[ -d "$clone_dir/$src" ]] || continue
+        tree="$(git rev-parse "FETCH_HEAD:$src")" || die "no source subtree $src"
+        git read-tree --prefix="$dest/" "$tree" || die "read-tree failed for $dest"
+    done
 
-    log "Adding .cwf-agents/ (subtree split 4/4)..."
-    git subtree add --prefix=.cwf-agents "$clone_dir" cwf-agents --squash -m "Add CWF agents ($ref)"
+    # Materialise ONLY the four laid-down prefixes into the worktree, NUL-safe
+    # (no shell word-split/glob). NOT `-a`: the fresh-install path has no
+    # clean-tree precondition, so `-a` could overwrite unrelated dirty files.
+    git ls-files -z -- .cwf .cwf-skills .cwf-rules .cwf-agents \
+        | git checkout-index -f -z --stdin || die "checkout-index materialise failed"
+
+    log "Laid down .cwf/, .cwf-skills/, .cwf-rules/, .cwf-agents/ (staged, not committed)"
 }
 
 install_copy() {
@@ -217,14 +233,12 @@ install_copy() {
     # Checkout the resolved ref
     git -C "$clone_dir" checkout --quiet "$ref"
 
-    # Single source-of-truth list of (source-subpath:dest) copy pairs. The
-    # symlink-escape guard and the cp -r loop below iterate this SAME list, so
-    # a new copy source cannot be added without also being guarded.
-    local pairs=( ".cwf:.cwf" ".claude/skills:.cwf-skills" \
-                  ".claude/rules:.cwf-rules" ".claude/agents:.cwf-agents" )
+    # Iterate the file-level CWF_PAIRS single source of truth (shared with the
+    # symlink-escape guard and install_read_tree) so a new source cannot be
+    # added without also being guarded.
     local p src
     local roots=()
-    for p in "${pairs[@]}"; do
+    for p in "${CWF_PAIRS[@]}"; do
         src="$clone_dir/${p%%:*}"
         [[ -d "$src" ]] && roots+=("$src")
     done
@@ -242,7 +256,7 @@ install_copy() {
     fi
 
     # Copy each present source to its staging dest
-    for p in "${pairs[@]}"; do
+    for p in "${CWF_PAIRS[@]}"; do
         src="$clone_dir/${p%%:*}"
         [[ -d "$src" ]] && { cp -r "$src" "${p##*:}"; log "Copied ${p##*:}/"; }
     done
@@ -311,8 +325,8 @@ main() {
 
     # Install
     case "$CWF_METHOD" in
-        subtree) install_subtree "$TMPDIR_CWF/cwf-source" "$resolved_ref" ;;
-        copy)    install_copy "$TMPDIR_CWF/cwf-source" "$resolved_ref" ;;
+        read-tree) install_read_tree "$TMPDIR_CWF/cwf-source" "$resolved_ref" ;;
+        copy)      install_copy "$TMPDIR_CWF/cwf-source" "$resolved_ref" ;;
     esac
 
     # Post-install

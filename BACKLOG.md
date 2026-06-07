@@ -2,6 +2,26 @@
 
 Future tasks and improvements for the Coding with Files system.
 
+## Task: Decide whether fresh install.bash should clamp perms to the recorded ceiling
+
+### Task-Type: chore
+### Priority: Low
+### Status: Follow-up from Task 185 (j-retrospective.md §Future Work)
+### Identified in: Task 185 f-implementation-exec.md §Blockers, j-retrospective.md
+
+A raw `curl|bash` fresh install (BOTH `read-tree` and `copy`) leaves laid-down files at
+umask-derived perms (e.g. a 0500-recorded script materialised 0700), so `cwf-manage
+validate` reports recorded-ceiling violations until the first `cwf-manage fix-security`
+or `cwf-manage update` (which runs `apply_exact_perms_or_die`). This is **pre-existing and
+method-independent** — Task 185 confirmed `copy` produces the identical 42 violations, so
+read-tree is no regression. b-requirements **AC1** ("fresh install … validate clean") is
+stricter than this established behaviour. Decide whether `install.bash` `post_install`
+should invoke `cwf-manage fix-security` to clamp (making a raw fresh install validate-clean
+for both methods), weighing the benefit against a new installer→cwf-manage coupling at
+bootstrap (a new failure surface in the curl|bash path). If adopted, update AC framing and
+add a fresh-install validate-clean test; if declined, record AC1's scope as the
+update/migration path. No `cwf-detect-merges`/laydown change is implied.
+
 ## Task: Plan-time symbol-deletion reference sweep
 
 ### Task-Type: chore
