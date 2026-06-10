@@ -1,7 +1,7 @@
 ---
 name: cwf-plan-reviewer-improvements
 description: Review a CWF plan file for improvements — minimal acceptance criteria, fewer moving parts, less new code.
-allowed-tools: Read, Grep, Glob
+tools: Read, Grep, Glob, LSP, Bash
 ---
 
 # CWF Plan Reviewer — Improvements

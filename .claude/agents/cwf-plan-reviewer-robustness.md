@@ -1,7 +1,7 @@
 ---
 name: cwf-plan-reviewer-robustness
 description: Review a CWF plan file for robustness — testability, edge cases, failure modes, correctness ordering.
-allowed-tools: Read, Grep, Glob
+tools: Read, Grep, Glob, LSP, Bash
 ---
 
 # CWF Plan Reviewer — Robustness

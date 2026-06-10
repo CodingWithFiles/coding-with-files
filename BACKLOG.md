@@ -2,6 +2,24 @@
 
 Future tasks and improvements for the Coding with Files system.
 
+## Task: Fresh-session acceptance of the Task 186 reviewer grant change (TC-8/9/10)
+
+### Task-Type: chore
+### Priority: High
+### Status: Follow-up from Task 186 (j-retrospective.md §Future Work) — deferred verification, not new work
+### Identified in: Task 186 g-testing-exec.md (TC-8/9/10 DEFERRED), j-retrospective.md §Future Work
+
+The Task 186 `allowed-tools:`→`tools: Read, Grep, Glob, LSP, Bash` grant change on the five reviewer agents is only observable after the agent-definition cache refreshes (a `/clear` or a fresh session). In a new session on a branch carrying the change, confirm: **TC-8** the registry shows each reviewer with *exactly* `Read, Grep, Glob, LSP, Bash` (excludes Edit/Write) and `LSP` was accepted as a grant token (no load error); **TC-9** a plan reviewer (e.g. `cwf-plan-reviewer-misalignment`) runs on an existing plan and can invoke the markdown-reader skill (or run its script via Bash); **TC-10** `cwf-security-reviewer-changeset` still emits exactly one well-formed `cwf-review` block that `security-review-classify` parses. If markdown-reader is unreachable at runtime, the documented fallback is a `skills:` field — the core grant fix still holds. Verification only; no code change unless a discrepancy surfaces.
+
+## Task: Lint `.claude/agents/*.md` for the silently-ignored `allowed-tools:` key
+
+### Task-Type: feature
+### Priority: Medium
+### Status: Follow-up from Task 186 (j-retrospective.md §Recommendations)
+### Identified in: Task 186 j-retrospective.md §Tool and Technique Recommendations
+
+Task 186 found that `allowed-tools:` is the *Skills* frontmatter schema and is silently ignored on subagents — the failure mode is *more* permissive (all-tools inheritance), with no error or warning. Add a `cwf-manage validate` check (or a dedicated consistency rule) that flags `allowed-tools:` in any `.claude/agents/*.md` and recommends `tools:`. Task 186 fixed the five existing instances; this guard stops regressions and protects downstream installs that hand-author agents. Scope: one validator rule + test fixture.
+
 ## Task: Decide whether fresh install.bash should clamp perms to the recorded ceiling
 
 ### Task-Type: chore

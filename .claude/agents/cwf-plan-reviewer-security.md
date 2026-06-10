@@ -1,7 +1,7 @@
 ---
 name: cwf-plan-reviewer-security
 description: Review a CWF plan file for security — FR4(a–e) threat categories, prompt-injection surface, env-var handling.
-allowed-tools: Read, Grep, Glob
+tools: Read, Grep, Glob, LSP, Bash
 ---
 
 # CWF Plan Reviewer — Security

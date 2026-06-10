@@ -4,27 +4,27 @@
     "cwf-plan-reviewer-improvements" : {
       "path" : ".claude/agents/cwf-plan-reviewer-improvements.md",
       "permissions" : "0444",
-      "sha256" : "258fc4f1df8e925b549ffe3f925986d0b5c58c85d2bb7df2c572f6f1ecdac4c7"
+      "sha256" : "ca7f82dfe53fc34912c9c82ad2f832bd149c0f8d25775d1e593bfeaf84b3da38"
     },
     "cwf-plan-reviewer-misalignment" : {
       "path" : ".claude/agents/cwf-plan-reviewer-misalignment.md",
       "permissions" : "0444",
-      "sha256" : "f60c26a241206959e50c51af59187746d73e79a3dfc1f8fecde543f43f9fff90"
+      "sha256" : "4e9fa220a775a11e7ae017b34822080be6d5a41cff99569026d4d39954e8ac20"
     },
     "cwf-plan-reviewer-robustness" : {
       "path" : ".claude/agents/cwf-plan-reviewer-robustness.md",
       "permissions" : "0444",
-      "sha256" : "ca7ad4e5806e1414f113015824ab881c17a4c6f436b897dc58a696ba17eb8ea8"
+      "sha256" : "df96c914acb20fb6c7bbd84cc9e861bad92e818d9bb0838838331a3fbd5e7877"
     },
     "cwf-plan-reviewer-security" : {
       "path" : ".claude/agents/cwf-plan-reviewer-security.md",
       "permissions" : "0444",
-      "sha256" : "608084fd30bc08ca374e6dc83ed75259319e1630581b555cf840db2d656ef4b9"
+      "sha256" : "6fd22fdff353549534742512b7e29750e938fe9eeb84aa14c6a967993c6cce01"
     },
     "cwf-security-reviewer-changeset" : {
       "path" : ".claude/agents/cwf-security-reviewer-changeset.md",
       "permissions" : "0444",
-      "sha256" : "2d2cc05af2ff3d37d1252f4fe67e534aca8cec486be68bf7d9e553ba9265df43"
+      "sha256" : "6e1f5c5cdb1ad46cf8a5c4e4ccd1755d4017d1376cb98bb3397034dc6e3eed90"
     }
   },
   "data" : {
@@ -41,7 +41,7 @@
     "agent-shared-rules" : {
       "path" : ".cwf/docs/skills/cwf-agent-shared-rules.md",
       "permissions" : "0444",
-      "sha256" : "39fd05c087ecb5d50acd91ed38fce6c52abe67acce85eadc7363ff4f0ce6f3e8"
+      "sha256" : "cff45fb35d6c9d4cf90f0022c6f321e5ff4ec9a666a9425c7a6dfa6a80f5f561"
     }
   },
   "lib" : {

@@ -5,13 +5,23 @@ agent body links here so behaviour stays uniform across reviewer roles.
 
 ## Tool-tier preference
 
-Prefer earlier tiers over later ones. If a tier is unavailable in your
-tool grant, skip it and use the next-highest available option.
+**Strongly prefer earlier tiers over raw Bash.** Even when your grant
+includes Bash, reach for it only after the higher tiers genuinely cannot
+do the job. If a tier is unavailable in your tool grant, skip it and use
+the next-highest available option.
 
-1. **Built-in tools** — Read (use `offset` / `limit` for line ranges),
-   Grep, Glob.
+1. **Built-in tools** — Read (use `offset` / `limit` for line ranges, and
+   for any structured text you would otherwise `cat`/`sed`), Grep, Glob,
+   and **LSP** for code intelligence when a language server is configured
+   (`goToDefinition` / `findReferences` / `documentSymbol` instead of
+   grepping for symbol definitions and call sites). LSP errors gracefully
+   when no server is present — fall through to Grep in that case.
 2. **Skills** — when a slash-command skill encapsulates the operation
-   and is available to the subagent type.
+   and is available to the subagent type. For reading or searching parts
+   of a Markdown file (sections, headings, frontmatter), use the
+   **markdown-reader** skill when available, in preference to
+   `cat`/`sed`/`grep` over `.md` — it parses fenced code blocks correctly,
+   so `#` inside ``` ``` ``` is never mistaken for a heading.
 3. **Bash with `rg` / `grep`** — only when the Grep tool cannot express
    the search (e.g. multiline patterns Grep flags don't support).
 4. **Bash with `sed` / `awk` / `cat` / `head` / `tail`** — only for
@@ -37,6 +47,8 @@ the built-in instead.
 | `find … -exec cat {} \;` for a handful of files   | Read once per file (batch parallel calls if multiple)    |
 | `cat file \| grep …`                              | Grep                                                     |
 | `sed -n 'X,Yp' file`                              | Read with `offset=X limit=Y-X+1`                         |
+| `grep -rn 'sub foo'` to find a definition / callers | LSP `goToDefinition` / `findReferences` (when a server is configured) |
+| `sed`/`grep`/`cat` over a `.md` to pull a section | markdown-reader `section` / `sections` / `frontmatter` (when available) |
 
 Full rubric: `.cwf/docs/conventions/subagent-tool-selection.md`.
 

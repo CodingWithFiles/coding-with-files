@@ -1,7 +1,7 @@
 ---
 name: cwf-security-reviewer-changeset
 description: Review an exec-phase CWF changeset for FR4(a–e) security concerns. Ends with a machine-parseable cwf-review verdict block.
-allowed-tools: Read, Grep, Glob
+tools: Read, Grep, Glob, LSP, Bash
 ---
 
 # CWF Security Reviewer — Changeset

@@ -1,7 +1,7 @@
 ---
 name: cwf-plan-reviewer-misalignment
 description: Review a CWF plan file for misalignment — overlap with existing functionality, missed conventions, unused abstractions.
-allowed-tools: Read, Grep, Glob
+tools: Read, Grep, Glob, LSP, Bash
 ---
 
 # CWF Plan Reviewer — Misalignment
