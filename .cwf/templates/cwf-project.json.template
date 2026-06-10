@@ -1,7 +1,5 @@
 {
   "title": "Coding with Files Project Configuration",
-  "version": "v0.2.1",
-  "_version-note": "Use git describe --tags --always format for version tracking",
   "cwf-version": "v0.2.1",
   "_cwf-version-note": "Should match your project version for consistency",
   "project": {

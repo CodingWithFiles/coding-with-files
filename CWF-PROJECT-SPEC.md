@@ -18,7 +18,6 @@ The `cwf-project.json` file must be located at:
 ```json
 {
   "title": "string",
-  "version": "string", 
   "cwf-version": "string",
   "project": { ... },
   "source-management": { ... },
@@ -35,11 +34,6 @@ The `cwf-project.json` file must be located at:
 - **Type**: String
 - **Purpose**: Human-readable project configuration title
 - **Example**: `"Coding with Files Project Configuration"`
-
-#### `version` (required)
-- **Type**: String (semver)
-- **Purpose**: Version of this specific project's configuration
-- **Example**: `"1.0.0"`
 
 #### `cwf-version` (required)
 - **Type**: String (semver)
@@ -126,7 +120,6 @@ The `cwf-project.json` file must be located at:
 ```json
 {
   "title": "Coding with Files Project Configuration",
-  "version": "1.0.0",
   "cwf-version": "0.1.0",
   "project": {
     "name": "My Project",
@@ -154,7 +147,6 @@ The `cwf-project.json` file must be located at:
 ```json
 {
   "title": "Enterprise Project Configuration", 
-  "version": "1.0.0",
   "cwf-version": "0.1.0",
   "project": {
     "name": "E-commerce Platform",
@@ -212,7 +204,7 @@ Uses configuration to populate Task Reference sections:
 
 ## Validation Rules
 
-1. **Required Fields**: `title`, `version`, `cwf-version`, `project`, `source-management`, `task-management`, `supported-task-types`
+1. **Required Fields**: `title`, `cwf-version`, `project`, `source-management`, `task-management`, `supported-task-types`
 2. **Version Format**: Must follow semantic versioning (e.g., "1.0.0")
 3. **URL Format**: Must be valid HTTP/HTTPS URLs
 4. **Task Types**: Must include at least `["feature", "bugfix", "hotfix"]`

@@ -60,7 +60,7 @@ update/migration path. No `cwf-detect-merges`/laydown change is implied.
 ## Task: Plan-time symbol-deletion reference sweep
 
 ### Task-Type: chore
-### Priority: Low
+### Priority: Medium
 ### Status: Follow-up from Task 174 (j-retrospective.md §Process Improvements)
 ### Identified in: Task 174 d-implementation-plan.md §Lessons Learned, j-retrospective.md
 
@@ -899,27 +899,6 @@ Add a small regression test that exercises the `stop-uncommitted-changes-warning
 - Wire into `cwf-manage validate` as a soft check (warn, not fail) initially
 - One subtest per SKILL/extras pair in a new `t/skill-refs.t`
 
-## Task: Resolve cwf-project.json version drift vs .cwf/version
-
-### Task-Type: discovery
-### Priority: Medium
-### Status: Follow-up from external user upgrade (v1.0.95 → v1.0.114)
-### Problem: Two files claim to record the installed CWF version. Either one is authoritative and the other is vestigial, or both are intentional and should stay in sync. Either way, `cwf-manage update` shouldn't leave them inconsistent.
-### Discovery questions: 
-### Identified in: External user upgrade report, 2026-04-26
-
-After `cwf-manage update`, `.cwf/version` was bumped to `v1.0.114` but `cwf-project.json` still recorded `"version": "v1.0.95"`. The external user deferred reconciling this on the basis that "`.cwf/version` is authoritative" — but it's unclear whether that's the design or just current behaviour.
-
-
-- What is `cwf-project.json`'s `version` field meant to record? (installed CWF version, project schema version, last-init version, something else?)
-- Is `.cwf/version` the authoritative installed-version source? If yes, why does `cwf-project.json` also carry a version?
-- What reads each field today? (grep callers; any drift may already be silently broken)
-
-**Resolution paths** (pick one in design phase):
-- **A**: `.cwf/version` is sole authority — drop `version` from `cwf-project.json`, migrate any callers
-- **B**: Both fields are intentional — `cwf-manage update` writes both; add a validate check for drift
-- **C**: `cwf-project.json` records something distinct (e.g. project-schema version, init version) — rename the field to remove ambiguity
-
 ## Task: Consider parent-agent inline tool-selection rubric
 
 ### Task-Type: discovery
@@ -1388,3 +1367,19 @@ Identified in: Task 169 retrospective (j-retrospective.md).
 ### Identified in: Task 184
 
 The canonical three-letter abbreviation is currently "CWF" (all-caps) across glossary.md, README.md, CLAUDE.md, docs, skills, and committed CHANGELOG entries. The intended branding is the mixed-case "CwF". This is pre-existing design drift not noticed until Task 184 (which used the current canonical CWF for the CHANGELOG header fix rather than mixing conventions). Sweep all production artefacts (glossary, README, CLAUDE.md, .cwf/docs, .cwf/templates, skills, agent defs) replacing the standalone TLA "CWF" -> "CwF", excluding immutable history (implementation-guide/* task docs, retired CHANGELOG entries). Verify with an output-level smoke test per the rebrand-smoke-test process memory. Update the glossary Abbrev definition and pronunciation note accordingly.
+
+## Task: Retire remaining vestigial version fields (cwf-version, security.version-tracking)
+
+### Task-Type: chore
+### Priority: Low
+### Identified in: Task 188 (j-retrospective.md §Future Work)
+
+Task 188 retired the top-level `version` field strictly-narrow. The identical vestigial-version pattern remains: the template still ships `cwf-version` + `_cwf-version-note`, and the live config still carries `security.version-tracking`. Before retiring, run the same bare-string + spec sweep Task 188 used (Step 1) — note `CWF-PROJECT-SPEC.md` documents `cwf-version` as a *required* field, so retiring it means updating the spec too; confirm zero code readers first. `cwf-version` may be load-bearing in a way `version` was not (it states the targeted CWF system version), so verify before deleting. Update template, live config, and spec together; add/extend the guard test.
+
+## Task: fix-security TC-8 asserts a 0444 floor that contradicts the recorded-perms ceiling model
+
+### Task-Type: bugfix
+### Priority: Low
+### Identified in: Task 188 (g-testing-exec.md TC-4, j-retrospective.md §Future Work)
+
+`t/cwf-manage-fix-security.t` TC-8 ("drift pin") asserts each `.claude/agents/*.md` satisfies a *floor* of 0444 (perms >= recorded). But Task 170 made recorded perms a *ceiling* (`cwf-manage validate` passes when actual ⊆ recorded), and git only tracks the executable bit, so on any clean checkout these files sit at 0400/umask — `validate` is content (0400 ⊆ 0444) yet TC-8 fails. Result: the full suite is not green on a fresh tree. Reconcile by asserting the ceiling (actual ⊆ recorded) rather than a floor, or by changing the expectation/recorded value. Entangled with the existing perm cluster: "Make cwf-plan-reviewer-misalignment.md enforced-permission survive git checkout" and "Enforce recorded permissions as upper bound" (Task 170). Pre-existing; not introduced by Task 188 (verified by stashing and re-running on baseline 13840c5).

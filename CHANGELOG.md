@@ -2,6 +2,33 @@
 
 All notable changes to the Coding with Files (CWF) project are documented in this file, organized by task.
 
+## Task 188: retire vestigial cwf-project.json version field (chore)
+
+### Status: Complete (2026-06-10)
+### Duration: ~1 session (estimate ~0.25 day, Low; on estimate — the variance was investigative, not implementation).
+### Impact: Removes the vestigial top-level `version` field from `cwf-project.json` and its shipped template so `.cwf/version` is the single record of the installed CWF version — resolving the version-drift backlog item by **deletion** (path A) rather than a drift check ("the best part is no part"). The field had **zero code readers**, was not schema-required, and shipped a hardcoded-stale `"version": "v0.2.1"`, so removal changes no behaviour. Scope was strictly-narrow (top-level `version` only); `cwf-version`/`_cwf-version-note` and `security.version-tracking` are the identical vestigial pattern, deferred to a follow-up. A Step-1 baseline reader-sweep found `CWF-PROJECT-SPEC.md` declared `version` a **required** field in five places (root-object schema, the `#### version (required)` field-spec block, two config examples, the Required-Fields list); those edits were folded in at exec time (user-approved) so the spec no longer asserts a field that no longer ships — still `version`-only. New guard test `t/cwf-project-template.t` (parse-loudly via `decode_json` + `version`-absent assertion) locks the field out. Template, live config, and spec are not hash-tracked, so no `script-hashes.json` refresh. TC-1..TC-4: guard test green, `cwf-manage validate` **clean** (zero new violations), full `prove -lr t/` green bar one **pre-existing, unrelated** failure (`cwf-manage-fix-security.t` TC-8, a 0444-floor-vs-ceiling mismatch — filed as a follow-up); both exec-phase security reviews **`no findings`**.
+
+### Notable
+- **"Zero readers" had to include the spec.** The field had no *code* reader, but `CWF-PROJECT-SPEC.md` declared it *required*. The plan's reader-grep was code-scoped; the broader exec-time bare-string sweep caught the spec — exactly the a-task-plan Risk-1 "hidden consumer", in documentation form. Retiring the data without the spec would have traded a data drift for a doc drift. The recurrence (Task 174 saw the same gap with `@CWF_INTERNAL_PREFIXES`) reinforced the existing **"Plan-time symbol-deletion reference sweep"** backlog item, bumped Low→Medium.
+- **Pre-existing repo noise, triaged not absorbed.** Reaching a clean `validate` meant clamping a stale agent-file permission on sight (`fix-security`, 0600→0400) and marking this task's lagging `Planning`-status plan files `Finished`. A stash-and-rerun proved the two failing test files fail identically on the clean baseline (13840c5) — so the sole remaining suite failure is demonstrably not this task's.
+
+### Retired Backlog Items
+#### Resolve cwf-project.json version drift vs .cwf/version
+
+After `cwf-manage update`, `.cwf/version` was bumped to `v1.0.114` but `cwf-project.json` still recorded `"version": "v1.0.95"`. The external user deferred reconciling this on the basis that "`.cwf/version` is authoritative" — but it's unclear whether that's the design or just current behaviour.
+
+
+- What is `cwf-project.json`'s `version` field meant to record? (installed CWF version, project schema version, last-init version, something else?)
+- Is `.cwf/version` the authoritative installed-version source? If yes, why does `cwf-project.json` also carry a version?
+- What reads each field today? (grep callers; any drift may already be silently broken)
+
+**Resolution paths** (pick one in design phase):
+- **A**: `.cwf/version` is sole authority — drop `version` from `cwf-project.json`, migrate any callers
+- **B**: Both fields are intentional — `cwf-manage update` writes both; add a validate check for drift
+- **C**: `cwf-project.json` records something distinct (e.g. project-schema version, init version) — rename the field to remove ambiguity
+
+<!-- Note: Resolved by deletion (path A): retired the vestigial top-level version field rather than adding a drift check. Also removed it from CWF-PROJECT-SPEC.md (declared it required). -->
+
 ## Task 187: low effort level for exec wf step skills (chore)
 
 ### Status: Complete (2026-06-10)

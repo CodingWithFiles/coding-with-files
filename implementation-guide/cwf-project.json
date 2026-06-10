@@ -99,9 +99,8 @@
       "rollout.md"
     ]
   },
-  "version" : "v0.2.1",
   "versioning" : {
-    "last_released" : "v1.1.187",
+    "last_released" : "v1.1.188",
     "major_minor" : "v1.1"
   },
   "wf_step_config" : {
