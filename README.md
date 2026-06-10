@@ -68,12 +68,12 @@ We welcome issues, pull requests, and suggestions! This project aims to become a
 - **Central Template Pool**: DRY principle with symlink-based templates per task type
 - **Universal Decomposition Signals**: 5 signals guide when to break tasks into subtasks
 - **Dynamic Workflow Transitions**: Non-linear state machine based on step outcomes
-- **Helper Script Automation**: 5 scripts encapsulate deterministic operations
+- **Helper Script Automation**: A suite of helper scripts encapsulates deterministic operations
 
 ### Core Capabilities
-- **Task Management**: Structured approach to feature, bugfix, hotfix, and chore tasks
+- **Task Management**: Structured approach to feature, bugfix, hotfix, chore, and discovery tasks
 - **Hierarchical Organisation**: Multi-level task breakdown with automatic numbering
-- **Template System**: Consistent documentation templates for all task types (8 workflow steps)
+- **Template System**: Consistent documentation templates for all task types (10 workflow phases, a–j)
 - **Progress Tracking**: Real-time status monitoring with progress calculation
 - **Section Extraction**: Task-based and file-based extraction with backward compatibility
 - **Retrospective Analysis**: Post-completion variance tracking and lessons learned
@@ -81,7 +81,7 @@ We welcome issues, pull requests, and suggestions! This project aims to become a
 
 ## Installation
 
-CWF can be installed via git subtree (for upstream sync) or file copy (for static/manual upgrades). Both methods are fully supported.
+CWF can be installed via a read-tree laydown (the default — it writes the `.cwf/` tree with no merge commit) or a plain file copy (for static/manual upgrades). Both methods are fully supported.
 
 **Prerequisites**: Git 1.7+, Perl 5.20+, Bash 4+, Claude Code.
 
@@ -204,17 +204,16 @@ The system uses hierarchical configuration:
 2. **Project**: `.cwf/autoload.yaml`
 3. **Implementation Guide**: `implementation-guide/cwf-project.json`
 
-Example `cwf-project.json` (template available at `.cwf/templates/cwf-project.json.template`):
+Minimal `cwf-project.json` in the validated schema (see `CWF-PROJECT-SPEC.md` for the full contract):
 ```json
 {
-  "name": "My Project",
-  "taskManagement": {
-    "system": "github",
-    "taskIdPattern": "^[A-Z]+-\\d+$"
+  "supported-task-types": ["feature", "bugfix", "hotfix", "chore", "discovery"],
+  "source-management": {
+    "branch-naming-convention": "{task-type}/{task-id}-{task-description}"
   },
-  "git": {
-    "defaultBranch": "main",
-    "branchPrefix": "feature/"
+  "versioning": {
+    "major_minor": "v1.0",
+    "last_released": "v1.0.0"
   }
 }
 ```

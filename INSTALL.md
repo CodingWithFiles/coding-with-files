@@ -25,7 +25,7 @@ Override defaults with environment variables:
 curl -fsSL <url> | CWF_METHOD=copy bash
 
 # Install a specific version
-curl -fsSL <url> | CWF_REF=v2.0.0 bash
+curl -fsSL <url> | CWF_REF=v1.1.0 bash
 
 # Install from a local clone or mirror
 curl -fsSL <url> | CWF_SOURCE=file:///path/to/cwf-repo bash
@@ -58,7 +58,7 @@ rather than a potentially outdated tagged release. To install a specific tag fro
 local clone, set `CWF_REF` explicitly:
 
 ```bash
-CWF_SOURCE=file:///path/to/coding-with-files CWF_REF=v0.2.1 bash /tmp/cwf-install.bash
+CWF_SOURCE=file:///path/to/coding-with-files CWF_REF=v1.1.0 bash /tmp/cwf-install.bash
 ```
 
 For the download-then-inspect approach:
@@ -66,7 +66,7 @@ For the download-then-inspect approach:
 ```bash
 curl -fsSL <url> -o /tmp/cwf-install.bash
 less /tmp/cwf-install.bash   # review the script
-CWF_REF=v2.0.0 bash /tmp/cwf-install.bash
+CWF_REF=v1.1.0 bash /tmp/cwf-install.bash
 ```
 
 **Important**: After install, restart Claude Code (or start a new conversation) for CWF skills to register. Then run `/cwf-init` to complete project setup.
@@ -77,8 +77,8 @@ After install, use the management script for ongoing operations:
 .cwf/scripts/cwf-manage status          # show installed version
 .cwf/scripts/cwf-manage list-releases   # list available versions
 .cwf/scripts/cwf-manage update          # update to latest
-.cwf/scripts/cwf-manage update v2.1.0   # update to specific version
-.cwf/scripts/cwf-manage rollback v2.0.0 # revert to previous version
+.cwf/scripts/cwf-manage update v1.1.0   # update to specific version
+.cwf/scripts/cwf-manage rollback v1.0.0 # revert to previous version
 ```
 
 ### Recovering an install stuck on an old `cwf-manage`
@@ -216,8 +216,8 @@ done
 ```
 
 This copies:
-- `.cwf/` — scripts, templates, documentation, Perl libraries, security hashes (~70 files)
-- `.cwf-skills/cwf-*` — 18 skill definitions (one SKILL.md each)
+- `.cwf/` — the complete tree: scripts, templates, documentation, Perl libraries, security hashes
+- `.cwf-skills/cwf-*` — one SKILL.md per installed `cwf-*` skill
 - `.claude/skills/cwf-*` — symlinks to `.cwf-skills/cwf-*`
 
 ### Update
@@ -340,7 +340,7 @@ Skills must be in `.claude/skills/cwf-*/SKILL.md` relative to your git root. Ver
 
 ```bash
 ls .claude/skills/cwf-*/SKILL.md | wc -l
-# Should show 18
+# Should list one SKILL.md per installed cwf-* skill (non-zero)
 ```
 
 If skills still don't appear, restart Claude Code to pick up new skill definitions.

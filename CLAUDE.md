@@ -4,11 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Status
 
-The Coding with Files (CWF) system v2.0 is **implemented and operational**. Core functionality includes:
-- Hierarchical workflow system with 8 structured steps (a-plan through h-retrospective)
+The Coding with Files (CWF) system is **implemented and operational** (released under
+`v1.1.x` tags; workflow-file format v2.1). Core functionality includes:
+- Hierarchical workflow system with 10 lettered phases (a-task-plan through j-retrospective)
 - Infinite task nesting via decimal numbering (1, 1.1, 1.1.1, ...)
 - Token-efficient context inheritance (~90% reduction via structural maps)
-- 5 helper scripts for deterministic operations (hierarchy resolution, format detection, status aggregation, version parsing, context inheritance)
+- A suite of helper scripts for deterministic operations (hierarchy resolution, format detection, status aggregation, version parsing, context inheritance, and more)
 - Central template pool with task-type-specific symlinks (DRY principle)
 - Progressive disclosure pattern (skills reference docs, don't duplicate)
 
@@ -47,6 +48,15 @@ The Coding with Files (CWF) system v2.0 is **implemented and operational**. Core
 - `.cwf/scripts/cwf-manage` - Manage CWF installation (status, update, rollback, list-releases)
 
 ## Conventions
+
+Conventions live in two directories, split by audience:
+- **`docs/conventions/`** — conventions for *developing CWF itself* (this repo only):
+  commit style, design alignment, and the coding rules for CWF's own source.
+- **`.cwf/docs/conventions/`** — conventions shipped to and binding on *all CWF users*
+  (this repo included), referenced by the installed skills at runtime.
+
+When adding a convention, place it by who must follow it: a rule only a CWF maintainer
+needs goes in `docs/`; a rule any CWF-using project must honour goes in `.cwf/docs/`.
 
 **Commit Messages**: Follow Linux kernel conventions with proper AI attribution. See `docs/conventions/commit-messages.md` for:
 - Standard commit message structure (subject, body, trailers)
@@ -101,13 +111,13 @@ The Coding with Files (CWF) system v2.0 is **implemented and operational**. Core
 
 ## Architecture Overview
 
-**Hierarchical Workflow System (v2.0)**: Eight lettered workflow steps (a-h) guide tasks from planning through retrospective. Non-linear state machine with dynamic transitions based on step outcomes. Universal decomposition signals (5 criteria) guide task breakdown into subtasks.
+**Hierarchical Workflow System**: Ten lettered workflow phases (a–j) guide tasks from planning through retrospective. Non-linear state machine with dynamic transitions based on step outcomes. Universal decomposition signals (5 criteria) guide task breakdown into subtasks.
 
 **Token-Efficient Context Inheritance**: Parent context via structural maps (~50-100 tokens per parent) instead of full file reads (~500-1000 tokens). LLM receives headers, line ranges, and Read tool parameters, then decides what to read in detail. Status markers indicate parent context reliability.
 
-**Central Template Pool with Symlinks**: Single source of truth in `.cwf/templates/pool/` with task-type-specific symlinks. Feature tasks get 8 files (a-h), bugfixes get 5 (a,c,d,e,h), hotfixes get 5 (a,d,e,f,h), chores get 4 (a,d,e,h). DRY principle eliminates duplication.
+**Central Template Pool with Symlinks**: Single source of truth in `.cwf/templates/pool/` with task-type-specific symlinks. Feature tasks get 10 files (a–j), bugfixes get 7 (a,c,d,e,f,g,j), hotfixes get 7 (a,d,e,f,g,h,j), chores get 6 (a,d,e,f,g,j), discovery gets 8 (a,b,c,d,e,f,g,j). DRY principle eliminates duplication.
 
-**Script-Based Helper System**: Five helper scripts encapsulate deterministic operations - hierarchy resolution, format detection, status aggregation, version parsing, context inheritance (Perl-based). LLM focuses on intelligence, scripts handle file system traversal.
+**Script-Based Helper System**: A suite of helper scripts encapsulates deterministic operations - hierarchy resolution, format detection, status aggregation, version parsing, context inheritance, and more (Perl-based). LLM focuses on intelligence, scripts handle file system traversal.
 
 **Progressive Disclosure Pattern**: Skills reference documentation (`.cwf/docs/workflow/`) rather than duplicating content. Helper scripts provide structural information, LLM decides what matters. Reduces token consumption while preserving agency.
 
@@ -117,7 +127,7 @@ The Coding with Files (CWF) system v2.0 is **implemented and operational**. Core
 
 - **Helper Scripts**: `.cwf/scripts/command-helpers/` with self-documenting names
 - **Configuration**: Hierarchical config system with `cwf-project.json`
-- **Version Tracking**: Git-based versioning (`v0.1.1-5-gcea1c19` format)
+- **Version Tracking**: Git-based versioning (`git describe` format, e.g. `v1.1.187-5-gcea1c19`)
 - **Task Management**: Support for GitHub/GitLab/JIRA with internal fallback
 - **Task Stack**: `.cwf/task-stack` file stores current task context (managed via `/cwf-current-task`)
 

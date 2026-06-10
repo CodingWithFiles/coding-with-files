@@ -1,171 +1,108 @@
-# Implementation Guide Commands
+# CWF Command Reference
 
-## Goal
+A reference for the Coding with Files (CWF) commands. Commands prefixed with `/` are
+Claude Code skills under `.claude/skills/cwf-*`; `cwf-manage` is a shell script invoked
+directly. For a one-line overview see the **Commands** section of `README.md`; for the
+config schema see `CWF-PROJECT-SPEC.md`.
 
-Provide comprehensive command reference for Coding with Files (CWF) system to enable efficient project documentation workflow.
+Tasks live under `implementation-guide/<num>-<type>-<slug>/`, numbered with decimal
+notation for nesting (`1`, `1.1`, `1.1.1`). Each task runs a subset of the ten lettered
+workflow phases `a`–`j`, every phase split into a planning step and a separate execution
+step where applicable.
 
-## Setup Command
+## Core Commands
 
 ### `/cwf-init`
-**Purpose**: Initialise implementation guide system in current project
+Initialise CWF in the current project: create `implementation-guide/`, generate
+`implementation-guide/cwf-project.json`, and wire up project configuration.
 
-**Usage**:`/cwf-init`
+### `/cwf-new-task <num> [<type>] "description"`
+Create a new top-level task directory with the template file set for its type, then
+create and check out the task branch. `<type>` is one of `feature`, `bugfix`, `hotfix`,
+`chore`, `discovery`; when omitted it is inferred from the description.
 
-**Actions**:
-- Creates `<git-root>/implementation-guide/` directory structure with task categories (feature/, bugfix/, hotfix/, chore/)
-- Generates `cwf-project.json` Coding with Files Project configuration file
-- Creates README.md with navigation index and command reference
-- Creates `.templates/` directory with category-specific template files
-- Updates CLAUDE.md with section extraction hints, standard section names, and CWF system integration
-- Provides command reference and next steps
+```
+/cwf-new-task 1 feature "Add user authentication"
+/cwf-new-task 2 "Migrate Bash helpers to Perl"     # type inferred
+```
 
-**Output**: Confirmation message with available commands and setup completion status
+### `/cwf-new-subtask <parent-path> <num> [<type>] "description"`
+Create a nested subtask inside an existing task, inheriting parent context via
+structural maps. The subtask directory nests under the parent (e.g. task `1.1` →
+`implementation-guide/1-feature-parent/1.1-bugfix-slug/`).
 
-## Unified Task Creation Command
+### `/cwf-delete-task <task-path> [--force]`
+Delete the most-recently-created task (the reverse of `/cwf-new-task`). Refuses to
+delete a task that is not the most recent, has already been merged, or has subtasks.
 
-### `/cwf-new-task <task-type> [task-id] <description>`
-**Purpose**: Create new categorised implementation guide with task tracking integration
+### `/cwf-status [task-path]`
+Show progress across the implementation-guide hierarchy, aggregating per-phase status
+into completion percentages. With a path, scopes to that task and its subtasks.
 
-**Usage**:
-- `/cwf-new-task feature JIRA-1234 "user authentication system"`
-- `/cwf-new-task bugfix #567 "login validation error"`
-- `/cwf-new-task hotfix "security vulnerability"`
+### `/cwf-current-task`
+Manage the current-task stack (`.cwf/task-stack`) for context tracking — push, pop,
+list, or clear. Stack operations use file locking; do not edit `.cwf/task-stack`
+directly.
 
-**Creates**:
-- Categorised directory: `implementation-guide/{task-type}/N-{description}/`
-- Task-specific template documents based on type
-- Task Reference section with tracking integration
-- Suggested git branch name for development
+### `/cwf-extract <task-path> <section-name>`
+Extract a named section (e.g. `"Goal"`, `"Success Criteria"`, `"Actual Results"`) from a
+task's workflow files without loading the whole document.
 
-**Output**: Implementation guide path, suggested branch name, and next steps
+## Workflow Phase Commands
 
-**Branch Name Suggestions**:
-- With task ID: `feature/JIRA-1234-user-authentication-system`
-- Template format: `{task-type}/{task-id}-{description-slug}`
+Run these in order for a task; each operates on the matching `<letter>-*.md` file. Plan
+phases come first, then their execution counterparts.
 
-**Task Type Templates**:
+| Command | Phase file | Purpose |
+|---------|-----------|---------|
+| `/cwf-task-plan <task-path>` | `a-task-plan.md` | Goals, success criteria, milestones, risks, decomposition |
+| `/cwf-requirements-plan <task-path>` | `b-requirements-plan.md` | Functional/non-functional requirements, acceptance criteria |
+| `/cwf-design-plan <task-path>` | `c-design-plan.md` | Architecture, components, interfaces |
+| `/cwf-implementation-plan <task-path>` | `d-implementation-plan.md` | Files to change, steps, validation criteria |
+| `/cwf-implementation-exec <task-path>` | `f-implementation-exec.md` | Write the code; record actual results |
+| `/cwf-testing-plan <task-path>` | `e-testing-plan.md` | Test strategy, test cases |
+| `/cwf-testing-exec <task-path>` | `g-testing-exec.md` | Run the verifications, record results |
+| `/cwf-rollout <task-path>` | `h-rollout.md` | Deployment, monitoring, rollback plan |
+| `/cwf-maintenance <task-path>` | `i-maintenance.md` | Ongoing support and optimisation |
+| `/cwf-retrospective <task-path>` | `j-retrospective.md` | Variance tracking, lessons learned |
 
-**Feature Tasks** - Full development lifecycle:
-- `plan.md`, `requirements.md`, `design.md`, `testing.md`, `rollout.md`, `maintenance.md`
-
-**Bugfix Tasks** - Streamlined fix workflow:
-- `plan.md`, `implementation.md`, `testing.md`, `rollout.md`
-
-**Hotfix Tasks** - Urgent production fixes:
-- `plan.md`, `implementation.md`, `rollout.md`
-
-**Chore Tasks** - Maintenance and improvements:
-- `plan.md`, `implementation.md`, `validation.md`
-
-## Hierarchy Management Commands
-
-### `/cwf-substep <parent-path> <substep-name>`
-**Purpose**: Create numbered subdirectory under existing feature
-
-**Usage**: `/cwf-substep 1-auth-system user-model`
-
-**Creates**:
-- Directory: `1-auth-system/1.1-user-model/`
-- Basic template files: `plan.md`, `requirements.md`, `implementation.md`
-
-**Auto-numbering**: Automatically assigns next available number (1.1, 1.2, etc.)
+Invoke a phase skill with the task number, e.g. `/cwf-task-plan 1` or
+`/cwf-implementation-exec 1.1`.
 
 ## Utility Commands
 
-### `/cwf-status [feature-path]`
-**Purpose**: Show completion status across implementation guide hierarchy
-
-**Usage**:
-- `/cwf-status` - Shows all guides
-- `/cwf-status 1-auth-system` - Shows specific feature status
-
-**Output**: Progress summary with completion percentages, blockers, next actions
-
-### `/cwf-extract <file-path> <section-name>`
-**Purpose**: Extract specific section from implementation guide document
-
-**Usage**:`/cwf-extract 1-auth-system/plan.md "Original Estimate"`
-
-**Common Sections**:
-- "Original Estimate" - Initial planning estimates
-- "Task Reference" - Task tracking integration (Task ID, URL, Parent Task, Branch)
-- "Goal" - Single sentence objective
-- "Success Criteria" - Measurable outcomes
-- "Actual Results" - Post-completion actuals
-- "Lessons Learned" - Key insights and variances
-- "Current Status" - Progress tracking
-- "Documentation" - Links to related documents and references
-
-### `/cwf-retrospective <feature-path>`
-**Purpose**: Facilitate post-completion analysis and variance tracking
-
-**Usage**:`/cwf-retrospective 1-auth-system`
-
-**Actions**:
-- Prompts for Actual Results in all feature documents
-- Captures variance between Original Estimate and Actual Results
-- Facilitates Lessons Learned documentation
-- Updates status.md with completion markers
+### `/cwf-config [init|list|reset]`
+Configure CWF paths and settings.
 
 ### `/cwf-security-check [verify|report]`
-**Purpose**: Verify file integrity and sources for CWF system
+Verify file integrity and source provenance: compares helper-script SHA256 hashes
+against `.cwf/security/script-hashes.json` and the canonical source. `verify` performs a
+full check; `report` summarises current status.
 
-**Usage**:`/cwf-security-check verify`
+### `/cwf-backlog-manager`
+Show or manipulate the project backlog and changelog — `list`, `add`, `modify`,
+`retire`, `validate`, `normalise` — via `.cwf/scripts/command-helpers/backlog-manager`.
+Do not edit `BACKLOG.md` / `CHANGELOG.md` directly; the helper enforces the format.
 
-**Actions**:
-- Validates helper script integrity against canonical repository
-- Checks script frontmatter for version and source information
-- Calculates SHA256 checksums and compares with remote sources
-- Generates security verification report
-- Supports GitHub API, GitLab API, and local git verification methods
+## Installation Management (`cwf-manage`)
 
-**Parameters**:
-- `verify`: Perform full integrity verification against canonical source
-- `report`: Generate summary report of current file status
+`cwf-manage` is a script, run as `.cwf/scripts/cwf-manage <command>`, that manages the
+installed CWF version:
 
-## Workflow Integration
+| Command | Purpose |
+|---------|---------|
+| `status` | Show installed version, method, and source |
+| `list-releases [--all]` | List available tagged releases from the CWF remote |
+| `update [ref]` | Update to a ref (default: latest tag) |
+| `rollback <ref>` | Revert to a previous version |
+| `validate` | Validate config and workflow files; non-zero exit on violations |
+| `fix-security [--dry-run]` | Restore expected permissions **only when the recorded sha256 still matches**; exits non-zero on tampering. Not a way to clear a warning |
+| `help` | Show usage |
 
-### Typical Command Progression
+## Typical Progression
 
-1. **Project Setup**: `/cwf-init`
-2. **Task Creation**: `/cwf-new-task feature JIRA-1234 "major feature"`
-3. **Break Down**: `/cwf-substep feature/1-major-feature first-component`
-4. **Implementation**: Work with generated documents (plan.md → requirements.md → design.md → implementation.md)
-5. **Progress Tracking**: `/cwf-status feature/1-major-feature`
-6. **Section Review**: `/cwf-extract feature/1-major-feature/plan.md "Success Criteria"`
-7. **Post-Completion**: `/cwf-retrospective feature/1-major-feature`
-
-### Status Monitoring
-
-- Use `/cwf-status` regularly to track progress
-- Use `/cwf-extract` to review specific sections without loading full documents
-- Update Original Estimate → Actual Results progression through implementation
-
-## Integration with CLAUDE.md
-
-Commands automatically update project CLAUDE.md with:
-- Section extraction patterns
-- Standard section names
-- Directory structure navigation hints
-- Command usage examples
-
-This ensures future Claude Code instances can work efficiently with the generated documentation structure.
-
-## Key Decisions
-
-### Command Design Principles
-- **Namespace Safety**: `cig-` prefix prevents command collisions
-- **Filename Matching**: Command names correspond to generated files
-- **Hierarchical Support**: Commands support nested feature breakdown
-- **Template Consistency**: All commands use standardised section templates
-
-### Directory Structure
-- Numbered hierarchy encoding (1-feature/1.1-subfeature)
-- Single file per concern (planning vs execution vs deployment)
-- Predictable patterns for tool integration
-
-### Section Standardisation
-- Universal tracking sections across all documents
-- Human-readable section names with reliable extraction patterns
-- Consistent template structure for rapid navigation
-
+1. **Set up**: `/cwf-init`
+2. **Create a task**: `/cwf-new-task 1 feature "major feature"`
+3. **Decompose** (if the decomposition signals fire): `/cwf-new-subtask 1-feature-major-feature 1.1 "first component"`
+4. **Work the phases** in order: `/cwf-task-plan 1` → `/cwf-requirements-plan 1` → … → `/cwf-retrospective 1`
+5. **Track progress**: `/cwf-status` and `/cwf-extract` as needed

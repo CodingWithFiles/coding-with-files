@@ -1383,3 +1383,27 @@ Task 188 retired the top-level `version` field strictly-narrow. The identical ve
 ### Identified in: Task 188 (g-testing-exec.md TC-4, j-retrospective.md §Future Work)
 
 `t/cwf-manage-fix-security.t` TC-8 ("drift pin") asserts each `.claude/agents/*.md` satisfies a *floor* of 0444 (perms >= recorded). But Task 170 made recorded perms a *ceiling* (`cwf-manage validate` passes when actual ⊆ recorded), and git only tracks the executable bit, so on any clean checkout these files sit at 0400/umask — `validate` is content (0400 ⊆ 0444) yet TC-8 fails. Result: the full suite is not green on a fresh tree. Reconcile by asserting the ceiling (actual ⊆ recorded) rather than a floor, or by changing the expectation/recorded value. Entangled with the existing perm cluster: "Make cwf-plan-reviewer-misalignment.md enforced-permission survive git checkout" and "Enforce recorded permissions as upper bound" (Task 170). Pre-existing; not introduced by Task 188 (verified by stashing and re-running on baseline 13840c5).
+
+## Task: Reconcile cwf-project.json install template and /cwf-init output with the validator schema
+
+### Task-Type: chore
+### Priority: Medium
+### Identified in: Task 189 d-implementation-plan.md (Deferred to BACKLOG)
+
+The install template .cwf/templates/cwf-project.json.template still ships cwf-version, title, and task-management fields and omits the versioning, wf_step_config, and task-tracking blocks the system actually uses. A fresh /cwf-init therefore produces a config shaped unlike the dog-fooded implementation-guide/cwf-project.json and unlike what CWF::Validate::Config enforces. Reconcile the template and the /cwf-init output with the validator contract: required supported-task-types and source-management.branch-naming-convention; optional versioning, wf_step_config, sandbox. Note cwf-version was retired from the live config by Task 188 but still lingers in the template. This is a behaviour change (alters produced config), not a docs sync, so it was held out of Task 189.
+
+## Task: Prune vestigial blocks from the live implementation-guide/cwf-project.json
+
+### Task-Type: chore
+### Priority: Medium
+### Identified in: Task 189 d-implementation-plan.md (Deferred to BACKLOG)
+
+The live implementation-guide/cwf-project.json carries dead schema. Its templates block lists old plan.md and implementation.md filenames that are unused, since template-copier sources per-type file sets from CWF::WorkflowFiles::V21 %WORKFLOW_FILES rather than the config. Its security.canonical-source holds OWNER/REPO placeholders. Prune or correct these blocks so the live config no longer advertises schema the system ignores. Found during Task 189 docs-sync planning while grounding CWF-PROJECT-SPEC.md against the real schema.
+
+## Task: Retire residual CIG branding from .cwf code and POD
+
+### Task-Type: chore
+### Priority: Low
+### Identified in: Task 189 docs-sync stale-string sweep
+
+Code and POD under .cwf/scripts/ and .cwf/lib/ still carry the pre-rebrand "CIG" name: "CIG System" author tags in several Perl POD blocks (StatusAggregator/Core.pm, WorkflowFiles/V20.pm + V21.pm, TaskState.pm, TemplateCopier/Core.pm, ContextInheritance/Core.pm, Options.pm, Common.pm), "CIG tasks/scripts" in template-copier comments and POD, CIG_SOFTWARE_VERSION in context-manager.d/version, and "CIG Migration" banners in migrate-v1-to-v2.sh / rollback-migration.sh. Cosmetic only (not user-facing in normal operation). Out of scope for the Task 189 docs-sync chore because these are hash-tracked files: editing them pulls a code+sha256 change set that must not ride in a docs commit. Fix as its own task with the in-task hash refresh per .cwf/docs/conventions/hash-updates.md.

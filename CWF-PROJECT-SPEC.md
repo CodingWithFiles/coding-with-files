@@ -2,180 +2,130 @@
 
 ## Goal
 
-Define the complete schema and usage specifications for the `cwf-project.json` configuration file that enables CWF system integration with project toolchains.
+Define the schema for the `cwf-project.json` configuration file that adapts the CWF
+system to a project's task types, branch conventions, and versioning.
+
+This document distinguishes two kinds of keys:
+
+- **Validated keys** — checked by `CWF::Validate::Config` (`.cwf/lib/CWF/Validate/Config.pm`)
+  and enforced on every `cwf-manage validate` run. A malformed validated key fails the
+  integrity gate.
+- **Pass-through keys** — conventionally present in a project config and read by various
+  helpers, but **not** checked by the validator. Their shape is by convention only; the
+  validator neither requires nor rejects them.
+
+The validator is the single source of truth for what is enforced. If this document and
+`CWF::Validate::Config` ever disagree, the code wins.
 
 ## File Location
 
-The `cwf-project.json` file must be located at:
 ```
 <git-root>/implementation-guide/cwf-project.json
 ```
 
-## Schema Definition
+A project with no config file is a valid pre-init state — the validator treats an absent
+file as "nothing to check", not an error.
 
-### Root Object
+## Validated Keys
+
+### `supported-task-types` (required)
+- **Type**: Array of strings.
+- **Rule**: Must be present, must be a JSON array, and must **equal the canonical set**
+  exactly — no unknown types, no missing types. The canonical set is derived from
+  `CWF::WorkflowFiles::V21::supported_types()`, currently:
+  `feature`, `bugfix`, `hotfix`, `chore`, `discovery`.
+- **Why exact-match**: each type maps to a fixed workflow-file set (see
+  `%WORKFLOW_FILES`), so an unrecognised type has no template set and a missing type
+  would silently disable a workflow.
+
+### `source-management` (required)
+- **Type**: Object.
+- **Rule**: Must be present and be a JSON object containing a non-empty
+  `branch-naming-convention` string.
+- **`branch-naming-convention`**: branch-name pattern. Placeholders such as
+  `{task-type}`, `{task-id}`, and `{description-slug}` are substituted when a branch
+  name is suggested. Example: `"{task-type}/{task-id}-{description-slug}"`.
+
+### `versioning` (optional)
+- **Type**: Object. Absent ⇒ no check.
+- **`major_minor`** (optional): string matching `/^v\d+\.\d+$/`, e.g. `"v1.1"`.
+- **`last_released`** (optional): string matching `/^v\d+\.\d+\.\d+$/`, e.g. `"v1.1.188"`.
+- Either sub-key may be present independently; each is validated only if present.
+
+### `wf_step_config` (optional)
+- **Type**: Object keyed by workflow-step name. Absent ⇒ no check.
+- **Rule**: Each step value must be an object whose every value is a boolean
+  (`true`/`false`). Used to toggle per-step behaviour, e.g.:
+  ```json
+  "wf_step_config": {
+    "retrospective": { "bump_version": true, "tag_version": false }
+  }
+  ```
+
+### `sandbox` (optional)
+- **Type**: Object. Absent ⇒ no check.
+- **`enabled`**, **`fail-if-unavailable`**, **`violation-logging`** (optional): each must
+  be a boolean if present.
+- **`credential-deny-list`** (optional): array of path strings (e.g. `["~/.ssh", "~/.aws"]`).
+  An absent list with `enabled: true` is valid.
+- **`planning-write-guard`** (optional): enum, one of `off`, `observe`, `enforce`
+  (the allowed set is `CWF::PlanningGuard::PLANNING_GUARD_VALUES`). Absent ⇒ `off`.
+
+## Pass-through Keys (not validated)
+
+These keys appear in the dog-fooded `implementation-guide/cwf-project.json` and are read
+by individual helpers, but `CWF::Validate::Config` does **not** check their presence or
+shape. Treat the structures below as convention, not contract — do not assume the
+validator will catch a mistake in them.
+
+- **`project-name`** / **`description`**: human-readable identification.
+- **`task-tracking`**: task-system integration — `system`, `base-url`, `id-format`, and a
+  `fallback` block for tasks without an external issue (e.g. `internal-{{number}}`).
+- **`directory-structure`**: `base-path` (`implementation-guide`), `max-depth`, and the
+  task-directory `pattern`.
+- **`integration`**: tool paths (e.g. `claude-code.autoload-config`).
+- **`security`**: `canonical-source` for the install/verify origin, `file-integrity`
+  globs, `review.max-lines-exclude-paths`, and `version-tracking`. (Hash enforcement
+  itself lives in `.cwf/security/script-hashes.json`, not here.)
+- **`workflow`**: `required-sections` and the `status-values` map used by status
+  aggregation.
+- **`templates`**: a legacy per-type filename map. The active template source is
+  `%WORKFLOW_FILES` in `CWF::WorkflowFiles::V21`; this block is vestigial.
+
+## Minimal Valid Configuration
+
+The smallest config that passes `cwf-manage validate`:
 
 ```json
 {
-  "title": "string",
-  "cwf-version": "string",
-  "project": { ... },
-  "source-management": { ... },
-  "task-management": { ... },
-  "supported-task-types": [ ... ],
-  "team": { ... },
-  "templates": { ... }
-}
-```
-
-### Field Specifications
-
-#### `title` (required)
-- **Type**: String
-- **Purpose**: Human-readable project configuration title
-- **Example**: `"Coding with Files Project Configuration"`
-
-#### `cwf-version` (required)
-- **Type**: String (semver)
-- **Purpose**: CWF system version this configuration targets
-- **Example**: `"0.1.0"`
-- **Usage**: Tells Claude Code which CWF features are available
-
-#### `project` (required)
-```json
-{
-  "name": "string",
-  "description": "string"
-}
-```
-- **`name`**: Project display name
-- **`description`**: Brief project description
-
-#### `source-management` (required)
-```json
-{
-  "type": "github|gitlab|bitbucket|other",
-  "url": "string",
-  "branch-naming-convention": "string"
-}
-```
-- **`type`**: Source control platform identifier
-- **`url`**: Base URL for repository
-- **`branch-naming-convention`**: Template for branch naming (supports `{task-type}`, `{task-id}`, `{task-description}`)
-
-#### `task-management` (required)
-```json
-{
-  "type": "github|jira|monday|linear|other",
-  "url": "string", 
-  "task-id-template": "string",
-  "examples": { ... }
-}
-```
-- **`type`**: Task management system identifier
-- **`url`**: Base URL for task system
-- **`task-id-template`**: Regex pattern for valid task IDs
-- **`examples`**: Object with example task IDs for different task types
-
-##### Task ID Template Patterns
-- **GitHub**: `"#[::digit::]{1,}"`
-- **Jira**: `"[::upper::]{2,10}-[::digit::]{1,}"`
-- **Linear**: `"[::upper::]{2,5}-[::digit::]{1,}"`
-- **Monday.com**: `"PULSE-[::digit::]{1,}"`
-
-#### `supported-task-types` (required)
-```json
-["feature", "bugfix", "hotfix", "chore", "docs", "refactor", "test"]
-```
-- **Type**: Array of strings
-- **Purpose**: Task types this project supports
-- **Standard Types**: `feature`, `bugfix`, `hotfix`, `chore`
-- **Optional Types**: `docs`, `refactor`, `test`, `style`, `ci`, `build`
-
-#### `team` (optional)
-```json
-{
-  "default-assignee": "string",
-  "reviewers": ["string", ...]
-}
-```
-- **`default-assignee`**: Default task assignee username/email
-- **`reviewers`**: Array of reviewer usernames/emails
-
-#### `templates` (optional)
-```json
-{
-  "task-reference-format": "standard|custom",
-  "branch-name-max-length": "number",
-  "auto-generate-branch-suggestions": "boolean"
-}
-```
-- **`task-reference-format`**: Task Reference section format preference
-- **`branch-name-max-length`**: Maximum characters for generated branch names
-- **`auto-generate-branch-suggestions`**: Whether to suggest branch names
-
-## Configuration Examples
-
-### GitHub + GitHub Issues
-```json
-{
-  "title": "Coding with Files Project Configuration",
-  "cwf-version": "0.1.0",
-  "project": {
-    "name": "My Project",
-    "description": "Project using GitHub for everything"
-  },
+  "supported-task-types": ["feature", "bugfix", "hotfix", "chore", "discovery"],
   "source-management": {
-    "type": "github",
-    "url": "https://github.com/company/project",
-    "branch-naming-convention": "{task-type}/{task-id}-{task-description}"
-  },
-  "task-management": {
-    "type": "github",
-    "url": "https://github.com/company/project/issues",
-    "task-id-template": "#[::digit::]{1,}",
-    "examples": {
-      "issue": "#123",
-      "pull-request": "#456"
-    }
-  },
-  "supported-task-types": ["feature", "bugfix", "hotfix", "chore"]
+    "branch-naming-convention": "{task-type}/{task-id}-{description-slug}"
+  }
 }
 ```
 
-### GitLab + Jira
+## Configuration With Optional Validated Blocks
+
 ```json
 {
-  "title": "Enterprise Project Configuration", 
-  "cwf-version": "0.1.0",
-  "project": {
-    "name": "E-commerce Platform",
-    "description": "Main customer-facing platform"
-  },
+  "supported-task-types": ["feature", "bugfix", "hotfix", "chore", "discovery"],
   "source-management": {
-    "type": "gitlab",
-    "url": "https://gitlab.company.com/ecommerce/platform",
-    "branch-naming-convention": "{task-type}/{task-id}-{task-description}"
+    "branch-naming-convention": "{task-type}/{task-id}-{description-slug}"
   },
-  "task-management": {
-    "type": "jira",
-    "url": "https://company.atlassian.net/browse",
-    "task-id-template": "[::upper::]{2,10}-[::digit::]{1,}",
-    "examples": {
-      "story": "ECOM-1234",
-      "bug": "ECOM-5678", 
-      "epic": "ECOM-100"
-    }
+  "versioning": {
+    "major_minor": "v1.1",
+    "last_released": "v1.1.188"
   },
-  "supported-task-types": ["feature", "bugfix", "hotfix", "chore", "docs"],
-  "team": {
-    "default-assignee": "dev-team@company.com",
-    "reviewers": ["senior-dev@company.com", "tech-lead@company.com"]
+  "wf_step_config": {
+    "retrospective": { "bump_version": true, "tag_version": false }
   },
-  "templates": {
-    "task-reference-format": "standard",
-    "branch-name-max-length": 50,
-    "auto-generate-branch-suggestions": true
+  "sandbox": {
+    "enabled": false,
+    "fail-if-unavailable": true,
+    "violation-logging": false,
+    "credential-deny-list": ["~/.ssh", "~/.aws"],
+    "planning-write-guard": "off"
   }
 }
 ```
@@ -183,38 +133,21 @@ The `cwf-project.json` file must be located at:
 ## Usage in CWF Commands
 
 ### `/cwf-init`
-- Creates initial `cwf-project.json` with template values
-- Prompts user to configure task management and source control settings
+- Creates an initial `cwf-project.json` for the project.
 
 ### `/cwf-new-task`
-- Reads `task-id-template` to validate provided task IDs
-- Uses `branch-naming-convention` to suggest branch names
-- Constructs task URLs using `task-management.url` + task ID
-- Validates task type against `supported-task-types`
+- Validates the requested task type against `supported-task-types`.
+- Uses `source-management.branch-naming-convention` to suggest the branch name.
 
-### Task Reference Generation
-Uses configuration to populate Task Reference sections:
-```markdown
-## Task Reference
-- **Task ID**: JIRA-1234
-- **Task URL**: https://company.atlassian.net/browse/JIRA-1234
-- **Parent Task**: JIRA-1200 - User Management System
-- **Branch**: feature/JIRA-1234-user-authentication
-```
+### `cwf-manage validate`
+- Runs `CWF::Validate::Config` against the validated keys above and reports any
+  violation with a `field`, `actual`, `expected`, and `fix` line.
 
-## Validation Rules
+## Validation Summary
 
-1. **Required Fields**: `title`, `cwf-version`, `project`, `source-management`, `task-management`, `supported-task-types`
-2. **Version Format**: Must follow semantic versioning (e.g., "1.0.0")
-3. **URL Format**: Must be valid HTTP/HTTPS URLs
-4. **Task Types**: Must include at least `["feature", "bugfix", "hotfix"]`
-5. **Task ID Template**: Must be valid regex pattern
-6. **Branch Convention**: Must include `{task-type}` placeholder
-
-## Integration Benefits
-
-✅ **Tool Agnostic**: Works with any task management and source control combination  
-✅ **URL Generation**: Automatic task and PR URL construction  
-✅ **Validation**: Task ID format validation against project standards  
-✅ **Team Standards**: Consistent configuration across team members  
-✅ **Extensible**: Easy to add new platforms and task types
+1. **Required**: `supported-task-types` (exact canonical set) and
+   `source-management.branch-naming-convention` (non-empty string).
+2. **Optional, validated when present**: `versioning` (`major_minor` `/^v\d+\.\d+$/`,
+   `last_released` `/^v\d+\.\d+\.\d+$/`), `wf_step_config` (per-step boolean flags),
+   `sandbox` (boolean switches, string deny-list, `planning-write-guard` enum).
+3. **Everything else** is pass-through: read by helpers, not checked here.
