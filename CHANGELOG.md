@@ -2,6 +2,17 @@
 
 All notable changes to the Coding with Files (CWF) project are documented in this file, organized by task.
 
+## Task 187: low effort level for exec wf step skills (chore)
+
+### Status: Complete (2026-06-10)
+### Duration: ~1 session (estimate <0.5 day, Low; on estimate).
+### Impact: Drops the two exec-phase skills (`cwf-implementation-exec`, `cwf-testing-exec`) to `effort: low` so the mechanical execution steps run the session-pinned model (Opus 4.8 via `settings.json`) at reduced reasoning effort — the hard thinking already happened in the upstream planning phases. To stop that downgrade from silently weakening the security gate, the `cwf-security-reviewer-changeset` agent the exec skills spawn is pinned to `effort: high`, so the FR4(a–e) review always runs at high effort regardless of any skill→subagent effort inheritance. `effort` is a documented SKILL.md/agent frontmatter key (`low|medium|high|xhigh|max`); no `model:` key is set, so effort applies to whatever model is active. Three one-line frontmatter additions plus a same-commit `script-hashes.json` sha256 refresh for the hash-tracked reviewer agent (the two exec SKILLs are not hash-tracked). TC-1..TC-6 PASS (frontmatter presence/values, no `model:` key, YAML well-formedness, hash consistency, same-commit discipline, skill/subagent regression); both exec-phase security reviews **`no findings`**; `cwf-manage validate` clean. First use of `effort`/`model` frontmatter anywhere in the repo.
+
+### Notable
+- **A pasted prior-session claim was verified before being built on.** The earlier session asserting `effort` is a real frontmatter key had already made a factual error (cost arithmetic), so the claim was checked against the live Claude Code docs before any work — it held up.
+- **`validate` proves integrity, not honour.** `cwf-manage validate` checks sha256/permissions; it does not verify the harness acts on `effort`. A future `effort: low` on a guard agent would pass `validate` while degrading the gate — recorded as a Known Limitation and a Low-priority watch-item. The only positive evidence the knob works is behavioural (exec ran cleanly under the new frontmatter).
+- **Plan review earned its keep.** It caught a vacuous Step-4 grep (searching for a sentence never written) and surfaced the validate-vs-honour gap; both were folded into the plan before exec.
+
 ## Task 186: reviewer agents prefer tools over Bash (chore)
 
 ### Status: Complete (2026-06-10) — fresh-session acceptance (TC-8/9/10) pending in a new session (agent defs are session-cached)

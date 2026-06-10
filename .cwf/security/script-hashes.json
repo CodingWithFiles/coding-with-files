@@ -24,7 +24,7 @@
     "cwf-security-reviewer-changeset" : {
       "path" : ".claude/agents/cwf-security-reviewer-changeset.md",
       "permissions" : "0444",
-      "sha256" : "6e1f5c5cdb1ad46cf8a5c4e4ccd1755d4017d1376cb98bb3397034dc6e3eed90"
+      "sha256" : "4deb13cb55858b99ae4b55c916dd01d99050e4a55a20fd47565f2bdd3fad03bf"
     }
   },
   "data" : {

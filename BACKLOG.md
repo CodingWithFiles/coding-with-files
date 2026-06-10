@@ -2,6 +2,23 @@
 
 Future tasks and improvements for the Coding with Files system.
 
+## Task: Convention note — `effort`/`model` values on hash-tracked guard agents carry security weight
+
+### Task-Type: chore
+### Priority: Low
+### Status: Follow-up from Task 187 (j-retrospective.md §Future Work) — watch-item, may be a no-op
+### Identified in: Task 187 g-testing-exec.md (Security Review), j-retrospective.md §Future Work
+
+Task 187 introduced the first `effort:` frontmatter in the repo: `effort: low` on the two exec
+skills and `effort: high` pinned on `cwf-security-reviewer-changeset`. The changeset reviewer
+noted that `cwf-manage validate` signs a hashed file's *bytes* but does not judge whether a
+frontmatter *value* is safe — a future edit setting `effort: low` on a reviewer/guard agent
+would pass `validate` while silently degrading the security gate. Capture this as a sentence in
+`hash-updates.md` (or `design-alignment.md`): when refreshing the hash of a reviewer/guard agent,
+confirm its `effort`/`model` value is not a downgrade, because integrity tooling will not catch
+it. Low priority and possibly unnecessary (the pin pattern is self-documenting); recorded so the
+insight is not lost. No code change implied.
+
 ## Task: Fresh-session acceptance of the Task 186 reviewer grant change (TC-8/9/10)
 
 ### Task-Type: chore

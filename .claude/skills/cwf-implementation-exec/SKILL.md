@@ -1,6 +1,7 @@
 ---
 name: cwf-implementation-exec
 description: Guide user through implementation execution phase
+effort: low
 user-invocable: true
 allowed-tools:
   - Read

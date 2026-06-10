@@ -1,6 +1,7 @@
 ---
 name: cwf-testing-exec
 description: Guide user through testing execution phase
+effort: low
 user-invocable: true
 allowed-tools:
   - Read
