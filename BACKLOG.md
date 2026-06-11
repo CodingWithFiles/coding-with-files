@@ -1407,3 +1407,52 @@ The live implementation-guide/cwf-project.json carries dead schema. Its template
 ### Identified in: Task 189 docs-sync stale-string sweep
 
 Code and POD under .cwf/scripts/ and .cwf/lib/ still carry the pre-rebrand "CIG" name: "CIG System" author tags in several Perl POD blocks (StatusAggregator/Core.pm, WorkflowFiles/V20.pm + V21.pm, TaskState.pm, TemplateCopier/Core.pm, ContextInheritance/Core.pm, Options.pm, Common.pm), "CIG tasks/scripts" in template-copier comments and POD, CIG_SOFTWARE_VERSION in context-manager.d/version, and "CIG Migration" banners in migrate-v1-to-v2.sh / rollback-migration.sh. Cosmetic only (not user-facing in normal operation). Out of scope for the Task 189 docs-sync chore because these are hash-tracked files: editing them pulls a code+sha256 change set that must not ride in a docs commit. Fix as its own task with the in-task hash refresh per .cwf/docs/conventions/hash-updates.md.
+
+## Task: Backlog validate must assert a minimum structural contract (manageability), not pass vacuously on foreign files
+
+### Task-Type: feature
+### Priority: High
+### Status: Reported from external adopter (2026-06-11): foreign BACKLOG.md validated clean but listed 0 items
+### Identified in: External CWF adopter; root-caused in .cwf/lib/CWF/Backlog.pm validate_backlog_tree
+
+An external project adopting CWF already had a `BACKLOG.md` of a different shape (not the
+heading-tree contract). `backlog-manager validate` reported success and `list` returned
+"0 items" — yet the file was not in fact manageable: none of its content was recognised, and
+any subsequent `add`/`retire`/`modify` would either no-op or canonicalise the foreign content
+out from under the user. Validate gave a false "all clear".
+
+**Root cause.** `validate_backlog_tree` (`.cwf/lib/CWF/Backlog.pm`) only walks
+`$tree->{entries}`; everything the parser does not recognise as an entry falls into
+`$tree->{intro}` and is never checked. A foreign-but-well-formed-markdown file parses to **zero
+entries**, so every entry-level rule (BACKLOG-001 required keys, priority value, struck title,
+body-before-meta) is satisfied *vacuously*. Unlike `validate_changelog_tree`, which asserts a
+required top-level `# Changelog` header (CHANGELOG-001), the backlog validator has **no minimum
+structural assertion** — there is nothing that says "this file is shaped such that the manager
+can manage it."
+
+**What we want.** `validate` should accurately reflect whether `backlog-manager` can manage the
+file. Define a minimal *required structure* — a skeleton/contract of the heading-tree AST that
+the manager's read and mutate paths depend on — and have validate assert it. The contract must
+be **flexible**: additions and prose *outside* the required skeleton must be allowed and must
+not break the tooling, but the elements the manager relies on (e.g. the top-level backlog
+header, and the H2/H3 entry shape for any content presented as an entry) must be present and
+well-formed for validate to pass.
+
+**Sharp edges to resolve in design:**
+- Distinguish a *legitimately empty* backlog (header present, zero entries — must stay valid)
+  from a *foreign/unrecognised* file (no recognised skeleton — must fail). "Zero entries" alone
+  cannot be the signal.
+- Decide the new rule's identity/severity (e.g. a `BACKLOG-000` structural/min-AST error,
+  mirroring CHANGELOG-001) and whether a foreign file is an `error` (blocks mutation) vs a
+  loud warning.
+- Avoid false positives on our own valid files, including the bootstrap/empty case and
+  legacy-format files that `normalise` is meant to convert (the validator already refuses
+  `**Field**:` entries pre-normalise — keep that path coherent).
+- Consider symmetry: apply the same min-structure reasoning to CHANGELOG if a parallel gap
+  exists.
+
+**Acceptance:** a foreign `BACKLOG.md` (valid markdown, wrong shape) fails `validate` with a
+clear structural message instead of reporting success + "0 items"; a header-only empty backlog
+and all existing repo fixtures still validate clean; mutation commands refuse to run against a
+file that fails the structural check. Test fixtures for both the foreign-file and empty-but-valid
+cases.
