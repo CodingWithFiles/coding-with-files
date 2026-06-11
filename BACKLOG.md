@@ -1463,3 +1463,29 @@ default classification of a first insert. Lower severity than the lock bug — a
 documented env-var escape hatch exists.
 
 Surfaced by a downstream v1.1.189 upgrade (reported as issue 2 of 2).
+
+## Task: cwf-init UserPromptSubmit hook registered as dead PreToolUse matcher
+
+### Task-Type: bugfix
+### Priority: High
+### Identified in: user report, 2026-06-11
+
+`/cwf-init` step 6c (`.claude/skills/cwf-init/SKILL.md`) registers the rules-inject re-injection hook (`cat .cwf/rules-inject.txt`, from Task 99) under `PreToolUse` with `"matcher": "UserPromptSubmit"`. This hook can never fire: `PreToolUse` matchers filter by tool name (`Bash`, `Edit`, …), and no tool is named `UserPromptSubmit`. Per the Claude Code hooks docs, `UserPromptSubmit` is a separate top-level hook event that does **not** support matchers.
+
+Fix: emit the hook under a top-level `"UserPromptSubmit"` key with a flat hook-object array (no `matcher`, no nested `hooks` wrapper):
+
+    "UserPromptSubmit": [
+      { "type": "command", "command": "cat .cwf/rules-inject.txt 2>/dev/null || true" }
+    ]
+
+Touch points: SKILL.md step 6c JSON block + the surrounding idempotency prose (lines ~107-128), which currently describes appending a `UserPromptSubmit` matcher to `PreToolUse`. Verify `cwf-claude-settings-merge` (step 6d) does not also re-introduce the wrong shape. Existing installs already carry the dead entry, so the fix needs a migration/cleanup path, not just a forward fix. Output-level smoke test: run `/cwf-init` against a scratch repo and confirm the resulting `.claude/settings.json` has a working top-level `UserPromptSubmit` hook.
+
+## Task: security-review changeset omits untracked files from git diff
+
+### Task-Type: bugfix
+### Priority: High
+### Identified in: user report, 2026-06-11
+
+`security-review-changeset` `list_changed_files()` (line ~432) builds the reviewed changeset with `git diff --name-only -z <anchor>`, which lists tracked staged+unstaged changes but **omits untracked (new, not-yet-`git add`ed) files**. During an exec phase, a brand-new source file created before the checkpoint commit stages it is therefore invisible to the security reviewer — it ships unreviewed. `count_production_lines()` (line ~495, `git diff --numstat`) has the same blind spot, so new files also escape the `--max-lines` gate.
+
+Fix direction: union the diff output with untracked-but-not-ignored paths, e.g. `git ls-files --others --exclude-standard -z`, deduplicated against the diff list, then feed the combined set through the same exclude-pathspec / numstat logic. Keep NUL-separated parsing (per git-path-output convention). Watch the anchor semantics: untracked files have no anchor-side blob, so numstat counts them as all-added (correct). Add a regression test: create an untracked file in a scratch tree and assert it appears in both the changeset and the production line count.
