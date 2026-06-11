@@ -19,15 +19,6 @@ confirm its `effort`/`model` value is not a downgrade, because integrity tooling
 it. Low priority and possibly unnecessary (the pin pattern is self-documenting); recorded so the
 insight is not lost. No code change implied.
 
-## Task: Fresh-session acceptance of the Task 186 reviewer grant change (TC-8/9/10)
-
-### Task-Type: chore
-### Priority: High
-### Status: Follow-up from Task 186 (j-retrospective.md §Future Work) — deferred verification, not new work
-### Identified in: Task 186 g-testing-exec.md (TC-8/9/10 DEFERRED), j-retrospective.md §Future Work
-
-The Task 186 `allowed-tools:`→`tools: Read, Grep, Glob, LSP, Bash` grant change on the five reviewer agents is only observable after the agent-definition cache refreshes (a `/clear` or a fresh session). In a new session on a branch carrying the change, confirm: **TC-8** the registry shows each reviewer with *exactly* `Read, Grep, Glob, LSP, Bash` (excludes Edit/Write) and `LSP` was accepted as a grant token (no load error); **TC-9** a plan reviewer (e.g. `cwf-plan-reviewer-misalignment`) runs on an existing plan and can invoke the markdown-reader skill (or run its script via Bash); **TC-10** `cwf-security-reviewer-changeset` still emits exactly one well-formed `cwf-review` block that `security-review-classify` parses. If markdown-reader is unreachable at runtime, the documented fallback is a `skills:` field — the core grant fix still holds. Verification only; no code change unless a discrepancy surfaces.
-
 ## Task: Lint `.claude/agents/*.md` for the silently-ignored `allowed-tools:` key
 
 ### Task-Type: feature

@@ -2,6 +2,23 @@
 
 All notable changes to the Coding with Files (CWF) project are documented in this file, organized by task.
 
+## Task 192: fresh session reviewer grant acceptance tc 8910
+
+### Status: Complete (2026-06-11)
+### Duration: <0.5 day (estimate <0.5 day; on estimate).
+### Impact: Closes out Task 186's three deferred fresh-session acceptance checks, confirming the reviewer-agent tool grant (`tools: Read, Grep, Glob, LSP, Bash`) is live in the agent registry and the reviewers still function — so CWF's plan-review and security-review gates are verified intact, not silently degraded. Verification only; no production code changed. Run in-session (user-chosen freshness option 1): the live registry showed the *restricted* grant on all five reviewers, which — unlike the pre-change `allowed-tools:` all-tools inheritance — only exists post-change, so it is a sound freshness signal. **TC-8** (registry shows exactly the granted set on all five reviewers; Edit/Write absent; LSP accepted), **TC-9** (the four plan reviewers ran to completion under the new grant with no tool-denied error, evidenced by the d-phase Step 8 plan review), and **TC-10** (`cwf-security-reviewer-changeset` emitted one well-formed `cwf-review` block; `security-review-classify` returned a single canonical token) all PASS, plus TC-REG (`prove t/`, 726 tests green).
+
+### Notable
+- **TC-REG caught a self-inflicted validity error.** The a/d/e plan files were authored with `**Status**: Planning`, but `Planning` is not in `cwf-project.json:status-values`, so `cwf-manage validate` (via `t/security-review-changeset.t`) failed. Fixed in-phase by setting the completed plan files to `Finished`. This is a live recurrence of the open backlog item *"Status value mismatch: planning-phase skill templates suggest 'Planning' but cwf-project.json doesn't include it"* — worth prioritising over its current Low standing.
+- **Acceptance criteria for agent behaviour must be caller-observable.** Plan review reframed TC-9 away from "the reviewer reaches markdown-reader" (a subagent-internal tool trace the parent cannot see) to "the reviewer completes with no tool-denied error" (observable from the subagent's returned text).
+
+### Retired Backlog Items
+#### Fresh-session acceptance of the Task 186 reviewer grant change (TC-8/9/10)
+
+The Task 186 `allowed-tools:`→`tools: Read, Grep, Glob, LSP, Bash` grant change on the five reviewer agents is only observable after the agent-definition cache refreshes (a `/clear` or a fresh session). In a new session on a branch carrying the change, confirm: **TC-8** the registry shows each reviewer with *exactly* `Read, Grep, Glob, LSP, Bash` (excludes Edit/Write) and `LSP` was accepted as a grant token (no load error); **TC-9** a plan reviewer (e.g. `cwf-plan-reviewer-misalignment`) runs on an existing plan and can invoke the markdown-reader skill (or run its script via Bash); **TC-10** `cwf-security-reviewer-changeset` still emits exactly one well-formed `cwf-review` block that `security-review-classify` parses. If markdown-reader is unreachable at runtime, the documented fallback is a `skills:` field — the core grant fix still holds. Verification only; no code change unless a discrepancy surfaces.
+
+<!-- Note: All three checks passed in-session (freshness option 1): TC-8 registry shows the restricted grant on all five reviewers; TC-9 the four plan reviewers ran with no tool-denied error; TC-10 the changeset reviewer verdict classified to a single canonical token. -->
+
 ## Task 191: update lock fails own clean tree check
 
 ### Status: Complete (2026-06-11)
