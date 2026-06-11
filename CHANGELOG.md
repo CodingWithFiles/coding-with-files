@@ -2,6 +2,22 @@
 
 All notable changes to the Coding with Files (CWF) project are documented in this file, organized by task.
 
+## Task 193: Lint agent files for ignored allowed-tools key
+
+### Status: Complete (2026-06-11)
+### Duration: ~0.5 day (estimate ~0.5 day, Low; on estimate).
+### Impact: Adds `CWF::Validate::Agents`, a read-only validator wired into `cwf-manage validate`, that flags any CWF agent file (`.cwf-agents/cwf-*.md` when installed, else `.claude/agents/cwf-*.md`) whose YAML frontmatter carries an `allowed-tools:` key. That key is the *Skills/slash-command* schema; in an agent definition Claude Code **silently ignores** it — no parse error, no warning — leaving the agent with the *full* tool set instead of the intended `tools:` restriction. It is a privilege-escalation footgun that fails open, and the four `cwf-plan-reviewer-*` agents plus `cwf-security-reviewer-changeset` all depend on a correct `tools:` restriction. All five current agents already use `tools:`, so this is a **preventative guard against regression**, not a live-bug fix — `cwf-manage validate` stays green on the real tree. The validator inspects only the leading `---`…`---` block; an unterminated block is skipped (not body-scanned), so prose mentioning the key cannot false-positive. One new lib module (`.cwf/lib/CWF/Validate/Agents.pm`) + a one-line wire-in to `cwf-manage` `cmd_validate`; both hash entries refreshed in-task.
+
+### Notable
+- **Test-first caught a real defect.** The robustness plan-reviewer insisted an unterminated frontmatter block must be *skipped*, not body-scanned; that became TC-7; TC-7 then failed against the first single-pass implementation (which flagged the key *before* confirming the block was terminated) and forced the correct two-pass find-close-then-scan. The defect never left the implementation phase — the plan-review → test → implementation chain working as designed.
+- **Asserting the check did something.** The a-phase "wrong scan target" high risk (dev `.claude/agents/` vs installed `.cwf-agents/`) was mitigated by a single-target resolver and *proven* non-vacuous by TC-4, which asserts the `.cwf-agents/` branch actually inspected a file rather than passing trivially.
+- **Tests:** `t/validate-agents.t` (TC-1..TC-8) + real-tree regression via `cwf-manage validate` (TC-9) + full suite (TC-10, 734 tests green). Both exec-phase security reviews returned `no findings`.
+
+### Retired Backlog Items
+#### Lint `.claude/agents/*.md` for the silently-ignored `allowed-tools:` key
+
+Task 186 found that `allowed-tools:` is the *Skills* frontmatter schema and is silently ignored on subagents — the failure mode is *more* permissive (all-tools inheritance), with no error or warning. Add a `cwf-manage validate` check (or a dedicated consistency rule) that flags `allowed-tools:` in any `.claude/agents/*.md` and recommends `tools:`. Task 186 fixed the five existing instances; this guard stops regressions and protects downstream installs that hand-author agents. Scope: one validator rule + test fixture. *(Delivered as `CWF::Validate::Agents`, scoped to the `cwf-*` namespace; a generalised unknown-key linter was deferred to a new backlog item.)*
+
 ## Task 192: fresh session reviewer grant acceptance tc 8910
 
 ### Status: Complete (2026-06-11)

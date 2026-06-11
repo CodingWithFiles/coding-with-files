@@ -19,14 +19,24 @@ confirm its `effort`/`model` value is not a downgrade, because integrity tooling
 it. Low priority and possibly unnecessary (the pin pattern is self-documenting); recorded so the
 insight is not lost. No code change implied.
 
-## Task: Lint `.claude/agents/*.md` for the silently-ignored `allowed-tools:` key
+## Task: Generalised agent-frontmatter unknown-key linter
 
 ### Task-Type: feature
-### Priority: Medium
-### Status: Follow-up from Task 186 (j-retrospective.md §Recommendations)
-### Identified in: Task 186 j-retrospective.md §Tool and Technique Recommendations
+### Priority: Low
+### Status: Follow-up from Task 193 (j-retrospective.md §Future Work)
+### Identified in: Task 193 a-task-plan.md (Open Decision 1), j-retrospective.md §Future Work
 
-Task 186 found that `allowed-tools:` is the *Skills* frontmatter schema and is silently ignored on subagents — the failure mode is *more* permissive (all-tools inheritance), with no error or warning. Add a `cwf-manage validate` check (or a dedicated consistency rule) that flags `allowed-tools:` in any `.claude/agents/*.md` and recommends `tools:`. Task 186 fixed the five existing instances; this guard stops regressions and protects downstream installs that hand-author agents. Scope: one validator rule + test fixture.
+Task 193 delivered `CWF::Validate::Agents` scoped narrowly to the silently-ignored
+`allowed-tools:` key. `allowed-tools:` is not the only agent frontmatter key Claude Code
+silently ignores — any unrecognised key is dropped without warning. Generalise the validator
+to flag *any* key not in an authoritative allow-list of valid agent keys (`name`,
+`description`, `tools`, `model`, …). The hard part is the allow-list itself: it is a moving
+target tied to Claude Code's agent schema, and the repo already carries intentional
+non-core keys (`effort:`, introduced in Task 187) that must NOT be flagged — so the list
+must be maintained deliberately, not guessed. Scope: extend `CWF::Validate::Agents` with an
+allow-list check + fixtures; decide the list's source of truth and update cadence. Related
+but distinct from the *"effort/model values carry security weight"* item above (that concerns
+the *value* of a known key; this concerns *unknown keys*).
 
 ## Task: Decide whether fresh install.bash should clamp perms to the recorded ceiling
 
