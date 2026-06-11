@@ -45,6 +45,12 @@ sub log_msg { print "[CWF] @_\n"; return; }
 # guards or clone/checkout, where a same-source bootstrap would not help.
 my $update_in_progress = 0;
 
+# Repo-relative path of the update lock — single source of truth shared by
+# acquire_update_lock (absolutised against $git_root for sysopen) and
+# check_clean_tree (passed BARE as a git exclude pathspec, resolved relative to
+# -C $git_root). The two MUST stay in sync; a drift re-opens the self-block.
+my $UPDATE_LOCK_REL = '.cwf/.update.lock';
+
 sub die_msg {
     print STDERR "[CWF] ERROR: @_\n";
     if ($update_in_progress) {
@@ -151,9 +157,15 @@ sub resolve_source {
 sub check_clean_tree {
     my ($git_root) = @_;
 
+    # Exclude CWF's own ephemeral lock: cmd_update creates it (D8 lock-before-
+    # check ordering) before this runs, so on installs whose .gitignore lacks the
+    # lock line it would otherwise read as a dirty path and block the very update
+    # that adds that line. BARE (not absolutised) so git resolves it relative to
+    # -C $git_root like the positive pathspecs.
     open(my $fh, '-|', 'git', '-C', $git_root,
          'status', '--porcelain', '-z', '--untracked-files=all',
-         '--', '.cwf', '.cwf-skills', '.cwf-rules', '.cwf-agents')
+         '--', '.cwf', '.cwf-skills', '.cwf-rules', '.cwf-agents',
+         ":(exclude)$UPDATE_LOCK_REL")
         or die_msg("Failed to spawn git status: $!");
     local $/;
     my $output = <$fh> // '';
@@ -247,13 +259,13 @@ sub git_describe_version {
 
 # --- Update prelude helpers ---------------------------------------------------
 
-# acquire_update_lock — Perl flock(LOCK_EX|LOCK_NB) on .cwf/.update.lock with
+# acquire_update_lock — Perl flock(LOCK_EX|LOCK_NB) on the update lock with
 # symlink-TOCTOU protection (lstat precheck + O_NOFOLLOW). Returns the open
 # filehandle; caller MUST retain it until cmd_update returns (closing releases
 # the lock, kernel auto-releases on process exit).
 sub acquire_update_lock {
     my ($git_root) = @_;
-    my $path = "$git_root/.cwf/.update.lock";
+    my $path = "$git_root/$UPDATE_LOCK_REL";
     if (-l $path) {
         die_msg("$path is a symlink; refusing to lock");
     }

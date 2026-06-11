@@ -2,6 +2,52 @@
 
 All notable changes to the Coding with Files (CWF) project are documented in this file, organized by task.
 
+## Task 191: update lock fails own clean tree check
+
+### Status: Complete (2026-06-11)
+### Duration: ~1 day (estimate <1 day, Low; on estimate — effort concentrated in the design-phase alternatives analysis and the red→green evidence step).
+### Impact: `cwf-manage update` no longer self-blocks on its own ephemeral `.cwf/.update.lock`. The updater acquires the lock *before* the clean-tree check (the D8 concurrency invariant), so on any install whose `.gitignore` lacks the manifest-mandated `.cwf/.update.lock` line, the lock surfaced as `?? .cwf/.update.lock` and aborted the very update that would add that ignore line — a self-blocking cycle escapable only by hand-editing `.gitignore` first. The fix makes `check_clean_tree` *lock-aware*: it appends a git `:(exclude).cwf/.update.lock` magic pathspec to its `git status` invocation, so git filters CWF's own lock before any output is produced. A new file-scoped constant `$UPDATE_LOCK_REL = '.cwf/.update.lock'` is the single source of truth shared by `acquire_update_lock` (joined to `$git_root` for `sysopen`) and `check_clean_tree` (passed **bare** as the exclude value, since `git -C $git_root` already resolves pathspecs relative to the root) — removing the latent drift site between the two consumers. Surfaced by a downstream v1.1.189 upgrade (issue 1 of 2). One hash-tracked file changed (`.cwf/scripts/cwf-manage`) with a same-commit `script-hashes.json` refresh.
+
+### Notable
+- **The exclusion is an exact literal, by design.** Excluding only `.cwf/.update.lock` (never a glob like `:(exclude).cwf/*.lock` or a directory prefix) means the change cannot mask any other uncommitted path. TC-5 turns that promise into an enforced regression check: with both the lock and a real untracked `.cwf/notes.md` present, `check_clean_tree` still dies and lists `notes.md`, and an `unlike($@, qr{\.update\.lock})` assertion proves the lock — and only the lock — is hidden.
+- **D8 ordering and lock-path defence preserved.** The fix makes the check lock-aware rather than re-ordering it, so two concurrent updates still cannot both pass the gate. The symlink/TOCTOU guard (`-l` precheck + `O_NOFOLLOW`) stays in `acquire_update_lock`, which runs first; the excluded path is therefore always the guard-validated regular file. Both exec-phase security reviews returned `no findings`.
+- **Tests:** TC-4 (lock-only tree → clean) and TC-5 (lock + real dirty path → dies, lists real path only) added to `t/cwf-manage-check-clean-tree.t`; both demonstrably fail pre-fix. Full suite 62 files / 726 tests green; `cwf-manage validate` clean.
+
+### Retired Backlog Items
+#### cwf-manage update self-blocks: .update.lock fails own clean-tree check when gitignore line absent
+
+`cwf-manage update` acquires the update lock before the clean-tree check, and
+`acquire_update_lock` (`cwf-manage:254-267`) creates `.cwf/.update.lock` on disk
+via `sysopen(... O_CREAT ...)`. `check_clean_tree` (`cwf-manage:151-176`) then
+runs `git status --porcelain --untracked-files=all -- .cwf .cwf-skills
+.cwf-rules .cwf-agents`. Because the lock lives under `.cwf`, it appears as an
+untracked file (`?? .cwf/.update.lock`) and aborts the update — UNLESS
+`.gitignore` already lists `.cwf/.update.lock`.
+
+That ignore line is itself added by the update (the `gitignore-entries`
+artefact, `install-manifest.json:10-14`). So any install whose `.gitignore`
+predates that artefact, or where `/cwf-init` never wrote it, is **self-blocking**:
+`cwf-manage update` can never pass its own clean-tree gate. The only escape is
+hand-adding the ignore line first — exactly what a v1.1.189 upgrade reported
+having to do.
+
+The lock-before-check ordering is deliberate (D8 comment, `cwf-manage:458-461`):
+two concurrent updates must not both pass clean-tree before one blocks. The fix
+must preserve that ordering. `.cwf/.update.lock` is CWF's own ephemeral artefact
+and must never count as an uncommitted change regardless of `.gitignore` state:
+
+- Exclude it from the scan via a pathspec — append
+  `':(exclude).cwf/.update.lock'` to the `git status` invocation; OR
+- Filter the record in Perl after `split /\0/` in `check_clean_tree`.
+
+Pathspec exclusion is the narrower change (no post-parse special-casing) and
+keeps the dirty-tree message accurate for every other path. Add a regression
+test: marker-less `.gitignore` + lock present must still pass clean-tree.
+
+Surfaced by a downstream v1.1.189 upgrade (reported as issue 1 of 2).
+
+<!-- Note: Fixed via git :(exclude) pathspec in check_clean_tree; D8 ordering preserved. -->
+
 ## Task 190: backlog validate minimum structural contract
 
 ### Status: Complete (2026-06-11)

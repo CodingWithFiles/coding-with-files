@@ -1423,3 +1423,42 @@ Task 190 added a generic intro-region structural predicate (CWF::Backlog::backlo
 ### Identified in: Task 190
 
 BACKLOG-000 has two documented fail-open boundaries (pinned by TC-8/TC-9, see cwf-backlog-manager.md): (1) an unterminated leading ``` fence masks all following foreign content to EOF, so foreign structure hidden under a never-closed fence is not flagged; (2) a preamble of pure prose with no headings/lists, and foreign content placed AFTER a genuine entry, are not detected. These are coverage gaps in a defensive check (fail-open grants no new capability), acceptable for v1 but worth tightening: e.g. treat an unterminated leading fence in a zero-entry file as itself a BACKLOG-000 signal. Low priority — no correctness or security impact, only completeness of the manageability assertion.
+
+## Task: Embedded-block first-insert treated as conflict when CLAUDE.md lacks preamble markers
+
+### Task-Type: bugfix
+### Priority: Low
+### Identified in: downstream v1.1.189 upgrade report
+
+The install manifest ships a `claude-md-preamble` embedded-block artefact
+(`install-manifest.json:25-33`) sourced from
+`.cwf/templates/install/claude-md-preamble.md`, delimited by the
+`CWF-PREAMBLE-START` / `CWF-PREAMBLE-END` HTML-comment markers in the
+consumer's root `CLAUDE.md`. On a v1.1.189 upgrade of an install whose
+`CLAUDE.md` lacked those markers, `apply_embedded_block` treated the absent
+block as a **conflict** requiring `CWF_UPGRADE_RESOLVE=new`, rather than as a
+clean first-time insert.
+
+Arguable behaviour: the first introduction of an embedded block into a
+marker-less container is unambiguous — there is nothing to overwrite, so it
+should insert without demanding conflict resolution. Reserve the conflict path
+for the case where markers exist and the enclosed content differs.
+
+Investigate before changing: confirm exactly how `apply_embedded_block`
+classifies a marker-less container (genuine conflict vs. defensive prompt), and
+whether an auto-insert risks clobbering a hand-authored preamble that uses
+different/no markers. If auto-insert is safe, gate it on "no start marker
+present" and keep `CWF_UPGRADE_RESOLVE` for the markers-present-but-differ case.
+
+Dog-fooding note: this source repo's own root `CLAUDE.md` carries no
+`CWF-PREAMBLE` markers — we ship the block but do not consume it. Either adopt
+the preamble here or document why the source is exempt; the current state means
+the artefact's update path is never exercised against our own tree.
+
+Related but distinct: `BACKLOG.md` already logs a `prompt_resolve` keep/new
+*test-coverage* gap (Task: "Restore CWF_UPGRADE_RESOLVE keep/new coverage
+without rules-inject"). That entry is about test fixtures; this one is about the
+default classification of a first insert. Lower severity than the lock bug — a
+documented env-var escape hatch exists.
+
+Surfaced by a downstream v1.1.189 upgrade (reported as issue 2 of 2).

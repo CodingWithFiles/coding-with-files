@@ -81,4 +81,23 @@ subtest 'TC-3: git status fails -> dies with check-failure message' => sub {
     like($@, qr{Failed to check working tree status}, 'dies on git-status failure');
 };
 
+subtest 'TC-4: tree dirty only by .cwf/.update.lock -> returns without dying' => sub {
+    plan tests => 1;
+    my $dir = make_baseline_repo();
+    open my $lfh, '>', "$dir/.cwf/.update.lock" or die $!; close $lfh;
+    eval { main::check_clean_tree($dir) };
+    is($@, '', 'lock-only tree treated as clean');
+};
+
+subtest 'TC-5: lock + real dirty path -> dies, lists real path only' => sub {
+    plan tests => 3;
+    my $dir = make_baseline_repo();
+    open my $lfh, '>', "$dir/.cwf/.update.lock" or die $!; close $lfh;
+    open my $nfh, '>', "$dir/.cwf/notes.md" or die $!; print $nfh "scratch\n"; close $nfh;
+    eval { main::check_clean_tree($dir) };
+    like($@,   qr{Working tree has uncommitted changes}, 'dies on the real dirty path');
+    like($@,   qr{notes\.md},                            'lists the real untracked path');
+    unlike($@, qr{\.update\.lock},                       'lock excluded from the dirty list');
+};
+
 done_testing();
