@@ -2,6 +2,64 @@
 
 All notable changes to the Coding with Files (CWF) project are documented in this file, organized by task.
 
+## Task 190: backlog validate minimum structural contract
+
+### Status: Complete (2026-06-11)
+### Duration: ~1 day (estimate 0.5–1 day, Medium; on estimate — effort landed in fixture design and false-positive avoidance, exactly where planning flagged the risk).
+### Impact: `backlog-manager validate` now asserts a minimum structural contract (`BACKLOG-000`) so a clean result means the file is actually *manageable*, not merely well-formed markdown that parses to "0 items". A new pure predicate `CWF::Backlog::backlog_structure_errors` scans the intro region (the whole file when there are no entries): it permits blank lines, prose, and at most one leading `# ` title, and flags any other heading (`##`–`######`) or list item as a `BACKLOG-000` error — because the manager tracks entries only as `## Task:`/`## Bug:` blocks and would silently ignore other top-level structure. The predicate is wired into `validate_backlog_tree`, and a mutation gate (`assert_backlog_structure`) makes `add`/`modify`/`delete`/`retire` refuse to run on a file that trips it — a refused `retire` writes neither `BACKLOG.md` nor `CHANGELOG.md`. So a foreign-format `BACKLOG.md` (e.g. sprint headings + flat task lists) is rejected up front rather than mutated into an inconsistent state; an empty-but-valid file (title + prose, zero entries) and all existing fixtures still pass. Entry **bodies** are unscanned — only the preamble is checked. Two hash-tracked files changed (`.cwf/lib/CWF/Backlog.pm`, `.cwf/scripts/command-helpers/backlog-manager`) with same-commit `script-hashes.json` refreshes; doc section added to `cwf-backlog-manager.md`. 15 new test cases (TC-1…TC-15, 10 unit + 5 integration) all pass; both exec-phase security reviews `no findings`; `cwf-manage validate` clean.
+
+### Notable
+- **Security by construction.** The `BACKLOG-000` message interpolates only a fixed kind-enum (`heading`/`list item`) and an integer line number — never the offending line text — so attacker-influenceable `BACKLOG.md` content cannot reach operator/LLM context via the error. TC-7's `unlike(...)` guard turns that design promise into an enforced regression check, and the same invariant is recorded as a precondition for the deferred CHANGELOG reuse.
+- **Generic helper, narrow wiring.** `backlog_structure_errors` is format-agnostic and `@EXPORT_OK`, so the deferred CHANGELOG-parity work (KD5) is a wiring task, not a rewrite — pre-staged without taking on its risk now.
+- **Documented fail-open boundaries.** An unterminated leading fence masks following content to EOF, and pure-prose / after-entry foreign content is not detected. These are coverage gaps in a *defensive* check (no new capability granted), pinned by TC-8/TC-9 and filed as a Low follow-up.
+
+### Retired Backlog Items
+#### Backlog validate must assert a minimum structural contract (manageability), not pass vacuously on foreign files
+
+An external project adopting CWF already had a `BACKLOG.md` of a different shape (not the
+heading-tree contract). `backlog-manager validate` reported success and `list` returned
+"0 items" — yet the file was not in fact manageable: none of its content was recognised, and
+any subsequent `add`/`retire`/`modify` would either no-op or canonicalise the foreign content
+out from under the user. Validate gave a false "all clear".
+
+**Root cause.** `validate_backlog_tree` (`.cwf/lib/CWF/Backlog.pm`) only walks
+`$tree->{entries}`; everything the parser does not recognise as an entry falls into
+`$tree->{intro}` and is never checked. A foreign-but-well-formed-markdown file parses to **zero
+entries**, so every entry-level rule (BACKLOG-001 required keys, priority value, struck title,
+body-before-meta) is satisfied *vacuously*. Unlike `validate_changelog_tree`, which asserts a
+required top-level `# Changelog` header (CHANGELOG-001), the backlog validator has **no minimum
+structural assertion** — there is nothing that says "this file is shaped such that the manager
+can manage it."
+
+**What we want.** `validate` should accurately reflect whether `backlog-manager` can manage the
+file. Define a minimal *required structure* — a skeleton/contract of the heading-tree AST that
+the manager's read and mutate paths depend on — and have validate assert it. The contract must
+be **flexible**: additions and prose *outside* the required skeleton must be allowed and must
+not break the tooling, but the elements the manager relies on (e.g. the top-level backlog
+header, and the H2/H3 entry shape for any content presented as an entry) must be present and
+well-formed for validate to pass.
+
+**Sharp edges to resolve in design:**
+- Distinguish a *legitimately empty* backlog (header present, zero entries — must stay valid)
+  from a *foreign/unrecognised* file (no recognised skeleton — must fail). "Zero entries" alone
+  cannot be the signal.
+- Decide the new rule's identity/severity (e.g. a `BACKLOG-000` structural/min-AST error,
+  mirroring CHANGELOG-001) and whether a foreign file is an `error` (blocks mutation) vs a
+  loud warning.
+- Avoid false positives on our own valid files, including the bootstrap/empty case and
+  legacy-format files that `normalise` is meant to convert (the validator already refuses
+  `**Field**:` entries pre-normalise — keep that path coherent).
+- Consider symmetry: apply the same min-structure reasoning to CHANGELOG if a parallel gap
+  exists.
+
+**Acceptance:** a foreign `BACKLOG.md` (valid markdown, wrong shape) fails `validate` with a
+clear structural message instead of reporting success + "0 items"; a header-only empty backlog
+and all existing repo fixtures still validate clean; mutation commands refuse to run against a
+file that fails the structural check. Test fixtures for both the foreign-file and empty-but-valid
+cases.
+
+<!-- Note: Shipped: BACKLOG-000 intro-region structural contract in CWF::Backlog + mutation gate in backlog-manager (add/modify/delete/retire refuse on foreign-format files). -->
+
 ## Task 189: sync docs and README with current CWF state (chore)
 
 ### Status: Complete (2026-06-10)

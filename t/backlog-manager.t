@@ -966,4 +966,76 @@ subtest 'AC18c: normalise on canonical fixture is no-op (byte-identical)' => sub
        'second normalise byte-identical');
 };
 
+#==============================================================================
+# Task 190 — BACKLOG-000 mutation gate: refuse to mutate a structurally foreign
+# BACKLOG.md (heading/list-structured, zero recognised entries), byte-unchanged.
+#==============================================================================
+
+# Foreign-format backlog: sprint headings + flat lists, no `## Task:`/`## Bug:`.
+my $FOREIGN_BACKLOG = <<'END';
+# Project Backlog
+
+## Sprint 1
+- Build login
+- Build logout
+
+## Sprint 2
+- Polish UI
+END
+
+subtest 'TC-11: add refuses on foreign BACKLOG, byte-unchanged' => sub {
+    plan tests => 3;
+    my $dir = make_isolated('BACKLOG.md' => $FOREIGN_BACKLOG, 'CHANGELOG.md' => $VALID_CHANGELOG);
+    my $before = _slurp("$dir/BACKLOG.md");
+    my ($rc, $out, $err) = run_bm($dir, 'add',
+        '--title=New thing', '--task-type=chore', '--priority=Low', '--body=x');
+    is($rc, 1, "add exits 1 on foreign (err: $err)");
+    like($err, qr/preamble contains an unmanaged/, 'refusal names the structural problem');
+    is(_slurp("$dir/BACKLOG.md"), $before, 'BACKLOG byte-unchanged');
+};
+
+subtest 'TC-12: modify and delete refuse on foreign BACKLOG, byte-unchanged' => sub {
+    plan tests => 4;
+    my $dir = make_isolated('BACKLOG.md' => $FOREIGN_BACKLOG, 'CHANGELOG.md' => $VALID_CHANGELOG);
+    my $before = _slurp("$dir/BACKLOG.md");
+    my ($rc, undef, $err) = run_bm($dir, 'modify', '--id=anything', '--priority=Low');
+    is($rc, 1, "modify exits 1 on foreign (err: $err)");
+    is(_slurp("$dir/BACKLOG.md"), $before, 'BACKLOG byte-unchanged after modify');
+    my ($rc2, undef, $err2) = run_bm($dir, 'delete', '--id=anything', '--confirm');
+    is($rc2, 1, "delete exits 1 on foreign (err: $err2)");
+    is(_slurp("$dir/BACKLOG.md"), $before, 'BACKLOG byte-unchanged after delete');
+};
+
+subtest 'TC-13: retire aborts on foreign BACKLOG, BOTH files byte-unchanged' => sub {
+    plan tests => 3;
+    my $dir = make_isolated('BACKLOG.md' => $FOREIGN_BACKLOG, 'CHANGELOG.md' => $VALID_CHANGELOG);
+    my $bl_before = _slurp("$dir/BACKLOG.md");
+    my $cl_before = _slurp("$dir/CHANGELOG.md");
+    my ($rc, undef, $err) = run_bm($dir, 'retire', '--id=anything', '--task=131');
+    is($rc, 1, "retire exits 1 on foreign (err: $err)");
+    is(_slurp("$dir/BACKLOG.md"), $bl_before, 'BACKLOG byte-unchanged');
+    is(_slurp("$dir/CHANGELOG.md"), $cl_before, 'CHANGELOG byte-unchanged (gate precedes bootstrap)');
+};
+
+subtest 'TC-14: add succeeds on conformant BACKLOG (gate does not over-refuse)' => sub {
+    plan tests => 2;
+    my $dir = make_isolated('BACKLOG.md' => $VALID_BACKLOG_MIN, 'CHANGELOG.md' => $VALID_CHANGELOG);
+    my ($rc, $out, $err) = run_bm($dir, 'add',
+        '--title=Brand new entry', '--task-type=chore', '--priority=Low', '--body=x');
+    is($rc, 0, "add exits 0 on conformant (err: $err)");
+    like(_slurp("$dir/BACKLOG.md"), qr/^## Task: Brand new entry$/m, 'entry appended');
+};
+
+subtest 'TC-15: normalise on heading-bearing legacy stays BACKLOG-000-clean (5th touchpoint)' => sub {
+    plan tests => 2;
+    # _normalise_one re-runs validate_backlog_tree (now incl. BACKLOG-000) as its
+    # post-canonicalisation gate. A heading-bearing legacy file parses to real
+    # entries, so BACKLOG-000 is silent and normalise still succeeds. KD4.
+    my $dir = make_isolated('BACKLOG.md' => $LEGACY_BACKLOG, 'CHANGELOG.md' => $LEGACY_CHANGELOG);
+    my ($rc, $out, $err) = run_bm($dir, 'normalise');
+    is($rc, 0, "normalise exit 0 on legacy (err: $err)");
+    my ($rc2, undef, $err2) = run_bm($dir, 'validate');
+    is($rc2, 0, "post-normalise validate clean — no BACKLOG-000 (err: $err2)");
+};
+
 done_testing();

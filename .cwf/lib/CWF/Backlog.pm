@@ -50,6 +50,7 @@ our @EXPORT_OK = qw(
     resolve_task_title_from_dir
     validate_backlog_tree
     validate_changelog_tree
+    backlog_structure_errors
     trim_blank_lines
     $VALID_PRIORITIES
     $METADATA_KEY_RE
@@ -428,6 +429,71 @@ sub validate_backlog_tree {
         push @errors, _check_struck_title($e, $path);
         push @errors, _check_body_before_meta($e, $path, 'BACKLOG-007',
             "entry body appears before metadata (non-canonical order); next write will canonicalise");
+    }
+
+    # BACKLOG-000 (structural manageability): the preamble before the first
+    # recognised entry — the whole file when there are no entries — must contain
+    # only blank lines, prose, and at most one leading H1. Foreign-format files
+    # (heading- or list-structured) trip this; an empty or intro-only backlog
+    # does not. See backlog_structure_errors.
+    push @errors, @{ backlog_structure_errors($tree, $path) };
+
+    return \@errors;
+}
+
+# BACKLOG-000 — minimum structural contract (Task 190). Returns the list of
+# structural errors that make a BACKLOG.md unmanageable by the backlog manager.
+#
+# Scans the *intro region* only: the source lines before the first recognised
+# `## Task:`/`## Bug:` entry, or the whole file when there are no entries (the
+# foreign-file case). This mirrors the CHANGELOG-005 intro-scan concept — the
+# dangerous zero-entry file gets whole-file coverage while a real backlog's
+# rich entry bodies (which legitimately carry `## ` headings) are never scanned.
+#
+# Within that range, outside fenced code, the only permitted lines are blanks,
+# prose, and at most one leading top-level `# ` H1. Any other heading
+# (`##`–`######`, or a second `# `) or any list item is an error. The message
+# names the construct kind and line number only — it never echoes the offending
+# line text (prompt-injection-surface avoidance).
+#
+# Pure function over a parsed tree; no I/O, no fence rebuild beyond the cached
+# map. Assumes a parse-sourced tree (line numbers are source-based).
+sub backlog_structure_errors {
+    my ($tree, $path) = @_;
+    $path //= 'BACKLOG.md';
+
+    my ($lines, $fence) = _file_lines_and_fence($tree);
+    my $hi = @{$tree->{entries}}
+        ? $tree->{entries}[0]{header_lineno} - 2   # 0-based, excl. entry heading
+        : $#$lines;
+
+    # First non-blank, non-fenced line in the intro range — only there is a
+    # leading H1 exempt. Blank regex kept in lockstep with trim_blank_lines.
+    my $first = -1;
+    for my $i (0 .. $hi) {
+        next if $fence->[$i] || $lines->[$i] =~ /^[ \t]*\n?\z/;
+        $first = $i;
+        last;
+    }
+
+    my @errors;
+    for my $i (0 .. $hi) {
+        next if $fence->[$i];
+        my $l = $lines->[$i];
+        next if $l =~ /^[ \t]*\n?\z/;            # blank
+        next if $i == $first && $l =~ /^#[ \t]/; # one leading H1 allowed
+        my $kind = $l =~ /^#{1,6}[ \t]/               ? 'heading'
+                 : $l =~ /^[ \t]*([-*+]|\d+[.)])[ \t]/ ? 'list item'
+                 :                                       undef;
+        next unless defined $kind;
+        push @errors, {
+            file => $path, line => $i + 1, rule => 'BACKLOG-000',
+            severity => 'error',
+            message  => "BACKLOG.md preamble contains an unmanaged $kind at line "
+                      . ($i + 1) . "; CWF tracks entries as '## Task: <title>' / "
+                      . "'## Bug: <title>' blocks and does not manage other top-level "
+                      . "structure. See .cwf/docs/skills/reference/cwf-backlog-manager.md.",
+        };
     }
     return \@errors;
 }

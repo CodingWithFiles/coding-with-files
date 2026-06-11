@@ -363,4 +363,102 @@ subtest 'retired BACKLOG-006: body line `#### Sub` no longer fires' => sub {
     is(scalar(grep { ($_->{severity}//'error') eq 'error' } @$errs), 0, 'no errors');
 };
 
+#==============================================================================
+# BACKLOG-000 (minimum structural contract) — Task 190
+# Scans the intro region (whole file when zero entries); flags foreign
+# heading/list structure while leaving empty/intro-only/real backlogs clean.
+#==============================================================================
+subtest 'TC-1 BACKLOG-000 foreign heading fires' => sub {
+    plan tests => 1;
+    my (undef, $errs) = parse_and_validate_backlog("## Sprint 1\n\n- item\n");
+    cmp_ok(has_rule($errs, 'BACKLOG-000'), '>=', 1, 'foreign ## heading (zero entries) fires');
+};
+
+subtest 'TC-2 BACKLOG-000 foreign list, leading H1 exempt' => sub {
+    plan tests => 2;
+    my (undef, $errs) = parse_and_validate_backlog("# My Backlog\n\n- buy milk\n- fix bug\n");
+    my ($e) = get_rule($errs, 'BACKLOG-000');
+    ok($e, 'a BACKLOG-000 error is present');
+    is($e->{line}, 3, 'first list item (line 3) flagged; leading H1 itself does not fire');
+};
+
+subtest 'TC-3 BACKLOG-000 empty/whitespace clean' => sub {
+    plan tests => 2;
+    my (undef, $empty) = parse_and_validate_backlog("");
+    is(has_rule($empty, 'BACKLOG-000'), 0, 'empty file → silent');
+    my (undef, $ws) = parse_and_validate_backlog("\n\n");
+    is(has_rule($ws, 'BACKLOG-000'), 0, 'whitespace-only → silent');
+};
+
+subtest 'TC-4 BACKLOG-000 intro-only conformant clean' => sub {
+    plan tests => 1;
+    my (undef, $errs) = parse_and_validate_backlog("# Backlog\n\nIntro paragraph.\n");
+    is(has_rule($errs, 'BACKLOG-000'), 0, 'H1 + prose intro → silent');
+};
+
+subtest 'TC-5 BACKLOG-000 live-file shape (body ## not scanned)' => sub {
+    plan tests => 1;
+    my $bytes = join('',
+        "# CWF System Backlog\n\n",
+        "Some intro prose.\n\n",
+        "## Task: Real entry\n\n",
+        "### Task-Type: chore\n### Priority: Low\n\n",
+        "body line\n",
+        "## How Task Status Works\n",       # body heading, beyond intro region
+        "more body\n",
+    );
+    my (undef, $errs) = parse_and_validate_backlog($bytes);
+    is(has_rule($errs, 'BACKLOG-000'), 0, 'real entry; body ## not scanned → silent');
+};
+
+subtest 'TC-6 BACKLOG-000 legacy heading-bearing routes to entries, silent' => sub {
+    plan tests => 1;
+    # Heading-bearing legacy (**Field**: bodies) parses to a real entry, so the
+    # intro region collapses to nothing — BACKLOG-000 stays silent (it routes to
+    # normalise via the unrelated BACKLOG-001, not blocked here). KD4.
+    my $bytes = "## Task: Legacy entry\n\n**Task-Type**: chore\n**Priority**: Low\n\nbody\n";
+    my (undef, $errs) = parse_and_validate_backlog($bytes);
+    is(has_rule($errs, 'BACKLOG-000'), 0, 'heading-bearing legacy → BACKLOG-000 silent');
+};
+
+subtest 'TC-7 BACKLOG-000 message content (no verbatim echo)' => sub {
+    plan tests => 3;
+    my (undef, $errs) = parse_and_validate_backlog("## Sprint Planning\n");
+    my ($e) = get_rule($errs, 'BACKLOG-000');
+    like($e->{message}, qr/unmanaged heading at line 1/, 'names kind + line');
+    like($e->{message}, qr/cwf-backlog-manager\.md/, 'points to the format reference');
+    unlike($e->{message}, qr/Sprint Planning/, 'does not echo the offending line text');
+};
+
+subtest 'TC-8 BACKLOG-000 fenced heading silent (intro fence skip)' => sub {
+    plan tests => 1;
+    # Zero-entry file whose only heading lives inside a closed fence: the fence
+    # map skips it, so no false positive.
+    my $bytes = join('',
+        "# Backlog\n\n",
+        "```\n",
+        "## fenced heading\n",
+        "```\n\n",
+        "prose\n",
+    );
+    my (undef, $errs) = parse_and_validate_backlog($bytes);
+    is(has_rule($errs, 'BACKLOG-000'), 0, 'heading inside fence → silent');
+};
+
+subtest 'TC-9 BACKLOG-000 unterminated leading fence (accepted boundary)' => sub {
+    plan tests => 1;
+    # Documented accepted limitation: an unclosed leading fence marks every
+    # subsequent line in-fence to EOF, so foreign content passes silently. This
+    # test pins the boundary so a future fence-map change can't shift it unseen.
+    my $bytes = "```\n## heading\n- item\n";
+    my (undef, $errs) = parse_and_validate_backlog($bytes);
+    is(has_rule($errs, 'BACKLOG-000'), 0, 'unterminated leading fence → silent (accepted)');
+};
+
+subtest 'TC-10 BACKLOG-000 tab-delimited H1 exempt' => sub {
+    plan tests => 1;
+    my (undef, $errs) = parse_and_validate_backlog("#\tBacklog\n\nprose\n");
+    is(has_rule($errs, 'BACKLOG-000'), 0, 'tab-delimited leading H1 exempt → silent');
+};
+
 done_testing;

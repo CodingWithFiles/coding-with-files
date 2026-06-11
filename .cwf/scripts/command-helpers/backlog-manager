@@ -28,6 +28,7 @@ use CWF::Backlog qw(
     parse_backlog_tree parse_changelog_tree
     write_tree serialize_tree
     validate_backlog_tree validate_changelog_tree
+    backlog_structure_errors
     metadata_get set_metadata_field
     add_entry delete_entry
     find_all_entries_by_slug find_all_entries_by_title
@@ -53,6 +54,16 @@ sub repo_paths {
 sub die_user    { die "[CWF] ERROR: backlog-manager: $_[0]\n"; }
 sub die_path    { die "[CWF] ERROR: backlog-manager: path: $_[0]\n"; }
 sub info        { warn "[CWF] INFO: backlog-manager: $_[0]\n"; }
+
+# Mutation precondition (Task 190): refuse to mutate a structurally foreign
+# BACKLOG.md. Keys on BACKLOG-000 only (the structural rule), not the full
+# validate result, so legacy `**Field**:` files with recognised entries stay
+# convertible via `normalise`. Call after parse and before any write.
+sub assert_backlog_structure {
+    my ($tree, $path) = @_;
+    my $errs = backlog_structure_errors($tree, $path);
+    die_user($errs->[0]{message}) if @$errs;
+}
 
 #==============================================================================
 # Argument parsing
@@ -336,6 +347,7 @@ sub cmd_add {
 
     my ($bl_path, undef) = repo_paths();
     my ($tree, undef) = parse_backlog_tree($bl_path);
+    assert_backlog_structure($tree, $bl_path);
     add_entry($tree, $new_entry);
     write_tree($bl_path, $tree);
     return 0;
@@ -381,6 +393,7 @@ sub cmd_modify {
 
     my ($bl_path, undef) = repo_paths();
     my ($tree, undef) = parse_backlog_tree($bl_path);
+    assert_backlog_structure($tree, $bl_path);
     my ($target, $idx) = resolve_entry($tree, \%opts);
 
     if (defined $opts{priority}) {
@@ -408,6 +421,7 @@ sub cmd_delete {
 
     my ($bl_path, undef) = repo_paths();
     my ($tree, undef) = parse_backlog_tree($bl_path);
+    assert_backlog_structure($tree, $bl_path);
     my ($target, $idx) = resolve_entry($tree, \%opts);
     delete_entry($tree, $idx);
     write_tree($bl_path, $tree);
@@ -446,6 +460,9 @@ sub cmd_retire {
     die_user("refusing symlink at $cl_path") if -l $cl_path;
 
     my ($bl_tree, undef) = parse_backlog_tree($bl_path);
+    # Structural gate before the CHANGELOG bootstrap/write below, so a refusal
+    # on a foreign BACKLOG mutates neither file.
+    assert_backlog_structure($bl_tree, $bl_path);
     my ($cl_tree, undef) = parse_changelog_tree($cl_path);
 
     my ($target, $idx) = resolve_entry($bl_tree, \%opts, allow_missing => 1);
