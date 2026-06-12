@@ -96,40 +96,26 @@ This installs (or refreshes) every non-script artefact CWF ships:
 - CLAUDE.md preamble (wrapped in sentinels per step 4)
 - `.claude/rules/cwf-*.md` symlinks → `.cwf-rules/`
 
-**Hard ordering**: this step MUST run before step 6c. Step 6c registers the
-PreToolUse hook whose command (`cat .cwf/rules-inject.txt 2>/dev/null || true`)
-reads the file shipped in the `.cwf/` subtree. Future SKILL.md edits must
-preserve this ordering.
+**Hard ordering**: this step MUST run before step 6d. Step 6d registers the
+rules-inject `UserPromptSubmit` hook whose command
+(`cat .cwf/rules-inject.txt 2>/dev/null || true`) reads the file shipped in the
+`.cwf/` subtree. Future SKILL.md edits must preserve this ordering.
 
 - If exit code 0: continue.
 - If non-zero: relay stderr to the user verbatim and append `[CWF] /cwf-init aborted: cwf-apply-artefacts failed; resolve the error above and re-run /cwf-init.` Do not proceed.
 
-### 6c. Configure Rule Re-Injection Hook
-- Read existing `.claude/settings.json`
-- Add hooks configuration if not present:
-  ```json
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "UserPromptSubmit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "cat .cwf/rules-inject.txt 2>/dev/null || true"
-          }
-        ]
-      }
-    ]
-  }
-  ```
-- If `hooks.PreToolUse` already exists, check for existing `UserPromptSubmit` matcher
-- If matcher already present, skip (idempotent)
-- If matcher absent, append to the array
-- Write back valid JSON
+### 6c. Rule Re-Injection Hook (registered by step 6d)
 
-### 6d. Register Bash Allowlist and Stop Hooks
+No manual JSON edit here. The rules-inject `UserPromptSubmit` hook
+(`cat .cwf/rules-inject.txt 2>/dev/null || true`) is registered automatically by
+`cwf-claude-settings-merge` in step 6d, in the correct group-wrapper shape, and
+that step also migrates away the legacy dead `PreToolUse`/`UserPromptSubmit`
+entry from earlier installs. (Step 6b must run first so `.cwf/rules-inject.txt`
+is in place — see the hard-ordering note above.)
 
-Walk `.cwf/security/script-hashes.json` and add a `Bash(...)` allowlist entry per top-level CWF helper plus `hooks.Stop[]` entries for every CWF Stop hook. Without this, a fresh install prompts for permission on every helper invocation and ships without the CWF safety hooks. The helper is idempotent — safe to re-run after `cwf-manage update` adds new helpers.
+### 6d. Register Bash Allowlist, Hooks, and the Rule Re-Injection Hook
+
+Walk `.cwf/security/script-hashes.json` and add a `Bash(...)` allowlist entry per top-level CWF helper plus `hooks.Stop[]` entries for every CWF Stop hook. This step also registers the fixed rules-inject `UserPromptSubmit` hook (step 6c) and migrates away any legacy dead `PreToolUse`/`UserPromptSubmit` entry. Without this, a fresh install prompts for permission on every helper invocation and ships without the CWF safety hooks. The helper is idempotent — safe to re-run after `cwf-manage update` adds new helpers.
 
 Run, using the Bash tool:
 

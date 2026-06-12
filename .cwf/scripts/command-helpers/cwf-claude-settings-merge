@@ -10,10 +10,16 @@
 # matcher via header-comment directives in its leading comment block:
 #   # cwf-hook-event: SubagentStop
 #   # cwf-hook-matcher: cwf-security-reviewer-changeset
-# Directive values are validated (event in {Stop,SubagentStop,PreToolUse};
-# matcher is a single [A-Za-z0-9_-]+ tool-name token or a `|`-alternation of
-# them, e.g. Edit|Write) before they reach a settings key; anything else falls
-# back to the Stop / no-matcher default.
+# Directive values are validated (event in
+# {Stop,SubagentStop,PreToolUse,UserPromptSubmit}; matcher is a single
+# [A-Za-z0-9_-]+ tool-name token or a `|`-alternation of them, e.g. Edit|Write)
+# before they reach a settings key; anything else falls back to the Stop /
+# no-matcher default.
+#
+# Beyond the manifest-derived hooks, this helper also registers one fixed CWF
+# hook: the rules-inject UserPromptSubmit hook (cat .cwf/rules-inject.txt ...),
+# injected as a compile-time constant, and migrates away the legacy dead
+# PreToolUse/UserPromptSubmit entry that pre-fix /cwf-init wrote.
 #
 # Idempotent: re-running adds only missing entries; existing user entries are
 # preserved (env.PERL5OPT is added only when absent; a differing value is
@@ -38,9 +44,10 @@ my $PROG = 'cwf-claude-settings-merge';
 sub usage {
     return "Usage: $PROG [--dry-run]\n"
          . "  Walks .cwf/security/script-hashes.json and merges Bash allowlist\n"
-         . "  + hook entries (Stop / SubagentStop, per hook header directives)\n"
-         . "  into .claude/settings.json, and ensures env.PERL5OPT is set.\n"
-         . "  Idempotent.\n";
+         . "  + hook entries (Stop / SubagentStop / PreToolUse / UserPromptSubmit,\n"
+         . "  per hook header directives) into .claude/settings.json, registers the\n"
+         . "  fixed rules-inject UserPromptSubmit hook (migrating away the legacy dead\n"
+         . "  PreToolUse entry), and ensures env.PERL5OPT is set. Idempotent.\n";
 }
 
 my $dry_run = 0;
@@ -103,7 +110,7 @@ sub read_hook_directives {
         last if $n > 1 && $line !~ /^\s*#/ && $line !~ /^\s*$/;
         if ($line =~ /^#\s*cwf-hook-event:\s*(\S+)/) {
             my $v = $1;
-            $event = $v if $v =~ /^(?:Stop|SubagentStop|PreToolUse)$/;
+            $event = $v if $v =~ /^(?:Stop|SubagentStop|PreToolUse|UserPromptSubmit)$/;
         }
         elsif ($line =~ /^#\s*cwf-hook-matcher:\s*(\S+)/) {
             my $v = $1;
@@ -290,11 +297,43 @@ sub merge_hooks {
     return $added;
 }
 
+# Migrate away the dead PreToolUse/UserPromptSubmit entry that pre-fix /cwf-init
+# wrote: a matcher group under PreToolUse whose matcher == 'UserPromptSubmit'
+# can never fire (PreToolUse matchers filter tool names, not events). Matcher-
+# scoped — every other PreToolUse group (CWF's own Edit|Write and Bash guards,
+# and any user matcher) is preserved. Best-effort over hand-edited settings:
+# tolerate any malformed shape (hooks absent/non-hash, PreToolUse absent/non-
+# array, a group that is not a hash, matcher absent or non-scalar) and never
+# die. Drops the PreToolUse key when the filter empties it. Returns the count
+# pruned so the caller can surface the migration (feedback_surface_security_dont_smooth).
+sub prune_dead_userpromptsubmit_matcher {
+    my ($settings) = @_;
+    return 0 unless ref $settings->{hooks} eq 'HASH';
+    my $groups = $settings->{hooks}{PreToolUse};
+    return 0 unless ref $groups eq 'ARRAY';
+    my $before = scalar @$groups;
+    @$groups = grep {
+        !( ref($_) eq 'HASH'
+           && defined $_->{matcher} && !ref $_->{matcher}
+           && $_->{matcher} eq 'UserPromptSubmit' )
+    } @$groups;
+    delete $settings->{hooks}{PreToolUse} unless @$groups;
+    return $before - scalar @$groups;
+}
+
 # Canonical CWF value for env.PERL5OPT. MUST stay a compile-time constant:
 # .claude/settings.json env is applied to every tool-call environment with no
 # trust-gate, so writing a non-constant / externally-sourced value here would
 # put attacker-influenceable data on the tool-call env path (FR4(e)).
 my $CANONICAL_PERL5OPT = '-CDSLA';
+
+# Canonical CWF command for the rules-inject UserPromptSubmit hook. MUST stay a
+# compile-time constant for the same reason as $CANONICAL_PERL5OPT: a
+# .claude/settings.json hook `command` is executed by Claude Code on every
+# matching event with no trust-gate, so an interpolated / externally-sourced
+# value here would put attacker-influenceable data on the tool-call command path
+# (FR4(e)). The trailing `|| true` keeps the hook a no-op when the file is absent.
+my $CANONICAL_RULES_INJECT_CMD = 'cat .cwf/rules-inject.txt 2>/dev/null || true';
 
 # Merge env.PERL5OPT into project settings: add-if-absent, warn-on-mismatch.
 # Single key, constant value — a direct check, not a list merge. Returns 1 if
@@ -524,6 +563,19 @@ my ($allow_entries, $hook_entries) =
     partition_manifest($manifest, $register_r3, $register_guard);
 
 my $settings = read_settings();
+
+# Migrate the legacy dead PreToolUse/UserPromptSubmit entry (before merging the
+# desired hooks), and register the fixed rules-inject UserPromptSubmit hook as a
+# compile-time-constant synthetic entry. The entry is injected here, after
+# partition_manifest, so it deliberately bypasses read_hook_directives — it is a
+# trusted constant, not a parsed directive (FR4(e)).
+my $pruned = prune_dead_userpromptsubmit_matcher($settings);
+push @$hook_entries, {
+    entry   => { type => 'command', command => $CANONICAL_RULES_INJECT_CMD },
+    event   => 'UserPromptSubmit',
+    matcher => undef,
+};
+
 my $allow_added = merge_allow($settings, $allow_entries);
 my $hook_added  = merge_hooks($settings, $hook_entries);
 my $env_added   = merge_env($settings);
@@ -541,14 +593,19 @@ my $sandbox_note = $sandbox_on
       . ", $deny_paths credential path(s))"
     : '';
 
+my $migrate_note = $pruned
+    ? " (migrated $pruned legacy dead PreToolUse/UserPromptSubmit hook entr"
+      . ($pruned == 1 ? 'y' : 'ies') . ')'
+    : '';
+
 if ($dry_run) {
     print $blob;
-    print "[CWF] settings: would add $allow_added allowlist entries, $hook_added hook entries, $env_added env keys (dry-run)\n";
+    print "[CWF] settings: would add $allow_added allowlist entries, $hook_added hook entries, $env_added env keys$migrate_note (dry-run)\n";
     print "$sandbox_note (dry-run)\n" if $sandbox_on;
     exit 0;
 }
 
 atomic_write($blob);
-print "[CWF] settings: added $allow_added allowlist entries, $hook_added hook entries, $env_added env keys\n";
+print "[CWF] settings: added $allow_added allowlist entries, $hook_added hook entries, $env_added env keys$migrate_note\n";
 print "$sandbox_note\n" if $sandbox_on;
 exit 0;

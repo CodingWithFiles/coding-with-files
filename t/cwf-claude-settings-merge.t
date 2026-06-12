@@ -117,12 +117,14 @@ sub standard_manifest {
 
 # ----- TC-U1: empty input — full population --------------------------------
 subtest 'TC-U1: empty .claude/settings.json — full population' => sub {
-    plan tests => 8;
+    plan tests => 9;
     my $tmp = build_fixture(manifest => standard_manifest());
     my ($exit, $out, $err) = run_helper($tmp);
     is($exit, 0, 'exit 0');
-    like($out, qr/added 3 allowlist entries, 1 hook entries/,
-         'summary reports 3 allow + 1 hook');
+    # 2 hook entries: the manifest Stop hook + the always-on rules-inject
+    # UserPromptSubmit hook (Task 195).
+    like($out, qr/added 3 allowlist entries, 2 hook entries/,
+         'summary reports 3 allow + 2 hooks');
     my $s = read_settings($tmp);
     ok($s, 'settings.json was created');
     my %allow = map { $_ => 1 } @{ $s->{permissions}{allow} };
@@ -139,6 +141,10 @@ subtest 'TC-U1: empty .claude/settings.json — full population' => sub {
                          command => '.cwf/scripts/hooks/a-hook',
                          timeout => 5 }],
               'Stop[0].hooks contains the one hook');
+    is_deeply($s->{hooks}{UserPromptSubmit},
+              [{ hooks => [{ type => 'command',
+                             command => 'cat .cwf/rules-inject.txt 2>/dev/null || true' }] }],
+              'UserPromptSubmit holds the rules-inject hook (group-wrapper shape)');
 };
 
 # ----- TC-U2: pre-populated allowlist — additive, dedup, idempotent ---------
@@ -219,8 +225,8 @@ subtest 'TC-U4: --dry-run prints, does not write' => sub {
     is($exit, 0, 'exit 0');
     ok(!-e "$tmp/.claude/settings.json", 'settings.json not created');
     like($out, qr/"permissions"/, 'stdout contains rendered JSON');
-    like($out, qr/would add 3 allowlist entries, 1 hook entries, 1 env keys \(dry-run\)/,
-         'dry-run summary present');
+    like($out, qr/would add 3 allowlist entries, 2 hook entries, 1 env keys \(dry-run\)/,
+         'dry-run summary present (incl. always-on rules-inject hook)');
 };
 
 # ----- TC-U5(a): manifest path traversal ------------------------------------
@@ -933,6 +939,170 @@ subtest 'TC-PG2: guard hook registers only when planning-write-guard ne off' => 
     ok(!guard_group($s2) && grep({ grep { $_->{command} eq '.cwf/scripts/hooks/pretooluse-sandbox-logging' } @{ $_->{hooks} } }
             @{ $s2->{hooks}{PreToolUse} || [] }),
        '(e) R3 present, guard absent — gates independent');
+};
+
+#=============================================================================
+# Task 195 — rules-inject UserPromptSubmit hook + dead-entry migration
+#=============================================================================
+
+my $RULES_INJECT_CMD = 'cat .cwf/rules-inject.txt 2>/dev/null || true';
+
+# The dead PreToolUse group that pre-fix /cwf-init wrote (matcher can never fire).
+sub dead_group {
+    return { matcher => 'UserPromptSubmit',
+             hooks   => [ { type => 'command', command => $RULES_INJECT_CMD } ] };
+}
+
+# ----- TC-UPS1: fresh add → correct group-wrapper UserPromptSubmit shape -----
+subtest 'TC-UPS1: fresh add registers UserPromptSubmit in group-wrapper shape' => sub {
+    plan tests => 3;
+    my $tmp = build_fixture(manifest => standard_manifest());
+    my ($exit) = run_helper($tmp);
+    is($exit, 0, 'exit 0');
+    my $s = read_settings($tmp);
+    # Exact structure: group wrapper present, no matcher key, not the flat form.
+    is_deeply($s->{hooks}{UserPromptSubmit},
+              [{ hooks => [{ type => 'command', command => $RULES_INJECT_CMD }] }],
+              'UserPromptSubmit == [ { hooks => [ {type,command} ] } ]');
+    ok(!exists $s->{hooks}{UserPromptSubmit}[0]{matcher},
+       'no matcher key on the UserPromptSubmit group');
+};
+
+# ----- TC-UPS2: migration removes the dead entry, preserves siblings ---------
+subtest 'TC-UPS2: dead PreToolUse/UserPromptSubmit pruned; sibling preserved' => sub {
+    plan tests => 6;
+    my $tmp = build_fixture(manifest => standard_manifest());
+    write_settings($tmp, {
+        hooks => {
+            PreToolUse => [
+                dead_group(),
+                { matcher => 'Edit|Write',
+                  hooks   => [ { type => 'command', command => 'x' } ] },
+            ],
+        },
+    });
+    my ($exit, $out) = run_helper($tmp);
+    is($exit, 0, 'exit 0');
+    my $s = read_settings($tmp);
+    my $pre = $s->{hooks}{PreToolUse};
+    is(scalar(@$pre), 1, 'one PreToolUse group remains');
+    is($pre->[0]{matcher}, 'Edit|Write', 'the Edit|Write sibling is preserved');
+    ok(!grep({ ref($_) eq 'HASH' && ($_->{matcher} // '') eq 'UserPromptSubmit' } @$pre),
+       'no PreToolUse group with matcher UserPromptSubmit survives');
+    is_deeply($s->{hooks}{UserPromptSubmit},
+              [{ hooks => [{ type => 'command', command => $RULES_INJECT_CMD }] }],
+              'rules-inject now lives under UserPromptSubmit in the right shape');
+    like($out, qr{\Q(migrated 1 legacy dead PreToolUse/UserPromptSubmit hook entry)\E},
+         'stdout surfaces the migration count');
+};
+
+# ----- TC-UPS3: PreToolUse key dropped when it empties -----------------------
+subtest 'TC-UPS3: PreToolUse key removed when the dead group was its only member' => sub {
+    plan tests => 3;
+    my $tmp = build_fixture(manifest => standard_manifest());
+    write_settings($tmp, { hooks => { PreToolUse => [ dead_group() ] } });
+    my ($exit, $out) = run_helper($tmp);
+    is($exit, 0, 'exit 0');
+    my $s = read_settings($tmp);
+    ok(!exists $s->{hooks}{PreToolUse}, 'empty PreToolUse key absent (not [])');
+    like($out, qr/\Qmigrated 1 legacy dead\E/, 'migration surfaced');
+};
+
+# ----- TC-UPS4: idempotent re-run -------------------------------------------
+subtest 'TC-UPS4: re-run after convergence is byte-identical, adds 0 hooks' => sub {
+    plan tests => 3;
+    my $tmp = build_fixture(manifest => standard_manifest());
+    write_settings($tmp, { hooks => { PreToolUse => [ dead_group() ] } });
+    run_helper($tmp);
+    open(my $f1, '<:raw', "$tmp/.claude/settings.json") or die $!;
+    my $first = do { local $/; <$f1> }; close $f1;
+    my ($e2, $out2) = run_helper($tmp);
+    open(my $f2, '<:raw', "$tmp/.claude/settings.json") or die $!;
+    my $second = do { local $/; <$f2> }; close $f2;
+    is($e2, 0, 'second run exit 0');
+    is($first, $second, 'second run byte-identical (idempotent)');
+    like($out2, qr/added 0 allowlist entries, 0 hook entries/,
+         'second run adds nothing and prunes nothing (no migrate note)');
+};
+
+# ----- TC-UPS5: defensive against malformed settings (never dies) -----------
+subtest 'TC-UPS5: malformed PreToolUse shapes never crash; hook still registered' => sub {
+    plan tests => 8;
+    my @cases = (
+        [ 'PreToolUse not an array', { foo => 1 } ],
+        [ 'group is not a hash',     [ 'a-string', { matcher => 'Edit|Write', hooks => [] } ] ],
+        [ 'group missing matcher',   [ { hooks => [] } ] ],
+        [ 'matcher non-scalar',      [ { matcher => ['x'], hooks => [] } ] ],
+    );
+    for my $c (@cases) {
+        my ($label, $pre) = @$c;
+        my $tmp = build_fixture(manifest => standard_manifest());
+        write_settings($tmp, { hooks => { PreToolUse => $pre } });
+        my ($exit) = run_helper($tmp);
+        is($exit, 0, "$label: exit 0 (no die)");
+        my $s = read_settings($tmp);
+        ok($s->{hooks}{UserPromptSubmit}
+           && grep({ ($_->{command} // '') eq $RULES_INJECT_CMD }
+                   map { @{ $_->{hooks} || [] } } @{ $s->{hooks}{UserPromptSubmit} }),
+           "$label: rules-inject still registered under UserPromptSubmit");
+    }
+};
+
+# ----- TC-UPS6: index-0 matcher-bearing UserPromptSubmit group --------------
+subtest 'TC-UPS6: rules-inject appended into a pre-existing index-0 group; dedupes' => sub {
+    plan tests => 4;
+    my $tmp = build_fixture(manifest => standard_manifest());
+    write_settings($tmp, {
+        hooks => { UserPromptSubmit => [ { matcher => 'X', hooks => [] } ] },
+    });
+    my ($exit) = run_helper($tmp);
+    is($exit, 0, 'exit 0');
+    my $s = read_settings($tmp);
+    my $grp = $s->{hooks}{UserPromptSubmit};
+    is(scalar(@$grp), 1, 'still one UserPromptSubmit group (appended into index 0)');
+    is_deeply($grp->[0],
+              { matcher => 'X',
+                hooks   => [ { type => 'command', command => $RULES_INJECT_CMD } ] },
+              'rules-inject appended into the existing matcher-bearing group');
+    # Re-run must not add a second copy.
+    run_helper($tmp);
+    my $s2 = read_settings($tmp);
+    my $n = grep { ($_->{command} // '') eq $RULES_INJECT_CMD }
+            map { @{ $_->{hooks} || [] } } @{ $s2->{hooks}{UserPromptSubmit} };
+    is($n, 1, 're-run dedupes — rules-inject present exactly once');
+};
+
+# ----- TC-UPS7: --dry-run writes nothing even with a dead entry -------------
+subtest 'TC-UPS7: --dry-run previews migration but writes nothing' => sub {
+    plan tests => 4;
+    my $tmp = build_fixture(manifest => standard_manifest());
+    write_settings($tmp, { hooks => { PreToolUse => [ dead_group() ] } });
+    open(my $f0, '<:raw', "$tmp/.claude/settings.json") or die $!;
+    my $before = do { local $/; <$f0> }; close $f0;
+    my ($exit, $out) = run_helper($tmp, '--dry-run');
+    is($exit, 0, 'exit 0');
+    open(my $f1, '<:raw', "$tmp/.claude/settings.json") or die $!;
+    my $after = do { local $/; <$f1> }; close $f1;
+    is($before, $after, 'on-disk file untouched by --dry-run');
+    like($out, qr/\Qmigrated 1 legacy dead\E.*\Q(dry-run)\E/, 'dry-run previews the migration');
+    like($out, qr/"UserPromptSubmit"/, 'dry-run JSON shows the registered hook');
+};
+
+# ----- TC-UPS8: directive-driven UserPromptSubmit honoured (D4 widening) -----
+subtest 'TC-UPS8: a hook requesting UserPromptSubmit registers there, not Stop' => sub {
+    plan tests => 3;
+    my $tmp = build_fixture(manifest => { 'ups' => mk_entry('.cwf/scripts/hooks/ups-hook') });
+    overwrite_file($tmp, '.cwf/scripts/hooks/ups-hook',
+        "#!/usr/bin/env perl\n# cwf-hook-event: UserPromptSubmit\n");
+    my ($exit) = run_helper($tmp);
+    is($exit, 0, 'exit 0');
+    my $s = read_settings($tmp);
+    my @ups_cmds = map { @{ $_->{hooks} || [] } } @{ $s->{hooks}{UserPromptSubmit} || [] };
+    ok((grep { $_->{command} eq '.cwf/scripts/hooks/ups-hook' } @ups_cmds),
+       'directive hook registered under UserPromptSubmit (not downgraded to Stop)');
+    my @stop_cmds = map { @{ $_->{hooks} || [] } } @{ $s->{hooks}{Stop} || [] };
+    ok(!(grep { $_->{command} eq '.cwf/scripts/hooks/ups-hook' } @stop_cmds),
+       'directive hook NOT under Stop');
 };
 
 done_testing();

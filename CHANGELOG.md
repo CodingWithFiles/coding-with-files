@@ -2,6 +2,33 @@
 
 All notable changes to the Coding with Files (CWF) project are documented in this file, organized by task.
 
+## Task 195: cwf-init UserPromptSubmit hook registered as dead PreToolUse matcher
+
+### Status: Complete (2026-06-12)
+### Duration: <1 day (estimate <1 day, Low; on estimate).
+### Impact: `/cwf-init` now registers the rules-inject re-injection hook (`cat .cwf/rules-inject.txt`, from Task 99) as a **working** top-level `UserPromptSubmit` event instead of a dead `PreToolUse` group whose `matcher == "UserPromptSubmit"`. `PreToolUse` matchers filter by *tool name* (`Bash`, `Edit`, …), so a `UserPromptSubmit` matcher there can never fire — the hook had never run on any install. Registration moved out of model-executed SKILL.md prose (the bug's root cause) and into the deterministic `cwf-claude-settings-merge` helper, which already emits the correct shape and dedupes per event. The helper now: (1) injects the fixed hook as a **compile-time constant** `$CANONICAL_RULES_INJECT_CMD` pushed onto the hook list *after* `partition_manifest`, so it bypasses directive parsing and the value never carries external data (FR4(e)); (2) **migrates** existing installs via `prune_dead_userpromptsubmit_matcher` — matcher-scoped so sibling `PreToolUse` guards (`Edit|Write`, `Bash`) are preserved, fully defensive over hand-edited settings, surfacing the migration count in stdout (never a silent mutation); (3) widens the hook-directive event allowlist to admit `UserPromptSubmit` so a future directive-driven hook is not silently downgraded to `Stop`. One hash-tracked file changed (`.cwf/scripts/command-helpers/cwf-claude-settings-merge`) with a same-commit `script-hashes.json` refresh.
+
+### Notable
+- **The backlog entry's prescribed fix was itself wrong.** It specified a "flat hook-object array (no nested `hooks` wrapper)". Design established that Claude Code's `UserPromptSubmit` uses the *same* three-level group-wrapper (`[{ hooks: [ {type, command} ] }]`) as every other event — it ignores `matcher` but still nests under `hooks`. A flat-array "fix" would have been malformed; the design phase paid for itself on a Low-complexity task.
+- **Structural fix over a patch.** Deleting the prose-driven JSON surgery and letting code emit the structure prevents future shape drift by construction, not by careful wording — directly retiring this bug's recurrence surface.
+- **Migration safety proven, not asserted.** TC-UPS2 covers sibling preservation; TC-UPS5 exercises four malformed hand-edited `PreToolUse` shapes (all exit 0, hook still registered); the output-level smoke test confirmed the end-to-end shape, the surfaced migration count, and byte-identical idempotency.
+- **Tests:** TC-UPS1–8 added to `t/cwf-claude-settings-merge.t` (41 subtests); TC-U1/TC-U4 updated for the now always-on hook (stdout hook-entry count 1→2, same contract as `env.PERL5OPT`). Full suite green; `cwf-manage validate` clean. Both exec-phase security reviews returned `no findings`.
+
+### Retired Backlog Items
+#### cwf-init UserPromptSubmit hook registered as dead PreToolUse matcher
+
+`/cwf-init` step 6c (`.claude/skills/cwf-init/SKILL.md`) registers the rules-inject re-injection hook (`cat .cwf/rules-inject.txt`, from Task 99) under `PreToolUse` with `"matcher": "UserPromptSubmit"`. This hook can never fire: `PreToolUse` matchers filter by tool name (`Bash`, `Edit`, …), and no tool is named `UserPromptSubmit`. Per the Claude Code hooks docs, `UserPromptSubmit` is a separate top-level hook event that does **not** support matchers.
+
+Fix: emit the hook under a top-level `"UserPromptSubmit"` key with a flat hook-object array (no `matcher`, no nested `hooks` wrapper):
+
+    "UserPromptSubmit": [
+      { "type": "command", "command": "cat .cwf/rules-inject.txt 2>/dev/null || true" }
+    ]
+
+Touch points: SKILL.md step 6c JSON block + the surrounding idempotency prose (lines ~107-128), which currently describes appending a `UserPromptSubmit` matcher to `PreToolUse`. Verify `cwf-claude-settings-merge` (step 6d) does not also re-introduce the wrong shape. Existing installs already carry the dead entry, so the fix needs a migration/cleanup path, not just a forward fix. Output-level smoke test: run `/cwf-init` against a scratch repo and confirm the resulting `.claude/settings.json` has a working top-level `UserPromptSubmit` hook.
+
+<!-- Note: Fix moved registration into the deterministic cwf-claude-settings-merge helper; the prescribed flat-array shape was corrected in design to the universal group-wrapper. -->
+
 ## Task 194: security-review changeset omits untracked files from git diff
 
 ### Status: Complete (2026-06-12)

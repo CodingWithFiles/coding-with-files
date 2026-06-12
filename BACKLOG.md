@@ -1463,19 +1463,3 @@ default classification of a first insert. Lower severity than the lock bug — a
 documented env-var escape hatch exists.
 
 Surfaced by a downstream v1.1.189 upgrade (reported as issue 2 of 2).
-
-## Task: cwf-init UserPromptSubmit hook registered as dead PreToolUse matcher
-
-### Task-Type: bugfix
-### Priority: High
-### Identified in: user report, 2026-06-11
-
-`/cwf-init` step 6c (`.claude/skills/cwf-init/SKILL.md`) registers the rules-inject re-injection hook (`cat .cwf/rules-inject.txt`, from Task 99) under `PreToolUse` with `"matcher": "UserPromptSubmit"`. This hook can never fire: `PreToolUse` matchers filter by tool name (`Bash`, `Edit`, …), and no tool is named `UserPromptSubmit`. Per the Claude Code hooks docs, `UserPromptSubmit` is a separate top-level hook event that does **not** support matchers.
-
-Fix: emit the hook under a top-level `"UserPromptSubmit"` key with a flat hook-object array (no `matcher`, no nested `hooks` wrapper):
-
-    "UserPromptSubmit": [
-      { "type": "command", "command": "cat .cwf/rules-inject.txt 2>/dev/null || true" }
-    ]
-
-Touch points: SKILL.md step 6c JSON block + the surrounding idempotency prose (lines ~107-128), which currently describes appending a `UserPromptSubmit` matcher to `PreToolUse`. Verify `cwf-claude-settings-merge` (step 6d) does not also re-introduce the wrong shape. Existing installs already carry the dead entry, so the fix needs a migration/cleanup path, not just a forward fix. Output-level smoke test: run `/cwf-init` against a scratch repo and confirm the resulting `.claude/settings.json` has a working top-level `UserPromptSubmit` hook.
