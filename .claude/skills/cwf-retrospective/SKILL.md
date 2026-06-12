@@ -1,6 +1,7 @@
 ---
 name: cwf-retrospective
 description: Guide user through retrospective phase
+effort: low
 user-invocable: true
 allowed-tools:
   - Read

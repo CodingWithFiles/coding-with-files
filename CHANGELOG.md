@@ -2,6 +2,17 @@
 
 All notable changes to the Coding with Files (CWF) project are documented in this file, organized by task.
 
+## Task 198: Specify low effort level for the retrospective skill
+
+### Status: Complete (2026-06-12)
+### Duration: <1 hour (estimate <1 hour, Low; on estimate).
+### Impact: `.claude/skills/cwf-retrospective/SKILL.md` gains `effort: low` in its frontmatter (inserted after `description:`), so the retrospective phase runs the session-pinned Opus at reduced reasoning effort — matching the mechanical exec phases that received the same treatment in Task 187. The retrospective is a reflection/record phase with no design judgement, so high effort buys nothing. This is the non-hash-tracked half of the Task 187 pattern applied to a third skill: `cwf-retrospective/SKILL.md` is absent from `.cwf/security/script-hashes.json` (verified), so no `sha256` refresh was required and `cwf-manage validate` stayed green throughout. The diff against the baseline is exactly one added line.
+
+### Notable
+- **Distinct from the open "effort/model values on guard agents carry security weight" backlog item.** That watch-item (from Task 187) concerns a silent-downgrade risk when `effort: low` is set on a *hash-tracked guard/reviewer agent*. This task sets `effort: low` on a *skill* with no security-gate role, so it does not trip that concern and does not retire that item.
+- **A mid-task user question confirmed frontmatter field validity against primary sources.** `allowed-tools:` (on skills) and `tools:` (on subagents) are different fields with opposite restriction semantics — `allowed-tools:` pre-approves without restricting the tool pool; subagent `tools:` is a genuine allowlist. `effort` is a Claude Code extension (values `low|medium|high|xhigh|max`), not part of the agentskills.io open standard. Verified this session against code.claude.com and agentskills.io; recorded in j-retrospective.md.
+- **Both exec-phase security reviews returned `no findings`** — a single static YAML literal with no executable, hash-tracked, env-var, or input-flow surface.
+
 ## Task 197: Reconcile or retire stale .cwf/utils spec docs
 
 ### Status: Complete (2026-06-12)
