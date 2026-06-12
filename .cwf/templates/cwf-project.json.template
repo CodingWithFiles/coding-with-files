@@ -1,24 +1,8 @@
 {
-  "title": "Coding with Files Project Configuration",
-  "cwf-version": "v0.2.1",
-  "_cwf-version-note": "Should match your project version for consistency",
-  "project": {
-    "name": "Example Project",
-    "description": "Project configuration template for CWF system"
-  },
+  "project-name": "Example Project",
+  "description": "Project configuration template for the CWF system",
   "source-management": {
-    "type": "github",
-    "url": "https://github.com/company/project",
-    "branch-naming-convention": "{task-type}/{task-id}-{task-description}"
-  },
-  "task-management": {
-    "type": "github",
-    "url": "https://github.com/company/project/issues",
-    "task-id-template": "#[::digit::]{1,}",
-    "examples": {
-      "issue": "#123",
-      "pull-request": "#456"
-    }
+    "branch-naming-convention": "{task-type}/{task-id}-{description-slug}"
   },
   "supported-task-types": [
     "feature",
@@ -27,9 +11,15 @@
     "chore",
     "discovery"
   ],
-  "team": {
-    "default-assignee": "",
-    "reviewers": []
+  "task-tracking": {
+    "system": "github-issues",
+    "base-url": "https://github.com/OWNER/REPO/issues",
+    "id-format": "issues-{{number}}",
+    "fallback": {
+      "description": "For tasks without GitHub issues yet",
+      "id-format": "internal-{{number}}",
+      "migration-notes": "Replace internal-N with issues-N when GitHub issue created"
+    }
   },
   "_sandbox-note": "CWF-managed Claude Code sandboxing — off by default. See .cwf/docs/sandboxing.md before enabling.",
   "sandbox": {
@@ -38,10 +28,5 @@
     "credential-deny-list": ["~/.ssh", "~/.aws"],
     "violation-logging": false,
     "planning-write-guard": "off"
-  },
-  "templates": {
-    "task-reference-format": "standard",
-    "branch-name-max-length": 50,
-    "auto-generate-branch-suggestions": true
   }
 }

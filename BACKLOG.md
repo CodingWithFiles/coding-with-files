@@ -1385,14 +1385,6 @@ Task 188 retired the top-level `version` field strictly-narrow. The identical ve
 
 `t/cwf-manage-fix-security.t` TC-8 ("drift pin") asserts each `.claude/agents/*.md` satisfies a *floor* of 0444 (perms >= recorded). But Task 170 made recorded perms a *ceiling* (`cwf-manage validate` passes when actual ⊆ recorded), and git only tracks the executable bit, so on any clean checkout these files sit at 0400/umask — `validate` is content (0400 ⊆ 0444) yet TC-8 fails. Result: the full suite is not green on a fresh tree. Reconcile by asserting the ceiling (actual ⊆ recorded) rather than a floor, or by changing the expectation/recorded value. Entangled with the existing perm cluster: "Make cwf-plan-reviewer-misalignment.md enforced-permission survive git checkout" and "Enforce recorded permissions as upper bound" (Task 170). Pre-existing; not introduced by Task 188 (verified by stashing and re-running on baseline 13840c5).
 
-## Task: Reconcile cwf-project.json install template and /cwf-init output with the validator schema
-
-### Task-Type: chore
-### Priority: Medium
-### Identified in: Task 189 d-implementation-plan.md (Deferred to BACKLOG)
-
-The install template .cwf/templates/cwf-project.json.template still ships cwf-version, title, and task-management fields and omits the versioning, wf_step_config, and task-tracking blocks the system actually uses. A fresh /cwf-init therefore produces a config shaped unlike the dog-fooded implementation-guide/cwf-project.json and unlike what CWF::Validate::Config enforces. Reconcile the template and the /cwf-init output with the validator contract: required supported-task-types and source-management.branch-naming-convention; optional versioning, wf_step_config, sandbox. Note cwf-version was retired from the live config by Task 188 but still lingers in the template. This is a behaviour change (alters produced config), not a docs sync, so it was held out of Task 189.
-
 ## Task: Prune vestigial blocks from the live implementation-guide/cwf-project.json
 
 ### Task-Type: chore
@@ -1463,3 +1455,12 @@ default classification of a first insert. Lower severity than the lock bug — a
 documented env-var escape hatch exists.
 
 Surfaced by a downstream v1.1.189 upgrade (reported as issue 2 of 2).
+
+## Task: Reconcile or retire the stale .cwf/utils/*.md spec docs against CWF-PROJECT-SPEC.md
+
+### Task-Type: chore
+### Priority: Low
+### Status: Follow-up from Task 196
+### Identified in: Task 196 retrospective (j-retrospective.md)
+
+The .cwf/utils/{config-loader,template-engine,task-validator}.md docs still describe the pre-Task-189 cwf-project.json shape (project.name, source-management.type/url, task-management.type/url, branch-name-max-length). They are inert — no helper, lib, or skill references .cwf/utils (confirmed by grep during the Task 196 f-phase verification sweep) — so impact is low, but they mislead anyone reading them as current spec. Reconcile each against CWF-PROJECT-SPEC.md or retire the files. Sibling to "Prune vestigial blocks from the live implementation-guide/cwf-project.json".

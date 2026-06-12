@@ -48,8 +48,8 @@ chmod "$PERMS" .cwf/scripts/cwf-manage
 
 ### 2. Generate Project Configuration
 - Create `implementation-guide/cwf-project.json` from template
-- Use project name from git remote or directory name
-- Set default task management (github) and branch conventions
+- Set `project-name` from the git remote or directory name
+- Fill the `task-tracking` block (GitHub issues by default) and the `source-management.branch-naming-convention`
 
 ### 3. Create Navigation
 - Generate `implementation-guide/README.md` with navigation index

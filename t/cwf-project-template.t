@@ -12,6 +12,8 @@ use utf8;
 use Test::More;
 use JSON::PP;
 use FindBin;
+use lib "$FindBin::Bin/../.cwf/lib";
+use CWF::Validate::Config qw(validate_config_hash);
 
 my $template = "$FindBin::Bin/../.cwf/templates/cwf-project.json.template";
 
@@ -27,9 +29,35 @@ close($fh);
 my $cfg = eval { decode_json($json) };
 ok(!$@, 'template parses as valid JSON') or diag("decode_json error: $@");
 
-# TC-2: the vestigial top-level `version` field must stay retired. Narrow scope:
-# `cwf-version` is intentionally retained and deliberately NOT asserted here.
+# TC-2: the vestigial top-level `version` field must stay retired.
+# Task 196 reverses the earlier (Task 188) carve-out for `cwf-version`: that key
+# is now also removed from the template and asserted absent by TC-4 below, so the
+# template aligns with CWF-PROJECT-SPEC.md. (Retiring `cwf-version` /
+# `security.version-tracking` from the *live* config is a separate, out-of-scope
+# Low backlog item — it does not affect this template guard.)
 ok(defined $cfg && !exists $cfg->{version},
     'retired top-level `version` field is absent from the template');
+
+# TC-3: the template must validate clean against CWF::Validate::Config. Weak on
+# its own (the validator ignores unknown keys), so the real shape-guard is the
+# explicit key assertions in TC-4/TC-5 below — both are required.
+my @violations = validate_config_hash($cfg, $template);
+is(scalar @violations, 0, 'template validates clean (zero violations)')
+    or diag(explain(\@violations));
+
+# TC-4: vestigial keys removed by Task 196 must stay absent.
+for my $key (qw(cwf-version _cwf-version-note title team task-management project)) {
+    ok(defined $cfg && !exists $cfg->{$key},
+        "vestigial key `$key` is absent from the template");
+}
+
+# TC-5: documented pass-through names present, and the branch placeholder fixed.
+ok(defined $cfg && exists $cfg->{'project-name'},
+    'documented `project-name` key is present');
+ok(defined $cfg && exists $cfg->{'task-tracking'},
+    'documented `task-tracking` key is present');
+like($cfg->{'source-management'}{'branch-naming-convention'} // '',
+    qr/\{description-slug\}/,
+    'branch-naming-convention uses the {description-slug} placeholder');
 
 done_testing;

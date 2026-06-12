@@ -2,6 +2,25 @@
 
 All notable changes to the Coding with Files (CWF) project are documented in this file, organized by task.
 
+## Task 196: Reconcile cwf-project.json template with the validator schema
+
+### Status: Complete (2026-06-12)
+### Duration: ~0.5 day (estimate ~0.5 day, Low; on estimate).
+### Impact: The shipped `.cwf/templates/cwf-project.json.template` is rewritten so a fresh `/cwf-init` produces a config whose *shape* matches `CWF-PROJECT-SPEC.md` and the dog-fooded live config — not merely one that happens to validate. The old template carried vestigial keys no code reads (`cwf-version`, `_cwf-version-note`, `title`, `team`, and an options-style `templates` block unrelated to the live legacy filename-map `templates`) and used pre-spec key names for documented pass-through concepts (`project` → `project-name`/`description`; `task-management` → `task-tracking`). Because the validator ignores unknown keys, a template-derived config already passed `cwf-manage validate`; the defect was shape, not validity — the wrong shape misled fresh users about what CWF actually reads. The rewrite keeps the two required validated keys (`supported-task-types`, `source-management.branch-naming-convention`) and the fail-closed `sandbox` block verbatim, drops the dead keys, aligns the pass-through names, and fixes the branch placeholder `{task-description}` → `{description-slug}`. `cwf-init` SKILL.md step-2 prose is synced to the produced key names. Neither edited artefact is hash-tracked, so no `script-hashes.json` refresh applied. The live config and the retirement of live `cwf-version`/`security.version-tracking` were held strictly out of scope (sibling backlog items).
+
+### Notable
+- **"Validates" and "matches the documented shape" are independent properties.** A validator-clean assertion alone would have passed against the old, wrong shape — so the guard test asserts specific key presence/absence (six vestigial keys absent, two documented names present, corrected placeholder), not just zero violations.
+- **A pre-deletion reference sweep retired the "a helper silently reads a vestigial key" risk** and, as a by-product, surfaced the inert `.cwf/utils/{config-loader,template-engine,task-validator}.md` spec docs as still describing the pre-Task-189 shape — logged as a follow-up, not actioned.
+- **An ambient permission drift surfaced as two transient full-suite failures.** A stash-test proved them pre-existing and unrelated to this changeset (working-tree drift on `cwf-claude-settings-merge`, 0700 vs recorded 0500, sha256 intact); clamped fix-on-sight via `cwf-manage fix-security`, suite then green.
+- **Tests:** `t/cwf-project-template.t` extended with TC-3/TC-4/TC-5 (13 assertions, all PASS); `t/validate-config.t` green; full `prove t/` green at 63 files / 759 tests. Both exec-phase security reviews returned `no findings`.
+
+### Retired Backlog Items
+#### Reconcile cwf-project.json install template and /cwf-init output with the validator schema
+
+The install template .cwf/templates/cwf-project.json.template still ships cwf-version, title, and task-management fields and omits the versioning, wf_step_config, and task-tracking blocks the system actually uses. A fresh /cwf-init therefore produces a config shaped unlike the dog-fooded implementation-guide/cwf-project.json and unlike what CWF::Validate::Config enforces. Reconcile the template and the /cwf-init output with the validator contract: required supported-task-types and source-management.branch-naming-convention; optional versioning, wf_step_config, sandbox. Note cwf-version was retired from the live config by Task 188 but still lingers in the template. This is a behaviour change (alters produced config), not a docs sync, so it was held out of Task 189.
+
+<!-- Note: Template reconciled to spec shape; live config + version-field retirement remain separate out-of-scope siblings. -->
+
 ## Task 195: cwf-init UserPromptSubmit hook registered as dead PreToolUse matcher
 
 ### Status: Complete (2026-06-12)
