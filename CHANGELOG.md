@@ -2,6 +2,24 @@
 
 All notable changes to the Coding with Files (CWF) project are documented in this file, organized by task.
 
+## Task 197: Reconcile or retire stale .cwf/utils spec docs
+
+### Status: Complete (2026-06-12)
+### Duration: ~0.5 day (estimate <0.5 day, Low; on estimate).
+### Impact: Four inert `.cwf/utils/*.md` prototype-era spec docs (`config-loader.md`, `template-engine.md`, `task-validator.md`, `hierarchy-manager.md`) are deleted, so `.cwf/` no longer ships a pre-Task-189 design (old `cwf-project.json` shape, `{{taskId}}`/`{{taskUrl}}` vars, `plan.md`/`requirements.md` filenames, obsolete `implementation-guide/<category>/` dirs, `find|sed` numbering, awk extraction) to end users as if it were current guidance. `CWF-PROJECT-SPEC.md` and the live skills/helpers are now the uncontested single source of truth. The chosen direction was *retire*, not reconcile: the four docs had no functional consumer (no helper/lib/skill/template/test reads `.cwf/utils`, confirmed by a basename sweep run twice), and a reconciled prose duplicate would simply re-drift. None of the four files were hash-tracked, so no `script-hashes.json` refresh applied and `cwf-manage validate` stayed green throughout. The backlog's three-file framing was widened at planning time to include the equally-stale `hierarchy-manager.md`.
+
+### Notable
+- **Plan review prevented a dangling reference.** The mandatory 4-subagent plan review flagged a second, still-open backlog item (`BACKLOG.md:1272`, "Align cwf-extract skill … to grep+read") that cited the to-be-deleted `template-engine.md:41`. The plan was amended to drop that citation (the item stays open with `SKILL.md:48` as its sole surviving awk site) before any file was touched.
+- **`backlog-manager retire` recorded the retirement transactionally** — moving the originating item to this section and capturing the all-four-files note in one atomic operation, so no separate manual CHANGELOG entry was needed.
+- **Both exec-phase security reviews returned `no findings`** — the change is purely subtractive with no executable, hash-tracked, env-var, or input-flow surface.
+
+### Retired Backlog Items
+#### Reconcile or retire the stale .cwf/utils/*.md spec docs against CWF-PROJECT-SPEC.md
+
+The .cwf/utils/{config-loader,template-engine,task-validator}.md docs still describe the pre-Task-189 cwf-project.json shape (project.name, source-management.type/url, task-management.type/url, branch-name-max-length). They are inert — no helper, lib, or skill references .cwf/utils (confirmed by grep during the Task 196 f-phase verification sweep) — so impact is low, but they mislead anyone reading them as current spec. Reconcile each against CWF-PROJECT-SPEC.md or retire the files. Sibling to "Prune vestigial blocks from the live implementation-guide/cwf-project.json".
+
+<!-- Note: Retired (deleted) all four inert docs rather than reconciling: config-loader.md, template-engine.md, task-validator.md, and hierarchy-manager.md (the last not named in the backlog body but equally stale: obsolete implementation-guide category dirs and find/sed numbering). CWF-PROJECT-SPEC.md and the live skills/helpers are the single source of truth. -->
+
 ## Task 196: Reconcile cwf-project.json template with the validator schema
 
 ### Status: Complete (2026-06-12)
