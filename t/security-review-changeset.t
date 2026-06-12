@@ -21,6 +21,13 @@ use POSIX ();
 
 my $HELPER = "$FindBin::Bin/../.cwf/scripts/command-helpers/security-review-changeset";
 
+# Capture the helper's stdout/stderr in a temp dir OUTSIDE any repo under test.
+# Task 194: the helper now enumerates untracked, non-ignored files, so writing
+# these capture files inside $cwd would make the helper sweep them into its own
+# changeset (and skew file counts / the empty-diff case). Keep them out of tree.
+my $CAPTURE_DIR = tempdir(CLEANUP => 1);
+my $CAPTURE_SEQ = 0;
+
 sub git_in {
     my ($dir, @args) = @_;
     my $rc = system('git', '-C', $dir, @args);
@@ -117,8 +124,9 @@ END {
 # (stdout, stderr, exit). Any .out the helper reports is queued for cleanup.
 sub run_helper_raw {
     my ($cwd, @args) = @_;
-    my $stdout_file = "$cwd/.helper-stdout";
-    my $stderr_file = "$cwd/.helper-stderr";
+    $CAPTURE_SEQ++;
+    my $stdout_file = "$CAPTURE_DIR/helper-stdout.$CAPTURE_SEQ";
+    my $stderr_file = "$CAPTURE_DIR/helper-stderr.$CAPTURE_SEQ";
     my $orig = cwd();
     chdir $cwd or die "chdir $cwd: $!";
     my $rc;
@@ -1209,6 +1217,167 @@ subtest 'TC-VALIDATE: cwf-manage validate is clean for the changed script + agen
            'no integrity violation names the migrated agent');
     is($rc, 0, 'cwf-manage validate exits 0 (fully clean)')
         or diag($output);
+};
+
+# ===========================================================================
+# Untracked-file inclusion (Task 194) — TC-1..TC-7
+# A new source file created before the exec checkpoint commit is untracked, so
+# the pre-194 `git diff <anchor>` omitted it from both the reviewed body and the
+# production count. The helper now makes untracked, non-ignored files visible
+# via a transient `git add -N`, restored on exit. These cases pin: body+count
+# inclusion, ignored-file exclusion, index restore on normal AND exit-2 paths,
+# the untracked-only dirty suffix, and the `--` option-injection guard.
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# TC-1: an untracked, non-ignored file is rendered in the changeset body and
+# counted among the reviewed files (anchor = seed; window also holds the
+# committed a-task-plan.md + the unstaged README change => 3 files).
+# ---------------------------------------------------------------------------
+subtest 'TC-1: untracked non-ignored file appears in the changeset body' => sub {
+    my ($repo) = make_synthetic_repo(baseline => '__MAIN__');
+
+    open my $r, '>>', "$repo/README.md" or die;   # tracked modification (unstaged)
+    print $r "tracked change\n";
+    close $r;
+    open my $n, '>', "$repo/new.txt" or die;        # untracked, 4 added lines
+    print $n "u$_\n" for (1 .. 4);
+    close $n;
+
+    my ($out, $err, $rc) = run_helper($repo);
+    is($rc, 0, 'helper exits 0');
+    my $cs = changeset_of($out);
+    like($cs, qr{^\+\+\+ b/new\.txt$}m, 'untracked file rendered as a new-file hunk');
+    like($cs, qr{^\+u1$}m, 'untracked file content rendered as additions');
+    like($err, qr{reviewed 3 files},
+         'reviewed count includes the untracked file (plan + README + new.txt)');
+    like($err, qr{includes uncommitted}, 'dirty suffix present');
+};
+
+# ---------------------------------------------------------------------------
+# TC-2: a .gitignore-matched untracked file is excluded (git's --exclude-standard
+# owns the matching); a sibling non-ignored untracked file is still included.
+# ---------------------------------------------------------------------------
+subtest 'TC-2: gitignored untracked file is excluded from the changeset' => sub {
+    my ($repo) = make_synthetic_repo(baseline => '__MAIN__');
+
+    open my $gi, '>', "$repo/.gitignore" or die;
+    print $gi "*.log\n";
+    close $gi;
+    git_in($repo, 'add', '.gitignore');
+    git_in($repo, 'commit', '-q', '-m', 'gitignore');
+
+    open my $d, '>', "$repo/debug.log" or die;   # untracked + ignored
+    print $d "secret $_\n" for (1 .. 5);
+    close $d;
+    open my $k, '>', "$repo/keep.txt" or die;    # untracked + non-ignored
+    print $k "k\n";
+    close $k;
+
+    my ($out, $err, $rc) = run_helper($repo);
+    is($rc, 0, 'helper exits 0');
+    my $cs = changeset_of($out);
+    unlike($cs, qr{debug\.log}, 'ignored file does not appear in the changeset');
+    like($cs, qr{^\+\+\+ b/keep\.txt$}m, 'non-ignored untracked file still included');
+};
+
+# ---------------------------------------------------------------------------
+# TC-3: after a normal (exit 0) run the index is restored — the untracked file
+# is back to `?? ` with no residual intent-to-add (`A `/`AM`) entry.
+# ---------------------------------------------------------------------------
+subtest 'TC-3: index restored to untracked after a normal exit' => sub {
+    my ($repo) = make_synthetic_repo(baseline => '__MAIN__');
+
+    open my $n, '>', "$repo/new.txt" or die;
+    print $n "content\n";
+    close $n;
+
+    my ($out, $err, $rc) = run_helper($repo);
+    is($rc, 0, 'helper exits 0');
+    my $status = git_capture($repo, 'status', '--porcelain');
+    like($status, qr{^\?\? new\.txt$}m,
+         'file is back to untracked (??) — no residual intent-to-add');
+    unlike($status, qr{^A}m, 'no leftover A / AM intent-to-add entry');
+};
+
+# ---------------------------------------------------------------------------
+# TC-4: an untracked file pushes the production count over a small cap. Proves
+# (a) untracked lines are counted (cap fires => exit 2) and (b) the END-block
+# restore still runs on the exit-2 path without clobbering the exit code.
+# ---------------------------------------------------------------------------
+subtest 'TC-4: untracked lines trip the cap (exit 2) and the index is still restored' => sub {
+    my ($repo) = make_synthetic_repo(baseline => '__MAIN__');
+
+    open my $n, '>', "$repo/big.txt" or die;   # 30 added lines, alone over a cap of 5
+    print $n "line $_\n" for (1 .. 30);
+    close $n;
+
+    my ($out, $err, $rc) = run_helper($repo, '--max-lines=5');
+    is($rc, 2, 'cap fires on untracked production lines (exit 2)');
+    like($err, qr{cap exceeded:}, 'breach reported on stderr');
+    like(changeset_of($out), qr{^\+\+\+ b/big\.txt$}m,
+         '.out still written with the untracked file on the cap-breach path');
+    my $status = git_capture($repo, 'status', '--porcelain');
+    like($status, qr{^\?\? big\.txt$}m,
+         'index restored despite the early exit 2 (END ran; exit code preserved)');
+};
+
+# ---------------------------------------------------------------------------
+# TC-5: an all-untracked changeset (no tracked diff in the window) still renders
+# the `, includes uncommitted` suffix. Uses make_cap_repo so the anchor is the
+# branch point (HEAD) and the tracked tree is clean.
+# ---------------------------------------------------------------------------
+subtest 'TC-5: untracked-only tree renders the includes-uncommitted suffix' => sub {
+    my ($repo) = make_cap_repo(config_json => $CFG_NO_TESTPATHS);
+
+    open my $n, '>', "$repo/new.txt" or die;   # only change on the branch is untracked
+    print $n "x\n";
+    close $n;
+
+    my ($out, $err, $rc) = run_helper($repo, '--max-lines=1000');
+    is($rc, 0, 'helper exits 0');
+    like($err, qr{includes uncommitted$}m, 'suffix fires for an all-untracked changeset');
+    like(changeset_of($out), qr{^\+\+\+ b/new\.txt$}m, 'the untracked file is the changeset body');
+};
+
+# ---------------------------------------------------------------------------
+# TC-6: an untracked file literally named `-rf` is handled without a git
+# option-parsing error — proves the mandatory `--` separator before the paths
+# (FR4(e) option-injection guard) on every git invocation that takes them.
+# ---------------------------------------------------------------------------
+subtest 'TC-6: dash-prefixed untracked filename is handled (-- option-injection guard)' => sub {
+    my ($repo) = make_synthetic_repo(baseline => '__MAIN__');
+
+    open my $n, '>', "$repo/-rf" or die "open -rf: $!";   # absolute path => no shell parsing
+    print $n "danger\n";
+    close $n;
+
+    my ($out, $err, $rc) = run_helper($repo);
+    is($rc, 0, 'helper exits 0 — no git option-parsing error on a -rf path');
+    like(changeset_of($out), qr{\Q+++ b/-rf\E}, 'the -rf file is included in the body');
+    my $status = git_capture($repo, 'status', '--porcelain');
+    like($status, qr{^\?\? "?-rf"?$}m, 'the -rf file is restored to untracked');
+};
+
+# ---------------------------------------------------------------------------
+# TC-7: with zero untracked files the helper takes the no-op path — tracked diff
+# is rendered as before and the working tree is left exactly clean (no add -N,
+# no signal-handler install, END no-ops). Regression guard for the pre-194 path.
+# ---------------------------------------------------------------------------
+subtest 'TC-7: no untracked files — behaviour unchanged, index untouched' => sub {
+    my ($repo) = make_synthetic_repo(baseline => '__MAIN__');
+
+    open my $r, '>>', "$repo/README.md" or die;   # tracked modification, then committed
+    print $r "change\n";
+    close $r;
+    git_in($repo, 'add', 'README.md');
+    git_in($repo, 'commit', '-q', '-m', 'mod');
+
+    my ($out, $err, $rc) = run_helper($repo);
+    is($rc, 0, 'helper exits 0');
+    like(changeset_of($out), qr{README\.md}, 'tracked diff still rendered');
+    my $status = git_capture($repo, 'status', '--porcelain');
+    is($status, '', 'working tree clean — no intent-to-add side effects');
 };
 
 done_testing();

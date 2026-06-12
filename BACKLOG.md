@@ -1479,13 +1479,3 @@ Fix: emit the hook under a top-level `"UserPromptSubmit"` key with a flat hook-o
     ]
 
 Touch points: SKILL.md step 6c JSON block + the surrounding idempotency prose (lines ~107-128), which currently describes appending a `UserPromptSubmit` matcher to `PreToolUse`. Verify `cwf-claude-settings-merge` (step 6d) does not also re-introduce the wrong shape. Existing installs already carry the dead entry, so the fix needs a migration/cleanup path, not just a forward fix. Output-level smoke test: run `/cwf-init` against a scratch repo and confirm the resulting `.claude/settings.json` has a working top-level `UserPromptSubmit` hook.
-
-## Task: security-review changeset omits untracked files from git diff
-
-### Task-Type: bugfix
-### Priority: High
-### Identified in: user report, 2026-06-11
-
-`security-review-changeset` `list_changed_files()` (line ~432) builds the reviewed changeset with `git diff --name-only -z <anchor>`, which lists tracked staged+unstaged changes but **omits untracked (new, not-yet-`git add`ed) files**. During an exec phase, a brand-new source file created before the checkpoint commit stages it is therefore invisible to the security reviewer — it ships unreviewed. `count_production_lines()` (line ~495, `git diff --numstat`) has the same blind spot, so new files also escape the `--max-lines` gate.
-
-Fix direction: union the diff output with untracked-but-not-ignored paths, e.g. `git ls-files --others --exclude-standard -z`, deduplicated against the diff list, then feed the combined set through the same exclude-pathspec / numstat logic. Keep NUL-separated parsing (per git-path-output convention). Watch the anchor semantics: untracked files have no anchor-side blob, so numstat counts them as all-added (correct). Add a regression test: create an untracked file in a scratch tree and assert it appears in both the changeset and the production line count.

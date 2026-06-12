@@ -2,6 +2,25 @@
 
 All notable changes to the Coding with Files (CWF) project are documented in this file, organized by task.
 
+## Task 194: security-review changeset omits untracked files from git diff
+
+### Status: Complete (2026-06-12)
+### Duration: ~0.5 day (estimate ~0.5 day, Medium; on estimate).
+### Impact: `security-review-changeset` now includes untracked, non-ignored files in **both** the reviewed changeset body and the `--max-lines` production count. Before this, the helper built its changeset from `git diff <anchor>` (and `git diff --numstat`), which by definition omits untracked files — so a brand-new source file created before the exec-phase checkpoint commit was shipped to the security reviewer **unreviewed and uncounted**, a silent gap in a security gate. The fix enumerates untracked, non-ignored files via `git ls-files --others --exclude-standard -z`, makes them diff-visible with a transient `git add -N` (intent-to-add), lets the **unchanged** diff/numstat code paths render and count them, then restores the index. The mechanism was chosen over `git diff --no-index` specifically to preserve the helper's "git owns all path-matching" invariant — `git add -N` keeps `:(glob,exclude)` discounting working and returns rc 0, so the security-critical counting logic needed zero edits. The index restore is authoritative via a single `END` block that is PID-guarded (no-ops in `git_check`'s forked child), `$?`-preserving (never masks the load-bearing `exit 2` cap), and shell-free (`system('git','reset',...)`); `$SIG{INT}/$SIG{TERM}` handlers cover an interrupt between `add -N` and exit. The `, includes uncommitted` disclosure suffix was widened to fire for an all-untracked changeset too. One hash-tracked file changed (`.cwf/scripts/command-helpers/security-review-changeset`) with a same-commit `script-hashes.json` refresh. Core-Perl only (no `use POSIX`).
+
+### Notable
+- **The fix demonstrated itself on real files.** Run live in this repo, the helper went from omitting the 3 untracked f/g/j workflow-guide files to reviewing all of them (`reviewed 9 files`), with the working tree restored to `??` afterward — the bug, fixed, shown end-to-end before a unit test existed.
+- **New tests surfaced a latent harness defect (a true positive).** Adding TC-1…TC-7 broke 8 pre-existing subtests because `run_helper_raw` wrote its `.helper-stdout`/`.helper-stderr` capture files *inside* the repo-under-test — which the now-correct helper swept into its own changeset. Read as signal rather than noise, the fix was to move capture files out of tree, not to weaken the new assertions. The security reviewer flagged this as a defensive improvement.
+- **Empirical-probe-first design.** A throwaway git-mechanics probe run before the design phase turned the central mechanism choice into an evidence-backed decision; every later phase inherited that certainty with no rework.
+- **Tests:** TC-1…TC-7 added to `t/security-review-changeset.t` (42/42); full suite 63 files / 741 tests green; `cwf-manage validate` clean. Both exec-phase security reviews returned `no findings`.
+
+### Retired Backlog Items
+#### security-review changeset omits untracked files from git diff
+
+`security-review-changeset` `list_changed_files()` (line ~432) builds the reviewed changeset with `git diff --name-only -z <anchor>`, which lists tracked staged+unstaged changes but **omits untracked (new, not-yet-`git add`ed) files**. During an exec phase, a brand-new source file created before the checkpoint commit stages it is therefore invisible to the security reviewer — it ships unreviewed. `count_production_lines()` (line ~495, `git diff --numstat`) has the same blind spot, so new files also escape the `--max-lines` gate.
+
+Fix direction: union the diff output with untracked-but-not-ignored paths, e.g. `git ls-files --others --exclude-standard -z`, deduplicated against the diff list, then feed the combined set through the same exclude-pathspec / numstat logic. Keep NUL-separated parsing (per git-path-output convention). Watch the anchor semantics: untracked files have no anchor-side blob, so numstat counts them as all-added (correct). Add a regression test: create an untracked file in a scratch tree and assert it appears in both the changeset and the production line count.
+
 ## Task 193: Lint agent files for ignored allowed-tools key
 
 ### Status: Complete (2026-06-11)

@@ -17,9 +17,14 @@
 #      The resolved trunk name is validated by `git check-ref-format --branch`.
 #
 # Changeset scope:
-#   The full diff (anchor → working tree) over every changed file. No path,
-#   directory, or language filtering — the security review must see every line
-#   the task ships. Test-vs-production weighting applies only to the cap below.
+#   The full diff (anchor → working tree) over every changed file, plus every
+#   untracked, non-ignored file (so a new source file created before the exec
+#   checkpoint commit is still reviewed). Untracked files are made diff-visible
+#   via a transient `git add -N` (intent-to-add) and the index is restored on
+#   every non-SIGKILL exit (END block + INT/TERM handlers). Ignored files are
+#   excluded via git's --exclude-standard. No path, directory, or language
+#   filtering — the security review must see every line the task ships.
+#   Test-vs-production weighting applies only to the cap below.
 #
 # Production-weighted cap (--max-lines):
 #   The full diff is always written to the .out file (see Output). --max-lines
@@ -59,7 +64,8 @@
 #   stderr: one-line summary
 #           `reviewed N files, M lines (P production), anchor=<sha7>`,
 #           with optional `, includes uncommitted` suffix when the working
-#           tree has staged or unstaged changes (Task 141; diff window
+#           tree has staged or unstaged changes OR any untracked, non-ignored
+#           file is present (Task 141; Task 194 for untracked. Diff window
 #           covers anchor to working tree, not just anchor..HEAD).
 #           Plus one path per line under --verbose. On a cap breach, an
 #           extra `cap exceeded: P production lines > N` line precedes exit 2.
@@ -84,6 +90,35 @@ use CWF::ArtefactHelpers qw(atomic_write_text);
 check_perl5opt();
 
 my $PROG = 'security-review-changeset';
+
+# ---------------------------------------------------------------------------
+# Intent-to-add cleanup machinery (Task 194)
+# Untracked, non-ignored files are made diff-visible via `git add -N` so the
+# existing diff/numstat code paths render and count them. That mutates the
+# index, so the entries MUST be restored on every exit path. The single END
+# block below is the authoritative restore (it fires on normal exit, `exit 1`,
+# the load-bearing `exit 2` cap, and `die`). It is best-effort and never
+# `exit`s/`die`s itself, so it cannot mask the caller's exit code.
+#   - `$$ == $MAIN_PID` guard: git_check() forks and its child can reach
+#     `exit 127` (failed exec), which would otherwise run this END inside the
+#     child. The guard makes END a no-op in ANY forked child.
+#   - `system` (list form): shell-free (paths cannot be reinterpreted) and runs
+#     no Perl END blocks (no recursion, no POSIX::_exit needed).
+#   - `$? = $saved`: the reset must not alter the process exit code.
+#   - `--` before the paths: option-injection defence (a file named `-rf` etc.).
+# Signal handlers (installed on the mutating path, see main flow) call exit(),
+# which runs this END, so an interrupt between `add -N` and exit still restores.
+# ---------------------------------------------------------------------------
+my @UNTRACKED_TO_RESET;
+my $MAIN_PID = $$;
+END {
+    return unless $$ == $MAIN_PID;        # no-op in any forked child (incl. git_check's)
+    return unless @UNTRACKED_TO_RESET;
+    my $saved = $?;                        # preserve load-bearing exit code (e.g. exit 2)
+    system('git', 'reset', '-q', '--', @UNTRACKED_TO_RESET);  # shell-free, runs no END
+    warn "$PROG: warning: could not restore intent-to-add state\n" if $? != 0;
+    $? = $saved;
+}
 
 # ---------------------------------------------------------------------------
 # CLI parsing
@@ -174,8 +209,11 @@ my @changed = list_changed_files($anchor);
 # ---------------------------------------------------------------------------
 # Review the full changeset: every changed file, no path/language filter.
 # Test-vs-production weighting happens only in the cap (count_production_lines).
+#
+# @included is assembled below (after the dirty probe + intent-to-add step) as
+# (@changed, @untracked). Untracked enumeration MUST stay after the dirty probe
+# so `git add -N` does not flip the `git diff --quiet HEAD` result 0->1.
 # ---------------------------------------------------------------------------
-my @included = @changed;
 
 # ---------------------------------------------------------------------------
 # Resolve the canonical per-task scratch dir, create it with the mandatory
@@ -186,10 +224,33 @@ my @included = @changed;
 # does not produce a divergent path (tmp-paths.md).
 # ---------------------------------------------------------------------------
 my $short = substr($anchor, 0, 7);
+# Dirty probe BEFORE any intent-to-add (`git add -N` would flip this 0->1).
 my $dirty_rc = git_check('diff', '--quiet', 'HEAD');
-my $dirty_suffix = $dirty_rc == 1 ? ', includes uncommitted' : '';
-# dirty_rc == 0: clean; rc >= 2: git error - skip suffix, don't fail.
-# The primary diff has already succeeded; the disclosure is informational.
+
+# Make untracked, non-ignored files diff-visible via intent-to-add so the
+# unchanged diff/numstat code paths below render and count them. The index is
+# restored by the END block (and signal handlers) on every non-SIGKILL exit.
+my @untracked = list_untracked_files();
+if (@untracked) {
+    @UNTRACKED_TO_RESET = @untracked;   # END block resets exactly these paths
+    # Install handlers BEFORE the index mutation: exit() runs the END block,
+    # so an interrupt between `add -N` and normal exit still restores. Scoped
+    # to the mutating path so unchanged runs keep default signal behaviour.
+    $SIG{INT} = $SIG{TERM} = sub { exit(130); };
+    capture_git('add', '-N', '--', @untracked);
+}
+# @included = tracked changes + untracked. Disjoint by construction (a path is
+# either tracked-changed or untracked, never both), so no dedup. Explicit
+# concat — do NOT re-run list_changed_files() after `add -N` (it would now also
+# enumerate the untracked files and double-count). Over-count is the safe
+# direction anyway (cap fires earlier, never later).
+my @included = (@changed, @untracked);
+
+# Suffix fires when tracked files are dirty OR any untracked file is present:
+# an all-untracked changeset demonstrably includes uncommitted content.
+my $dirty_suffix = ($dirty_rc == 1 || @untracked) ? ', includes uncommitted' : '';
+# dirty_rc == 0 and no untracked: clean; rc >= 2: git error - skip suffix,
+# don't fail. The primary diff has already succeeded; disclosure is informational.
 
 my $repo_root = find_git_root();
 unless (defined $repo_root && length $repo_root) {
@@ -328,6 +389,10 @@ sub git_check {
         # child: redirect stdout & stderr to /dev/null
         open(STDOUT, '>', '/dev/null');
         open(STDERR, '>', '/dev/null');
+        # This child's `exit 127` (and any future exit here) must NOT run the
+        # intent-to-add cleanup END block — that is the main process's job. The
+        # `$$ == $MAIN_PID` guard in that END block is what protects this fork;
+        # keep it intact if this fork site changes (e.g. POSIX::_exit, a 2nd fork).
         exec('git', @args) or exit 127;
     }
     waitpid($pid, 0);
@@ -435,6 +500,19 @@ sub list_changed_files {
     return () unless length $out;
     my @paths = split /\0/, $out;
     return grep { length } @paths;
+}
+
+# ---------------------------------------------------------------------------
+# git ls-files --others --exclude-standard -z → list of untracked, non-ignored
+# paths (Task 194). No $anchor: listing is anchor-independent (unlike the
+# sibling list_changed_files, which genuinely diffs the anchor). Ignored files
+# are dropped by --exclude-standard (git owns the matching — no Perl-side
+# classification). NUL-split per the git-path-output convention.
+# ---------------------------------------------------------------------------
+sub list_untracked_files {
+    my $out = capture_git('ls-files', '--others', '--exclude-standard', '-z');
+    return () unless length $out;
+    return grep { length } split /\0/, $out;
 }
 
 # ---------------------------------------------------------------------------
