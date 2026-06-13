@@ -1,0 +1,316 @@
+#!/usr/bin/env perl
+#
+# pretooluse-bash-tool-check — fail-OPEN PreToolUse guard for Bash tool calls
+# (Task 201).
+#
+# A configurable, layered framework: operator-supplied rules (PCRE or, for
+# complex cases, Perl) match a Bash command and, on the first match, DENY the
+# call with the rule's guidance so the agent can self-correct away from commands
+# that trip Claude Code's own permission prompts. An identical command repeated
+# immediately is NOT blocked — it falls through to the native permission check
+# (the "we're not always right" escape hatch).
+#
+# POSTURE — FAIL-OPEN (the deliberate opposite of the planning-write-guard): any
+# error, malformed input, unreadable/odd config, or pathological pattern yields
+# empty stdout + exit 0 (allow). A tool-check must NEVER brick Bash. The pure
+# policy lives in CWF::ToolCheck (unit-tested without a live hook); this wrapper
+# only does I/O and the bounded match loop.
+#
+# Ships INERT: with no rule files present in any layer the hook is a strict
+# no-op. CWF ships zero active rules (the offending-command set shifts per model
+# / per Claude Code version, so a fixed shipped rule set would be wrong by
+# construction). Rules are operator-supplied across three layers, low -> high:
+#   user-global    $HOME/.cwf/tool-check/bash/settings.json        (perl OK)
+#   checked-in     {root}/.cwf/tool-check/bash/settings.json       (perl IGNORED)
+#   project-local  {root}/.cwf/tool-check/bash/settings.local.json (perl OK, gitignored)
+# `perl` rules are honoured only from the two layers that never travel via
+# `git clone`; CWF::ToolCheck::load_layer drops checked-in `perl` rules before
+# any compile (see that module's SECURITY note).
+#
+# Registration directives (read by cwf-claude-settings-merge):
+# cwf-hook-event: PreToolUse
+# cwf-hook-matcher: Bash
+#
+# Output: a Claude Code PreToolUse decision on stdout (exit 0). To DENY:
+#   {"hookSpecificOutput":{"hookEventName":"PreToolUse",
+#     "permissionDecision":"deny","permissionDecisionReason":"<rule guidance>"}}
+# To ALLOW (incl. bypass / any error): print nothing and exit 0. The reason is
+# always the matched rule's `guidance` VERBATIM — never a reflected tool_input
+# value (FR7c).
+#
+# Also supports `--check`: a human-facing diagnostic (out of the hot path) that
+# loads + merges the live layers and reports dropped/overridden/effective rules.
+# Its output is for a human terminal — NEVER pipe it back into agent context.
+#
+use strict;
+use warnings;
+use utf8;
+use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use JSON::PP;
+use Digest::SHA qw(sha256_hex);
+use Time::HiRes ();
+use Fcntl qw(O_CREAT O_EXCL O_WRONLY);
+use CWF::Common qw(find_git_root);
+use CWF::ToolCheck qw(load_layer merge_rules compile_perl rule_matches decide_repeat);
+
+# Best-effort in-process wall-clock bound around compile+match. The GUARANTEED
+# bound is the registration `timeout => 5` SIGKILL from cwf-claude-settings-merge
+# (a hook killed for running long does not block the call — fail-open at the
+# harness layer); this alarm just trims the common case well below it. Alarm
+# pre-emption mid-regex is build-dependent, so safety never rests on it.
+use constant ALARM_SECS => 2;
+
+# The three layer specs, low -> high precedence. user-global lives under $HOME;
+# the two project layers under the repo root. A missing $HOME or $root simply
+# contributes no layers from that source.
+sub layer_paths {
+    my ($root) = @_;
+    my @specs;
+    my $home = (defined $ENV{HOME} && length $ENV{HOME}) ? $ENV{HOME} : undef;
+    push @specs, ['user-global', "$home/.cwf/tool-check/bash/settings.json"]
+        if defined $home;
+    if (defined $root && length $root) {
+        push @specs, ['checked-in',    "$root/.cwf/tool-check/bash/settings.json"];
+        push @specs, ['project-local', "$root/.cwf/tool-check/bash/settings.local.json"];
+    }
+    return @specs;
+}
+
+# Read + parse one layer file. Returns ($decoded_or_undef, $state) where $state
+# is 'absent' | 'error' | 'ok'. Absent / unreadable / symlink / bad-JSON all
+# degrade to "this layer contributes nothing" on the hot path; --check uses the
+# state to report and to set its exit code.
+sub read_layer_file {
+    my ($path) = @_;
+    return (undef, 'absent') unless -e $path;
+    return (undef, 'error')  unless -f $path && !-l $path;
+    open(my $fh, '<:raw', $path) or return (undef, 'error');
+    my $blob = do { local $/; <$fh> };
+    close $fh;
+    my $json = eval { JSON::PP->new->decode($blob) };
+    return (undef, 'error') if $@ || ref $json ne 'HASH';
+    return ($json, 'ok');
+}
+
+# Load + merge the live layers for $root. Returns ($merged_arrayref, \@notes),
+# where each note is { provenance, path, state }. The checked-in `perl` drop
+# happens inside load_layer (provenance-keyed).
+sub load_merged {
+    my ($root) = @_;
+    my (@layers, @notes);
+    for my $spec (layer_paths($root)) {
+        my ($prov, $path) = @$spec;
+        my ($decoded, $state) = read_layer_file($path);
+        push @notes,  { provenance => $prov, path => $path, state => $state };
+        push @layers, load_layer($decoded, $prov);   # undef decoded -> []
+    }
+    return (merge_rules(\@layers), \@notes);
+}
+
+# --- repeat-state I/O -------------------------------------------------------
+# Dir: ${TMPDIR:-/tmp}/<dashified-repo-root>-tool-check/ (tmp-paths convention).
+sub state_dir {
+    my ($root) = @_;
+    return undef unless defined $root && length $root;
+    my $base = (defined $ENV{TMPDIR} && length $ENV{TMPDIR}) ? $ENV{TMPDIR} : '/tmp';
+    $base =~ s{/+$}{};
+    (my $dash = $root) =~ s{[^A-Za-z0-9]+}{-}g;       # dashify the absolute path
+    return "$base/$dash-tool-check";
+}
+
+# Create the state dir 0700 on first use (symlink/TOCTOU guard). Returns the dir
+# on success, undef on any anomaly (-> caller keeps no state -> never bypasses).
+sub ensure_state_dir {
+    my ($dir) = @_;
+    return undef unless defined $dir;
+    mkdir($dir, 0700) unless -d $dir;                 # race-tolerant: re-check below
+    return undef unless -d $dir && !-l $dir;
+    chmod 0700, $dir;                                 # clamp (best-effort)
+    return $dir;
+}
+
+# Per-session state file, only for a sanitised session_id (no '/', no '..').
+sub session_state_file {
+    my ($dir, $sid) = @_;
+    return undef unless defined $dir;
+    return undef unless defined $sid && $sid =~ /\A[A-Za-z0-9._-]{1,200}\z/;
+    return "$dir/$sid.last";
+}
+
+# Read the hex sha256 of the last denied command for this session, or undef.
+sub read_last_denied {
+    my ($file) = @_;
+    return undef unless defined $file && -f $file && !-l $file;
+    open(my $fh, '<:raw', $file) or return undef;
+    my $h = do { local $/; <$fh> };
+    close $fh;
+    return undef unless defined $h;
+    $h =~ s/\s+\z//;
+    return ($h =~ /\A[0-9a-f]{64}\z/) ? $h : undef;
+}
+
+# Write the hash via temp-file + atomic rename (never open '>' onto a possibly-
+# symlink <sid>.last). O_EXCL on the temp defeats a pre-planted-temp symlink.
+sub write_last_denied {
+    my ($file, $hash) = @_;
+    return unless defined $file;
+    my $tmp = "$file.$$.tmp";
+    unlink($tmp);                                     # clear any stale/planted temp
+    sysopen(my $fh, $tmp, O_CREAT | O_EXCL | O_WRONLY, 0600) or return;
+    print {$fh} $hash, "\n";
+    close $fh or do { unlink($tmp); return };
+    rename($tmp, $file) or unlink($tmp);              # rename replaces a symlink atomically
+}
+
+sub clear_last_denied {
+    my ($file) = @_;
+    unlink($file) if defined $file;                   # ignore failure (fail-open)
+}
+
+# hex sha256 of a command string (encode wide chars to UTF-8 bytes first —
+# Digest::SHA refuses wide characters).
+sub command_hash {
+    my ($cmd) = @_;
+    my $bytes = $cmd;
+    utf8::encode($bytes) if utf8::is_utf8($bytes);
+    return sha256_hex($bytes);
+}
+
+# Emit a deny decision and exit 0. $guidance is the matched rule's text verbatim.
+sub emit_deny {
+    my ($guidance) = @_;
+    print JSON::PP->new->canonical->encode({
+        hookSpecificOutput => {
+            hookEventName            => 'PreToolUse',
+            permissionDecision       => 'deny',
+            permissionDecisionReason => $guidance,
+        },
+    }), "\n";
+    exit 0;
+}
+
+# --- hot path ---------------------------------------------------------------
+sub run_hook {
+    my $raw  = do { local $/; <STDIN> };
+    my $data = (defined $raw && length $raw) ? eval { JSON::PP->new->decode($raw) } : undef;
+    return unless ref $data eq 'HASH';
+
+    # Tool gate: only Bash is in scope (also a defence against matcher-less
+    # degradation — any other tool sails through).
+    my $tool = $data->{tool_name};
+    return unless defined $tool && $tool eq 'Bash';
+
+    my $ti  = $data->{tool_input};
+    my $cmd = (ref $ti eq 'HASH') ? $ti->{command} : undef;
+    return unless defined $cmd && !ref $cmd && length $cmd;
+
+    my $sid = $data->{session_id};
+    my $cwd = (defined $data->{cwd} && !ref $data->{cwd}) ? $data->{cwd} : '';
+
+    my $root      = find_git_root();
+    my ($merged)  = load_merged($root);
+    return unless @$merged;                           # no rules -> strict no-op
+
+    # Repeat-state is READ before matching and only WRITTEN after a clean
+    # decision (state ordering: a mid-match SIGKILL leaves no state -> the next
+    # call is "not a repeat" -> fails open).
+    my $cur_hash = command_hash($cmd);
+    my $dir      = ensure_state_dir(state_dir($root));
+    my $file     = session_state_file($dir, $sid);
+    my $last     = defined $file ? read_last_denied($file) : undef;
+
+    # Bounded first-match-wins loop: compile (perl rules) AND match under one
+    # alarm. $SIG{ALRM} dies -> the outer eval in main catches it -> fail open.
+    my $ctx = { cwd => $cwd };
+    my $matched_rule;
+    {
+        local $SIG{ALRM} = sub { die "tool-check-timeout\n" };
+        Time::HiRes::alarm(ALARM_SECS);
+        for my $rule (@$merged) {
+            my $cref = defined $rule->{perl} ? compile_perl($rule->{perl}) : undef;
+            if (rule_matches($rule, $cmd, $cref, $ctx)) {
+                $matched_rule = $rule;
+                last;
+            }
+        }
+        Time::HiRes::alarm(0);
+    }
+
+    my $action = decide_repeat($matched_rule ? 1 : 0, $last, $cur_hash);
+    if ($action eq 'deny') {
+        write_last_denied($file, $cur_hash) if defined $file;
+        emit_deny($matched_rule->{guidance});         # exits 0
+    }
+
+    # allow or bypass: clear state, empty stdout.
+    clear_last_denied($file);
+    return;
+}
+
+# --- --check diagnostic (out of the hot path) -------------------------------
+# Loads + merges the live layers and reports, once: per-layer parse status,
+# dropped checked-in `perl` rules, ids defined in more than one layer, and the
+# effective ordered list. Exit 0 when every layer parses; non-zero if any layer
+# fails to parse (so a broken rule file is detectable from a script). NEVER pipe
+# this output back into agent context.
+sub run_check {
+    binmode(STDOUT, ':utf8');                         # human terminal; allow non-ASCII
+    my $root = find_git_root();
+    my @raw;
+    my $exit = 0;
+    for my $spec (layer_paths($root)) {
+        my ($prov, $path) = @$spec;
+        my ($decoded, $state) = read_layer_file($path);
+        $exit = 1 if $state eq 'error';
+        push @raw, { provenance => $prov, path => $path, state => $state, decoded => $decoded };
+    }
+
+    print "CWF Bash tool-check — layer status\n";
+    printf "  %-13s  %-6s  %s\n", $_->{provenance}, $_->{state}, $_->{path} for @raw;
+
+    my @layers = map { load_layer($_->{decoded}, $_->{provenance}) } @raw;
+    my $merged = merge_rules(\@layers);
+
+    print "\nDropped rules (checked-in `perl` not honoured):\n";
+    my $any_drop = 0;
+    for my $r (@raw) {
+        next unless $r->{provenance} eq 'checked-in' && ref $r->{decoded} eq 'HASH';
+        next unless ref $r->{decoded}{rules} eq 'ARRAY';
+        for my $rule (@{ $r->{decoded}{rules} }) {
+            next unless ref $rule eq 'HASH' && defined $rule->{perl} && defined $rule->{id};
+            printf "  %s (checked-in perl rule dropped before compile)\n", $rule->{id};
+            $any_drop = 1;
+        }
+    }
+    print "  (none)\n" unless $any_drop;
+
+    my %count;
+    for my $layer (@layers) {
+        my %seen;
+        for my $rule (@$layer) {
+            next if $rule->{disabled};
+            $count{ $rule->{id} }++ unless $seen{ $rule->{id} }++;
+        }
+    }
+    my @over = sort grep { $count{$_} > 1 } keys %count;
+    print "\nOverridden ids (defined in more than one layer):\n";
+    print(@over ? join('', map { "  $_\n" } @over) : "  (none)\n");
+
+    print "\nEffective ordered rules (first-match-wins):\n";
+    print "  (none)\n" unless @$merged;
+    for my $r (@$merged) {
+        my $kind = defined $r->{regex} ? 'regex' : 'perl';
+        printf "  [%-5s] %-24s %s\n", $kind, $r->{id}, $r->{provenance};
+    }
+    return $exit;
+}
+
+# --- entry ------------------------------------------------------------------
+if (@ARGV && $ARGV[0] eq '--check') {
+    exit run_check();
+}
+
+# Hot path, fail-open: any exception (incl. the alarm) -> empty stdout, exit 0.
+eval { run_hook(); 1 };
+exit 0;

@@ -1470,3 +1470,16 @@ Task 199 re-rooted the per-task scratch convention to `${TMPDIR:-/tmp}` so it la
 2. **FR7 denial enforcement** — a bare `/tmp/x` write is denied and `/tmp/claude/x` permitted. Repro: in a sandboxed session, `mkdir /tmp/x` (expect deny) vs `mkdir /tmp/claude/x` (expect allow); then run `.cwf/scripts/command-helpers/security-review-changeset --wf-step=implementation-exec` and confirm its `.out` lands under `/tmp/claude/...`.
 
 Resolution rule (from Task 199 FR4 AC(ii)/(iii)): if `TMPDIR` is **set** (expected) the class-(c) default-location `File::Temp`/`tempdir` sites (`cwf-apply-artefacts:647-648`, `cwf-manage:490`) are disposition (ii) — already safe, no code change. If **unset**, fix class-(c): export `TMPDIR` into those helpers' env or pin `DIR` to a `/tmp/claude` subdir. Record the disposition and close either way. Distinct from the Task-178 CWF-managed sandbox-config feature (that writes sandbox settings; this conforms our paths).
+
+## Task: Seed CWF's own bash tool-check rules (checked-in layer)
+
+### Task-Type: chore
+### Priority: Medium
+### Status: Follow-up from Task 201 (j-retrospective.md §Future Work)
+### Identified in: Task 201 h-rollout.md (Phase 3, deferred), j-retrospective.md §Future Work
+
+Task 201 shipped the bash tool-check *mechanism* inert (empty default ruleset). It deliberately did not seed the checked-in layer (`.cwf/tool-check/bash/settings.json`) with rules for this repo, because the set of commands that trip Claude Code's permission prompts shifts per model and per Claude Code version, so a fixed shipped set would be wrong by construction.
+
+Scope: author a starter rule pack for CWF's own development, targeting the recurring offenders already documented in MEMORY.md feedback (e.g. `sed -n` line-range reads, `find`, `tee`, inline `perl -e`/heredocs, `git -C`, `echo "EXIT: $?"`). Regex-only — the checked-in layer drops `perl` rules before compilation by design. Re-evaluate the pack whenever the session model or Claude Code version changes; treat it as living config, not a one-off.
+
+Use `--check` to preview the merged effective set before committing the pack.

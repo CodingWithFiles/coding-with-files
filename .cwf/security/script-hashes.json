@@ -31,7 +31,7 @@
     "install-manifest" : {
       "path" : ".cwf/install-manifest.json",
       "permissions" : "0444",
-      "sha256" : "74fb7e26d2e3ac9bee9a92aedbba905090dc6f42b685a4fa7f7315cad78f4a95"
+      "sha256" : "97a4e12156484a55fc44ae6200eb6acd6203b2127e8633552983afd0097b658f"
     },
     "claude-md-preamble-template" : {
       "path" : ".cwf/templates/install/claude-md-preamble.md",
@@ -93,6 +93,10 @@
     "CWF::TemplateCopier::Core" : {
       "path" : ".cwf/lib/CWF/TemplateCopier/Core.pm",
       "sha256" : "f8ad5d1e03ccaafbdde9b9a42cdc890ceb22211d5659aaf865dc1854a6b4b493"
+    },
+    "CWF::ToolCheck" : {
+      "path" : ".cwf/lib/CWF/ToolCheck.pm",
+      "sha256" : "a8071f49ba5144415279a42b9db88fb9701d41700956e59585d4a0f403521c4a"
     },
     "CWF::Validate::Agents" : {
       "path" : ".cwf/lib/CWF/Validate/Agents.pm",
@@ -267,6 +271,11 @@
       "path" : ".cwf/scripts/command-helpers/status-aggregator-v2.1",
       "permissions" : "0700",
       "sha256" : "e57dce296bb828db51b354db4556e3f852e17cda9bd6e7eb0ca82e80fca8349e"
+    },
+    "pretooluse-bash-tool-check" : {
+      "path" : ".cwf/scripts/hooks/pretooluse-bash-tool-check",
+      "permissions" : "0500",
+      "sha256" : "412d807e53971b6df0898f2f40ce8c0adc7a5b7646f103c203d0268131abe916"
     },
     "pretooluse-planning-write-guard" : {
       "path" : ".cwf/scripts/hooks/pretooluse-planning-write-guard",

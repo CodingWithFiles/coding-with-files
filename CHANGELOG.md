@@ -2,6 +2,20 @@
 
 All notable changes to the Coding with Files (CWF) project are documented in this file, organized by task.
 
+## Task 201: Bash tool-check framework
+
+### Status: Complete (2026-06-13)
+### Duration: ~1 day (estimate 2-3 days, High; under estimate).
+### Impact: CWF gains a configurable, **fail-open** PreToolUse `Bash` hook (`pretooluse-bash-tool-check`) backed by a pure-policy library (`CWF::ToolCheck`). On each `Bash` call it matches the command against an ordered, three-layer rule set — user-global (`~/.cwf/tool-check/bash/settings.json`), project checked-in (`{root}/.cwf/tool-check/bash/settings.json`), project-local (`settings.local.json`) — and on first match denies with the rule's **verbatim** guidance so the agent self-corrects away from commands that trip Claude Code's own permission prompts. An exact-repeat of an identical command is **not** blocked (it falls through to the native permission check). Rules are PCRE (safe in every layer because `re 'eval'` is never in scope) or, for complex cases, Perl functions — but a `perl` rule is honoured **only** from the two layers that never travel via `git clone`; a checked-in `perl` rule is dropped *before* compilation, keyed on caller-derived provenance. The framework **ships inert**: with no rule files the hook is a strict no-op, because the offending-command set shifts per model and per Claude Code version, so a fixed shipped rule set would be wrong by construction. Install **and** upgrade add `.cwf/tool-check/*/settings.local.json` to `.gitignore`; the hook auto-registers via `script-hashes.json` directives. A `--check` diagnostic (human-terminal only, never piped to agent context) previews the merged effective ruleset.
+
+### Notable
+- **The trust boundary is the load-bearing design choice**: the provenance-keyed `perl`-drop runs before `eval $code`, keyed on the *path the file was read from*, never on rule content (TC-3 asserts a content-claimed `provenance` is ignored). The exec-phase security review endorsed it unchanged — "no findings".
+- **Two defence-in-depth controls (`--check`, the 64 KB refuse-to-match command cap) were added at plan-review rather than in requirements.** Sound, but a process note for the retrospective: input caps and diagnostics belong in the threat-model/requirements phase for security-sensitive features.
+- **ReDoS is bounded in layers**: a best-effort in-process 2s `Time::HiRes::alarm` + the 64 KB cap sit beneath the one *guaranteed* bound, the harness `timeout` SIGKILL — design correctly does not rest safety on alarm pre-emption (TC-14 verifies under an external `timeout`).
+- **TDD caught two real implementation bugs** during implementation-exec, before the testing phase. `t/tool-check.t` (7 subtests) + `t/pretooluse-bash-tool-check.t` (9 subtests); regression suite 60 tests; `cwf-manage validate` OK throughout (hook `0500`, lib regular file, hashes match).
+- **Security-review cap friction (reinforces existing backlog items 127/143/147)**: the changeset helper's production-weighted cap (500) fired at 603 lines on the changeset that most needed review. implementation-exec was reviewed by overriding `--max-lines=800` (clean); testing-exec was recorded `error` per the deterministic exit-2 contract, since its production code was byte-identical to the already-reviewed-clean f changeset. No fourth cap-tuning backlog item was spawned.
+- **Deferred to BACKLOG**: seeding CWF's own checked-in rule pack (Task 201 ships the mechanism only; rules are living config, re-evaluated per model / Claude Code version).
+
 ## Task 200: Group Stop-hook uncommitted-files warning by task number
 
 ### Status: Complete (2026-06-13)
