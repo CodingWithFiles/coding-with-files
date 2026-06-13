@@ -12,18 +12,38 @@ use strict;
 use warnings;
 use utf8;
 
+use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use CWF::TaskPath qw(parse_dirname);
+
 eval {
     my $output = `git status --porcelain -z --untracked-files=all -- 'implementation-guide/*/[a-j]-*.md' 2>/dev/null`;
     my @records = grep { length } split /\0/, $output;
 
     return unless @records;
 
-    my @dirty = map { m{([^/]+)$} ? $1 : $_ }
-                map { substr($_, 3) } @records;
+    my (@order, %files);                       # task keys (first-seen) + key => [basenames]
+    for my $rec (@records) {
+        my @seg  = split m{/}, substr($rec, 3);
+        my $file = $seg[-1];
+        my $dir  = @seg >= 2 ? $seg[-2] : '';
+        my ($num) = parse_dirname($dir);       # () → undef for a non-task dir
+        my $key  = defined $num ? $num : $dir;  # fallback: raw parent-dir basename
+        push @order, $key unless exists $files{$key};
+        push @{ $files{$key} }, $file;
+    }
 
-    my @display = @dirty[0 .. ($#dirty > 2 ? 2 : $#dirty)];
-    my $msg = join(', ', @display);
-    $msg .= " +@{[$#dirty - 2]} more" if @dirty > 3;
+    my $multi = @order > 1;
+    my @groups;
+    for my $key (@order) {
+        my @f    = @{ $files{$key} };
+        my @show = @f[0 .. ($#f > 2 ? 2 : $#f)];
+        my $g    = join(', ', @show);
+        $g      .= " +@{[$#f - 2]} more" if @f > 3;
+        $g       = "$key: $g" if $multi;
+        push @groups, $g;
+    }
+    my $msg = join('; ', @groups);
 
     print qq({"systemMessage":"⚠ Uncommitted: $msg"}\n);
 };

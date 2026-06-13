@@ -286,7 +286,7 @@
     "stop-uncommitted-changes-warning" : {
       "path" : ".cwf/scripts/hooks/stop-uncommitted-changes-warning",
       "permissions" : "0500",
-      "sha256" : "510d1bf9c698d16cfa1245aa67bff9d755f8d834cc2b9d3fd1afbc8c5e563e14"
+      "sha256" : "e5d1fc7212a43ea0406e3450b4f25bc4028a814bf2ec1acc4c07888fc468b051"
     },
     "subagentstop-security-verdict-guard" : {
       "path" : ".cwf/scripts/hooks/subagentstop-security-verdict-guard",

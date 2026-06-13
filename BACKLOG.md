@@ -881,6 +881,7 @@ Add a small regression test that exercises the `stop-uncommitted-changes-warning
 - Add a test that feeds synthetic porcelain output into a parsing helper, or stages a real `UU` record via `git update-index --cacheinfo` against a stub blob
 - Cover `UU`, `AA`, `DD`, and at least one rename (`R`) to round out porcelain-class coverage
 - Wire into `prove` if there's an existing test harness, otherwise document as a manual one-liner
+- **Update (Task 200)**: a harness now exists — `t/stop-uncommitted-changes-warning.t` (throwaway-git-repo subprocess shape). The conflict-state cases slot in as additional cases there rather than needing a new file; stage `UU`/`AA`/`DD`/`R` records in the per-case temp repo and assert the hook's grouped output.
 
 ## Task: Skill Cross-Reference Linter for SKILL.md / *-extras.md Step Numbers
 

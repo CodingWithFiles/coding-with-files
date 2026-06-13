@@ -2,6 +2,18 @@
 
 All notable changes to the Coding with Files (CWF) project are documented in this file, organized by task.
 
+## Task 200: Group Stop-hook uncommitted-files warning by task number
+
+### Status: Complete (2026-06-13)
+### Duration: <1 day (estimate <1 day, Low; on estimate).
+### Impact: The `stop-uncommitted-changes-warning` Stop hook now groups its dirty-file list by owning task number instead of flattening every match to a bare basename, so the operator can see which task each uncommitted wf file belongs to (`⚠ Uncommitted: 199: a-…, c-…; 30: f-…`). The task number is **elided** when a single task is dirty — that path is byte-identical to the prior flat output — and the `+N more` overflow cap is applied **per group** so no task's group is ever silently dropped (the top design risk). The hook reuses the canonical `CWF::TaskPath::parse_dirname` (loaded via the sibling `stop-stale-status-detector`'s `FindBin`/`use lib` pattern) rather than inlining a fourth copy of the task-number regex, and falls back to the raw parent-dir basename for a non-task path so a malformed entry is surfaced, not dropped. The hook stays `exit 0` with a single-line JSON envelope throughout. The edit is hash-tracked: `script-hashes.json` sha256 was refreshed in the same commit, working perms clamped to the recorded 0500.
+
+### Notable
+- **`git status --porcelain` sorts records lexicographically by pathname**, not by working-tree mutation order. The e-testing-plan's "file-plant order controls git-status order" framing was inaccurate; caught and corrected during testing-exec (no behavioural impact — the hook preserves whatever order git returns). Lesson: verify plan-time assumptions about a tool's output ordering against the tool.
+- **A real-subprocess harness (throwaway git repo per case) is what exposed the sort-order assumption** — a test that mocked git's output would have encoded the wrong assumption silently. New `t/stop-uncommitted-changes-warning.t`: 7 cases / 20 assertions (single-task elision, flat overflow, two-task grouping, nested `28.1` subtask keying, per-group overflow with no group dropped, non-task raw-key fallback, clean tree).
+- **A pre-existing, unrelated permission drift** (`security-review-changeset` 0700 vs recorded 0500) surfaced during implementation-exec validation; clamped fix-on-sight via `cwf-manage fix-security` rather than deferred.
+- **Tests**: full `prove -r t/` green at 64 files / 782 tests; `cwf-manage validate` clean (sha256 + 0500 perms). Both exec-phase security reviews returned `no findings` (the pre-existing unescaped-basename JSON interpolation is design-disclosed in D3 and bounded by the `[a-j]-*.md` pathspec — inherited, not regressed).
+
 ## Task 199: Align scratch tmp-paths with the /tmp/claude sandbox
 
 ### Status: Complete (2026-06-13)
