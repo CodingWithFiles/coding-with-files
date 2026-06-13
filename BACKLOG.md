@@ -1455,3 +1455,17 @@ default classification of a first insert. Lower severity than the lock bug — a
 documented env-var escape hatch exists.
 
 Surfaced by a downstream v1.1.189 upgrade (reported as issue 2 of 2).
+
+## Task: Confirm sandbox sets TMPDIR=/tmp/claude and verify denial (Task 199 FR7/D2)
+
+### Task-Type: chore
+### Priority: Medium
+### Status: Follow-up from Task 199 (BLOCKED-ENV: unsandboxed dev session)
+### Identified in: Task 199 g-testing-exec.md, j-retrospective.md §Future Work
+
+Task 199 re-rooted the per-task scratch convention to `${TMPDIR:-/tmp}` so it lands under the sandbox temp root. Two checks could not run in the unsandboxed dev session (confirmed unsandboxed: bare-`/tmp` write allowed, `TMPDIR` unset) and are BLOCKED-ENV:
+
+1. **D2 pivot fact** — confirm an active sandbox sets `TMPDIR=/tmp/claude`. Repro: in a fresh sandboxed session, `echo "$TMPDIR"`. Supporting evidence it is set: `/tmp/claude/go-build` exists (Go test/build temp keys off `$TMPDIR`).
+2. **FR7 denial enforcement** — a bare `/tmp/x` write is denied and `/tmp/claude/x` permitted. Repro: in a sandboxed session, `mkdir /tmp/x` (expect deny) vs `mkdir /tmp/claude/x` (expect allow); then run `.cwf/scripts/command-helpers/security-review-changeset --wf-step=implementation-exec` and confirm its `.out` lands under `/tmp/claude/...`.
+
+Resolution rule (from Task 199 FR4 AC(ii)/(iii)): if `TMPDIR` is **set** (expected) the class-(c) default-location `File::Temp`/`tempdir` sites (`cwf-apply-artefacts:647-648`, `cwf-manage:490`) are disposition (ii) — already safe, no code change. If **unset**, fix class-(c): export `TMPDIR` into those helpers' env or pin `DIR` to a `/tmp/claude` subdir. Record the disposition and close either way. Distinct from the Task-178 CWF-managed sandbox-config feature (that writes sandbox settings; this conforms our paths).

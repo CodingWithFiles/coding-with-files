@@ -56,7 +56,7 @@
 #
 # Output:
 #   File:   the full changeset (git diff, anchor → working tree) is written to
-#           /tmp/<dashified-abs-main-root>-task-<num>/security-review-changeset-<step>.out
+#           ${TMPDIR:-/tmp}/<dashified-abs-main-root>-task-<num>/security-review-changeset-<step>.out
 #           (mode 0600, dir created mkdir -m 0700 on first use). The agent Reads
 #           this file. An empty changeset still writes a 0-line file.
 #   stdout: exactly one confirmation line —
@@ -258,7 +258,10 @@ unless (defined $repo_root && length $repo_root) {
     exit 1;
 }
 (my $dashed = $repo_root) =~ s{/}{-}g;   # absolute path => canonical leading-dash form
-my $scratch = "/tmp/${dashed}-task-${task_num}";
+my $base = (defined $ENV{TMPDIR} && length $ENV{TMPDIR}) ? $ENV{TMPDIR} : '/tmp';
+$base =~ s{/+$}{};   # match shell `${TMPDIR:-/tmp}` + trailing-slash strip
+my $scratch = "$base/${dashed}-task-${task_num}";   # honour $TMPDIR so scratch
+                                                    # lands in the sandbox temp root
 # Script-owned mkdir at 0700 BEFORE any write — do not rely on
 # atomic_write_text's umask-default make_path fallback (tmp-paths symlink
 # defence). `unless -d` does not re-assert mode on a pre-existing foreign dir;
@@ -341,7 +344,7 @@ Options:
 
 Output:
   Writes the full diff to
-    /tmp/<dashified-abs-main-root>-task-<num>/security-review-changeset-<step>.out
+    \${TMPDIR:-/tmp}/<dashified-abs-main-root>-task-<num>/security-review-changeset-<step>.out
   and prints one confirmation line to stdout:
     $PROG: wrote <N> lines to <abs-path>
 

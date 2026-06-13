@@ -9,27 +9,33 @@ shared task numbers (e.g. two repos each having a task `145`).
 Canonical form:
 
 ```
-/tmp/<dashified-absolute-repo-path>-task-<num>/
+${TMPDIR:-/tmp}/<dashified-absolute-repo-path>-task-<num>/
 ```
 
 Where `<dashified-absolute-repo-path>` is the repository's absolute path
 with every `/` replaced by `-` (leading dash preserved), mirroring the
-`~/.claude/projects/` directory-naming convention.
+`~/.claude/projects/` directory-naming convention. The base is `${TMPDIR:-/tmp}`
+(not a hardcoded `/tmp`) so scratch lands inside whatever temp root the
+environment provides — see [Sandbox alignment](#sandbox-alignment).
 
 Worked example (this repository, task 145):
 
 ```
-/tmp/-home-matt-repo-coding-with-files-task-145/
+${TMPDIR:-/tmp}/-home-matt-repo-coding-with-files-task-145/
 ```
+
+resolving to `/tmp/claude/-home-…-task-145/` under the sandbox
+(`TMPDIR=/tmp/claude`) and `/tmp/-home-…-task-145/` off-sandbox.
 
 Derivation snippet (copy-pastable):
 
 ```bash
 # Worktree-safe: resolve the MAIN tree, not a linked worktree (Task 173), so the
 # scratch namespace is stable whether you run from the main tree or a worktree.
+base="${TMPDIR:-/tmp}"; base="${base%/}"   # honour the sandbox temp root; off-sandbox → /tmp
 repo_root=$(cd "$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")" && pwd)
 num=145
-scratch="/tmp/${repo_root//\//-}-task-${num}"
+scratch="${base}/${repo_root//\//-}-task-${num}"
 mkdir -m 0700 -p "$scratch"
 ```
 
@@ -38,10 +44,31 @@ task — script files, commit-message drafts, captured subagent output,
 diff captures, etc. Examples:
 
 - One-off scripts (per [[feedback_no_heredocs]]):
-  `/tmp/-home-matt-repo-coding-with-files-task-145/refresh-hashes.pl`
-- Commit-message drafts: `/tmp/-home-matt-repo-coding-with-files-task-145/msg.txt`
+  `${TMPDIR:-/tmp}/-home-matt-repo-coding-with-files-task-145/refresh-hashes.pl`
+- Commit-message drafts: `${TMPDIR:-/tmp}/-home-matt-repo-coding-with-files-task-145/msg.txt`
 - Subagent prompt / output captures (per [[feedback_no_tee_permissions]]):
-  `/tmp/-home-matt-repo-coding-with-files-task-145/f-changeset.diff`
+  `${TMPDIR:-/tmp}/-home-matt-repo-coding-with-files-task-145/f-changeset.diff`
+
+## Sandbox alignment
+
+The base is `${TMPDIR:-/tmp}`, not a hardcoded `/tmp`, so scratch lands inside
+whatever temp root the environment provides. Under a Claude Code sandbox that
+restricts `/tmp` writes to `/tmp/claude`, the sandbox sets `TMPDIR=/tmp/claude`,
+so the form resolves to `/tmp/claude/<dashified-repo>-task-<num>/`; off-sandbox
+(`$TMPDIR` unset or empty) it resolves to `/tmp/<dashified-repo>-task-<num>/` —
+prior behaviour, unchanged. One unconditional form, no sandbox-detection branch.
+
+`$TMPDIR` is honoured verbatim (no `..`/`rel2abs` canonicalisation), trusted
+**only** under the single-user threat model below — `$TMPDIR` is set by the
+harness, not an attacker. If that assumption is relaxed (multi-user host), the
+`mkdir -m 0700` guard remains the containment boundary; do not copy the
+verbatim-`$TMPDIR` handling into a context where the single-user invariant does
+not hold.
+
+This aligns CWF's own scratch discipline with the sandbox (Task 199). It is
+distinct from the CWF-managed sandbox *configuration* feature seeded by Task 178
+(a toggle that writes sandbox settings): that conforms the harness; this conforms
+our paths.
 
 ## Threat model
 
@@ -49,9 +76,12 @@ Scope: a single-user developer host. Multiple agent sessions may run
 concurrently in different working trees owned by the same user, but no
 untrusted local user is assumed.
 
-`/tmp/` is world-writable on POSIX systems and the directory name is
-predictable (it embeds the repo path and task number). On a multi-user
-host that opens two attack surfaces:
+The base resolves to either `/tmp` (world-writable) or a sandbox-set `$TMPDIR`
+such as `/tmp/claude` (per-user `drwx------`). `/tmp/` is world-writable on POSIX
+systems and the directory name is predictable (it embeds the repo path and task
+number); the per-user sandbox base narrows the read-after-write surface, but the
+guard below applies to both bases. On a multi-user host the predictable name
+opens two attack surfaces:
 
 1. **Symlink pre-creation**: a hostile local user could pre-create the
    scratch directory or a file within it as a symlink to an attacker-owned
@@ -82,7 +112,10 @@ sensitive on their own.
 Without namespacing, two concurrent agents in two different repos both
 working on a task numbered `145` would race for the same
 `/tmp/task-145/` directory, with each potentially overwriting the
-other's scratch state. The dashified-absolute-repo-path form is:
+other's scratch state. Under the sandbox this matters more, not less:
+`/tmp/claude` is a host-global root shared across *all* projects (not just CWF
+repos), so the dashified prefix is what keeps repos from colliding there. The
+dashified-absolute-repo-path form is:
 
 - **Unambiguous across worktrees of the same repo** — a basename-only
   form like `/tmp/coding-with-files-task-145/` would collide between

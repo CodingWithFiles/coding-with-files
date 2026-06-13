@@ -2,6 +2,19 @@
 
 All notable changes to the Coding with Files (CWF) project are documented in this file, organized by task.
 
+## Task 199: Align scratch tmp-paths with the /tmp/claude sandbox
+
+### Status: Complete (2026-06-13)
+### Duration: single session (estimate 1-2 days, Medium; under estimate).
+### Impact: CWF's per-task scratch convention now resolves its base via `${TMPDIR:-/tmp}` instead of a hardcoded `/tmp`, so scratch directories land inside whatever temp root the environment provides — `/tmp/claude` under a Claude Code sandbox that sets `TMPDIR=/tmp/claude`, and `/tmp` off-sandbox (unchanged). The change touches the convention SSOT (`.cwf/docs/conventions/tmp-paths.md` — canonical form, derivation snippet with trailing-slash strip, worked examples, threat model, namespacing rationale, and a new "Sandbox alignment" section) and the one helper that constructs the path in code (`security-review-changeset` `$scratch`, hash-tracked → same-commit `script-hashes.json` refresh). The driving agent-memory (`feedback_no_heredocs`, `feedback_no_tee_permissions`, `MEMORY.md`) was realigned in-session (user-global, uncommittable; recorded as a cross-surface dependency). An audit classified the full `/tmp` write surface into three classes: (a) `File::Temp` with `DIR` pinned in-repo (safe, unchanged); (b) the explicit scratch convention (re-rooted here); (c) default-location `File::Temp`/`tempdir` in `cwf-apply-artefacts`/`cwf-manage` (honour `$TMPDIR` natively, so safe once the sandbox sets it — disposition (ii), pending confirmation).
+
+### Notable
+- **Honour-`$TMPDIR` unified all three temp classes onto one signal**, dissolving an apparent two-concern decomposition (scratch convention vs helper temp hygiene) into a single coherent change, and keeping the *shipped* convention portable rather than hardcoding a harness-specific `/tmp/claude` literal onto every adopter.
+- **The plan-review chain caught a blocking design↔requirements conflict** (the requirements specified a hardcoded `/tmp/claude` root; the design chose honour-`$TMPDIR`) — reconciled by amending FR2/FR3 with a note, the proper design-reveals-requirements loop-back. It also caught the empty-`TMPDIR` Perl/shell divergence (`// '/tmp'` only catches undef; an empty `TMPDIR=""` would collapse the path to filesystem root) before it shipped — TC-TMPDIR-3 asserts `unlike ^/-`.
+- **The contract is testable without a sandbox** (assert the helper's `.out` lands under a set `$TMPDIR`), so the irreducible BLOCKED-ENV residue is only the sandbox *denial enforcement* and the `TMPDIR=/tmp/claude` fact — both carried to BACKLOG with a written repro. The dev session was confirmed unsandboxed (bare-`/tmp` write allowed; `TMPDIR` unset).
+- **One transient self-inflicted break**: a literal `${TMPDIR:-/tmp}` placed in an *interpolating* `usage()` heredoc was parsed by Perl as a deref (44 failing tests), fixed by escaping `\${`. Caught immediately by the suite.
+- **Tests**: TC-TMPDIR-1/2/3 added to `t/security-review-changeset.t` (set/unset/empty); full `prove -j4 t/` green at 63 files / 762 tests; `cwf-manage validate` clean; both exec-phase security reviews `no findings`.
+
 ## Task 198: Specify low effort level for the retrospective skill
 
 ### Status: Complete (2026-06-12)

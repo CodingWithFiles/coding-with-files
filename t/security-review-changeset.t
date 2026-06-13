@@ -1380,4 +1380,51 @@ subtest 'TC-7: no untracked files — behaviour unchanged, index untouched' => s
     is($status, '', 'working tree clean — no intent-to-add side effects');
 };
 
+# ---------------------------------------------------------------------------
+# TC-TMPDIR-1/2/3 (Task 199): the scratch .out path honours $TMPDIR, so it lands
+# inside the sandbox-permitted temp root (e.g. /tmp/claude) when the sandbox sets
+# TMPDIR, and degrades to /tmp off-sandbox. These assert path *construction*; the
+# sandbox *denial* check is BLOCKED-ENV (see g-testing-exec.md, FR7).
+# ---------------------------------------------------------------------------
+subtest 'TC-TMPDIR-1: scratch .out honours a set $TMPDIR' => sub {
+    my ($repo) = make_synthetic_repo(baseline => '__MAIN__');
+    my $tmpbase = tempdir(CLEANUP => 1);
+
+    my ($out, $err, $rc);
+    {
+        local $ENV{TMPDIR} = $tmpbase;
+        ($out, $err, $rc) = run_helper($repo);
+    }
+    is($rc, 0, 'helper exits 0');
+    my $p = out_path($out);
+    ok(defined $p, 'helper reported a .out path');
+    like($p, qr{^\Q$tmpbase\E/}, '.out lands under the set $TMPDIR');
+};
+
+subtest 'TC-TMPDIR-2: unset $TMPDIR falls back to /tmp (no regression)' => sub {
+    my ($repo) = make_synthetic_repo(baseline => '__MAIN__');
+
+    my ($out, $err, $rc);
+    {
+        delete local $ENV{TMPDIR};   # truly unset for this scope, not bare local
+        ($out, $err, $rc) = run_helper($repo);
+    }
+    is($rc, 0, 'helper exits 0');
+    like(out_path($out), qr{^/tmp/}, '.out falls back under /tmp when $TMPDIR unset');
+};
+
+subtest 'TC-TMPDIR-3: empty $TMPDIR falls back to /tmp (no root collapse)' => sub {
+    my ($repo) = make_synthetic_repo(baseline => '__MAIN__');
+
+    my ($out, $err, $rc);
+    {
+        local $ENV{TMPDIR} = '';
+        ($out, $err, $rc) = run_helper($repo);
+    }
+    is($rc, 0, 'helper exits 0');
+    my $p = out_path($out);
+    like($p,   qr{^/tmp/}, 'empty $TMPDIR falls back under /tmp');
+    unlike($p, qr{^/-},    'empty $TMPDIR does NOT collapse to filesystem root');
+};
+
 done_testing();
