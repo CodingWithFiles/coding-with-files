@@ -21,7 +21,7 @@ use lib "$FindBin::Bin/../../../lib";
 use Cwd qw(abs_path);
 use File::Basename qw(basename);
 use File::Path qw(remove_tree);
-use CWF::Common  qw(check_perl5opt);
+use CWF::Common  qw(check_perl5opt run_quiet);
 use CWF::TaskPath qw(
     validate resolve_num find_base_dir find_siblings find_children
     format_dirname format_branch branch_exists version_compare
@@ -40,20 +40,7 @@ sub usage {
     exit 1;
 }
 
-# Run a command, suppressing its stdout/stderr. Returns the child's exit code.
-sub run_quiet {
-    my @cmd = @_;
-    my $pid = fork();
-    return -1 unless defined $pid;
-    if ($pid == 0) {
-        open(STDIN,  '<', '/dev/null');
-        open(STDOUT, '>', '/dev/null');
-        open(STDERR, '>', '/dev/null');
-        exec(@cmd) or exit 127;
-    }
-    waitpid($pid, 0);
-    return $? >> 8;
-}
+# run_quiet (list-form fork/exec runner) is imported from CWF::Common.
 
 # ---------------------------------------------------------------------------
 # Argument parsing

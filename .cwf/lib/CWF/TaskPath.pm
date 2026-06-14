@@ -12,13 +12,13 @@ use utf8;
 use Exporter 'import';
 use File::Basename;
 use Cwd 'abs_path';
-use CWF::Common qw(find_git_root);
+use CWF::Common qw(find_git_root run_quiet);
 
 our @EXPORT_OK = qw(
     normalize validate build_glob find_base_dir get_parent get_depth
     resolve_num resolve_branch resolve_path resolve
     format_dirname parse_dirname format_branch parse_branch
-    task_exists branch_exists
+    task_exists branch_exists parent_branch_ancestry
     find_parent find_children find_siblings find_ancestors find_descendants
     find_first_free version_compare
 );
@@ -511,6 +511,47 @@ sub branch_exists {
     chomp $output;
 
     return $output eq '' ? 0 : 1;
+}
+
+# Report whether a task's parent branch is an ancestor of the current HEAD.
+#
+# This is the strict-linear-history signal: when the parent branch is an ancestor
+# of HEAD, the current branch can ff-only merge back to its parent (the
+# archaeological-main linearity invariant).
+#
+# Tri-state return, so callers can distinguish "diverged" from "undecidable":
+#   1     - parent branch IS an ancestor of HEAD (linear; incl. same-tip)
+#   0     - parent branch exists but is NOT an ancestor (history diverged)
+#   undef - undecidable: no parent task, parent unresolvable, parent branch
+#           absent, or git cannot answer (e.g. unborn HEAD)
+#
+# All git calls are list-form via run_quiet (no shell): the derived branch name
+# originates from an on-disk dirname and must be treated as data. The existence
+# guard is `rev-parse --verify refs/heads/<branch>` (exact match), deliberately
+# NOT branch_exists (backtick/shell `git branch --list` glob, which would
+# false-positive on a prefix collision such as feature/1-foo vs feature/1-foobar).
+#
+# Args: $task_path - task path (e.g. "1.1")
+# Returns: 1, 0, or undef
+sub parent_branch_ancestry {
+    my ($task_path) = @_;
+
+    my $parent = get_parent($task_path);
+    return undef unless defined $parent;
+
+    my $p = resolve($parent);
+    return undef unless $p;
+
+    my $branch = format_branch($p->{num}, $p->{type}, $p->{slug});
+    return undef unless defined $branch;
+
+    return undef
+        if run_quiet('git', 'rev-parse', '--verify', '--quiet', "refs/heads/$branch") != 0;
+
+    my $rc = run_quiet('git', 'merge-base', '--is-ancestor', $branch, 'HEAD');
+    return 1 if $rc == 0;
+    return 0 if $rc == 1;
+    return undef;
 }
 
 # Find first available task number at relative depth

@@ -2,6 +2,20 @@
 
 All notable changes to the Coding with Files (CWF) project are documented in this file, organized by task.
 
+## Task 202: report whether parent branch is direct ancestor
+
+### Status: Complete (2026-06-14)
+### Duration: ~1 day (estimate <1 day, Low; on estimate).
+### Impact: `context-manager hierarchy <task>` gains an additive parent-branch-ancestry signal so a caller can tell at a glance whether history is strictly linear (the archaeological-main invariant). `--format=json` emits a new bare-literal field `"parent_branch_is_ancestor": true|false|null`; the default markdown emits `Parent branch ancestor of HEAD: yes|no|unknown` (printed only for a parented task). The decision lives in one testable library function, `CWF::TaskPath::parent_branch_ancestry($task_path)`, returning a tri-state `1`/`0`/`undef`: it derives the parent task's branch (`<type>/<num>-<slug>` via `format_branch`), guards existence with a **list-form** `git rev-parse --verify --quiet refs/heads/<branch>` (deliberately *not* the backtick `branch_exists`, both for shell-safety and to avoid the `--list` glob's prefix-collision false-positive), then maps `git merge-base --is-ancestor <branch> HEAD` (`0⇒1, 1⇒0, else⇒undef`). The tri-state keeps *diverged* (`0`) distinct from *undecidable* (`undef`: no parent, missing branch, unborn HEAD). The shared list-form runner `run_quiet` was **hoisted** from `task-workflow.d/delete` into `CWF::Common` (exported) — one definition, two callers — and its failed-`exec` child hardened to `POSIX::_exit(127)` (Task-159 convention; matters more now that `CWF::Common` is broadly imported and `delete` pulls in `File::Path`). Four hash-tracked files (`Common.pm`, `TaskPath.pm`, `hierarchy`, `delete`) had their `script-hashes.json` sha256 refreshed in the same exec commit.
+
+### Notable
+- **The non-reuse of `branch_exists` is the load-bearing safety decision**: branch names originate from on-disk dir names (attacker-influenceable by anyone who can create a directory under `implementation-guide/`), so the existence guard routes through list-form `run_quiet` — never a shell string. Both exec-phase security reviews returned **no findings** and called this out; TC-6 proves the exact-match guard does not false-positive on a `feature/1-foo` decoy when the queried branch is an absent `feature/1-foobar`.
+- **Detached HEAD is *not* undecidable** — a design refinement of FR4's original wording. `merge-base --is-ancestor <parent> HEAD` resolves a detached-but-valid HEAD to its commit and answers correctly; only a genuinely unborn HEAD errors (rc ∉ {0,1}) ⇒ `null` (TC-7).
+- **The hand-rolled JSON serialiser is regression-guarded by a real parser**: the new field required a trailing comma on the prior last line, so TC-8 parses `--format=json` with `JSON::PP` (not a regex) and asserts every pre-existing field plus the new JSON boolean — catching a missed comma that would silently malform the output.
+- **`git stash` is content-only** (process learning): after the edits, an initial read mistook Edit-tool perm bumps (0500→0700) + stale hashes for pre-existing repo failures. `git stash` reverts content but not fine-grained perm bits, so the residual drift was self-inflicted, not a repo problem. The hash refresh was a manual `sha256sum`-into-`script-hashes.json` edit because `cwf-manage fix-security` refuses content-hash rewrites by design (surface, never smooth); two unrelated pre-existing perms drifts were clamped fix-on-sight.
+- **Tests**: new `t/taskpath-parent-branch-ancestry.t` (TC-1…TC-9, synthetic throwaway repos for the diverged/undecidable paths the strictly-linear live repo can't exercise); full `prove -l -j4 t/` green at 67 files / 807 tests; `cwf-manage validate` clean throughout.
+- **Carried to BACKLOG**: a watch-item to migrate `CWF::TaskPath::branch_exists` off its backtick/`--list`-glob shape onto the list-form `run_quiet` + `rev-parse --verify` pattern this task established, if any future caller feeds it a less-trusted name.
+
 ## Task 201: Bash tool-check framework
 
 ### Status: Complete (2026-06-13)

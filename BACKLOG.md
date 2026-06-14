@@ -1483,3 +1483,29 @@ Task 201 shipped the bash tool-check *mechanism* inert (empty default ruleset). 
 Scope: author a starter rule pack for CWF's own development, targeting the recurring offenders already documented in MEMORY.md feedback (e.g. `sed -n` line-range reads, `find`, `tee`, inline `perl -e`/heredocs, `git -C`, `echo "EXIT: $?"`). Regex-only — the checked-in layer drops `perl` rules before compilation by design. Re-evaluate the pack whenever the session model or Claude Code version changes; treat it as living config, not a one-off.
 
 Use `--check` to preview the merged effective set before committing the pack.
+
+## Task: Migrate CWF::TaskPath::branch_exists off backtick/--list-glob to list-form run_quiet
+
+### Task-Type: bugfix
+### Priority: Low
+### Status: Follow-up from Task 202
+### Identified in: Task 202 retrospective (j-retrospective.md)
+
+`CWF::TaskPath::branch_exists` (`TaskPath.pm`) checks branch existence with a
+backtick, shell-interpolated `git branch --list '$branch'`. This has two
+weaknesses: (1) the single-quote wrapping breaks on a branch name containing an
+embedded `'`, and is shell-interpolated rather than list-form; (2) `--list` is a
+glob, so it can false-positive on a prefix-collision sibling (`feature/1-foo`
+matching a query for `feature/1-foobar`).
+
+It is safe at its current callsites only because the branch names there are
+constrained. Task 202 deliberately did **not** reuse it for its new existence
+guard, instead establishing the list-form `run_quiet('git','rev-parse','--verify',
+'--quiet',"refs/heads/$branch")` + exact-match pattern (now in `CWF::Common`).
+
+Scope: migrate `branch_exists` onto the list-form `run_quiet` + `rev-parse
+--verify` shape, OR — if no caller ever feeds it a less-trusted name — document it
+as a deliberately-constrained-input helper. This is a watch-item, not a forced
+rewrite; act when a future caller would pass a name derived from less-trusted
+input. Both Task 202 exec-phase security reviews flagged it as a safe-here pattern
+to audit on reuse.

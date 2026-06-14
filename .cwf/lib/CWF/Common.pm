@@ -10,8 +10,9 @@ use strict;
 use warnings;
 use utf8;
 use Exporter 'import';
+use POSIX ();
 
-our @EXPORT_OK = qw(check_perl5opt format_error parse_semver version_cmp find_git_root resolve_head_sha generate_slug);
+our @EXPORT_OK = qw(check_perl5opt format_error parse_semver version_cmp find_git_root resolve_head_sha generate_slug run_quiet);
 
 # Check PERL5OPT environment configuration
 # Args: none
@@ -83,6 +84,30 @@ sub resolve_head_sha {
     my $sha = `git rev-parse HEAD 2>/dev/null`;
     chomp $sha;
     return $sha =~ /^[0-9a-f]{40}$/ ? $sha : undef;
+}
+
+# Run a command in list form, suppressing its stdout/stderr.
+#
+# List form (no shell) so a derived argument — e.g. a branch name taken from an
+# on-disk task dirname — cannot inject shell metacharacters. The post-failed-exec
+# child uses POSIX::_exit (not exit) to skip inherited END blocks: CWF::Common is
+# broadly imported, and a caller's END (e.g. File::Path cleanup) firing in the
+# forked child could delete the parent's state (Task-159 convention).
+#
+# Args: @cmd (command and arguments)
+# Returns: the child's exit code ($? >> 8), or -1 if fork failed.
+sub run_quiet {
+    my @cmd = @_;
+    my $pid = fork();
+    return -1 unless defined $pid;
+    if ($pid == 0) {
+        open(STDIN,  '<', '/dev/null');
+        open(STDOUT, '>', '/dev/null');
+        open(STDERR, '>', '/dev/null');
+        exec(@cmd) or POSIX::_exit(127);
+    }
+    waitpid($pid, 0);
+    return $? >> 8;
 }
 
 # Generate a slug from a free-text description.

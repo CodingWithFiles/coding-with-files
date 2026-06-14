@@ -1,8 +1,93 @@
 {
-  "env": {
-    "PERL5OPT": "-CDSLA"
+  "env" : {
+    "PERL5OPT" : "-CDSLA"
   },
-  "worktree": {
-    "baseRef": "head"
+  "hooks" : {
+    "PreToolUse" : [
+      {
+        "hooks" : [
+          {
+            "command" : ".cwf/scripts/hooks/pretooluse-bash-tool-check",
+            "timeout" : 5,
+            "type" : "command"
+          }
+        ],
+        "matcher" : "Bash"
+      }
+    ],
+    "Stop" : [
+      {
+        "hooks" : [
+          {
+            "command" : ".cwf/scripts/hooks/stop-stale-status-detector",
+            "timeout" : 5,
+            "type" : "command"
+          },
+          {
+            "command" : ".cwf/scripts/hooks/stop-uncommitted-changes-warning",
+            "timeout" : 5,
+            "type" : "command"
+          }
+        ]
+      }
+    ],
+    "SubagentStop" : [
+      {
+        "hooks" : [
+          {
+            "command" : ".cwf/scripts/hooks/subagentstop-security-verdict-guard",
+            "timeout" : 5,
+            "type" : "command"
+          }
+        ],
+        "matcher" : "cwf-security-reviewer-changeset"
+      }
+    ],
+    "UserPromptSubmit" : [
+      {
+        "hooks" : [
+          {
+            "command" : "cat .cwf/rules-inject.txt 2>/dev/null || true",
+            "type" : "command"
+          }
+        ]
+      }
+    ]
+  },
+  "permissions" : {
+    "allow" : [
+      "Bash(.cwf/scripts/command-helpers/backlog-manager:*)",
+      "Bash(.cwf/scripts/command-helpers/checkpoints-branch-manager:*)",
+      "Bash(.cwf/scripts/command-helpers/context-inheritance-v2.0:*)",
+      "Bash(.cwf/scripts/command-helpers/context-inheritance-v2.1:*)",
+      "Bash(.cwf/scripts/command-helpers/context-manager:*)",
+      "Bash(.cwf/scripts/command-helpers/cwf-apply-artefacts:*)",
+      "Bash(.cwf/scripts/command-helpers/cwf-check-tree-symlinks:*)",
+      "Bash(.cwf/scripts/command-helpers/cwf-checkpoint-commit:*)",
+      "Bash(.cwf/scripts/command-helpers/cwf-claude-settings-merge:*)",
+      "Bash(.cwf/scripts/command-helpers/cwf-detect-merges:*)",
+      "Bash(.cwf/scripts/cwf-manage:*)",
+      "Bash(.cwf/scripts/command-helpers/cwf-set-status:*)",
+      "Bash(.cwf/scripts/command-helpers/cwf-version-bump:*)",
+      "Bash(.cwf/scripts/command-helpers/cwf-version-next:*)",
+      "Bash(.cwf/scripts/command-helpers/cwf-version-tag:*)",
+      "Bash(.cwf/scripts/hooks/pretooluse-bash-tool-check)",
+      "Bash(.cwf/scripts/command-helpers/security-review-changeset:*)",
+      "Bash(.cwf/scripts/command-helpers/security-review-classify:*)",
+      "Bash(.cwf/scripts/command-helpers/status-aggregator-v2.0:*)",
+      "Bash(.cwf/scripts/command-helpers/status-aggregator-v2.1:*)",
+      "Bash(.cwf/scripts/hooks/stop-stale-status-detector)",
+      "Bash(.cwf/scripts/hooks/stop-uncommitted-changes-warning)",
+      "Bash(.cwf/scripts/hooks/subagentstop-security-verdict-guard)",
+      "Bash(.cwf/scripts/command-helpers/task-context-inference:*)",
+      "Bash(.cwf/scripts/command-helpers/task-stack:*)",
+      "Bash(.cwf/scripts/command-helpers/task-workflow:*)",
+      "Bash(.cwf/scripts/command-helpers/template-copier-v2.0:*)",
+      "Bash(.cwf/scripts/command-helpers/template-copier-v2.1:*)",
+      "Bash(.cwf/scripts/command-helpers/workflow-manager:*)"
+    ]
+  },
+  "worktree" : {
+    "baseRef" : "head"
   }
 }

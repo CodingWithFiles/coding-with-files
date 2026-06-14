@@ -56,7 +56,7 @@
     },
     "CWF::Common" : {
       "path" : ".cwf/lib/CWF/Common.pm",
-      "sha256" : "55eee06c1c9557bdebaeeb6e2f52b7f0d37d80173562290a61e9f25a201a7c8d"
+      "sha256" : "561a5a09bd8234426609e0a5a37b109e82aae161f1e4003af56cb8184b2447f1"
     },
     "CWF::ContextInheritance::Core" : {
       "path" : ".cwf/lib/CWF/ContextInheritance/Core.pm",
@@ -84,7 +84,7 @@
     },
     "CWF::TaskPath" : {
       "path" : ".cwf/lib/CWF/TaskPath.pm",
-      "sha256" : "45eabdd56a59c88e972b677ad5f7e5ed8c8e33b0c3130786277aacbdd241a91d"
+      "sha256" : "0ed317e21cd271bee431e9e7e8220ddcd48a036b331d8dde02aa08fbf2023f64"
     },
     "CWF::TaskState" : {
       "path" : ".cwf/lib/CWF/TaskState.pm",
@@ -175,7 +175,7 @@
     "context-manager.d/hierarchy" : {
       "path" : ".cwf/scripts/command-helpers/context-manager.d/hierarchy",
       "permissions" : "0500",
-      "sha256" : "9d3a3eacba40818e8f3e19d1c45f6ede38810d7a859926c93f1e3ebafe5230ac"
+      "sha256" : "256915e67796a0ce14989a83833b16e0fde0b10294c2b0518e8a1554151517ab"
     },
     "context-manager.d/inheritance" : {
       "path" : ".cwf/scripts/command-helpers/context-manager.d/inheritance",
@@ -325,7 +325,7 @@
     "task-workflow.d/delete" : {
       "path" : ".cwf/scripts/command-helpers/task-workflow.d/delete",
       "permissions" : "0500",
-      "sha256" : "71c16b188a91c9a750bb2a6e9a841094a8338823f5b139e82fe633d2cbc7168c"
+      "sha256" : "cc62058d7dfe7cae08549e2f1873bcf1b8eb837bc1756152f650e230f330e64d"
     },
     "template-copier-v2.0" : {
       "path" : ".cwf/scripts/command-helpers/template-copier-v2.0",

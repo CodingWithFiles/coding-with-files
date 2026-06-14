@@ -25,7 +25,7 @@ use CWF::Common qw(check_perl5opt);
 
 check_perl5opt();
 
-use CWF::TaskPath qw(normalize validate resolve);
+use CWF::TaskPath qw(normalize validate resolve parent_branch_ancestry);
 
 # Parse arguments
 if (@ARGV < 1) {
@@ -58,9 +58,13 @@ unless ($result) {
     exit 2;
 }
 
+# Parent-branch ancestry (strict-linear-history signal): 1 / 0 / undef
+my $anc = parent_branch_ancestry($task_path);
+
 # Output result
 if ($format eq "json") {
     my $parent = $result->{parent_path} // "";
+    my $anc_json = defined($anc) ? ($anc ? 'true' : 'false') : 'null';
     print qq({
   "full_path": "$result->{full_path}",
   "format": "$result->{format}",
@@ -68,7 +72,8 @@ if ($format eq "json") {
   "task_type": "$result->{type}",
   "task_slug": "$result->{slug}",
   "parent_path": "$parent",
-  "depth": $result->{depth}
+  "depth": $result->{depth},
+  "parent_branch_is_ancestor": $anc_json
 }
 );
 } else {
@@ -77,6 +82,8 @@ if ($format eq "json") {
     print "Format: v$result->{format}\n";
     if ($result->{parent_path}) {
         print "Parent: $result->{parent_path}\n";
+        my $anc_md = defined($anc) ? ($anc ? 'yes' : 'no') : 'unknown';
+        print "Parent branch ancestor of HEAD: $anc_md\n";
     }
 }
 
