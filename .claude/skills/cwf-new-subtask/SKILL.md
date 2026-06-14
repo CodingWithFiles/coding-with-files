@@ -86,12 +86,33 @@ checkout in either failure path.
 - Copy templates via `task-workflow create` with `--destination` pointing inside parent dir
 - Set `{{parentTask}}` to parent task number
 
-### 4. Provide Next Steps
+### 4. Provision the Scratch Directory
+Create this subtask's scratch leaf. It reuses the **same per-project parent**
+as every other task in this repo, with its own `task-<subnum>/` leaf. Use the
+canonical derivation snippet in `.cwf/docs/conventions/tmp-paths.md` (do not
+hand-roll a `${repo_root//\//-}` one-liner — it drops worktree-safety). With
+`num` set to this subtask's full decimal `<num>` (e.g. `48.1`):
+
+```bash
+base="${TMPDIR:-/tmp}"; base="${base%/}"
+repo_root=$(cd "$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")" && pwd)
+scratch="${base}/cwf${repo_root//\//-}/task-${num}"
+mkdir -m 0700 -p "$scratch" && echo "scratch: $scratch" || echo "WARNING: could not create $scratch (will be created on first use)"
+```
+
+There is **no `git checkout -b`** in this skill — the subtask stays on the
+parent branch — so provisioning follows subtask creation directly.
+**Non-fatal**: a failed `mkdir` must NOT block subtask creation; do not print
+the path as if it exists on failure.
+
+### 5. Provide Next Steps
 - Subtask directory, parent link, structural map shown
+- Scratch dir provisioned (or noted as deferred to first use) — surface the path
 - Next action: `/cwf-task-plan <num>`
 
 ## Success Criteria
 - [ ] Parent task resolved and context loaded
 - [ ] Arguments parsed and validated
 - [ ] Subtask directory created with template files
+- [ ] Scratch dir provisioned (non-fatal) and path surfaced
 - [ ] Next steps suggested

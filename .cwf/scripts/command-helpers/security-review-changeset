@@ -56,9 +56,9 @@
 #
 # Output:
 #   File:   the full changeset (git diff, anchor → working tree) is written to
-#           ${TMPDIR:-/tmp}/<dashified-abs-main-root>-task-<num>/security-review-changeset-<step>.out
-#           (mode 0600, dir created mkdir -m 0700 on first use). The agent Reads
-#           this file. An empty changeset still writes a 0-line file.
+#           ${TMPDIR:-/tmp}/cwf<dashified-abs-main-root>/task-<num>/security-review-changeset-<step>.out
+#           (mode 0600; parent and task-<num> leaf created mkdir 0700 on first use).
+#           The agent Reads this file. An empty changeset still writes a 0-line file.
 #   stdout: exactly one confirmation line —
 #           `security-review-changeset: wrote <N> lines to <abs-path>`.
 #   stderr: one-line summary
@@ -260,12 +260,24 @@ unless (defined $repo_root && length $repo_root) {
 (my $dashed = $repo_root) =~ s{/}{-}g;   # absolute path => canonical leading-dash form
 my $base = (defined $ENV{TMPDIR} && length $ENV{TMPDIR}) ? $ENV{TMPDIR} : '/tmp';
 $base =~ s{/+$}{};   # match shell `${TMPDIR:-/tmp}` + trailing-slash strip
-my $scratch = "$base/${dashed}-task-${task_num}";   # honour $TMPDIR so scratch
-                                                    # lands in the sandbox temp root
-# Script-owned mkdir at 0700 BEFORE any write — do not rely on
-# atomic_write_text's umask-default make_path fallback (tmp-paths symlink
-# defence). `unless -d` does not re-assert mode on a pre-existing foreign dir;
-# the fail-closed defence in that case is the 0600 write below failing.
+my $parent  = "$base/cwf${dashed}";          # stable per-project parent (honour
+                                             # $TMPDIR so scratch lands in the sandbox)
+my $scratch = "$parent/task-${task_num}";    # per-task leaf under the shared parent
+# Script-owned two-level mkdir at 0700 BEFORE any write — do not rely on
+# atomic_write_text's umask-default make_path fallback (tmp-paths symlink defence).
+# `unless -d` does not re-assert mode on a pre-existing foreign dir; the fail-closed
+# defence in that case is the 0600 write below failing.
+mkdir($parent, 0700) unless -d $parent;
+# Defence-in-depth: reject a symlinked parent (lstat via -l), not the boundary.
+# Re-check AFTER mkdir is race-tolerant (a concurrent create by another session is
+# fine; a symlink is still rejected). Also catches a non-symlink step-1 mkdir
+# failure (fail-closed). NB: deliberately NO chmod-clamp here (cf.
+# hooks/pretooluse-bash-tool-check, which clamps) — never auto-chmod a foreign or
+# wrong-mode parent (design D2: surface, never smooth).
+unless (-d $parent && !-l $parent) {
+    warn "$PROG: scratch parent $parent is not a usable directory\n";
+    exit 1;
+}
 unless (-d $scratch) {
     mkdir($scratch, 0700)
         or do {
@@ -344,7 +356,7 @@ Options:
 
 Output:
   Writes the full diff to
-    \${TMPDIR:-/tmp}/<dashified-abs-main-root>-task-<num>/security-review-changeset-<step>.out
+    \${TMPDIR:-/tmp}/cwf<dashified-abs-main-root>/task-<num>/security-review-changeset-<step>.out
   and prints one confirmation line to stdout:
     $PROG: wrote <N> lines to <abs-path>
 

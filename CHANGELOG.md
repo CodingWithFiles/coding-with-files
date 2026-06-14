@@ -2,6 +2,20 @@
 
 All notable changes to the Coding with Files (CWF) project are documented in this file, organized by task.
 
+## Task 203: Nest tmp scratch dirs under per-project parent dir
+
+### Status: Complete (2026-06-14)
+### Duration: ~1 day (estimate ~0.5 day, Medium; slight over-run, all in design deliberation).
+### Impact: CWF's per-task scratch convention moves from sibling top-level dirs (`${TMPDIR:-/tmp}/<dashified-repo>-task-<num>/`) to a single per-project parent holding per-task leaves (`${TMPDIR:-/tmp}/cwf<dashified-repo>/task-<num>/`, the literal `cwf` abutting the leading dash → `cwf-home-matt-repo-coding-with-files/task-203/`). Because the path prefix is now stable across tasks, the Bash/Write permission prompt for scratch artefacts fires **once per project** rather than once per task, and an optional user-owned allowlist rule can cover every task's scratch with a single entry. The convention SSOT (`.cwf/docs/conventions/tmp-paths.md`) was rewritten — nested canonical form, two-level derivation snippet (parent then leaf, `mkdir -m 0700`), worked example, the two-level threat-model guard, a defence-in-depth note, a new "Permission allowlist (optional, user-owned)" section, and an explicit `-tool-check` carve-out. The one in-tree consumer, `security-review-changeset`, now assembles `$parent`/`$scratch` and does a two-level `mkdir 0700` with a `-d && !-l` parent symlink reject (hash-tracked → same-commit `script-hashes.json` refresh). `/cwf-new-task` and `/cwf-new-subtask` gained a non-fatal provisioning step (reusing the canonical worktree-safe snippet) that creates the parent + leaf and surfaces the path. `CLAUDE.md`'s Tmp Paths bullet was updated.
+
+### Notable
+- **Boundary vs defence-in-depth, framed honestly**: the containment boundary stays the atomic `mkdir 0700` + fail-closed `0600` `.out` write; the `-d && !-l` (lstat) parent reject is scoped explicitly as defence-in-depth for the now-shared, longer-lived parent, not a racy TOCTOU stat masquerading as the boundary. Both exec-phase security reviews returned **no findings** and endorsed the framing.
+- **"Surface, never smooth" is observable**: the helper deliberately omits the `pretooluse-bash-tool-check` precedent's chmod-clamp (with an inline anti-reintroduction comment) — TC-PARENT-REUSE asserts a pre-existing 0755 parent is left untouched.
+- **Two deliberate scope removals**: `.cwfkeep` sentinel **cut** (D3 — the named parent is itself the discoverability marker), reversing the user's original instruction after confirmation; the shipped-settings allowlist rule became **documentation only** (D4 — the path embeds a machine-specific absolute path, so CWF edits no settings file). A mid-task `touch .cwfkeep` was confirmed a one-off and did not reinstate the sentinel.
+- **`-tool-check` carve-out (D5)**: the `pretooluse-bash-tool-check` state dir keeps its own form (different dashify rule, already one-dir-per-project, written programmatically) — a named exception in the convention rather than unifying two hashed scripts for zero gain.
+- **Tests**: extended TC-OUTFILE (nested shape + parent/leaf 0700), new TC-PARENT-SYMLINK and TC-PARENT-REUSE, extended END-block cleanup in `t/security-review-changeset.t`; D6 provisioning covered by manual smoke (success + forced-failure paths). Full `prove t/` 808/809 — the sole red, TC-VALIDATE, was a pre-existing in-flight-status artefact resolved by the retrospective status sweep, not a regression.
+- **Carried to BACKLOG**: the TC-VALIDATE live-repo `validate` assertion is structurally red for any in-flight task (phase files legitimately carry placeholder statuses until their retrospective sweep) — scope it to a fixture or have it tolerate in-flight placeholders.
+
 ## Task 202: report whether parent branch is direct ancestor
 
 ### Status: Complete (2026-06-14)

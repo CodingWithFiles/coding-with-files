@@ -6,26 +6,32 @@ shared task numbers (e.g. two repos each having a task `145`).
 
 ## Convention
 
-Canonical form:
+Canonical form — a single per-project parent holding per-task leaves:
 
 ```
-${TMPDIR:-/tmp}/<dashified-absolute-repo-path>-task-<num>/
+${TMPDIR:-/tmp}/cwf<dashified-absolute-repo-path>/task-<num>/
 ```
 
 Where `<dashified-absolute-repo-path>` is the repository's absolute path
 with every `/` replaced by `-` (leading dash preserved), mirroring the
-`~/.claude/projects/` directory-naming convention. The base is `${TMPDIR:-/tmp}`
-(not a hardcoded `/tmp`) so scratch lands inside whatever temp root the
-environment provides — see [Sandbox alignment](#sandbox-alignment).
+`~/.claude/projects/` directory-naming convention. The literal `cwf`
+prefix abuts that leading dash — no extra separator — so the parent reads
+cleanly as `cwf-home-matt-repo-coding-with-files`. The base is
+`${TMPDIR:-/tmp}` (not a hardcoded `/tmp`) so scratch lands inside whatever
+temp root the environment provides — see [Sandbox alignment](#sandbox-alignment).
+
+The per-project parent is the unit a devops operator reasons about: every
+CWF scratch dir for a repo lives under one clearly-named `cwf-<repo>/`, and
+the `task-<num>/` leaves beneath it show what is live vs. deletable.
 
 Worked example (this repository, task 145):
 
 ```
-${TMPDIR:-/tmp}/-home-matt-repo-coding-with-files-task-145/
+${TMPDIR:-/tmp}/cwf-home-matt-repo-coding-with-files/task-145/
 ```
 
-resolving to `/tmp/claude/-home-…-task-145/` under the sandbox
-(`TMPDIR=/tmp/claude`) and `/tmp/-home-…-task-145/` off-sandbox.
+resolving to `/tmp/claude/cwf-home-…/task-145/` under the sandbox
+(`TMPDIR=/tmp/claude`) and `/tmp/cwf-home-…/task-145/` off-sandbox.
 
 Derivation snippet (copy-pastable):
 
@@ -35,28 +41,29 @@ Derivation snippet (copy-pastable):
 base="${TMPDIR:-/tmp}"; base="${base%/}"   # honour the sandbox temp root; off-sandbox → /tmp
 repo_root=$(cd "$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")" && pwd)
 num=145
-scratch="${base}/${repo_root//\//-}-task-${num}"
-mkdir -m 0700 -p "$scratch"
+parent="${base}/cwf${repo_root//\//-}"   # stable per-project parent (cwf abuts leading dash)
+scratch="${parent}/task-${num}"          # per-task leaf
+mkdir -m 0700 -p "$scratch"              # -p creates parent then leaf, 0700 on both
 ```
 
-Use the same directory for every scratch artefact produced during the
-task — script files, commit-message drafts, captured subagent output,
-diff captures, etc. Examples:
+Use the leaf — `${TMPDIR:-/tmp}/cwf<dash>/task-<num>/` — for every scratch
+artefact produced during the task: script files, commit-message drafts,
+captured subagent output, diff captures, etc. Examples:
 
 - One-off scripts (per [[feedback_no_heredocs]]):
-  `${TMPDIR:-/tmp}/-home-matt-repo-coding-with-files-task-145/refresh-hashes.pl`
-- Commit-message drafts: `${TMPDIR:-/tmp}/-home-matt-repo-coding-with-files-task-145/msg.txt`
+  `${TMPDIR:-/tmp}/cwf-home-matt-repo-coding-with-files/task-145/refresh-hashes.pl`
+- Commit-message drafts: `${TMPDIR:-/tmp}/cwf-home-matt-repo-coding-with-files/task-145/msg.txt`
 - Subagent prompt / output captures (per [[feedback_no_tee_permissions]]):
-  `${TMPDIR:-/tmp}/-home-matt-repo-coding-with-files-task-145/f-changeset.diff`
+  `${TMPDIR:-/tmp}/cwf-home-matt-repo-coding-with-files/task-145/f-changeset.diff`
 
 ## Sandbox alignment
 
 The base is `${TMPDIR:-/tmp}`, not a hardcoded `/tmp`, so scratch lands inside
 whatever temp root the environment provides. Under a Claude Code sandbox that
 restricts `/tmp` writes to `/tmp/claude`, the sandbox sets `TMPDIR=/tmp/claude`,
-so the form resolves to `/tmp/claude/<dashified-repo>-task-<num>/`; off-sandbox
-(`$TMPDIR` unset or empty) it resolves to `/tmp/<dashified-repo>-task-<num>/` —
-prior behaviour, unchanged. One unconditional form, no sandbox-detection branch.
+so the form resolves to `/tmp/claude/cwf<dashified-repo>/task-<num>/`; off-sandbox
+(`$TMPDIR` unset or empty) it resolves to `/tmp/cwf<dashified-repo>/task-<num>/`.
+One unconditional form, no sandbox-detection branch.
 
 `$TMPDIR` is honoured verbatim (no `..`/`rel2abs` canonicalisation), trusted
 **only** under the single-user threat model below — `$TMPDIR` is set by the
@@ -98,9 +105,25 @@ mkdir -m 0700 -p "$scratch"
 ```
 
 `mkdir -m 0700 -p` is sufficient: it sets the mode atomically on creation
-and is a no-op (without changing mode) if the directory already exists
-and is owned by the caller. If the directory exists but is owned by
-another user, the subsequent write will fail closed.
+of **both** the `cwf<dash>` parent and the `task-<num>` leaf, and is a no-op
+(without changing mode) if a directory already exists and is owned by the
+caller. If a directory exists but is owned by another user, the subsequent
+write will fail closed. That atomic `0700` create plus the fail-closed write
+is the containment boundary.
+
+The per-project parent is now **shared across tasks and longer-lived** than a
+per-task sibling was. Long-lived automation that writes into it (e.g. the
+`security-review-changeset` helper) therefore adds one **defence-in-depth**
+check the ad-hoc snippet above omits: after the parent `mkdir`, it rejects a
+parent that is a **symlink** (`-d && !-l`, i.e. `lstat` semantics — a plain
+`stat` follows the link and would validate the target, the dangerous
+symlink-to-dir case) with a warning and a non-zero exit. It does **not**
+re-assert ownership/mode (that stays enforced by the fail-closed write — no
+TOCTOU stat masquerading as the boundary) and **never auto-chmods** a
+wrong-mode parent (surface, never smooth). The ad-hoc snippet skips this
+because it is single-user, one-shot use; the helper adds it because it may meet
+a pre-existing shared parent. The leaf is intentionally left to the fail-closed
+write (no redundant leaf check).
 
 Do not write secrets, `.env` content, or credentials into the scratch
 directory even with the `0700` guard — the directory is intended for
@@ -122,11 +145,43 @@ dashified-absolute-repo-path form is:
   two checkouts of the same repository.
 - **Familiar** — it mirrors the `~/.claude/projects/` directory naming
   convention the user already encounters.
-- **Trivially derivable** — three lines of shell, no helper script.
+- **Trivially derivable** — a few lines of shell, no helper script.
 
 A short-form fallback (`/tmp/<basename>-task-<num>/`) is *not* offered.
 Multiple permitted forms invite drift; the dashified form is no harder
 to construct programmatically than the basename form.
+
+## Permission allowlist (optional, user-owned)
+
+The stable per-project parent lets you collapse the per-task permission
+prompts (one-off scripts written into scratch, captured output) into a
+**single** allowlist rule. CWF does **not** edit any settings file — the
+path embeds a machine-specific absolute path and `settings.local.json` is
+user-owned. If you want to opt in, add these rules yourself (syntax verified
+against `code.claude.com/docs/en/permissions.md` and existing entries):
+
+- **Write tool** — gitignore-style paths (`//` = absolute root, `**` = subtree):
+
+  ```
+  Write(//tmp/cwf-home-matt-repo-coding-with-files/**)
+  Write(//tmp/claude/cwf-home-matt-repo-coding-with-files/**)   # sandbox base
+  ```
+
+- **Script execution** — `Bash()` rules match the **command string**; `*`
+  spans `/`; `**` is **not** supported in `Bash()`:
+
+  ```
+  Bash(/tmp/cwf-home-matt-repo-coding-with-files/*)
+  Bash(/tmp/claude/cwf-home-matt-repo-coding-with-files/*)      # sandbox base
+  ```
+
+**Granularity trade-off (deliberate)**: the old sibling form let you
+allowlist a *single* task's path; one subtree rule on the nested form
+allowlists execution of scripts written into **any** task leaf by **any**
+session. That is a conscious, user-owned widening, bounded to this project's
+parent under the single-user threat model. It also makes the no-secrets rule
+above more important, not less: the subtree is pre-approved for execution, so
+never write credentials or `.env` content into it.
 
 ## Out of scope
 
@@ -134,12 +189,21 @@ to construct programmatically than the basename form.
   one-shot operations with no concurrency risk. Leave as-is.
 - **Historical references in `BACKLOG.md` / `CHANGELOG.md` / older
   `implementation-guide/<task>/` files**: do not retroactively rewrite.
-- **`.claude/settings.local.json` allowlist entries**: user-owned file.
-  Existing entries like `Bash(/tmp/task-132/...)` predate this
-  convention and must not be retroactively rewritten. Future allowlist
-  entries should use the canonical form.
+- **`.claude/settings.local.json` allowlist entries**: user-owned file,
+  never edited by CWF (see [Permission allowlist](#permission-allowlist-optional-user-owned)).
+  Existing entries like `Bash(/tmp/task-132/...)` predate this convention and
+  must not be retroactively rewritten.
+- **`pretooluse-bash-tool-check` state dir**: the hook
+  `.cwf/scripts/hooks/pretooluse-bash-tool-check` writes
+  `${TMPDIR:-/tmp}/<dashified-root>-tool-check/`. It is **not** nested under
+  the `cwf<dash>/` parent: it is already one stable dir per project (no
+  per-task proliferation, so no prompt problem), it is written
+  programmatically by the hook (not via a Bash prompt, so the allowlist anchor
+  is irrelevant to it), and it uses a different dashify rule
+  (`s{[^A-Za-z0-9]+}{-}g`) than this convention (`s{/}{-}g`). A named exception
+  beats unifying two hashed scripts' rules for no functional gain.
 - **Helper script to compute the path**: deferred. The derivation
-  snippet is three lines; a helper would add hash-tracking surface for
+  snippet is a few lines; a helper would add hash-tracking surface for
   no proportionate benefit.
 
 ## See also

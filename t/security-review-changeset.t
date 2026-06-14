@@ -111,12 +111,23 @@ sub make_synthetic_repo {
 # live OUTSIDE each synthetic repo's tempdir (they hang off the dashified main
 # root), so tempdir(CLEANUP=>1) does not reap them — track and remove them here.
 my @CLEANUP_OUT;
+my @CLEANUP_SYMLINK;   # Task 203: parent symlinks planted by TC-PARENT-SYMLINK
 END {
+    # Task 203: scratch is now nested — <base>/cwf<dash>/task-<num>/<file>.
+    # Remove the .out, then the now-empty task-<num> leaf, then the now-empty
+    # cwf<dash> parent. Each rmdir is a no-op if other entries remain.
     for my $p (@CLEANUP_OUT) {
         next unless defined $p;
         unlink $p;
-        (my $d = $p) =~ s{/[^/]+$}{};
-        rmdir $d;   # no-op if other files remain
+        (my $leaf = $p) =~ s{/[^/]+$}{};       # task-<num> leaf
+        rmdir $leaf;
+        (my $parent = $leaf) =~ s{/[^/]+$}{};  # cwf<dash> parent
+        rmdir $parent;
+    }
+    # Planted parent symlinks (defence-in-depth negative test): unlink, never rmdir.
+    for my $l (@CLEANUP_SYMLINK) {
+        next unless defined $l;
+        unlink $l if -l $l;
     }
 }
 
@@ -1047,10 +1058,84 @@ subtest 'TC-OUTFILE: changeset written to 0600 .out in 0700 dir; stdout carries 
     ok(defined $p && -f $p, '.out file exists at the reported path');
     is(((stat($p))[2] & 07777), 0600, '.out file mode is 0600');
     (my $dir = $p) =~ s{/[^/]+$}{};
-    is(((stat($dir))[2] & 07777), 0700, 'scratch dir mode is 0700');
+    is(((stat($dir))[2] & 07777), 0700, 'scratch dir (task-<num> leaf) mode is 0700');
+    like($p, qr{/cwf[^/]+/task-\d+(?:\.\d+)*/security-review-changeset-[^/]+\.out$},
+         '.out path is nested: <base>/cwf<dash>/task-<num>/<file>');
+    (my $parent = $dir) =~ s{/[^/]+$}{};
+    is(((stat($parent))[2] & 07777), 0700, 'scratch PARENT (cwf<dash>) mode is 0700');
     like(changeset_of($out), qr{\.cwf/scripts/foo}, '.out contains the diff');
     unlike($out, qr{^diff --git}m, 'stdout carries no "diff --git" line');
     unlike($out, qr{^[-+]}m, 'stdout carries no diff +/- body lines');
+};
+
+# ---------------------------------------------------------------------------
+# TC-PARENT-SYMLINK (AC6, security): the shared cwf<dash> parent pre-planted as
+# a symlink-to-dir is REJECTED (exit 1) by the helper's -d && !-l recheck; no
+# .out is written through the link. Defence-in-depth, not the boundary.
+# ---------------------------------------------------------------------------
+subtest 'TC-PARENT-SYMLINK: symlinked scratch parent is rejected (exit 1)' => sub {
+    SKIP: {
+        skip 'symlinks not supported here', 3 unless eval { symlink('', ''); 1 } || $!;
+
+        my ($repo) = make_synthetic_repo(baseline => '__MAIN__');
+        make_path("$repo/.cwf/scripts");
+        write_script("$repo/.cwf/scripts/work", 5);
+        git_in($repo, 'add', '.cwf/scripts/work');
+        git_in($repo, 'commit', '-q', '-m', 'work');
+
+        # Discover the canonical nested .out path via one clean run, then tear
+        # the real parent/leaf down so we can replant the parent as a symlink.
+        my ($o1) = run_helper($repo);
+        my $p = out_path($o1);
+        skip 'no .out path to target', 3 unless defined $p;
+        (my $leaf   = $p)    =~ s{/[^/]+$}{};   # .../cwf<dash>/task-<num>
+        (my $parent = $leaf) =~ s{/[^/]+$}{};   # .../cwf<dash>
+        unlink $p; rmdir $leaf; rmdir $parent;
+
+        # Plant the parent as a symlink to an attacker-controlled directory —
+        # the dangerous symlink-to-dir case a bare -d would silently accept.
+        my $attacker = "$repo-attacker";
+        make_path($attacker);
+        symlink($attacker, $parent) or skip 'cannot create symlink at parent', 3;
+        push @CLEANUP_SYMLINK, $parent;
+
+        my ($o2, $e2, $rc2) = run_helper($repo);
+        is($rc2, 1, 'helper exits 1 on a symlinked scratch parent');
+        like($e2, qr{scratch parent .* not a usable directory},
+             'stderr names the unusable parent');
+        opendir my $dh, $attacker or die "opendir $attacker: $!";
+        my @entries = grep { $_ ne '.' && $_ ne '..' } readdir $dh;
+        closedir $dh;
+        is(scalar @entries, 0, 'attacker dir is empty (no write-through through the link)');
+    }
+};
+
+# ---------------------------------------------------------------------------
+# TC-PARENT-REUSE (AC6, observable no-chmod): a pre-existing shared parent at a
+# non-0700 mode (0755) is REUSED as-is — the helper proceeds, writes the leaf,
+# and leaves the parent mode UNCHANGED (never auto-chmods). The second-task path.
+# ---------------------------------------------------------------------------
+subtest 'TC-PARENT-REUSE: pre-existing 0755 parent reused unchanged (no auto-chmod)' => sub {
+    my ($repo) = make_synthetic_repo(baseline => '__MAIN__');
+    make_path("$repo/.cwf/scripts");
+    write_script("$repo/.cwf/scripts/work", 5);
+    git_in($repo, 'add', '.cwf/scripts/work');
+    git_in($repo, 'commit', '-q', '-m', 'work');
+
+    # First run creates parent+leaf at 0700; loosen the PARENT to 0755 to model
+    # a pre-existing shared parent created by some other (non-helper) means.
+    my ($o1) = run_helper($repo);
+    my $p = out_path($o1);
+    (my $leaf   = $p)    =~ s{/[^/]+$}{};
+    (my $parent = $leaf) =~ s{/[^/]+$}{};
+    chmod 0755, $parent or die "chmod $parent: $!";
+
+    # Second run: parent already exists (mkdir skipped), recheck passes (-d && !-l).
+    my ($o2, $e2, $rc2) = run_helper($repo);
+    is($rc2, 0, 'helper exits 0 reusing the existing parent');
+    is(((stat($parent))[2] & 07777), 0755,
+       'parent mode left UNCHANGED at 0755 (never auto-chmodded)');
+    like(changeset_of($o2), qr{\.cwf/scripts/work}, '.out still written under the reused parent');
 };
 
 # ---------------------------------------------------------------------------

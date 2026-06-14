@@ -95,12 +95,34 @@ sets permissions. To pin a specific non-HEAD baseline, pass
 git checkout -b "<type>/<num>-<slug>"
 ```
 
-### 5. Provide Next Steps
+### 5. Provision the Scratch Directory
+Create this task's per-project scratch parent and leaf so one-off scripts and
+captured output have a home from the first phase. Use the **canonical
+derivation snippet** in `.cwf/docs/conventions/tmp-paths.md` (worktree-safe via
+`git rev-parse --path-format=absolute --git-common-dir`) — do not hand-roll a
+`${repo_root//\//-}` one-liner, which would drop worktree-safety and drift from
+the doc. With `num` set to this task's `<num>`:
+
+```bash
+base="${TMPDIR:-/tmp}"; base="${base%/}"
+repo_root=$(cd "$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")" && pwd)
+scratch="${base}/cwf${repo_root//\//-}/task-${num}"
+mkdir -m 0700 -p "$scratch" && echo "scratch: $scratch" || echo "WARNING: could not create $scratch (will be created on first use)"
+```
+
+**Non-fatal**: a failed `mkdir` must NOT block directory or branch creation
+(task creation does not need scratch). On failure, do **not** print the path as
+if it exists — say it will be created on first use. Consumers re-create on
+demand if a reaper later removes it.
+
+### 6. Provide Next Steps
 - Directory created, files listed, branch checked out
+- Scratch dir provisioned (or noted as deferred to first use) — surface the path
 - Next action: `/cwf-task-plan <num>`
 
 ## Success Criteria
 - [ ] Arguments parsed and validated
 - [ ] Task directory created with template files
 - [ ] Git branch created and checked out
+- [ ] Scratch dir provisioned (non-fatal) and path surfaced
 - [ ] Next steps suggested

@@ -85,10 +85,10 @@ needs goes in `docs/`; a rule any CWF-using project must honour goes in `.cwf/do
 - Rejected alternatives with rationale
 - BACKLOG/CHANGELOG carve-out
 
-**Tmp Paths**: Per-task scratch directories under `/tmp/` use a project-namespaced form to avoid collisions across concurrent agents. See `.cwf/docs/conventions/tmp-paths.md` for:
-- Canonical form: `/tmp/<dashified-absolute-repo-path>-task-<num>/`
-- Mandatory `mkdir -m 0700` first-use guard (symlink-attack defence)
-- Derivation snippet and worked examples
+**Tmp Paths**: Per-task scratch directories nest under one per-project parent in `/tmp/` to avoid collisions across concurrent agents and collapse per-task permission prompts. See `.cwf/docs/conventions/tmp-paths.md` for:
+- Canonical form: `/tmp/cwf<dashified-absolute-repo-path>/task-<num>/` (the `cwf` prefix abuts the leading dash)
+- Mandatory two-level `mkdir -m 0700` first-use guard (symlink-attack defence) + the helper's parent-symlink reject
+- Derivation snippet, worked examples, the optional user-owned allowlist pattern, and the `-tool-check` carve-out
 
 **Hash Updates**: Hash refreshes to `.cwf/security/script-hashes.json` happen in the same task — and same commit — as the underlying file modification. See `.cwf/docs/conventions/hash-updates.md` for:
 - Plan-time disclosure rule for hashed-file edits
