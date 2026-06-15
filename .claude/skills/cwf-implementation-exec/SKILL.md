@@ -55,24 +55,44 @@ if [ -n "$gcd" ]; then r=$(cd "$(dirname "$gcd")" && pwd); [ "$PWD" = "$r" ] || 
 
 **Step 7**: Execute implementation steps systematically per d-implementation-plan.md. Test locally, document results, note deviations.
 
-**Step 8 (Security Review)**:
-- Read `.cwf/docs/skills/security-review.md` § "Exec-phase prompt template" and § "Changeset coverage".
-- Determine current branch: `git rev-parse --abbrev-ref HEAD`.
-  - If `main`: append `## Security Review\n\n**State**: no findings\n\nno findings: on main\n` to `f-implementation-exec.md` and proceed to Step 9.
-- Construct the changeset by running the helper **exactly** as below — it is agent-invoked and self-managing; do not add redirects, `wc`, `cat`, `grep`, or any surrounding boilerplate:
-  ```
-  .cwf/scripts/command-helpers/security-review-changeset --wf-step=implementation-exec
-  ```
-  Capture its **stdout, stderr, and exit code**. The helper resolves the anchor, writes the full diff to a `.out` file per § "Changeset coverage", and prints one confirmation line `security-review-changeset: wrote <N> lines to <abs-path>`. Branch on the **exit code first**, then on the reported count:
-  - **exit 0, count > 0**: continue to the Agent call below, passing the `<abs-path>` from the confirmation line as `{changeset_file}`.
-  - **exit 0, count 0**: append `## Security Review\n\n**State**: no findings\n\nno findings: empty changeset\n` and proceed to Step 9.
-  - **exit 0 but no parseable confirmation line**: append `## Security Review\n\n**State**: error\n\nerror: changeset helper produced no parseable confirmation line\n` and proceed to Step 9. Do not invoke the subagent.
-  - **exit 2** (production-weighted count exceeds the cap): append `## Security Review\n\n**State**: error\n\nerror: <the helper's `cap exceeded:` stderr line>\n` and proceed to Step 9. Do not invoke the subagent.
-  - **any other non-zero** (e.g. `1` — changeset construction failed, including a malformed `security.review.max-lines-exclude-paths` pattern git rejected): append `## Security Review\n\n**State**: error\n\nerror: changeset construction failed (<helper stderr>)\n` and proceed to Step 9. Do not invoke the subagent.
-- **Regardless of exit code**: if the helper's stderr contains a `warning:` line (e.g. the deprecation notice for the legacy `security.review.test-paths` config key), surface it to the user verbatim and note it under the `## Security Review` section. These are upgrade nudges; do not swallow them.
-- Invoke ONE Agent call with `subagent_type="cwf-security-reviewer-changeset"` using the prompt template, `{wf_step}` = `"implementation-exec"`, `{changeset_file}` = the `.out` path from the confirmation line.
-- Write the verbatim subagent output to `security-review-output-implementation-exec.out` in the task scratch dir (derive the dir per `.cwf/docs/conventions/tmp-paths.md`; `mkdir -m 0700` on first use — this is a distinct file from the helper's changeset `.out`), then classify deterministically: `.cwf/scripts/command-helpers/security-review-classify < <file>` prints one of `no findings|findings|error`. Append `## Security Review\n\n**State**: <token>\n\n<verbatim subagent output>\n` to `f-implementation-exec.md`. Do not apply any prose/heuristic rule — the helper is the sole classifier (a tool-level Agent failure is recorded as `error`).
-- Do NOT block on `findings`. Surface them; the user decides whether to fix-and-re-run or accept-and-record before Step 9.
+**Step 8 (Changeset Reviews — security + best-practice, run in PARALLEL)**:
+
+Two independent reviewers assess the exec changeset: the **security** reviewer (always) and the **best-practice** reviewer (only when the user has matching best-practice docs). They share no state — the SubagentStop verdict guard is name-matched to `cwf-security-reviewer-changeset` only — and each emits its own `cwf-review` verdict classified independently. **Launch their Agent calls together in a single message so they run in parallel; never one-then-the-other.**
+
+- Read `.cwf/docs/skills/security-review.md` § "Exec-phase prompt template" + § "Changeset coverage" and `.cwf/docs/skills/best-practice-review.md` § "Exec prompt template" + § "Manifest discipline".
+- Determine current branch: `git rev-parse --abbrev-ref HEAD`. If `main`: append both `## Security Review\n\n**State**: no findings\n\nno findings: on main\n` and `## Best-Practice Review\n\n**State**: no findings\n\nno findings: on main\n`, then proceed to Step 9 (no agents).
+
+**Prep (deterministic helpers — fast, run both before launching any agent):**
+
+1. Security changeset — run **exactly** as below (agent-invoked, self-managing; no redirects, `wc`, `cat`, `grep`):
+   ```
+   .cwf/scripts/command-helpers/security-review-changeset --wf-step=implementation-exec
+   ```
+   Capture stdout/stderr/exit. It writes the full diff to a `.out` file per § "Changeset coverage" and prints `security-review-changeset: wrote <N> lines to <abs-path>`. Branch on the **exit code first**, then the count, to decide the **Security verdict-or-agent**:
+   - **exit 0, count > 0**: a security agent will be launched in the MAP, `{changeset_file}` = the `<abs-path>`.
+   - **exit 0, count 0**: record `## Security Review` `no findings` (`no findings: empty changeset`); no security agent.
+   - **exit 0 but no parseable confirmation line**: record `## Security Review` `error` (`error: changeset helper produced no parseable confirmation line`); no security agent.
+   - **exit 2** (cap exceeded): record `## Security Review` `error` (`error: <the helper's `cap exceeded:` stderr line>`); no security agent.
+   - **any other non-zero**: record `## Security Review` `error` (`error: changeset construction failed (<helper stderr>)`); no security agent.
+   - **Regardless of exit code**: surface any stderr `warning:` line (e.g. the deprecated `security.review.test-paths` key) to the user verbatim and note it under `## Security Review`.
+
+2. Best-practice context — run **exactly** as below (same no-boilerplate rule):
+   ```
+   .cwf/scripts/command-helpers/best-practice-resolve --task-num=<num> --phase=implementation-exec
+   ```
+   Capture stdout/stderr/exit. It prints `best-practice-resolve: wrote <N> matched entries to <abs-path>`. Branch on the **exit code first**, then the count, to decide the **Best-Practice verdict-or-agent**:
+   - **exit 1**: record `## Best-Practice Review` `error` (`error: best-practice-resolve failed (<helper stderr>)`); no bp agent (a broken config must never read as clean).
+   - **exit 0, count 0**: record `## Best-Practice Review` `no findings` (`no findings: no applicable best practices`); no bp agent.
+   - **exit 0, count ≥1**: a bp agent will be launched **iff** helper #1 produced a usable changeset (exit 0, count > 0) — `{changeset_file}` = that `.out`, `{bp_context_file}` = this resolver's `<abs-path>`. If there is no changeset to review, record `## Best-Practice Review` `no findings` (`no findings: no changeset to review`); no bp agent.
+   - **Regardless of exit code**: surface any stderr `warning:` line verbatim and note it under `## Best-Practice Review`.
+
+**MAP (launch in parallel)**: in ONE message, issue the Agent calls for whichever reviewers the Prep selected (0, 1, or 2 calls):
+- security: `subagent_type="cwf-security-reviewer-changeset"`, `{wf_step}` = `"implementation-exec"`, `{changeset_file}`.
+- best-practice: `subagent_type="cwf-best-practice-reviewer-changeset"`, `{wf_step}` = `"implementation-exec"`, `{changeset_file}`, `{bp_context_file}`.
+
+**Classify + record**: for each launched agent, write its verbatim output to its own scratch `.out` (`security-review-output-implementation-exec.out` / `best-practice-review-output-implementation-exec.out`; derive the dir per `.cwf/docs/conventions/tmp-paths.md`, `mkdir -m 0700` on first use), classify with the single shared helper `.cwf/scripts/command-helpers/security-review-classify < <file>`, and append the matching `## Security Review` / `## Best-Practice Review` section with `**State**: <token>` above the verbatim output. The helper is the sole classifier (a tool-level Agent failure is recorded as `error`). Do NOT apply any prose/heuristic rule.
+
+Do NOT block on `findings` from either reviewer. Surface them; the user decides whether to fix-and-re-run or accept-and-record before Step 9.
 
 **Step 9**: Checkpoint commit. See `.cwf/docs/skills/checkpoint-commit.md`. Stage: `f-implementation-exec.md` (and any changed files)
 

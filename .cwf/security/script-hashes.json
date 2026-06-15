@@ -1,6 +1,16 @@
 {
-  "last_updated" : "2026-06-07",
+  "last_updated" : "2026-06-15",
   "agents" : {
+    "cwf-best-practice-reviewer-changeset" : {
+      "path" : ".claude/agents/cwf-best-practice-reviewer-changeset.md",
+      "permissions" : "0444",
+      "sha256" : "b0040d892b3e0bede96cf7fb724e5099bd8bdc3b2c7203fbdb71cfd4900be45a"
+    },
+    "cwf-plan-reviewer-best-practice" : {
+      "path" : ".claude/agents/cwf-plan-reviewer-best-practice.md",
+      "permissions" : "0444",
+      "sha256" : "cbdf731f09359f5c4b9d8c546522515e9b1717bb9ab1caa66694f93496e65dab"
+    },
     "cwf-plan-reviewer-improvements" : {
       "path" : ".claude/agents/cwf-plan-reviewer-improvements.md",
       "permissions" : "0444",
@@ -152,6 +162,11 @@
     }
   },
   "scripts" : {
+    "best-practice-resolve" : {
+      "path" : ".cwf/scripts/command-helpers/best-practice-resolve",
+      "permissions" : "0500",
+      "sha256" : "522114dcd85f4ee1400045a9479a94d158a8b139a9e81d18f983b1a9c4bb69ad"
+    },
     "checkpoints-branch-manager" : {
       "path" : ".cwf/scripts/command-helpers/checkpoints-branch-manager",
       "permissions" : "0500",

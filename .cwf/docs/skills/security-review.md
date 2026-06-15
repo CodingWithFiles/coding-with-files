@@ -123,7 +123,7 @@ Five categories the subagent must cover. Each carries (i) a one-line definition,
 
 ## Plan-phase row
 
-The plan-review.md criteria-lookup table gains a `Security` column. Each cell is short (≤2 sentences) and references this doc rather than restating the threat model. See `.cwf/docs/skills/plan-review.md` § "Criteria Lookup Table" for the row text.
+The plan-review map (`.cwf/docs/skills/plan-review.md` § "1. MAP: Launch Subagents") includes the `Security` column, run by the `cwf-plan-reviewer-security` agent. Its criteria are baked into that agent body and reference this doc rather than restating the threat model.
 
 ## Exec-phase prompt template
 

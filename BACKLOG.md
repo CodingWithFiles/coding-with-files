@@ -1549,3 +1549,29 @@ as a deliberately-constrained-input helper. This is a watch-item, not a forced
 rewrite; act when a future caller would pass a name derived from less-trusted
 input. Both Task 202 exec-phase security reviews flagged it as a safe-here pattern
 to audit on reuse.
+
+## Task: Eliminate per-call permission prompts from project-root path resolution
+
+### Task-Type: feature
+### Priority: Very High
+### Identified in: Task 205 kickoff
+
+Task 204 ("resolve .cwf paths from project root, not cwd") made skills and snippets anchor to the repo root using shell variable assignments with command substitutions — e.g. gcd=$(git rev-parse --path-format=absolute --git-common-dir); repo_root=$(cd "$(dirname "$gcd")" && pwd); scratch="${base}/cwf${repo_root//\//-}/task-N". Claude Code prompts for permission on nearly every such call (command substitution + parameter expansion), stopping work on almost every tool call and destroying flow.
+
+Goal: anchor reliably to the project root with ZERO permission prompts for routine path resolution. Candidate approaches to evaluate: (a) a single helper script that performs the cd + root resolution + scratch derivation internally and prints/creates the path, so callers run one allowlisted helper instead of inline substitutions; (b) set the root once into an env var the harness allows; (c) scripts that self-resolve their own repo root from $0 rather than relying on caller cwd; (d) a wrapper that accepts the repo root as a plain positional arg. Prefer the option that needs the fewest allowlist entries and no inline ${//} expansions. Audit every skill snippet and doc (tmp-paths convention derivation snippet, all skill "anchor the shell" blocks) and migrate them to the chosen mechanism.
+
+## Task: Add reviewer-concurrency decision to the design-phase checklist
+
+### Task-Type: chore
+### Priority: Low
+### Identified in: Task 205 retrospective (j-retrospective.md)
+
+When a design introduces a new reviewer/agent, the design phase must explicitly decide its concurrency: parallel peer in the existing MAP (default) vs a serial step, with any serialisation justified by a strict output→input data dependency (fast deterministic helpers feeding agent inputs do not count). Task 205 designed exec best-practice as a serial second step; it had to be restructured to a parallel peer during exec after explicit user direction. Codify as a checklist item (candidate home: docs/conventions/design-alignment.md) so the decision is made before code. Durable principle already in memory feedback-reviewers-parallel.
+
+## Task: Live-agent run of the best-practice reviewer with a populated config
+
+### Task-Type: discovery
+### Priority: Low
+### Identified in: Task 205 retrospective (j-retrospective.md)
+
+Task 205 ships no best-practices.json fixture with matching docs, so only the 0-match (no-op) branch is exercised end-to-end in this repo; the populated path (tag match → source resolution → agent verdict) is covered by unit tests but not a live agent run. Exercise the reviewer in a consuming repo (or a throwaway fixture repo) with a real best-practices.json across all three source kinds (file/dir/URL) and confirm both the planning plan-review column and the exec changeset reviewer emit sensible findings. Validates the agent prompts/manifest discipline against a live model, not just the deterministic resolver.

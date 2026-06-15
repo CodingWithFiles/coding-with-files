@@ -1,17 +1,30 @@
 # Plan Review (Map/Reduce)
 
-After writing a plan file and checking decomposition signals, review the plan using 4 parallel subagents before the checkpoint commit.
+After writing a plan file and checking decomposition signals, review the plan using parallel subagents before the checkpoint commit. Four reviewers always run; a fifth (best-practice) runs only when the user has matching best-practice documentation for this task.
 
 ## Procedure
 
 Given the plan type (`requirements`, `design`, or `implementation`):
 
-### 1. MAP: Launch 4 Subagents
+### 0. Pre-MAP: resolve best-practice context
 
-Launch all 4 Agent calls in a single message (parallel execution). Each
-call uses a distinct CWF agent — one per column — and each column's
-criteria are baked into the agent body, so the SKILL-side prompt only
-needs to pass `{plan_file_path}` and `{plan_type}`.
+Run the resolver for this task (it is agent-invoked and self-managing — no surrounding redirect / `wc` / `cat` / `grep`):
+
+```
+.cwf/scripts/command-helpers/best-practice-resolve --task-num=<num> --phase=plan
+```
+
+Read its **exit code** and the **match count** from its confirmation line `best-practice-resolve: wrote <N> matched entries to <abs-path>`:
+
+- **exit 1**: resolution failed — surface the stderr to the user, skip the 5th agent, run the four as normal.
+- **exit 0, count 0**: no applicable best practices — skip the 5th agent.
+- **exit 0, count ≥1**: include the 5th agent below, passing the `<abs-path>` as `{bp_context_file}`.
+
+Regardless of exit code, surface any `warning:` line from the helper's stderr to the user verbatim (config diagnostics are upgrade nudges, not failures).
+
+### 1. MAP: Launch Subagents
+
+Launch all Agent calls in a single message (parallel execution). Each call uses a distinct CWF agent — one per column. The four core columns' criteria are baked into the agent body, so their SKILL-side prompt only passes `{plan_file_path}` and `{plan_type}`.
 
 | Column        | `subagent_type`                       |
 |---------------|---------------------------------------|
@@ -19,8 +32,9 @@ needs to pass `{plan_file_path}` and `{plan_type}`.
 | Misalignment  | `cwf-plan-reviewer-misalignment`      |
 | Robustness    | `cwf-plan-reviewer-robustness`        |
 | Security      | `cwf-plan-reviewer-security`          |
+| Best Practice | `cwf-plan-reviewer-best-practice` (conditional — only when step 0 reports ≥1 match) |
 
-**Prompt template** (substitute `{plan_file_path}` and `{plan_type}`):
+**Core prompt template** (the four always-run columns — substitute `{plan_file_path}` and `{plan_type}`):
 
 ```
 Review the {plan_type} plan at {plan_file_path}.
@@ -32,11 +46,15 @@ Inputs:
 Follow the procedure in your agent definition.
 ```
 
+**Best-Practice prompt template** (the 5th column — it needs the extra `{bp_context_file}` input, so it does not share the core template). Use the template in `.cwf/docs/skills/best-practice-review.md` § "Planning prompt template", substituting `{plan_file_path}`, `{plan_type}`, and `{bp_context_file}` (the `<abs-path>` from step 0).
+
+So the MAP launches **4 agents, or 5 when best-practices match**.
+
 ### 2. REDUCE: Synthesise Findings
 
-After all 4 subagents complete (skip any that failed):
+After all subagents complete (skip any that failed):
 
-1. Collect findings from all subagents
+1. Collect findings from all subagents (the best-practice reviewer reports prose, like the others)
 2. Identify tradeoffs between competing suggestions
 3. Use your judgement to decide which findings to apply
 4. Apply chosen changes to the plan file using the Edit tool
@@ -46,4 +64,4 @@ After all 4 subagents complete (skip any that failed):
 ## Failure Handling
 
 - If some subagents fail (but not all): synthesise the remaining results normally
-- If all 4 fail: log a warning and proceed to checkpoint commit without review
+- If all subagents fail: log a warning and proceed to checkpoint commit without review

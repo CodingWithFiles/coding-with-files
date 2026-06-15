@@ -1274,7 +1274,12 @@ subtest 'TC-DOCS: four consumer sites migrated, no stale --phase/--max-lines=500
     for my $name (sort keys %site) {
         my $f = $site{$name};
         $txt{$name} = do { open my $fh, '<:encoding(UTF-8)', $f or die "open $f: $!"; local $/; <$fh> };
-        unlike($txt{$name}, qr{--phase\b},        "$name: no --phase flag");
+        # The removed flag must not reappear on the security-review-changeset
+        # invocation. Scoped to that helper's line so an unrelated helper that
+        # legitimately takes a --phase (e.g. best-practice-resolve) does not
+        # false-positive here.
+        unlike($txt{$name}, qr{security-review-changeset[^\n]*--phase\b},
+               "$name: no --phase flag on the changeset invocation");
         unlike($txt{$name}, qr{--max-lines=500},  "$name: no --max-lines=500");
         unlike($txt{$name}, qr{\{changeset\}},    "$name: no inline {changeset} placeholder");
     }
