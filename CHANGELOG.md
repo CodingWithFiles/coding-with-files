@@ -2,6 +2,20 @@
 
 All notable changes to the Coding with Files (CWF) project are documented in this file, organized by task.
 
+## Task 204: Resolve .cwf paths from project root, not cwd
+
+### Status: Complete (2026-06-15)
+### Duration: ~2 days (estimate 1–2 days, Medium; on estimate despite a mid-task scope addition).
+### Impact: CWF skills and the settings generator no longer depend on `cwd == git root` to find `.cwf/...`. Two coordinated mechanisms fix one bug class. (1) **Skill cwd anchor** — 20 `SKILL.md` files gained a byte-identical, worktree-safe anchor block as their first action: it derives the **main** repo root via `git rev-parse --path-format=absolute --git-common-dir` (identical mechanism to the Task-173 `find_git_root()`) and `cd`s there only when not already at root. Because cwd persists across Bash tool calls within a skill invocation, one anchor fixes every later relative Bash call; a Phase-0 spike disproved the prior assumption that Read/Edit tool-paths resolve against the project root (they resolve against the **shell** cwd), so the same anchor covers relative doc-reads too — narrowing scope rather than expanding it. (2) **Hook registration** (`cwf-claude-settings-merge`, discovered live via a `PreToolUse:Bash hook error … not found` and folded into this task) — emitted hook `command` strings now carry the literal `${CLAUDE_PROJECT_DIR}/` prefix (the one variable guaranteed in the hook execution environment), with a new gate-state-independent, anchored full-string prune (`prune_stale_relative_cwf_hooks`) that re-links any stale bare-relative entries without creating duplicates. The hook **allowlist** entries deliberately stay relative (D6) — the permission layer keys on relative command strings, so prefixing the command without touching the allowlist preserves matching. The one hashed file changed (`cwf-claude-settings-merge`) had its `script-hashes.json` sha256 refreshed in the same commit.
+
+### Notable
+- **One bug class, two distinct fixes, because path surfaces resolve differently**: Bash + Read/Edit resolve against the shell cwd (fixed by the persistent anchor); hook commands resolve in a harness environment where only `${CLAUDE_PROJECT_DIR}` is guaranteed (fixed by the literal prefix). FR4(e) constant-command invariant preserved — the prefix is a compile-time literal (`$` backslash-escaped, rules-inject single-quoted), never `$ENV{...}` at generate-time; TC-13 guards the interpolate-to-empty regression.
+- **Drift guard built in**: `t/skill-anchor-drift.t` asserts both byte-identical anchor *form* (TC-5a) and *coverage* (TC-5b — anchor present before the first `.cwf/...` action); a form-only check would pass a skill that omits the anchor entirely. The coverage half is what guards the silent off-root regression.
+- **Spike-first narrowed scope**: disproving assumption A1 before the mechanical edit removed an entire would-be work-stream (separate Read/Edit path rewriting). Lesson carried: enumerate every path surface as an explicit design-phase spike item.
+- **A plan-reviewer false positive** (`update-cwf-skill-docs.sh` claimed missing by three reviewers) was correctly rejected — `git ls-files` confirmed it exists.
+- **Tests**: full `prove t/` green at **860 tests / 69 files** (67 prior + 2 new: `t/skill-root-anchor.t` TC-1–4, `t/skill-anchor-drift.t` TC-5a/b; `t/cwf-claude-settings-merge.t` extended TC-13–17). `cwf-manage validate` clean (only the generator hash changed). Both exec-phase security reviews returned **no findings**. One in-flight slip (invalid status `Implemented` in f) was caught by the workflow-status validator and corrected before sign-off.
+- **Carried to BACKLOG**: a convention/checklist so future cwd/root tasks audit **all** path surfaces (Bash, tool-path, hook, generated config) and grep generated artefacts, not just source.
+
 ## Task 203: Nest tmp scratch dirs under per-project parent dir
 
 ### Status: Complete (2026-06-14)

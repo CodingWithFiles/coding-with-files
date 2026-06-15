@@ -13,6 +13,15 @@ allowed-tools:
 
 ## Context
 
+**Before anything else — anchor the shell to the repo root** so the relative `.cwf/...` commands below resolve from any working directory (run this Bash block first):
+
+```bash
+# Anchor to the MAIN repo root so relative .cwf/ paths resolve from any cwd
+# (worktree-safe via --git-common-dir; tolerant when not yet in a git repo).
+gcd=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
+if [ -n "$gcd" ]; then r=$(cd "$(dirname "$gcd")" && pwd); [ "$PWD" = "$r" ] || cd "$r"; fi
+```
+
 **Helper path**: `.cwf/scripts/command-helpers/backlog-manager` (relative to git root).
 
 ## Subcommands

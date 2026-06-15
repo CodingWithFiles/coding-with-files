@@ -26,6 +26,15 @@ allowed-tools:
 **Task arguments**: {arguments}
 **Current task/workflow**: Run `.cwf/scripts/command-helpers/task-context-inference` using the Bash tool.
 
+**Before anything else — anchor the shell to the repo root** so the relative `.cwf/...` commands below resolve from any working directory (run this Bash block first):
+
+```bash
+# Anchor to the MAIN repo root so relative .cwf/ paths resolve from any cwd
+# (worktree-safe via --git-common-dir; tolerant when not yet in a git repo).
+gcd=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
+if [ -n "$gcd" ]; then r=$(cd "$(dirname "$gcd")" && pwd); [ "$PWD" = "$r" ] || cd "$r"; fi
+```
+
 **First**: Run `.cwf/scripts/command-helpers/context-manager location` using the Bash tool to confirm git root.
 
 ## Workflow

@@ -2,6 +2,25 @@
 
 Future tasks and improvements for the Coding with Files system.
 
+## Task: Path-resolution audits must cover generated artefacts and all path surfaces
+
+### Task-Type: chore
+### Priority: Low
+### Status: Follow-up from Task 204 (j-retrospective.md §Recommendations)
+### Identified in: Task 204 j-retrospective.md §What Could Be Improved / §Recommendations
+
+Task 204 fixed cwd-relative `.cwf/...` resolution, but its original survey counted bare
+`.cwf/...` only in checked-in `SKILL.md` source and missed a third surface — the generated
+`.claude/settings.json` hook registration — which was caught only by a live
+`PreToolUse:Bash hook error` mid-task. It also discovered (via spike) that different path
+surfaces resolve against different roots: Bash invocations and Read/Edit tool paths resolve
+against the **shell** cwd, while hook commands resolve in a harness environment where only
+`${CLAUDE_PROJECT_DIR}` is guaranteed. Capture this as a convention/checklist so future
+cwd/root tasks (a) enumerate every path surface — Bash, tool-path, hook, generated config —
+and what each resolves against, as an explicit design-phase spike item, and (b) grep
+**generated** outputs, not just source. No production-code change implied; this is a docs/convention
+addition (candidate home: a short note under `.cwf/docs/conventions/` or the design-phase guidance).
+
 ## Task: Fix TC-VALIDATE structural false-failure for in-flight tasks
 
 ### Task-Type: bugfix

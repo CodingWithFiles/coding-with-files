@@ -138,12 +138,12 @@ subtest 'TC-U1: empty .claude/settings.json — full population' => sub {
        'hook as exact (no :*)');
     my $hooks = $s->{hooks}{Stop}[0]{hooks};
     is_deeply($hooks, [{ type => 'command',
-                         command => '.cwf/scripts/hooks/a-hook',
+                         command => '${CLAUDE_PROJECT_DIR}/.cwf/scripts/hooks/a-hook',
                          timeout => 5 }],
-              'Stop[0].hooks contains the one hook');
+              'Stop[0].hooks contains the one hook (CLAUDE_PROJECT_DIR-prefixed)');
     is_deeply($s->{hooks}{UserPromptSubmit},
               [{ hooks => [{ type => 'command',
-                             command => 'cat .cwf/rules-inject.txt 2>/dev/null || true' }] }],
+                             command => 'cat "${CLAUDE_PROJECT_DIR}/.cwf/rules-inject.txt" 2>/dev/null || true' }] }],
               'UserPromptSubmit holds the rules-inject hook (group-wrapper shape)');
 };
 
@@ -180,8 +180,13 @@ subtest 'TC-U2: pre-populated allowlist preserved + dedup + idempotent' => sub {
     is($first, $second, 'second run produces byte-identical file');
 };
 
-# ----- TC-U3: hooks across multiple matcher objects ------------------------
-subtest 'TC-U3: hooks across multiple matchers — no dup, append into [0]' => sub {
+# ----- TC-U3: pre-existing RELATIVE CWF hook is re-linked; user hook preserved
+# (Task 204) A bare-relative CWF hook command already in settings.json is pruned
+# (its now-empty matcher group dropped) and re-emitted in the prefixed form, while
+# a non-CWF user hook in the same event is left untouched. This supersedes the
+# old "two matcher objects, no-dup append" expectation: the relative CWF entry is
+# no longer kept verbatim — it is migrated.
+subtest 'TC-U3: relative CWF hook re-linked to ${CLAUDE_PROJECT_DIR}; user hook kept' => sub {
     plan tests => 4;
     my $manifest = {
         'stop-stale' => mk_entry('.cwf/scripts/hooks/stop-stale'),
@@ -200,21 +205,19 @@ subtest 'TC-U3: hooks across multiple matchers — no dup, append into [0]' => s
             ],
         },
     });
-    my ($exit) = run_helper($tmp);
+    my ($exit, $out) = run_helper($tmp);
     is($exit, 0, 'exit 0');
+    like($out, qr/re-linked 1 stale relative CWF hook command /,
+         'surfaced the single re-linked relative CWF hook');
     my $s = read_settings($tmp);
     my $stop = $s->{hooks}{Stop};
-    is(scalar(@$stop), 2, 'still 2 matcher objects');
-    # Stop[0]: original user-lint + appended stop-warn
+    is(scalar(@$stop), 1, 'emptied relative-hook group dropped → 1 group remains');
     my @cmds0 = map { $_->{command} } @{ $stop->[0]{hooks} };
     is_deeply(\@cmds0,
-              ['user-lint', '.cwf/scripts/hooks/stop-warn'],
-              'Stop[0] = user-lint + appended stop-warn');
-    # Stop[1]: untouched (no dup of stop-stale into [0])
-    my @cmds1 = map { $_->{command} } @{ $stop->[1]{hooks} };
-    is_deeply(\@cmds1,
-              ['.cwf/scripts/hooks/stop-stale'],
-              'Stop[1] unchanged — stop-stale not duplicated');
+              ['user-lint',
+               '${CLAUDE_PROJECT_DIR}/.cwf/scripts/hooks/stop-stale',
+               '${CLAUDE_PROJECT_DIR}/.cwf/scripts/hooks/stop-warn'],
+              'user hook preserved; stop-stale re-linked + stop-warn added, both prefixed');
 };
 
 # ----- TC-U4: --dry-run does not write -------------------------------------
@@ -451,11 +454,11 @@ subtest 'TC-M2: directives register under hooks.SubagentStop as {matcher,hooks}'
     is($sas->[0]{matcher}, 'cwf-security-reviewer-changeset', 'matcher set from directive');
     is_deeply($sas->[0]{hooks},
               [{ type => 'command',
-                 command => '.cwf/scripts/hooks/sa-guard',
+                 command => '${CLAUDE_PROJECT_DIR}/.cwf/scripts/hooks/sa-guard',
                  timeout => 5 }],
-              'hook entry under the matcher group');
+              'hook entry under the matcher group (prefixed)');
     ok(!exists $s->{hooks}{Stop} || !grep({
-            grep { $_->{command} eq '.cwf/scripts/hooks/sa-guard' } @{ $_->{hooks} || [] }
+            grep { $_->{command} eq '${CLAUDE_PROJECT_DIR}/.cwf/scripts/hooks/sa-guard' } @{ $_->{hooks} || [] }
         } @{ $s->{hooks}{Stop} }),
        'SubagentStop hook not duplicated under Stop');
 };
@@ -498,7 +501,7 @@ subtest 'TC-M4: invalid event/matcher directives → Stop / no matcher' => sub {
     ok(!exists $s->{hooks}{'PreToolUse;rm'}, 'attacker event key not created');
     my $stop = $s->{hooks}{Stop};
     my @cmds = map { @{ $_->{hooks} } } @$stop;
-    ok((grep { $_->{command} eq '.cwf/scripts/hooks/sneaky' } @cmds),
+    ok((grep { $_->{command} eq '${CLAUDE_PROJECT_DIR}/.cwf/scripts/hooks/sneaky' } @cmds),
        'hook fell back to Stop event');
     ok(!exists $stop->[0]{matcher}, 'no matcher applied from invalid directive');
 };
@@ -523,7 +526,7 @@ subtest 'TC-M5: symlinked hook path → directives not read (default Stop)' => s
     ok(!exists $s->{hooks}{SubagentStop},
        'symlinked directives ignored — no SubagentStop group');
     my @cmds = map { @{ $_->{hooks} } } @{ $s->{hooks}{Stop} };
-    ok((grep { $_->{command} eq '.cwf/scripts/hooks/linky' } @cmds),
+    ok((grep { $_->{command} eq '${CLAUDE_PROJECT_DIR}/.cwf/scripts/hooks/linky' } @cmds),
        'hook registered under default Stop event');
 };
 
@@ -765,7 +768,7 @@ subtest 'TC-9: R3 hook registers only when violation-logging is true' => sub {
     my $s = read_settings($tmp);
     my $grp = $s->{hooks}{PreToolUse};
     is($grp->[0]{matcher}, 'Bash', 'registered under PreToolUse with Bash matcher');
-    ok((grep { $_->{command} eq '.cwf/scripts/hooks/pretooluse-sandbox-logging' }
+    ok((grep { $_->{command} eq '${CLAUDE_PROJECT_DIR}/.cwf/scripts/hooks/pretooluse-sandbox-logging' }
             @{ $grp->[0]{hooks} }), 'R3 hook command present');
 
     # ON + violation-logging false → not registered, not in allow
@@ -865,7 +868,7 @@ sub guard_group {
     my ($s) = @_;
     for my $g (@{ $s->{hooks}{PreToolUse} || [] }) {
         for my $h (@{ $g->{hooks} || [] }) {
-            return $g if $h->{command} eq '.cwf/scripts/hooks/pretooluse-planning-write-guard';
+            return $g if $h->{command} eq '${CLAUDE_PROJECT_DIR}/.cwf/scripts/hooks/pretooluse-planning-write-guard';
         }
     }
     return undef;
@@ -936,7 +939,7 @@ subtest 'TC-PG2: guard hook registers only when planning-write-guard ne off' => 
         'planning-write-guard' => 'off', 'violation-logging' => JSON::PP::true });
     run_helper($only_r3);
     my $s2 = read_settings($only_r3);
-    ok(!guard_group($s2) && grep({ grep { $_->{command} eq '.cwf/scripts/hooks/pretooluse-sandbox-logging' } @{ $_->{hooks} } }
+    ok(!guard_group($s2) && grep({ grep { $_->{command} eq '${CLAUDE_PROJECT_DIR}/.cwf/scripts/hooks/pretooluse-sandbox-logging' } @{ $_->{hooks} } }
             @{ $s2->{hooks}{PreToolUse} || [] }),
        '(e) R3 present, guard absent — gates independent');
 };
@@ -945,7 +948,7 @@ subtest 'TC-PG2: guard hook registers only when planning-write-guard ne off' => 
 # Task 195 — rules-inject UserPromptSubmit hook + dead-entry migration
 #=============================================================================
 
-my $RULES_INJECT_CMD = 'cat .cwf/rules-inject.txt 2>/dev/null || true';
+my $RULES_INJECT_CMD = 'cat "${CLAUDE_PROJECT_DIR}/.cwf/rules-inject.txt" 2>/dev/null || true';
 
 # The dead PreToolUse group that pre-fix /cwf-init wrote (matcher can never fire).
 sub dead_group {
@@ -1098,11 +1101,125 @@ subtest 'TC-UPS8: a hook requesting UserPromptSubmit registers there, not Stop' 
     is($exit, 0, 'exit 0');
     my $s = read_settings($tmp);
     my @ups_cmds = map { @{ $_->{hooks} || [] } } @{ $s->{hooks}{UserPromptSubmit} || [] };
-    ok((grep { $_->{command} eq '.cwf/scripts/hooks/ups-hook' } @ups_cmds),
+    ok((grep { $_->{command} eq '${CLAUDE_PROJECT_DIR}/.cwf/scripts/hooks/ups-hook' } @ups_cmds),
        'directive hook registered under UserPromptSubmit (not downgraded to Stop)');
     my @stop_cmds = map { @{ $_->{hooks} || [] } } @{ $s->{hooks}{Stop} || [] };
-    ok(!(grep { $_->{command} eq '.cwf/scripts/hooks/ups-hook' } @stop_cmds),
+    ok(!(grep { $_->{command} eq '${CLAUDE_PROJECT_DIR}/.cwf/scripts/hooks/ups-hook' } @stop_cmds),
        'directive hook NOT under Stop');
+};
+
+#=============================================================================
+# Task 204 — hook commands resolve from any cwd (${CLAUDE_PROJECT_DIR} prefix)
+#=============================================================================
+
+my $PFX       = '${CLAUDE_PROJECT_DIR}/';                       # literal, single-quoted
+my $LEGACY_RI = 'cat .cwf/rules-inject.txt 2>/dev/null || true'; # pre-Task-204 form
+
+# TC-13: every emitted CWF hook command carries the non-empty literal prefix.
+subtest 'TC-13: hook commands emitted with literal ${CLAUDE_PROJECT_DIR}/ prefix' => sub {
+    plan tests => 4;
+    my $tmp = build_fixture(manifest => standard_manifest());
+    my ($exit) = run_helper($tmp);
+    is($exit, 0, 'exit 0');
+    my $s = read_settings($tmp);
+    my @cmds = map { @{ $_->{hooks} || [] } }
+               map { @{ $s->{hooks}{$_} || [] } } keys %{ $s->{hooks} };
+    my @hookcmds = grep { $_->{command} =~ m{\.cwf/scripts/hooks/} } @cmds;
+    ok(@hookcmds, 'at least one hooks/ command emitted');
+    ok((!grep { index($_->{command}, $PFX) != 0 } @hookcmds),
+       'every hooks/ command begins with the literal ${CLAUDE_PROJECT_DIR}/ (non-empty)');
+    my ($ri) = grep { index($_->{command}, 'rules-inject') >= 0 } @cmds;
+    is($ri->{command}, 'cat "${CLAUDE_PROJECT_DIR}/.cwf/rules-inject.txt" 2>/dev/null || true',
+       'rules-inject command is prefixed');
+};
+
+# TC-14: prune is gate-state-independent + replaces (no duplicates) + surfaces count.
+subtest 'TC-14: stale relative CWF hooks pruned regardless of sandbox gate; no dups' => sub {
+    plan tests => 5;
+    # Manifest includes the sandbox-gated R3 hook, but sandbox is OFF (no config),
+    # so R3 is NOT re-emitted — yet a prior install's relative R3 entry must still
+    # be pruned (gate-state-independence).
+    my $manifest = standard_manifest();
+    $manifest->{'r3'} = mk_entry('.cwf/scripts/hooks/pretooluse-sandbox-logging');
+    my $tmp = build_fixture(manifest => $manifest);
+    write_settings($tmp, {
+        hooks => {
+            Stop => [ { hooks => [
+                { type => 'command', command => '.cwf/scripts/hooks/a-hook', timeout => 5 },
+            ] } ],
+            PreToolUse => [ { matcher => 'Bash', hooks => [
+                { type => 'command', command => '.cwf/scripts/hooks/pretooluse-sandbox-logging', timeout => 5 },
+            ] } ],
+            UserPromptSubmit => [ { hooks => [
+                { type => 'command', command => $LEGACY_RI },
+            ] } ],
+        },
+    });
+    my ($exit, $out) = run_helper($tmp);
+    is($exit, 0, 'exit 0');
+    like($out, qr/re-linked 3 stale relative CWF hook commands/,
+         'a-hook + R3 + legacy rules-inject all pruned (gate-independent)');
+    my $s = read_settings($tmp);
+    my @allcmds = map { $_->{command} } map { @{ $_->{hooks} || [] } }
+                  map { @{ $s->{hooks}{$_} || [] } } keys %{ $s->{hooks} };
+    ok((!grep { $_ eq '.cwf/scripts/hooks/pretooluse-sandbox-logging' } @allcmds),
+       'stale relative R3 entry gone (even though R3 not re-emitted under sandbox-off)');
+    ok((!grep { $_ eq '.cwf/scripts/hooks/a-hook' } @allcmds),
+       'no bare-relative a-hook remains');
+    my $dup = grep { $_ eq '${CLAUDE_PROJECT_DIR}/.cwf/scripts/hooks/a-hook' } @allcmds;
+    is($dup, 1, 'a-hook present exactly once (prefixed) — no relative+prefixed duplicate');
+};
+
+# TC-15: prune is ownership-scoped — a user hook merely CONTAINING the substring is kept.
+subtest 'TC-15: prune never deletes a user hook by substring match' => sub {
+    plan tests => 3;
+    my $tmp = build_fixture(manifest => standard_manifest());
+    my $userwrap = 'wrap .cwf/scripts/hooks/a-hook --verbose';  # contains substring, not exact
+    write_settings($tmp, {
+        hooks => { Stop => [ { hooks => [
+            { type => 'command', command => $userwrap, timeout => 5 },
+        ] } ] },
+    });
+    my ($exit) = run_helper($tmp);
+    is($exit, 0, 'exit 0');
+    my $s = read_settings($tmp);
+    my @cmds = map { $_->{command} } map { @{ $_->{hooks} || [] } } @{ $s->{hooks}{Stop} };
+    ok((grep { $_ eq $userwrap } @cmds), 'user wrapper hook preserved (no substring deletion)');
+    ok((grep { $_ eq '${CLAUDE_PROJECT_DIR}/.cwf/scripts/hooks/a-hook' } @cmds),
+       'canonical a-hook still emitted prefixed alongside it');
+};
+
+# TC-16: the prefixed command resolves+executes from a NON-ROOT cwd (fail-open closed);
+# the pre-fix bare-relative form fails (exit 127) from the same cwd.
+subtest 'TC-16: prefixed hook resolves from a non-root cwd; relative form does not' => sub {
+    plan tests => 3;
+    my $tmp = build_fixture(manifest => standard_manifest());
+    run_helper($tmp);
+    my $s = read_settings($tmp);
+    my ($cmd) = grep { defined && m{/a-hook$} }
+                map { $_->{command} } map { @{ $_->{hooks} || [] } } @{ $s->{hooks}{Stop} };
+    ok(defined $cmd, 'found the prefixed a-hook command');
+    chmod 0755, "$tmp/.cwf/scripts/hooks/a-hook";   # make the stub runnable
+    my $sub = "$tmp/sub/dir";
+    make_path($sub);
+    # Mirror the harness firing a hook from the session cwd with CLAUDE_PROJECT_DIR set.
+    my $rc_pfx = system("cd '$sub' && CLAUDE_PROJECT_DIR='$tmp' sh -c '$cmd' >/dev/null 2>&1");
+    is($rc_pfx >> 8, 0, 'prefixed command runs from a non-root cwd (fail-open closed)');
+    my $rc_rel = system("cd '$sub' && sh -c '.cwf/scripts/hooks/a-hook' >/dev/null 2>&1");
+    isnt($rc_rel >> 8, 0, 'bare relative command fails from the same non-root cwd');
+};
+
+# TC-17: hook allowlist entries stay RELATIVE (agent-invoked surface, D6).
+subtest 'TC-17: hook allowlist entries remain relative' => sub {
+    plan tests => 2;
+    my $tmp = build_fixture(manifest => standard_manifest());
+    run_helper($tmp);
+    my $s = read_settings($tmp);
+    my %allow = map { $_ => 1 } @{ $s->{permissions}{allow} };
+    ok($allow{'Bash(.cwf/scripts/hooks/a-hook)'},
+       'hook allowlist entry is the bare relative Bash(.cwf/scripts/hooks/a-hook)');
+    ok((!grep { /CLAUDE_PROJECT_DIR/ } keys %allow),
+       'no allowlist entry carries the ${CLAUDE_PROJECT_DIR} prefix');
 };
 
 done_testing();

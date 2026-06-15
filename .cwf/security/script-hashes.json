@@ -220,7 +220,7 @@
     "cwf-claude-settings-merge" : {
       "path" : ".cwf/scripts/command-helpers/cwf-claude-settings-merge",
       "permissions" : "0500",
-      "sha256" : "fab967c5b83a0807b8778d6b9d740e7f72e3fdf008e6a2dd7b2602741bcd404e"
+      "sha256" : "a59a88ba393b9fdd568404be4d58d43d56254f386a36f8f4fc3bcae3321ab88d"
     },
     "cwf-manage" : {
       "path" : ".cwf/scripts/cwf-manage",

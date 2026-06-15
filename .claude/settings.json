@@ -7,7 +7,7 @@
       {
         "hooks" : [
           {
-            "command" : ".cwf/scripts/hooks/pretooluse-bash-tool-check",
+            "command" : "${CLAUDE_PROJECT_DIR}/.cwf/scripts/hooks/pretooluse-bash-tool-check",
             "timeout" : 5,
             "type" : "command"
           }
@@ -19,12 +19,12 @@
       {
         "hooks" : [
           {
-            "command" : ".cwf/scripts/hooks/stop-stale-status-detector",
+            "command" : "${CLAUDE_PROJECT_DIR}/.cwf/scripts/hooks/stop-stale-status-detector",
             "timeout" : 5,
             "type" : "command"
           },
           {
-            "command" : ".cwf/scripts/hooks/stop-uncommitted-changes-warning",
+            "command" : "${CLAUDE_PROJECT_DIR}/.cwf/scripts/hooks/stop-uncommitted-changes-warning",
             "timeout" : 5,
             "type" : "command"
           }
@@ -35,7 +35,7 @@
       {
         "hooks" : [
           {
-            "command" : ".cwf/scripts/hooks/subagentstop-security-verdict-guard",
+            "command" : "${CLAUDE_PROJECT_DIR}/.cwf/scripts/hooks/subagentstop-security-verdict-guard",
             "timeout" : 5,
             "type" : "command"
           }
@@ -47,7 +47,7 @@
       {
         "hooks" : [
           {
-            "command" : "cat .cwf/rules-inject.txt 2>/dev/null || true",
+            "command" : "cat \"${CLAUDE_PROJECT_DIR}/.cwf/rules-inject.txt\" 2>/dev/null || true",
             "type" : "command"
           }
         ]

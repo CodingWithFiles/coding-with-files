@@ -176,7 +176,12 @@ sub partition_manifest {
             push @hooks, {
                 entry   => {
                     type    => 'command',
-                    command => $path,
+                    # Task 204: prefix with the literal ${CLAUDE_PROJECT_DIR}/ so the
+                    # harness resolves the hook from any cwd (a bare relative command
+                    # fails-open silently off-root). The \$ is escaped so Perl emits
+                    # the literal token, not an empty interpolation; the harness
+                    # expands it at hook-fire time. Allowlist entry stays relative.
+                    command => "\${CLAUDE_PROJECT_DIR}/$path",
                     timeout => 5,
                 },
                 event   => $event,
@@ -321,6 +326,65 @@ sub prune_dead_userpromptsubmit_matcher {
     return $before - scalar @$groups;
 }
 
+# The pre-Task-204 relative rules-inject form, kept as a FROZEN constant solely so
+# prune_stale_relative_cwf_hooks can recognise and replace a legacy on-disk entry.
+# Never emit this — emit $CANONICAL_RULES_INJECT_CMD (declared below).
+my $LEGACY_RULES_INJECT_CMD = 'cat .cwf/rules-inject.txt 2>/dev/null || true';
+
+# Task 204: prune stale BARE-RELATIVE CWF hook commands so a regen re-links them to
+# the ${CLAUDE_PROJECT_DIR}/-prefixed form instead of duplicating them. merge_hooks
+# dedups by EXACT command string, so an old relative command and the new prefixed
+# command would otherwise both survive and the hook would fire twice (and the
+# relative one keeps failing-open off-root). Must run BEFORE merge_hooks.
+#
+# Ownership-by-shape, exactly like prune_dead_userpromptsubmit_matcher: match ONLY
+# by ANCHORED FULL-STRING equality against the known CWF command set — never a
+# substring on `.cwf/scripts/hooks/` (which could delete a user's deliberately-
+# relative override). The set is GATE-STATE-INDEPENDENT: the bare relative form of
+# EVERY hook in the integrity manifest (incl. the sandbox-gated R3/guard hooks a
+# prior sandbox-on install may have written) plus the frozen legacy rules-inject
+# literal. Tolerates malformed/hand-edited settings without dying (a structure it
+# cannot understand is left untouched). Returns the count pruned, for surfacing.
+sub prune_stale_relative_cwf_hooks {
+    my ($settings, $manifest) = @_;
+    return 0 unless ref $settings->{hooks} eq 'HASH';
+
+    my %stale = ($LEGACY_RULES_INJECT_CMD => 1);
+    my $scripts = (ref $manifest eq 'HASH' && ref $manifest->{scripts} eq 'HASH')
+        ? $manifest->{scripts} : {};
+    for my $key (keys %$scripts) {
+        my $entry = $scripts->{$key};
+        next unless ref $entry eq 'HASH';
+        my $path = $entry->{path};
+        next unless defined $path && !ref $path;
+        $stale{$path} = 1 if $path =~ m{^\.cwf/scripts/hooks/[^/]+$};
+    }
+
+    my $pruned = 0;
+    my $hooks  = $settings->{hooks};
+    for my $event (keys %$hooks) {
+        my $groups = $hooks->{$event};
+        next unless ref $groups eq 'ARRAY';
+        my @keep;
+        for my $g (@$groups) {
+            unless (ref $g eq 'HASH' && ref $g->{hooks} eq 'ARRAY') { push @keep, $g; next; }
+            my $before = scalar @{ $g->{hooks} };
+            @{ $g->{hooks} } = grep {
+                !( ref($_) eq 'HASH'
+                   && defined $_->{command} && !ref $_->{command}
+                   && $stale{ $_->{command} } )
+            } @{ $g->{hooks} };
+            my $after = scalar @{ $g->{hooks} };
+            $pruned += $before - $after;
+            next if $before > 0 && $after == 0;   # drop a group OUR prune emptied
+            push @keep, $g;
+        }
+        @$groups = @keep;
+        delete $hooks->{$event} unless @$groups;
+    }
+    return $pruned;
+}
+
 # Canonical CWF value for env.PERL5OPT. MUST stay a compile-time constant:
 # .claude/settings.json env is applied to every tool-call environment with no
 # trust-gate, so writing a non-constant / externally-sourced value here would
@@ -333,7 +397,11 @@ my $CANONICAL_PERL5OPT = '-CDSLA';
 # matching event with no trust-gate, so an interpolated / externally-sourced
 # value here would put attacker-influenceable data on the tool-call command path
 # (FR4(e)). The trailing `|| true` keeps the hook a no-op when the file is absent.
-my $CANONICAL_RULES_INJECT_CMD = 'cat .cwf/rules-inject.txt 2>/dev/null || true';
+#
+# Task 204: prefixed with the literal ${CLAUDE_PROJECT_DIR}/ (single-quoted, so it
+# is emitted verbatim and the harness expands it) so the hook resolves the file
+# from any cwd — a bare relative `cat .cwf/...` fails-open silently off-root.
+my $CANONICAL_RULES_INJECT_CMD = 'cat "${CLAUDE_PROJECT_DIR}/.cwf/rules-inject.txt" 2>/dev/null || true';
 
 # Merge env.PERL5OPT into project settings: add-if-absent, warn-on-mismatch.
 # Single key, constant value — a direct check, not a list merge. Returns 1 if
@@ -570,6 +638,9 @@ my $settings = read_settings();
 # partition_manifest, so it deliberately bypasses read_hook_directives — it is a
 # trusted constant, not a parsed directive (FR4(e)).
 my $pruned = prune_dead_userpromptsubmit_matcher($settings);
+# Task 204: re-link any pre-existing bare-relative CWF hook commands BEFORE
+# merge_hooks, so the prefixed forms replace (not duplicate) them.
+my $pruned_stale = prune_stale_relative_cwf_hooks($settings, $manifest);
 push @$hook_entries, {
     entry   => { type => 'command', command => $CANONICAL_RULES_INJECT_CMD },
     event   => 'UserPromptSubmit',
@@ -598,14 +669,19 @@ my $migrate_note = $pruned
       . ($pruned == 1 ? 'y' : 'ies') . ')'
     : '';
 
+my $relink_note = $pruned_stale
+    ? " (re-linked $pruned_stale stale relative CWF hook command"
+      . ($pruned_stale == 1 ? '' : 's') . ' to ${CLAUDE_PROJECT_DIR})'
+    : '';
+
 if ($dry_run) {
     print $blob;
-    print "[CWF] settings: would add $allow_added allowlist entries, $hook_added hook entries, $env_added env keys$migrate_note (dry-run)\n";
+    print "[CWF] settings: would add $allow_added allowlist entries, $hook_added hook entries, $env_added env keys$migrate_note$relink_note (dry-run)\n";
     print "$sandbox_note (dry-run)\n" if $sandbox_on;
     exit 0;
 }
 
 atomic_write($blob);
-print "[CWF] settings: added $allow_added allowlist entries, $hook_added hook entries, $env_added env keys$migrate_note\n";
+print "[CWF] settings: added $allow_added allowlist entries, $hook_added hook entries, $env_added env keys$migrate_note$relink_note\n";
 print "$sandbox_note\n" if $sandbox_on;
 exit 0;
