@@ -1,0 +1,65 @@
+#!/usr/bin/env perl
+#
+# userpromptsubmit-context-inject — UserPromptSubmit hook that injects the
+# literal absolute paths the agent needs (Task 206), so routine path resolution
+# never has to run a shell-variable/substitution command (which trips Claude
+# Code's permission prompt). Each turn it emits, as plain context:
+#   cwd:          the current working directory
+#   project_root: the MAIN repo root (worktree-safe, via find_git_root)
+#   scratch:      the canonical per-project scratch parent (scratch_parent)
+# The agent then uses these literals directly — no `$(...)`, `${...}`, backtick
+# or `$?` in any agent-issued command, hence no prompt.
+#
+# This is a SECOND, independent UserPromptSubmit hook alongside the rules-inject
+# `cat`; it is paths-only and does not touch or re-emit the rules block.
+#
+# POSTURE — FAIL-OPEN: the whole body is eval-wrapped and the script ALWAYS
+# exits 0. Malformed/empty stdin, a chdir failure, or an unresolved root yields
+# fewer lines (or none) but never blocks the turn. The payload `cwd` flows into
+# chdir then `git rev-parse` (no shell); trusted only under the single-user
+# model (tmp-paths.md), and an unusable cwd fails closed to cwd-only/nothing —
+# never a wrong root.
+#
+# Registration directive (read by cwf-claude-settings-merge):
+# cwf-hook-event: UserPromptSubmit
+#
+use strict;
+use warnings;
+use utf8;
+use FindBin;
+use lib "$FindBin::Bin/../../lib";   # hooks and command-helpers are co-depth
+use JSON::PP;
+use Cwd ();
+use CWF::Common qw(find_git_root scratch_parent);
+
+eval {
+    my $raw  = do { local $/; <STDIN> };
+    my $data = (defined $raw && length $raw) ? eval { JSON::PP->new->decode($raw) } : undef;
+    my $payload_cwd = (ref $data eq 'HASH' && defined $data->{cwd} && !ref $data->{cwd})
+        ? $data->{cwd} : '';
+
+    # Prefer the payload cwd when it is a usable existing dir; else the hook
+    # process's own cwd. getcwd() can theoretically fail -> emit nothing.
+    my $cwd = (length $payload_cwd && -d $payload_cwd) ? $payload_cwd : Cwd::getcwd();
+    return unless defined $cwd && length $cwd;
+
+    # Resolve the root by chdir'ing to cwd first (find_git_root reads from the
+    # process cwd). A silent chdir failure would otherwise resolve the WRONG
+    # repo, so on failure we emit cwd-only.
+    my ($root, $parent);
+    if (chdir $cwd) {
+        $root = find_git_root();
+        $root = $ENV{CLAUDE_PROJECT_DIR}
+            if !(defined $root && length $root)
+            && defined $ENV{CLAUDE_PROJECT_DIR} && length $ENV{CLAUDE_PROJECT_DIR};
+        ($parent) = scratch_parent($root) if defined $root && length $root;
+    }
+
+    my $out = "CWF PATHS (use these literal absolute paths directly; do not re-resolve):\n";
+    $out .= "  cwd:          $cwd\n";
+    $out .= "  project_root: $root\n"                          if defined $root && length $root;
+    $out .= "  scratch:      $parent   (leaf: that path + /task-<num>)\n" if defined $parent;
+    print $out;
+    1;
+};
+exit 0;

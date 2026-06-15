@@ -66,7 +66,7 @@
     },
     "CWF::Common" : {
       "path" : ".cwf/lib/CWF/Common.pm",
-      "sha256" : "561a5a09bd8234426609e0a5a37b109e82aae161f1e4003af56cb8184b2447f1"
+      "sha256" : "5387b99144ce807f0cdd7e5934cba8c2cfc1862abda355d7dab7865493a2e90f"
     },
     "CWF::ContextInheritance::Core" : {
       "path" : ".cwf/lib/CWF/ContextInheritance/Core.pm",
@@ -350,7 +350,7 @@
     "security-review-changeset" : {
       "path" : ".cwf/scripts/command-helpers/security-review-changeset",
       "permissions" : "0500",
-      "sha256" : "2f0313170e67636dcab9df0d56f05f72dfd269aa2d70022431e974c88b30d7a5"
+      "sha256" : "489ac0dd6b951dade3cc6690c4164ce2ef3eba2fd617c6f762b99cc6e80e6e94"
     },
     "security-review-classify" : {
       "path" : ".cwf/scripts/command-helpers/security-review-classify",
@@ -361,6 +361,11 @@
       "path" : ".cwf/scripts/command-helpers/template-copier-v2.1",
       "permissions" : "0700",
       "sha256" : "82f7df009806b9411dbe9d75cf10e62c64deb222a873affd7a7573386c48092a"
+    },
+    "userpromptsubmit-context-inject" : {
+      "path" : ".cwf/scripts/hooks/userpromptsubmit-context-inject",
+      "permissions" : "0500",
+      "sha256" : "4a1823f9fffe8fcd6a2ba9b4f823c3c1d63f9d0a11f7cf50a885aebaffbd73b3"
     },
     "validate-migration.sh" : {
       "path" : ".cwf/scripts/validate-migration.sh",

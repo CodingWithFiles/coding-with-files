@@ -83,7 +83,7 @@ use warnings;
 use utf8;
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use CWF::Common qw(check_perl5opt find_git_root);
+use CWF::Common qw(check_perl5opt scratch_dir);
 use CWF::TaskPath qw(parse_branch resolve_num);
 use CWF::ArtefactHelpers qw(atomic_write_text);
 
@@ -252,38 +252,15 @@ my $dirty_suffix = ($dirty_rc == 1 || @untracked) ? ', includes uncommitted' : '
 # dirty_rc == 0 and no untracked: clean; rc >= 2: git error - skip suffix,
 # don't fail. The primary diff has already succeeded; disclosure is informational.
 
-my $repo_root = find_git_root();
-unless (defined $repo_root && length $repo_root) {
-    warn "$PROG: cannot resolve git repository root\n";
+# Derive + create the per-task scratch dir via the shared CWF::Common helper
+# (Task 206): find_git_root (worktree-safe) + dashified ${TMPDIR:-/tmp} parent +
+# two-level 0700 mkdir + symlink-parent reject, with NO auto-chmod (surface,
+# never smooth). Any failure maps to this script's warn+exit-1 convention — the
+# "error" classification the SubagentStop verdict guard relies on.
+my ($scratch, $kind) = scratch_dir($task_num);
+unless (defined $scratch) {
+    warn "$PROG: scratch unavailable ($kind)\n";   # not_a_repo|bad_num|symlink_parent|mkdir_failed
     exit 1;
-}
-(my $dashed = $repo_root) =~ s{/}{-}g;   # absolute path => canonical leading-dash form
-my $base = (defined $ENV{TMPDIR} && length $ENV{TMPDIR}) ? $ENV{TMPDIR} : '/tmp';
-$base =~ s{/+$}{};   # match shell `${TMPDIR:-/tmp}` + trailing-slash strip
-my $parent  = "$base/cwf${dashed}";          # stable per-project parent (honour
-                                             # $TMPDIR so scratch lands in the sandbox)
-my $scratch = "$parent/task-${task_num}";    # per-task leaf under the shared parent
-# Script-owned two-level mkdir at 0700 BEFORE any write — do not rely on
-# atomic_write_text's umask-default make_path fallback (tmp-paths symlink defence).
-# `unless -d` does not re-assert mode on a pre-existing foreign dir; the fail-closed
-# defence in that case is the 0600 write below failing.
-mkdir($parent, 0700) unless -d $parent;
-# Defence-in-depth: reject a symlinked parent (lstat via -l), not the boundary.
-# Re-check AFTER mkdir is race-tolerant (a concurrent create by another session is
-# fine; a symlink is still rejected). Also catches a non-symlink step-1 mkdir
-# failure (fail-closed). NB: deliberately NO chmod-clamp here (cf.
-# hooks/pretooluse-bash-tool-check, which clamps) — never auto-chmod a foreign or
-# wrong-mode parent (design D2: surface, never smooth).
-unless (-d $parent && !-l $parent) {
-    warn "$PROG: scratch parent $parent is not a usable directory\n";
-    exit 1;
-}
-unless (-d $scratch) {
-    mkdir($scratch, 0700)
-        or do {
-            warn "$PROG: cannot create scratch dir $scratch: $!\n";
-            exit 1;
-        };
 }
 my $out = "$scratch/security-review-changeset-$opt{wf_step}.out";
 

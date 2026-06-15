@@ -12,7 +12,7 @@ use utf8;
 use Exporter 'import';
 use POSIX ();
 
-our @EXPORT_OK = qw(check_perl5opt format_error parse_semver version_cmp find_git_root resolve_head_sha generate_slug run_quiet);
+our @EXPORT_OK = qw(check_perl5opt format_error parse_semver version_cmp find_git_root resolve_head_sha generate_slug run_quiet scratch_parent scratch_dir);
 
 # Check PERL5OPT environment configuration
 # Args: none
@@ -74,6 +74,55 @@ sub find_git_root {
     my $root = `git rev-parse --show-toplevel 2>/dev/null`;
     chomp $root;
     return length $root ? $root : undef;
+}
+
+# Derive the canonical per-project scratch PARENT directory (Task 206).
+#
+# Pure string derivation, NO filesystem work — the context-inject hook calls
+# this every turn, so it must not touch disk. Mirrors the shell
+# `${TMPDIR:-/tmp}` + dashified-root form in .cwf/docs/conventions/tmp-paths.md.
+#
+# Optional $root lets a caller that has already resolved the main root (e.g. the
+# hook, which needs it for the project_root line too) pass it in, so the whole
+# turn costs a single `git rev-parse` (NFR1). Omit it and the root is resolved
+# here.
+#
+# Returns: ($parent, undef) on success, or (undef, 'not_a_repo') outside a repo.
+sub scratch_parent {
+    my ($root) = @_;
+    $root = find_git_root() unless defined $root && length $root;
+    return (undef, 'not_a_repo') unless defined $root && length $root;
+    (my $dashed = $root) =~ s{/}{-}g;   # absolute path => canonical leading-dash form
+    my $base = (defined $ENV{TMPDIR} && length $ENV{TMPDIR}) ? $ENV{TMPDIR} : '/tmp';
+    $base =~ s{/+$}{};                  # match shell ${TMPDIR:-/tmp} + trailing-slash strip
+    return ("$base/cwf${dashed}", undef);
+}
+
+# Derive AND create the per-task scratch directory (Task 206), with the
+# tmp-paths symlink-attack defences. Used by writers (e.g.
+# security-review-changeset); the hook uses scratch_parent() (no filesystem).
+#
+# Validates $num against the anchored task-number pattern BEFORE any filesystem
+# work (rejects `..`, empty/`.` components, `/`, shell metacharacters; leading
+# zeros accepted). Then mkdir-then-lstat-recheck the parent (race-tolerant
+# symlink reject) and mkdir the leaf at 0700. Deliberately NO chmod-clamp — never
+# auto-chmod a foreign or wrong-mode parent (surface, never smooth; design D2).
+#
+# Returns: ($path, undef) on success, or (undef, $kind) where
+# $kind ∈ {not_a_repo, bad_num, symlink_parent, mkdir_failed}.
+sub scratch_dir {
+    my ($num) = @_;
+    return (undef, 'bad_num') unless defined $num && $num =~ /^[0-9]+(\.[0-9]+)*$/;
+    my ($parent, $err) = scratch_parent();
+    return (undef, $err) unless defined $parent;
+    my $scratch = "$parent/task-$num";
+    mkdir($parent, 0700) unless -d $parent;
+    return (undef, 'symlink_parent') if -l $parent;     # lstat: reject a symlinked parent
+    return (undef, 'mkdir_failed')   unless -d $parent;  # parent could not be created
+    unless (-d $scratch) {
+        mkdir($scratch, 0700) or return (undef, 'mkdir_failed');
+    }
+    return ($scratch, undef);
 }
 
 # Resolve the SHA of HEAD in the current git repository.

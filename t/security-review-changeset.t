@@ -1101,8 +1101,8 @@ subtest 'TC-PARENT-SYMLINK: symlinked scratch parent is rejected (exit 1)' => su
 
         my ($o2, $e2, $rc2) = run_helper($repo);
         is($rc2, 1, 'helper exits 1 on a symlinked scratch parent');
-        like($e2, qr{scratch parent .* not a usable directory},
-             'stderr names the unusable parent');
+        like($e2, qr{scratch unavailable \(symlink_parent\)},
+             'stderr reports the symlink_parent failure kind');
         opendir my $dh, $attacker or die "opendir $attacker: $!";
         my @entries = grep { $_ ne '.' && $_ ne '..' } readdir $dh;
         closedir $dh;

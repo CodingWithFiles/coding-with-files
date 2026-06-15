@@ -17,15 +17,6 @@ allowed-tools:
 
 **Task arguments**: {arguments}
 
-**Before anything else — anchor the shell to the repo root** so the relative `.cwf/...` commands below resolve from any working directory (run this Bash block first):
-
-```bash
-# Anchor to the MAIN repo root so relative .cwf/ paths resolve from any cwd
-# (worktree-safe via --git-common-dir; tolerant when not yet in a git repo).
-gcd=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
-if [ -n "$gcd" ]; then r=$(cd "$(dirname "$gcd")" && pwd); [ "$PWD" = "$r" ] || cd "$r"; fi
-```
-
 **First**: Run `.cwf/scripts/command-helpers/context-manager location` using the Bash tool to confirm git root.
 
 ## Workflow
@@ -106,17 +97,14 @@ git checkout -b "<type>/<num>-<slug>"
 
 ### 5. Provision the Scratch Directory
 Create this task's per-project scratch parent and leaf so one-off scripts and
-captured output have a home from the first phase. Use the **canonical
-derivation snippet** in `.cwf/docs/conventions/tmp-paths.md` (worktree-safe via
-`git rev-parse --path-format=absolute --git-common-dir`) — do not hand-roll a
-`${repo_root//\//-}` one-liner, which would drop worktree-safety and drift from
-the doc. With `num` set to this task's `<num>`:
+captured output have a home from the first phase. The `CWF PATHS` block injected
+into context each turn already carries the **scratch** parent for this repo — do
+not derive it. Append `task-<num>` as a literal and create it, substituting the
+injected scratch path and this task's `<num>` into an **all-literal** command
+(no `$`/substitution, so it does not prompt):
 
 ```bash
-base="${TMPDIR:-/tmp}"; base="${base%/}"
-repo_root=$(cd "$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")" && pwd)
-scratch="${base}/cwf${repo_root//\//-}/task-${num}"
-mkdir -m 0700 -p "$scratch" && echo "scratch: $scratch" || echo "WARNING: could not create $scratch (will be created on first use)"
+mkdir -m 0700 -p <injected-scratch-parent>/task-<num>
 ```
 
 **Non-fatal**: a failed `mkdir` must NOT block directory or branch creation

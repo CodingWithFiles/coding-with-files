@@ -49,6 +49,11 @@
           {
             "command" : "cat \"${CLAUDE_PROJECT_DIR}/.cwf/rules-inject.txt\" 2>/dev/null || true",
             "type" : "command"
+          },
+          {
+            "command" : "${CLAUDE_PROJECT_DIR}/.cwf/scripts/hooks/userpromptsubmit-context-inject",
+            "timeout" : 5,
+            "type" : "command"
           }
         ]
       }
@@ -84,7 +89,9 @@
       "Bash(.cwf/scripts/command-helpers/task-workflow:*)",
       "Bash(.cwf/scripts/command-helpers/template-copier-v2.0:*)",
       "Bash(.cwf/scripts/command-helpers/template-copier-v2.1:*)",
-      "Bash(.cwf/scripts/command-helpers/workflow-manager:*)"
+      "Bash(.cwf/scripts/command-helpers/workflow-manager:*)",
+      "Bash(.cwf/scripts/command-helpers/best-practice-resolve:*)",
+      "Bash(.cwf/scripts/hooks/userpromptsubmit-context-inject)"
     ]
   },
   "worktree" : {

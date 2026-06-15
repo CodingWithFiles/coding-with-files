@@ -33,7 +33,9 @@ ${TMPDIR:-/tmp}/cwf-home-matt-repo-coding-with-files/task-145/
 resolving to `/tmp/claude/cwf-home-…/task-145/` under the sandbox
 (`TMPDIR=/tmp/claude`) and `/tmp/cwf-home-…/task-145/` off-sandbox.
 
-Derivation snippet (copy-pastable):
+Reference derivation — the canonical **spec**, not for agents to run by hand
+(a command carrying `$(...)`/`${...}` trips a Claude Code permission prompt on
+every call; that is precisely what Task 206 removed):
 
 ```bash
 # Worktree-safe: resolve the MAIN tree, not a linked worktree (Task 173), so the
@@ -45,6 +47,16 @@ parent="${base}/cwf${repo_root//\//-}"   # stable per-project parent (cwf abuts 
 scratch="${parent}/task-${num}"          # per-task leaf
 mkdir -m 0700 -p "$scratch"              # -p creates parent then leaf, 0700 on both
 ```
+
+**Single source of truth (Task 206)**: agents do not run the snippet above. The
+`userpromptsubmit-context-inject` hook injects the scratch **parent** into
+context each turn (the `CWF PATHS` block), so a writer appends `task-<num>` as a
+literal and creates it with an all-literal `mkdir -m 0700 -p <parent>/task-<num>`
+(no expansion ⇒ no prompt). Code that needs to derive or create scratch calls
+`CWF::Common::scratch_parent()` (parent string, pure, no filesystem) or
+`scratch_dir($num)` (parent + leaf + the symlink-attack guard below) — the one
+Perl implementation of this derivation. The shell snippet is the human-readable
+definition those implement.
 
 Use the leaf — `${TMPDIR:-/tmp}/cwf<dash>/task-<num>/` — for every scratch
 artefact produced during the task: script files, commit-message drafts,
@@ -112,18 +124,20 @@ write will fail closed. That atomic `0700` create plus the fail-closed write
 is the containment boundary.
 
 The per-project parent is now **shared across tasks and longer-lived** than a
-per-task sibling was. Long-lived automation that writes into it (e.g. the
-`security-review-changeset` helper) therefore adds one **defence-in-depth**
-check the ad-hoc snippet above omits: after the parent `mkdir`, it rejects a
-parent that is a **symlink** (`-d && !-l`, i.e. `lstat` semantics — a plain
-`stat` follows the link and would validate the target, the dangerous
-symlink-to-dir case) with a warning and a non-zero exit. It does **not**
-re-assert ownership/mode (that stays enforced by the fail-closed write — no
-TOCTOU stat masquerading as the boundary) and **never auto-chmods** a
-wrong-mode parent (surface, never smooth). The ad-hoc snippet skips this
-because it is single-user, one-shot use; the helper adds it because it may meet
-a pre-existing shared parent. The leaf is intentionally left to the fail-closed
-write (no redundant leaf check).
+per-task sibling was. Code that creates scratch dirs therefore routes through
+`CWF::Common::scratch_dir($num)` (Task 206; used by `security-review-changeset`
+and any future writer), which adds one **defence-in-depth** check the bare
+`mkdir` above omits: after the parent `mkdir`, it rejects a parent that is a
+**symlink** (`-d && !-l`, i.e. `lstat` semantics — a plain `stat` follows the
+link and would validate the target, the dangerous symlink-to-dir case) by
+returning a `symlink_parent` error (callers map it to a non-zero exit). It does
+**not** re-assert ownership/mode (that stays enforced by the fail-closed write —
+no TOCTOU stat masquerading as the boundary) and **never auto-chmods** a
+wrong-mode parent (surface, never smooth). The bare `mkdir -m 0700 -p` form is
+the single-user, one-shot case (e.g. the task-creation skills creating their
+literal leaf); `scratch_dir` adds the guard because it may meet a pre-existing
+shared parent. The leaf is intentionally left to the fail-closed write (no
+redundant leaf check).
 
 Do not write secrets, `.env` content, or credentials into the scratch
 directory even with the `0700` guard — the directory is intended for
@@ -145,7 +159,8 @@ dashified-absolute-repo-path form is:
   two checkouts of the same repository.
 - **Familiar** — it mirrors the `~/.claude/projects/` directory naming
   convention the user already encounters.
-- **Trivially derivable** — a few lines of shell, no helper script.
+- **Trivially derivable** — a short, well-defined string transform, centralised
+  in `CWF::Common::scratch_parent`/`scratch_dir` (Task 206).
 
 A short-form fallback (`/tmp/<basename>-task-<num>/`) is *not* offered.
 Multiple permitted forms invite drift; the dashified form is no harder
@@ -202,9 +217,13 @@ never write credentials or `.env` content into it.
   is irrelevant to it), and it uses a different dashify rule
   (`s{[^A-Za-z0-9]+}{-}g`) than this convention (`s{/}{-}g`). A named exception
   beats unifying two hashed scripts' rules for no functional gain.
-- **Helper script to compute the path**: deferred. The derivation
-  snippet is a few lines; a helper would add hash-tracking surface for
-  no proportionate benefit.
+- **Helper script to compute the path**: ~~deferred~~ — **superseded by Task
+  206**. The per-call permission-prompt storm from the inline `$(...)`/`${//}`
+  derivation (a prompt on nearly every skill call) flipped this cost/benefit:
+  the derivation now lives in `CWF::Common::scratch_parent`/`scratch_dir` and is
+  injected into context by the `userpromptsubmit-context-inject` hook, so agents
+  use a literal path and never run a prompting snippet. The hash-tracking surface
+  is one shared lib (plus the hook), smaller than the deferred bullet imagined.
 
 ## See also
 

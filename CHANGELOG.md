@@ -2,6 +2,20 @@
 
 All notable changes to the Coding with Files (CWF) project are documented in this file, organized by task.
 
+## Task 206: eliminate path resolution permission prompts
+
+### Status: In Progress
+### Impact: Task in progress.
+
+### Retired Backlog Items
+#### Eliminate per-call permission prompts from project-root path resolution
+
+Task 204 ("resolve .cwf paths from project root, not cwd") made skills and snippets anchor to the repo root using shell variable assignments with command substitutions — e.g. gcd=$(git rev-parse --path-format=absolute --git-common-dir); repo_root=$(cd "$(dirname "$gcd")" && pwd); scratch="${base}/cwf${repo_root//\//-}/task-N". Claude Code prompts for permission on nearly every such call (command substitution + parameter expansion), stopping work on almost every tool call and destroying flow.
+
+Goal: anchor reliably to the project root with ZERO permission prompts for routine path resolution. Candidate approaches to evaluate: (a) a single helper script that performs the cd + root resolution + scratch derivation internally and prints/creates the path, so callers run one allowlisted helper instead of inline substitutions; (b) set the root once into an env var the harness allows; (c) scripts that self-resolve their own repo root from $0 rather than relying on caller cwd; (d) a wrapper that accepts the repo root as a plain positional arg. Prefer the option that needs the fewest allowlist entries and no inline ${//} expansions. Audit every skill snippet and doc (tmp-paths convention derivation snippet, all skill "anchor the shell" blocks) and migrate them to the chosen mechanism.
+
+<!-- Note: Delivered via a UserPromptSubmit hook injecting literal cwd/project_root/scratch paths each turn, plus shared CWF::Common scratch_parent/scratch_dir; anchor blocks removed from ~20 skills. Zero-prompt confirmed live. -->
+
 ## Task 205: Best-practice reviewer for planning and exec wf steps
 
 ### Status: Complete (2026-06-15)
