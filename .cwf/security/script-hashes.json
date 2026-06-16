@@ -1,15 +1,15 @@
 {
-  "last_updated" : "2026-06-15",
+  "last_updated" : "2026-06-16",
   "agents" : {
     "cwf-best-practice-reviewer-changeset" : {
       "path" : ".claude/agents/cwf-best-practice-reviewer-changeset.md",
       "permissions" : "0444",
-      "sha256" : "b0040d892b3e0bede96cf7fb724e5099bd8bdc3b2c7203fbdb71cfd4900be45a"
+      "sha256" : "1e525c1779ada101b92645b760e0a482381fda4107623a9ec32fabe36c279833"
     },
     "cwf-plan-reviewer-best-practice" : {
       "path" : ".claude/agents/cwf-plan-reviewer-best-practice.md",
       "permissions" : "0444",
-      "sha256" : "cbdf731f09359f5c4b9d8c546522515e9b1717bb9ab1caa66694f93496e65dab"
+      "sha256" : "569dee0425209068a18e28aee542b2f727901409c4f084904ff7ef58454ee7e9"
     },
     "cwf-plan-reviewer-improvements" : {
       "path" : ".claude/agents/cwf-plan-reviewer-improvements.md",
@@ -165,7 +165,7 @@
     "best-practice-resolve" : {
       "path" : ".cwf/scripts/command-helpers/best-practice-resolve",
       "permissions" : "0500",
-      "sha256" : "522114dcd85f4ee1400045a9479a94d158a8b139a9e81d18f983b1a9c4bb69ad"
+      "sha256" : "d0369f59d1537152960a63080818f1c996614a154a445b2146796c5df225bd56"
     },
     "checkpoints-branch-manager" : {
       "path" : ".cwf/scripts/command-helpers/checkpoints-branch-manager",

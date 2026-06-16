@@ -2,6 +2,43 @@
 
 All notable changes to the Coding with Files (CWF) project are documented in this file, organized by task.
 
+## Task 207: Simplify best-practice review to doc pointers
+
+### Status: Complete (2026-06-16)
+### Duration: ~0.5 day (on estimate; one mid-task re-scope from a path list to verbatim paths, net deletion so no budget overrun).
+### Impact: The Task 205 best-practice review is reduced to a tag-match-and-point-at-a-file helper; the resolver drops from 612 to ~290 lines and a large class of untrusted-content machinery (URL/SSRF, inlining, sentinel, byte/member caps, dir walk) and the path-handling machinery (existence check, realpath confinement, dedup, file-vs-dir split) are gone. One advisory security finding — project-path confinement deliberately removed — was surfaced and accepted (safe only while the reviewer agents stay read-only; restore before granting any write/exec/network tool). Open follow-up: fresh-session verification of the two reviewer agents against the new verbatim contract.
+
+### Breaking change (simplification of the Task 205 feature)
+The best-practice review is reduced to its essence: a `best-practices.json` entry
+is a plain pointer (`{ documentation: <path>, tags: [...] }`), and when its tags
+apply to the task the resolver hands the reviewer that path **verbatim**. The
+reviewer Reads it directly (a file with Read, a directory via Glob) and assesses
+the work against it. The resolver
+(`.cwf/scripts/command-helpers/best-practice-resolve`) now does just one
+deterministic job — read the config(s), union the tag set, match — and writes
+one `- <tags>: <path>` line per matched entry, keeping its exact consumer
+contract (exit code + `wrote <N> matched entries to <abs-path>` count line +
+per-task `.out`).
+
+Removed outright: URL support (`allow-url-fetch`, `url-allow-hosts`, the
+`### URLS` section, agent-side `WebFetch`); content inlining and the per-run
+sentinel wrapper; the byte cap (`--max-bytes`) and member cap (`--max-files`);
+the directory content-walk; the `### DOCS`/`### SKIPPED` manifest sections; and
+the per-path existence check, realpath confinement, and de-duplication. The path
+is passed through as written. The two reviewer agents
+(`cwf-best-practice-reviewer-changeset`, `cwf-plan-reviewer-best-practice`) drop
+the `WebFetch` tool and Read the listed sources themselves; an exec reviewer that
+cannot read a listed source emits `error` (broken never reads as clean).
+
+Migration: an existing `best-practices.json` that uses URL entries or the two
+removed keys keeps working only for file/directory entries — a `https://…` value
+is now handed over as a (bogus) path the reviewer simply cannot read, and the
+removed keys are ignored. The feature remains advisory and fail-open. Paths are
+**no longer confined** to the repo (a `documentation` value may point anywhere
+the user owns, e.g. `~/analysis/...`); this is a deliberate simplification for an
+advisory, read-only feature, documented in
+`.cwf/docs/skills/best-practice-review.md` § Limitations.
+
 ## Task 206: eliminate path resolution permission prompts
 
 ### Status: In Progress

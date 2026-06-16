@@ -44,7 +44,7 @@ allowed-tools:
 
 Two independent reviewers assess the exec changeset: the **security** reviewer (always) and the **best-practice** reviewer (only when the user has matching best-practice docs). They share no state — the SubagentStop verdict guard is name-matched to `cwf-security-reviewer-changeset` only — and each emits its own `cwf-review` verdict classified independently. **Launch their Agent calls together in a single message so they run in parallel; never one-then-the-other.**
 
-- Read `.cwf/docs/skills/security-review.md` § "Exec-phase prompt template" + § "Changeset coverage" and `.cwf/docs/skills/best-practice-review.md` § "Exec prompt template" + § "Manifest discipline".
+- Read `.cwf/docs/skills/security-review.md` § "Exec-phase prompt template" + § "Changeset coverage" and `.cwf/docs/skills/best-practice-review.md` § "Exec prompt template" + § "Doc-list discipline".
 - Determine current branch: `git rev-parse --abbrev-ref HEAD`. If `main`: append both `## Security Review\n\n**State**: no findings\n\nno findings: on main\n` and `## Best-Practice Review\n\n**State**: no findings\n\nno findings: on main\n`, then proceed to Step 9 (no agents).
 
 **Prep (deterministic helpers — fast, run both before launching any agent):**
