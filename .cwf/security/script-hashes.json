@@ -230,7 +230,7 @@
     "backlog-manager" : {
       "path" : ".cwf/scripts/command-helpers/backlog-manager",
       "permissions" : "0500",
-      "sha256" : "249ae1cf95757479cda6f10239166c28c0885fccd6e84362975b355721c4c0ca"
+      "sha256" : "652ef41aa524ad0eacdb12f50361420b293535eab4d941c9eade6074927db9d3"
     },
     "cwf-claude-settings-merge" : {
       "path" : ".cwf/scripts/command-helpers/cwf-claude-settings-merge",

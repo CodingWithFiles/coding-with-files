@@ -1565,3 +1565,12 @@ When a design introduces a new reviewer/agent, the design phase must explicitly 
 ### Identified in: Task 205 retrospective (j-retrospective.md); updated by Task 207 (verbatim-path simplification + session-cached agent edits)
 
 This repo ships no best-practices.json fixture with matching docs, so only the 0-match (no-op) branch is exercised end-to-end; the populated path (tag match → verbatim path emission → agent verdict) is covered by unit tests but not a live agent run. Task 207 changed the contract (no URL/manifest; the resolver emits one `- <tags>: <path>` line per match and the reviewer Reads the path directly) **and** its agent-definition edits are session-cached, so the new reviewer behaviour was never live-verified. In a FRESH session, exercise the reviewer in a consuming or throwaway fixture repo with a real best-practices.json over file and directory pointers and confirm: (a) both reviewer agents have no WebFetch and Read the listed sources directly; (b) the exec changeset reviewer emits the fail-closed `error` when a listed source is unreadable; (c) the planning plan-review column and the exec changeset reviewer emit sensible findings. Validates the agent prompts against a live model, not just the deterministic resolver.
+
+## Task: Narrow best-practice active-tags for CWF internal Perl/Markdown tasks
+
+### Task-Type: chore
+### Priority: Low
+### Status: Follow-up from Task 208
+### Identified in: Task 208 retrospective (j-retrospective.md)
+
+The best-practice changeset reviewer fires on every exec phase whenever active-tags match, but CWFs standing tags (golang, postgres) are out-of-domain for its own Perl/Markdown/JSON changes. Every CWF-internal task therefore spends two agent rounds producing not applicable verdicts. Scope a narrower tag set (or a per-task tag override) so best-practice-resolve returns 0 matches and skips the reviewer when no applicable corpus exists. Surfaced concretely in Tasks 207 and 208.

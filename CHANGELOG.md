@@ -2,6 +2,46 @@
 
 All notable changes to the Coding with Files (CWF) project are documented in this file, organized by task.
 
+## Task 208: Fix normalise wrapped-field stranding
+
+### Status: Complete (2026-06-17)
+### Duration: ~28 min wall-clock (estimate <1 day; within estimate). One mid-design re-scope (KD4): SC#2's AC5d byte-guard dropped as a no-op — net simplification.
+### Impact: `backlog-manager normalise` no longer strands hard-wrapped legacy `**Field**:` continuation lines as orphan body prose. `_canonicalise_entry_inplace` is rewritten from a per-physical-line walk to a terminator-driven index walk that folds each continuation line into the field value until a terminator (next field / blank line / `---` / end of body), then promotes the assembled value to a single `### Field: value` heading. The proposed AC5d "metadata-value byte" guard (SC#2) was dropped under KD4 (user-approved): pre-normalise legacy fields carry an empty `metadata` array, so a pre/post metadata-byte comparison is always 0→N and can never fire — it would have been dead code. The genuine safety net is a new regression fixture (`$WRAPPED_BACKLOG` + AC18d/e/f in `t/backlog-manager.t`, 48 tests) exercising each fold terminator, the seed-empty edge, idempotency, and the single-line legacy no-op. The `backlog-manager` sha256 was refreshed in the same commit per the hash-update convention. Full suite 869 tests green; `cwf-manage validate` OK. Both exec changeset reviews (security + best-practice, f and g) returned no findings.
+
+### Retired Backlog Items
+#### normalise strands hard-wrapped legacy field continuation lines
+
+`backlog-manager normalise` silently strands the continuation lines of any
+legacy `**Field**: value` metadata that was hard-wrapped across multiple
+physical lines. Reported by a CWF user against `BACKLOG.md` entries.
+
+**Root cause** — `_canonicalise_entry_inplace` (backlog-manager:525-548). The
+promotion regex `/^\*\*(KEY)\*\*:[ \t]*(.*?)\s*\z/` is anchored to a single
+physical line and captures only that line as the value. Continuation lines do
+not match `^\*\*`, so they fall through to `push @new_body` and are orphaned as
+dangling prose under the new `### Field:` heading. The code assumes every
+legacy field value is single-line.
+
+**Why the guards miss it** — `_entry_byte_count` (lines 562-572) sums `body_raw`
+lines, so the AC5d ≥90% byte-budget gate (lines 620-630) still counts the
+orphaned text: misplaced ≠ deleted, ratio stays ~100%, no trip. AC5b (title
+identity), AC5c (required keys — single-line, promote cleanly) and the final
+`validate` (orphaned prose in a body is structurally legal) all pass too.
+
+**Trigger / impact** — only when a legacy `**Field**:` value wraps across
+physical lines. Silent semantic corruption: field value truncated to its first
+line, remainder severed mid-sentence. Exit 0, no error. Single-line fields (the
+common case) are unaffected, which is why it went unnoticed.
+
+**Fix direction** — fold continuation lines into the field value until the next
+`**Field**:`, blank line, or `---` separator (treat a legacy field as a
+paragraph, not a line). Additionally tighten AC5d to compare metadata-value
+bytes specifically, not just whole-entry bytes, so a misplace-not-delete
+corruption trips the gate. Add a regression fixture with a hard-wrapped legacy
+field.
+
+<!-- Note: Fold fix delivered; AC5d guard (SC#2) dropped as a no-op under KD4; regression fixture is the safety net -->
+
 ## Task 207: Simplify best-practice review to doc pointers
 
 ### Status: Complete (2026-06-16)

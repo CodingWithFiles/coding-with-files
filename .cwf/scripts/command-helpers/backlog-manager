@@ -525,14 +525,32 @@ sub cmd_retire {
 sub _canonicalise_entry_inplace {
     my ($entry, $changed) = @_;
     my @new_body;
-    for my $line (@{$entry->{body_raw} // []}) {
+    my $body = $entry->{body_raw} // [];
+    my $i = 0;
+    while ($i < @$body) {
+        my $line = $body->[$i];
         if ($line =~ /^\*\*($CWF::Backlog::METADATA_KEY_RE)\*\*:[ \t]*(.*?)\s*\z/) {
-            push @{$entry->{metadata}}, { key => $1, value => $2, lineno => undef };
+            my ($key, $value) = ($1, $2);
+            # Fold hard-wrapped continuation lines into the value until a
+            # terminator: next field, blank line, '---', or end of body.
+            while ($i + 1 < @$body) {
+                my $next = $body->[$i + 1];
+                last if $next =~ /^\*\*$CWF::Backlog::METADATA_KEY_RE\*\*:/;
+                last if $next =~ /^\s*$/;          # blank / whitespace-only
+                last if $next =~ /^---\r?\n?\z/;   # separator
+                (my $cont = $next) =~ s/^\s+//;    # drop wrap indentation
+                $cont =~ s/\s+\z//;                # drop trailing ws incl. \n
+                $value = length $value ? "$value $cont" : $cont;
+                $i++;
+            }
+            push @{$entry->{metadata}}, { key => $key, value => $value, lineno => undef };
             $$changed = 1;
+            $i++;
             next;
         }
-        if ($line =~ /^---\r?\n?\z/) { $$changed = 1; next; }
+        if ($line =~ /^---\r?\n?\z/) { $$changed = 1; $i++; next; }
         push @new_body, $line;
+        $i++;
     }
     trim_blank_lines(\@new_body);
     $entry->{body_raw} = \@new_body;

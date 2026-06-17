@@ -966,6 +966,122 @@ subtest 'AC18c: normalise on canonical fixture is no-op (byte-identical)' => sub
        'second normalise byte-identical');
 };
 
+# Legacy-format BACKLOG with HARD-WRAPPED field values (Task 208 regression).
+# Each entry exercises one fold terminator (KD2): next field, blank+prose, `---`,
+# end-of-file; plus the seed-empty edge (value begins on the next line).
+my $WRAPPED_BACKLOG = <<'END';
+# CWF System Backlog
+
+Future tasks for the CWF system.
+
+---
+
+## Task: Wrapped Scope Entry
+
+**Task-Type**: chore
+**Priority**: High
+**Scope**: This scope value spans
+multiple physical lines because it
+was hard-wrapped by the author.
+**Notes**:
+  value starts on the next line
+  and continues here
+
+Body prose for this entry.
+
+---
+
+## Task: Rationale Entry
+
+**Task-Type**: feature
+**Priority**: Medium
+**Rationale**: We need this because
+the rationale wraps across lines.
+
+Genuine body prose that must survive intact.
+
+---
+
+## Task: Separator Entry
+
+**Task-Type**: chore
+**Priority**: Low
+**Detail**: This detail wraps
+right up to the separator.
+---
+
+## Task: EOF Entry
+
+**Task-Type**: chore
+**Priority**: Low
+**Final**: This final value wraps
+across two lines at the very end.
+END
+
+subtest 'AC18d (TC-1..TC-5): normalise folds hard-wrapped legacy field continuations' => sub {
+    plan tests => 14;
+    my $dir = make_isolated('BACKLOG.md' => $WRAPPED_BACKLOG, 'CHANGELOG.md' => $LEGACY_CHANGELOG);
+    my ($rc, $out, $err) = run_bm($dir, 'normalise');
+    is($rc, 0, "normalise exit 0 (err: $err)");
+    my $bl = _slurp("$dir/BACKLOG.md");
+    my ($rcv, undef, $errv) = run_bm($dir, 'validate');
+    is($rcv, 0, "validate exit 0 (err: $errv)");
+
+    # TC-1: wrap terminated by next field.
+    like($bl, qr/^### Scope: This scope value spans multiple physical lines because it was hard-wrapped by the author\.$/m,
+        'TC-1: Scope value folded into one heading');
+    like($bl, qr/^### Priority: High$/m, 'TC-1: following field intact');
+    unlike($bl, qr/^multiple physical lines/m, 'TC-1: no stranded Scope continuation in body');
+
+    # TC-5: seed-empty field (value begins on next line) — single space, no double.
+    like($bl, qr/^### Notes: value starts on the next line and continues here$/m,
+        'TC-5: seed-empty value folded with single space');
+    unlike($bl, qr/### Notes:  /, 'TC-5: no double space after colon');
+
+    # TC-2: wrap terminated by blank line then genuine body prose.
+    like($bl, qr/^### Rationale: We need this because the rationale wraps across lines\.$/m,
+        'TC-2: Rationale folded into one heading');
+    like($bl, qr/^Genuine body prose that must survive intact\.$/m, 'TC-2: body prose survives');
+    unlike($bl, qr/^the rationale wraps across lines/m, 'TC-2: no stranded Rationale continuation');
+
+    # TC-3: wrap terminated by `---` separator.
+    like($bl, qr/^### Detail: This detail wraps right up to the separator\.$/m,
+        'TC-3: Detail folded up to separator');
+    unlike($bl, qr/^---$/m, 'TC-3: separators dropped');
+
+    # TC-4: wrap terminated by end-of-file.
+    like($bl, qr/^### Final: This final value wraps across two lines at the very end\.$/m,
+        'TC-4: final-entry value folded to EOF');
+
+    # Global: no continuation fragment stranded as body anywhere.
+    unlike($bl, qr/^was hard-wrapped by the author/m, 'no stranded continuation prose');
+};
+
+subtest 'AC18e (TC-6): wrapped-field normalise is idempotent (byte-identical)' => sub {
+    plan tests => 3;
+    my $dir = make_isolated('BACKLOG.md' => $WRAPPED_BACKLOG, 'CHANGELOG.md' => $LEGACY_CHANGELOG);
+    my ($rc, undef, $err) = run_bm($dir, 'normalise');
+    is($rc, 0, "first normalise (err: $err)");
+    my $canon = _slurp("$dir/BACKLOG.md") . "|" . _slurp("$dir/CHANGELOG.md");
+    my ($rc2, undef, $err2) = run_bm($dir, 'normalise');
+    is($rc2, 0, "second normalise (err: $err2)");
+    is(_slurp("$dir/BACKLOG.md") . "|" . _slurp("$dir/CHANGELOG.md"), $canon,
+        'second normalise byte-identical (fold is a fixed point)');
+};
+
+subtest 'AC18f (TC-7): single-line legacy fields unaffected by the fold' => sub {
+    plan tests => 6;
+    my $dir = make_isolated('BACKLOG.md' => $LEGACY_BACKLOG, 'CHANGELOG.md' => $LEGACY_CHANGELOG);
+    my ($rc, undef, $err) = run_bm($dir, 'normalise');
+    is($rc, 0, "normalise exit 0 (err: $err)");
+    my $bl = _slurp("$dir/BACKLOG.md");
+    like($bl, qr/^### Task-Type: chore$/m, 'single-line Task-Type promoted unchanged');
+    like($bl, qr/^### Priority: Medium$/m, 'single-line Priority promoted unchanged');
+    like($bl, qr/^This is a legacy-format entry body\.$/m, 'body prose preserved');
+    like($bl, qr/^### Identified in: Task 131 retrospective$/m, 'mid-body field hoisted (pre-existing behaviour)');
+    unlike($bl, qr/^\*\*[A-Z]/m, 'no `**Field**:` paragraph metadata remains');
+};
+
 #==============================================================================
 # Task 190 — BACKLOG-000 mutation gate: refuse to mutate a structurally foreign
 # BACKLOG.md (heading/list-structured, zero recognised entries), byte-unchanged.
