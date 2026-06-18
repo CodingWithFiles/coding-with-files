@@ -350,7 +350,7 @@
     "security-review-changeset" : {
       "path" : ".cwf/scripts/command-helpers/security-review-changeset",
       "permissions" : "0500",
-      "sha256" : "489ac0dd6b951dade3cc6690c4164ce2ef3eba2fd617c6f762b99cc6e80e6e94"
+      "sha256" : "76415b14e1a6f1936d953c6fbed29187bca124894af7a7631af4e8d6f449b145"
     },
     "security-review-classify" : {
       "path" : ".cwf/scripts/command-helpers/security-review-classify",

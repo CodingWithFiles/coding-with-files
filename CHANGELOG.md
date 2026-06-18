@@ -2,6 +2,15 @@
 
 All notable changes to the Coding with Files (CWF) project are documented in this file, organized by task.
 
+## Task 209: Skip non-regular files in security-reviewer untracked sweep
+
+### Status: Complete (2026-06-18)
+### Duration: ~1 day (estimate <1 day; within estimate). No scope change.
+### Impact: The changeset security reviewer no longer aborts when the working tree contains non-regular untracked entries. A CWF user running under the Claude Code sandbox hit this: the harness bind-mounts `/dev/null` (a char device) over repo-root config dotfiles (`.bashrc`, `.gitconfig`, `.mcp.json`, …) as a defensive mask. `git ls-files --others --exclude-standard` enumerates those as untracked, but `git add -N` rejects a char device (`can only add regular files, symbolic links or git-directories`), and `security-review-changeset`'s `capture_git` dies on the non-zero exit — aborting the whole reviewer. The fix filters `list_untracked_files()` to git-indexable types only: `grep { -f $_ || -l $_ }`. Regular files (`-f`) and symlinks (`-l`, via lstat — so dangling symlinks and symlinks-to-devices are retained, git storing their link text) stay in the sweep; char/block devices, fifos and sockets are dropped. Empirically (git 2.43) fifos/sockets are not even enumerated by `git ls-files --others`, so only char/block devices reproduce the bug; the filter is load-bearing for those and belt-and-braces for the rest. Two tests added to `t/security-review-changeset.t`: TC-209-1 (portable — untracked symlinks, including dangling, stay reviewed; guards the `-l` retention against a future bare-`-f` narrowing) and TC-209-2 (Linux-gated — a char-device entry bind-mounted via `unshare -rm` no longer aborts; SKIPs cleanly without unprivileged user namespaces). Red-then-green verified: TC-209-2 reproduces the exit-1 abort on the unpatched helper. The `security-review-changeset` sha256 was refreshed in the same commit per the hash-update convention. Suite 49/49 (was 47); full `prove t/` 871 tests green; `cwf-manage validate` OK. Both exec changeset reviews (security + best-practice, f and g) returned no findings. Also clamped a pre-existing `backlog-manager` permission drift (0700→0500) on sight.
+
+### New Backlog Items
+- Align `best-practice-resolve` relevance and output format with reviewer agents (discovery, Low) — the resolver kept tag-matching off-domain corpora (golang/postgres) for this Perl task across all five review phases, and its `.out` format does not match the `### DOCS` shape the reviewer agents document.
+
 ## Task 208: Fix normalise wrapped-field stranding
 
 ### Status: Complete (2026-06-17)

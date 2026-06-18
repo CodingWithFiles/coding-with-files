@@ -504,7 +504,16 @@ sub list_changed_files {
 sub list_untracked_files {
     my $out = capture_git('ls-files', '--others', '--exclude-standard', '-z');
     return () unless length $out;
-    return grep { length } split /\0/, $out;
+    my @paths = grep { length } split /\0/, $out;
+    # Keep only the path types `git add -N` can intent-to-add: regular files
+    # (-f) and symlinks (-l). A sandbox harness may bind-mount /dev/null (a char
+    # device) over repo-root config dotfiles; git enumerates those as untracked
+    # but `git add -N` rejects them ("can only add regular files, symbolic links
+    # or git-directories"), aborting the sweep. -l is lstat, so dangling symlinks
+    # and symlinks-to-devices are retained (git stores their link text). Sibling
+    # stop-stale-status-detector uses a bare -f; this site keeps -l because
+    # untracked symlinks must stay reviewable (TC-GUARD1a / TC-209-1).
+    return grep { -f $_ || -l $_ } @paths;
 }
 
 # ---------------------------------------------------------------------------

@@ -1517,4 +1517,94 @@ subtest 'TC-TMPDIR-3: empty $TMPDIR falls back to /tmp (no root collapse)' => su
     unlike($p, qr{^/-},    'empty $TMPDIR does NOT collapse to filesystem root');
 };
 
+# ===========================================================================
+# Non-regular untracked-file filtering (Task 209)
+# `list_untracked_files` now keeps only git-indexable types — regular files
+# (-f) and symlinks (-l) — so a non-regular untracked entry (e.g. a sandbox
+# /dev/null bind-mount char-device mask) does not abort the `git add -N` sweep.
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# TC-209-1 (portable): untracked symlinks stay in the sweep. A bare -f filter
+# would drop a dangling symlink and a symlink-to-device (both -f-false); the
+# -l retention keeps them. Guards against a future over-narrowing to bare -f.
+# ---------------------------------------------------------------------------
+subtest 'TC-209-1: untracked symlinks (dangling + to-device) stay in the changeset' => sub {
+    SKIP: {
+        skip 'symlinks not supported here', 4 unless eval { symlink('', ''); 1 } || $!;
+
+        my ($repo) = make_synthetic_repo(baseline => '__MAIN__');
+
+        symlink('/dev/null', "$repo/dev-link")         or skip 'cannot symlink', 4;
+        symlink('/nonexistent', "$repo/dangling-link") or skip 'cannot symlink', 4;
+        open my $k, '>', "$repo/keep.txt" or die;   # normal untracked sibling
+        print $k "keep\n";
+        close $k;
+
+        my ($out, $err, $rc) = run_helper($repo);
+        my $cs = changeset_of($out);
+        is($rc, 0, 'helper exits 0');
+        like($cs, qr{dev-link},      'untracked symlink-to-device is reviewed (-l retained)');
+        like($cs, qr{dangling-link}, 'untracked dangling symlink is reviewed (-l retained)');
+        like($cs, qr{keep\.txt},     'untracked regular sibling still reviewed');
+    }
+};
+
+# ---------------------------------------------------------------------------
+# TC-209-2 (Linux-gated): a char-device untracked entry no longer aborts the
+# helper. A fifo/socket is NOT enumerated by `git ls-files --others`, so only a
+# char/block device reproduces the bug — and that needs a bind-mount, hence a
+# user+mount namespace (unshare -rm). The setup writes a marker AFTER the mount
+# succeeds, so a missing marker is an environment SKIP, never a helper failure
+# (which would otherwise be indistinguishable from the pre-fix exit-1 abort).
+# ---------------------------------------------------------------------------
+subtest 'TC-209-2: char-device untracked entry (bind-mounted /dev/null) does not abort' => sub {
+    SKIP: {
+        my $unshare = '/usr/bin/unshare';
+        skip 'unshare unavailable', 3 unless -x $unshare;
+
+        my ($repo) = make_synthetic_repo(baseline => '__MAIN__');
+
+        open my $k, '>', "$repo/keep.txt" or die;   # untracked regular sibling
+        print $k "keep\n";
+        close $k;
+        open my $m, '>', "$repo/masked" or die;     # mountpoint (empty regular file)
+        close $m;
+
+        my $so     = "$CAPTURE_DIR/uns-stdout.$$";
+        my $se     = "$CAPTURE_DIR/uns-stderr.$$";
+        my $marker = "$CAPTURE_DIR/uns-marker.$$";
+        unlink $so, $se, $marker;
+
+        # cd repo → bind /dev/null over `masked` (=> char device git enumerates
+        # as untracked) → mark setup-complete → exec the helper IN the namespace.
+        # Params passed via env to avoid any shell interpolation of paths.
+        my $script = join(' && ',
+            'cd "$R" || exit 70',
+            'mount --bind /dev/null masked 2>>"$SE" || exit 71',
+            ': > "$MARK"',
+            'exec "$H" --wf-step=implementation-exec >"$SO" 2>>"$SE"',
+        );
+        local $ENV{R}    = $repo;
+        local $ENV{H}    = $HELPER;
+        local $ENV{SO}   = $so;
+        local $ENV{SE}   = $se;
+        local $ENV{MARK} = $marker;
+        my $rc = system($unshare, '-rm', 'sh', '-c', $script) >> 8;
+
+        skip 'user+mount namespace / bind-mount unavailable', 3 unless -e $marker;
+
+        is($rc, 0, 'helper exits 0 with a char-device untracked entry present');
+
+        my $stdout = do { local $/; open my $fh, '<', $so or die; <$fh> } // '';
+        my $p = out_path($stdout);
+        push @CLEANUP_OUT, $p if defined $p;
+        my $cs = (defined $p && -e $p)
+            ? do { local $/; open my $fh, '<:raw', $p or die; <$fh> }
+            : '';
+        like($cs, qr{keep\.txt}, 'sibling untracked regular file is still reviewed');
+        unlike($cs, qr{masked},  'char-device mask is excluded from the changeset');
+    }
+};
+
 done_testing();

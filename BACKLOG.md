@@ -1574,3 +1574,30 @@ This repo ships no best-practices.json fixture with matching docs, so only the 0
 ### Identified in: Task 208 retrospective (j-retrospective.md)
 
 The best-practice changeset reviewer fires on every exec phase whenever active-tags match, but CWFs standing tags (golang, postgres) are out-of-domain for its own Perl/Markdown/JSON changes. Every CWF-internal task therefore spends two agent rounds producing not applicable verdicts. Scope a narrower tag set (or a per-task tag override) so best-practice-resolve returns 0 matches and skips the reviewer when no applicable corpus exists. Surfaced concretely in Tasks 207 and 208.
+
+## Task: Align best-practice-resolve relevance and output format with reviewer agents
+
+### Task-Type: discovery
+### Priority: Low
+### Status: Follow-up from Task 209
+### Identified in: Task 209 retrospective (j-retrospective.md)
+
+`best-practice-resolve` consistently tag-matches off-domain corpora for tasks
+whose code is in a different language. Across all five review phases of Task 209
+(a Perl helper bugfix) it resolved the `golang` and `postgres` corpora, none of
+which apply to Perl/JSON/Markdown. The best-practice reviewer agents also report
+that the resolver's `.out` format (a `- <tags>: <path>` list) does not match the
+`### DOCS` `file:`/`dir:` shape their agent definitions expect — they cope by
+enumerating directories directly, but the mismatch is undocumented.
+
+Two separable concerns:
+1. Relevance: tag matching surfaces corpora unrelated to the changed languages,
+   producing reviews that can only conclude "no supplied practice applies". Worth
+   deciding whether matching should consider the task's actual language/artefact
+   surface, or whether this is purely a user-config concern (the user owns
+   `active-tags` / per-task `Tags`).
+2. Format: align the resolver output with the `### DOCS` shape the reviewer
+   agents document, or update the agent definitions to the actual format.
+
+Scope: investigation first; no behaviour change until the relevance question is
+settled. Low risk — findings are advisory and never gate the workflow.
