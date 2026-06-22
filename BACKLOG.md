@@ -1601,3 +1601,18 @@ Two separable concerns:
 
 Scope: investigation first; no behaviour change until the relevance question is
 settled. Low risk — findings are advisory and never gate the workflow.
+
+## Task: Hoist shared cwf-review verdict block into agent-shared-rules and de-dup the five changeset reviewers
+
+### Task-Type: chore
+### Priority: Low
+### Identified in: Task 210
+
+The `cwf-review` verdict block is now inlined byte-identically across five
+changeset reviewer agents (security, best-practice, improvements, robustness,
+misalignment). Agent `.md` files have no include mechanism, so the shared body
+is copied. Consider hoisting the shared Verdict block (and the "Bash is
+intentionally withheld" paragraph) into `cwf-agent-shared-rules.md` and having
+each agent reference it, then de-dup the five changeset reviewers. Deferred from
+Task 210 to keep that task scoped (the hoist would force re-hashing the two
+pre-existing changeset agents and editing the hash-tracked shared-rules doc).

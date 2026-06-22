@@ -1,10 +1,20 @@
 {
-  "last_updated" : "2026-06-16",
+  "last_updated" : "2026-06-21",
   "agents" : {
     "cwf-best-practice-reviewer-changeset" : {
       "path" : ".claude/agents/cwf-best-practice-reviewer-changeset.md",
       "permissions" : "0444",
       "sha256" : "1e525c1779ada101b92645b760e0a482381fda4107623a9ec32fabe36c279833"
+    },
+    "cwf-improvements-reviewer-changeset" : {
+      "path" : ".claude/agents/cwf-improvements-reviewer-changeset.md",
+      "permissions" : "0444",
+      "sha256" : "6c21721e0c99c3855c1e9d4ecbaf319c10afb6f0b35f0dc3f339185dc0fcefe6"
+    },
+    "cwf-misalignment-reviewer-changeset" : {
+      "path" : ".claude/agents/cwf-misalignment-reviewer-changeset.md",
+      "permissions" : "0444",
+      "sha256" : "5ec06e02f4c900360a8e77b2cfae3687781dc605e1b85926787ffb501d791a38"
     },
     "cwf-plan-reviewer-best-practice" : {
       "path" : ".claude/agents/cwf-plan-reviewer-best-practice.md",
@@ -30,6 +40,11 @@
       "path" : ".claude/agents/cwf-plan-reviewer-security.md",
       "permissions" : "0444",
       "sha256" : "6fd22fdff353549534742512b7e29750e938fe9eeb84aa14c6a967993c6cce01"
+    },
+    "cwf-robustness-reviewer-changeset" : {
+      "path" : ".claude/agents/cwf-robustness-reviewer-changeset.md",
+      "permissions" : "0444",
+      "sha256" : "cc61f58c8f7f2478a2ebec184f82b4f827f6d62f003a450b08afe383add6b910"
     },
     "cwf-security-reviewer-changeset" : {
       "path" : ".claude/agents/cwf-security-reviewer-changeset.md",
