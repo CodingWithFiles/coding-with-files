@@ -12,7 +12,7 @@ use warnings;
 use utf8;
 
 use Test::More;
-use File::Temp qw(tempfile);
+use File::Temp qw(tempfile tempdir);
 use FindBin;
 
 my $HELPER = "$FindBin::Bin/../.cwf/scripts/command-helpers/security-review-classify";
@@ -28,6 +28,28 @@ sub classify {
     my $exit = $? >> 8;
     $out =~ s/\n\z// if defined $out;
     return ($out // '', $exit);
+}
+
+# Write $content to $path (raw). For building discovery-mode fixtures.
+sub writef {
+    my ($path, $content) = @_;
+    open my $fh, '>', $path or die "writef $path: $!";
+    binmode $fh, ':raw';
+    print $fh $content;
+    close $fh;
+}
+
+# Run the classifier in discovery mode. Returns ($stdout, $stderr, $exit).
+sub discover {
+    my ($dir, $phase) = @_;
+    my ($efh, $epath) = tempfile(UNLINK => 1);
+    close $efh;
+    my $out = `'$HELPER' --dir '$dir' --phase '$phase' 2>'$epath'`;
+    my $exit = $? >> 8;
+    open my $e, '<', $epath or die "read stderr: $!";
+    my $err = do { local $/; <$e> };
+    close $e;
+    return ($out // '', $err // '', $exit);
 }
 
 # Convenience: a clean cwf-review block with the given state.
@@ -140,6 +162,91 @@ sub block {
     my $exit = $? >> 8;
     like($out, qr/Usage:/, 'TC-C14: --help prints usage');
     is($exit, 0, 'TC-C14: --help exit 0');
+}
+
+# ===== Discovery mode (--dir/--phase) ======================================
+
+# ----- TC-D1: happy path — mixed states, lexical order ---------------------
+{
+    my $dir = tempdir(CLEANUP => 1);
+    writef("$dir/best-practice-review-output-implementation-exec.out", block('findings'));
+    writef("$dir/security-review-output-implementation-exec.out",      block('no findings'));
+    writef("$dir/improvements-review-output-implementation-exec.out",  "prose only, no block\n");
+    my ($out, $err, $exit) = discover($dir, 'implementation-exec');
+    is($out,
+       "best-practice: findings\nimprovements: error\nsecurity: no findings\n",
+       'TC-D1: three reviewers classified in lexical filename order');
+    is($exit, 0, 'TC-D1: exit 0');
+}
+
+# ----- TC-D2: phase scoping — testing-exec and -changeset- excluded --------
+{
+    my $dir = tempdir(CLEANUP => 1);
+    writef("$dir/best-practice-review-output-implementation-exec.out", block('findings'));
+    writef("$dir/security-review-output-implementation-exec.out",      block('no findings'));
+    writef("$dir/improvements-review-output-implementation-exec.out",  "prose only\n");
+    writef("$dir/security-review-output-testing-exec.out",             block('findings'));
+    writef("$dir/security-review-changeset-implementation-exec.out",   block('findings'));
+    my ($out) = discover($dir, 'implementation-exec');
+    is($out,
+       "best-practice: findings\nimprovements: error\nsecurity: no findings\n",
+       'TC-D2: other-phase and -changeset- files contribute nothing');
+}
+
+# ----- TC-D3: zero matches — empty stdout, stderr warning, exit 0 ----------
+{
+    my $dir = tempdir(CLEANUP => 1);
+    writef("$dir/unrelated.txt", "noise\n");
+    my ($out, $err, $exit) = discover($dir, 'implementation-exec');
+    is($out, '', 'TC-D3: empty stdout when nothing matches');
+    like($err,
+         qr/\[CWF\] WARNING:.*no \*-review-output-implementation-exec\.out files/,
+         'TC-D3: stderr warning names dir and phase');
+    is($exit, 0, 'TC-D3: exit 0');
+}
+
+# ----- TC-D4: symlink / non-regular skip (pins -f && ! -l) -----------------
+{
+    my $dir = tempdir(CLEANUP => 1);
+    writef("$dir/security-review-output-implementation-exec.out", block('no findings'));
+    writef("$dir/target.txt", block('findings'));
+    my $sym = "$dir/improvements-review-output-implementation-exec.out";
+    my $symok = eval { symlink("$dir/target.txt", $sym); 1 };
+    mkdir "$dir/robustness-review-output-implementation-exec.out";   # matching subdir
+    my ($out) = discover($dir, 'implementation-exec');
+  SKIP: {
+        skip "symlink unsupported on this platform", 1 unless $symok && -l $sym;
+        is($out, "security: no findings\n",
+           'TC-D4: matching symlink and subdir both skipped');
+    }
+}
+
+# ----- TC-D5: per-file open failure -> error line, not dropped -------------
+{
+    my $dir = tempdir(CLEANUP => 1);
+    my $f = "$dir/security-review-output-implementation-exec.out";
+    writef($f, block('no findings'));
+    chmod 0, $f;
+    my ($out, $err, $exit) = discover($dir, 'implementation-exec');
+  SKIP: {
+        skip "running as root bypasses mode bits", 2 if $> == 0;
+        is($out, "security: error\n",
+           'TC-D5: unreadable matched file yields error line, not a silent drop');
+        like($err, qr/\[CWF\] WARNING:.*cannot read/,
+             'TC-D5: stderr warning on read failure');
+    }
+    chmod 0700, $f;   # restore so CLEANUP can remove it
+}
+
+# ----- TC-D6: argument errors ----------------------------------------------
+{
+    my $dir = tempdir(CLEANUP => 1);
+    `'$HELPER' --dir '$dir' 2>/dev/null`;
+    is($? >> 8, 1, 'TC-D6a: --dir without --phase -> exit 1');
+    `'$HELPER' --phase implementation-exec 2>/dev/null`;
+    is($? >> 8, 1, 'TC-D6b: --phase without --dir -> exit 1');
+    `'$HELPER' --bogus 2>/dev/null`;
+    is($? >> 8, 1, 'TC-D6c: unknown flag -> exit 1');
 }
 
 done_testing();

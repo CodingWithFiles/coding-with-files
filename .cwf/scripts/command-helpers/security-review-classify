@@ -32,10 +32,23 @@
 #   `state: <no findings|findings|error>` never validates, so it never counts.
 #
 # Usage:
-#   security-review-classify < subagent-output.txt
+#   security-review-classify < subagent-output.txt          # stdin mode
+#   security-review-classify --dir <DIR> --phase <PHASE>    # discovery mode
+#
+# stdin mode (default): slurp stdin, print one canonical token.
+# discovery mode: classify every `*-review-output-<PHASE>.out` regular file in
+#   <DIR> (symlinks/non-regular skipped), printing one `<reviewer>: <token>`
+#   line per file in lexical filename order. The `-review-output-` infix
+#   excludes the larger `*-review-changeset-<PHASE>.out` diff inputs sharing the
+#   dir. A single literal argv (no shell loop, no `$var` redirect) so it matches
+#   the `security-review-classify:*` allowlist and raises no permission prompt —
+#   the reason this mode exists. <DIR> is a trusted per-task scratch path.
 #
 # Output:
-#   stdout: one canonical token (`no findings` | `findings` | `error`).
+#   stdin mode:     stdout: one canonical token (`no findings`|`findings`|`error`).
+#   discovery mode: stdout: one `<reviewer>: <token>` line per discovered file
+#                   (empty if none); a `[CWF] WARNING:` to stderr on zero matches
+#                   or a per-file read failure (that file's line is `error`).
 #
 # Exit:
 #   0 always. The token (including `error`) is the signal, not the exit code.
@@ -47,71 +60,128 @@ use utf8;
 my $PROG = 'security-review-classify';
 
 sub usage {
-    return "Usage: $PROG < subagent-output\n"
-         . "  Reads the security-review subagent's response on stdin and prints\n"
-         . "  one canonical verdict token (no findings|findings|error) on stdout.\n"
-         . "  Exactly one valid cwf-review block -> its state; zero or many -> error.\n";
+    return "Usage: $PROG < subagent-output            (stdin mode)\n"
+         . "       $PROG --dir <DIR> --phase <PHASE>   (discovery mode)\n"
+         . "  stdin mode: reads the subagent response on stdin and prints one\n"
+         . "    canonical verdict token (no findings|findings|error) on stdout.\n"
+         . "    Exactly one valid cwf-review block -> its state; zero or many -> error.\n"
+         . "  discovery mode: classifies every *-review-output-<PHASE>.out regular\n"
+         . "    file in <DIR>, printing one '<reviewer>: <token>' line each (lexical\n"
+         . "    order). --dir and --phase must be given together. <DIR> is trusted.\n";
 }
 
-for my $arg (@ARGV) {
-    if ($arg eq '--help' || $arg eq '-h') { print usage(); exit 0 }
-    warn "[CWF] ERROR: $PROG: unknown argument: $arg\n", usage();
+# ---- Argument parsing --------------------------------------------------------
+# No flags                -> stdin mode (default).
+# --dir <D> --phase <P>   -> discovery mode (both required together).
+# Exactly one of the two  -> usage error. `=`-forms (--dir=<D>) also accepted.
+my ($dir, $phase);
+while (@ARGV) {
+    my $arg = shift @ARGV;
+    if    ($arg eq '--help' || $arg eq '-h') { print usage(); exit 0 }
+    elsif ($arg eq '--dir')                  { $dir   = shift @ARGV }
+    elsif ($arg eq '--phase')                { $phase = shift @ARGV }
+    elsif ($arg =~ /^--dir=(.*)$/s)          { $dir   = $1 }
+    elsif ($arg =~ /^--phase=(.*)$/s)        { $phase = $1 }
+    else {
+        warn "[CWF] ERROR: $PROG: unknown argument: $arg\n", usage();
+        exit 1;
+    }
+}
+
+if (defined($dir) xor defined($phase)) {
+    warn "[CWF] ERROR: $PROG: --dir and --phase must be given together\n", usage();
     exit 1;
 }
 
 my %VALID = ('no findings' => 1, 'findings' => 1, 'error' => 1);
 
-# Slurp stdin.
-my $input = do { local $/; <STDIN> };
-$input = '' unless defined $input;
+# classify_text($input) -> one canonical token. The single parse authority
+# (Task 162): both modes call it, so there is one parser and no drift.
+sub classify_text {
+    my ($input) = @_;
+    $input = '' unless defined $input;
 
-# Walk lines, extracting closed cwf-review fenced blocks. A block opens with a
-# line of >=3 backticks followed by the `cwf-review` info string, and closes
-# with a line of at least as many backticks (and nothing else). This length
-# rule means a shorter nested fence inside the block does not close it early.
-my @valid_states;
-my @lines = split /\n/, $input, -1;
-my $in_block   = 0;
-my $fence_len  = 0;
-my @block_body;
+    # Walk lines, extracting closed cwf-review fenced blocks. A block opens with
+    # a line of >=3 backticks followed by the `cwf-review` info string, and
+    # closes with a line of at least as many backticks (and nothing else). This
+    # length rule means a shorter nested fence inside the block does not close it
+    # early.
+    my @valid_states;
+    my @lines = split /\n/, $input, -1;
+    my $in_block   = 0;
+    my $fence_len  = 0;
+    my @block_body;
 
-for my $line (@lines) {
-    if (!$in_block) {
-        if ($line =~ /^\s*(`{3,})\s*cwf-review\s*$/i) {
-            $in_block  = 1;
-            $fence_len = length $1;
-            @block_body = ();
-        }
-        next;
-    }
-
-    # In a block: a run of >= $fence_len backticks (only) closes it.
-    if ($line =~ /^\s*(`{3,})\s*$/ && length($1) >= $fence_len) {
-        # Block closed: extract its single valid state, if any.
-        my @states;
-        for my $bl (@block_body) {
-            if ($bl =~ /^\s*state\s*:\s*(.*?)\s*$/i) {
-                my $val = $1;
-                $val =~ s/\s+/ /g;
-                $val =~ s/^\s+|\s+$//g;
-                push @states, lc $val;
+    for my $line (@lines) {
+        if (!$in_block) {
+            if ($line =~ /^\s*(`{3,})\s*cwf-review\s*$/i) {
+                $in_block  = 1;
+                $fence_len = length $1;
+                @block_body = ();
             }
+            next;
         }
-        if (@states == 1 && $VALID{ $states[0] }) {
-            push @valid_states, $states[0];
+
+        # In a block: a run of >= $fence_len backticks (only) closes it.
+        if ($line =~ /^\s*(`{3,})\s*$/ && length($1) >= $fence_len) {
+            # Block closed: extract its single valid state, if any.
+            my @states;
+            for my $bl (@block_body) {
+                if ($bl =~ /^\s*state\s*:\s*(.*?)\s*$/i) {
+                    my $val = $1;
+                    $val =~ s/\s+/ /g;
+                    $val =~ s/^\s+|\s+$//g;
+                    push @states, lc $val;
+                }
+            }
+            if (@states == 1 && $VALID{ $states[0] }) {
+                push @valid_states, $states[0];
+            }
+            $in_block = 0;
+            next;
         }
-        $in_block = 0;
-        next;
+
+        push @block_body, $line;
     }
+    # An unterminated block (opened, never closed) contributes nothing.
 
-    push @block_body, $line;
+    return (@valid_states == 1) ? $valid_states[0] : 'error';
 }
-# An unterminated block (opened, never closed) contributes nothing.
 
-if (@valid_states == 1) {
-    print "$valid_states[0]\n";
+# ---- Discovery mode ----------------------------------------------------------
+if (defined $dir) {
+    opendir(my $dh, $dir) or do {
+        warn "[CWF] WARNING: $PROG: cannot open dir $dir: $!\n";
+        exit 0;
+    };
+    # One pass: capture reviewer + canonical filename from a single match, then
+    # lstat-filter to regular non-symlink files (a matching symlink/subdir is
+    # anomalous and skipped). The `-review-output-` infix excludes the larger
+    # `-review-changeset-` diffs; the `\Q$phase\E` suffix scopes to this phase.
+    my @pairs =
+        sort { $a->[1] cmp $b->[1] }
+        grep { -f "$dir/$_->[1]" && ! -l "$dir/$_->[1]" }
+        map  { /^(.+)-review-output-\Q$phase\E\.out$/ ? [$1, $_] : () }
+        readdir $dh;
+    closedir $dh;
+
+    warn "[CWF] WARNING: $PROG: no *-review-output-$phase.out files in $dir\n"
+        unless @pairs;
+
+    for my $p (@pairs) {
+        my ($who, $file) = @$p;
+        if (open my $rfh, '<', "$dir/$file") {
+            my $in = do { local $/; <$rfh> };
+            close $rfh;
+            print "$who: ", classify_text($in), "\n";
+        } else {
+            warn "[CWF] WARNING: $PROG: cannot read $dir/$file: $!\n";
+            print "$who: error\n";
+        }
+    }
+    exit 0;
 }
-else {
-    print "error\n";
-}
+
+# ---- stdin mode (default, unchanged contract) --------------------------------
+print classify_text(do { local $/; <STDIN> }), "\n";
 exit 0;

@@ -75,7 +75,13 @@ Two independent reviewers assess the exec changeset: the **security** reviewer (
 - security: `subagent_type="cwf-security-reviewer-changeset"`, `{wf_step}` = `"testing-exec"`, `{changeset_file}`.
 - best-practice: `subagent_type="cwf-best-practice-reviewer-changeset"`, `{wf_step}` = `"testing-exec"`, `{changeset_file}`, `{bp_context_file}`.
 
-**Classify + record**: for each launched agent, write its verbatim output to its own scratch `.out` (`security-review-output-testing-exec.out` / `best-practice-review-output-testing-exec.out`; derive the dir per `.cwf/docs/conventions/tmp-paths.md`, `mkdir -m 0700` on first use), classify with the single shared helper `.cwf/scripts/command-helpers/security-review-classify < <file>`, and append the matching `## Security Review` / `## Best-Practice Review` section with `**State**: <token>` above the verbatim output. The helper is the sole classifier (a tool-level Agent failure is recorded as `error`). Do NOT apply any prose/heuristic rule.
+**Classify + record**: write each launched agent's verbatim output to its own scratch `.out` named `<reviewer>-review-output-testing-exec.out` (`<reviewer>` ∈ {`security`, `best-practice`}; derive the dir per `.cwf/docs/conventions/tmp-paths.md`, `mkdir -m 0700` on first use). Then classify **all** of them in ONE invocation — no shell loop, no `< <file>` redirect (this single literal argv matches the allowlist and raises no prompt):
+
+```
+.cwf/scripts/command-helpers/security-review-classify --dir <scratch-dir> --phase testing-exec
+```
+
+It prints one `<reviewer>: <token>` line per discovered file. Map each line's reviewer prefix to its heading and record `**State**: <token>` above that agent's verbatim output: `security` → `## Security Review`, `best-practice` → `## Best-Practice Review`. The helper is the sole classifier — do NOT apply any prose/heuristic rule. **Cross-check** the launched set against the classified lines: a reviewer you launched whose line is absent is recorded `error`, never silently dropped. A tool-level Agent failure is recorded as `error`.
 
 Do NOT block on `findings` from either reviewer. Surface them; the user decides whether to fix-and-re-run or accept-and-record before Step 9.
 

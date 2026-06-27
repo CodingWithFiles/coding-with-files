@@ -86,7 +86,21 @@ Five independent reviewers assess the exec changeset: the **security** reviewer 
 - robustness: `subagent_type="cwf-robustness-reviewer-changeset"`, `{wf_step}` = `"implementation-exec"`, `{changeset_file}`.
 - misalignment: `subagent_type="cwf-misalignment-reviewer-changeset"`, `{wf_step}` = `"implementation-exec"`, `{changeset_file}`.
 
-**Classify + record**: for each launched agent, write its verbatim output to its own scratch `.out` (`security-review-output-implementation-exec.out` / `best-practice-review-output-implementation-exec.out` / `improvements-review-output-implementation-exec.out` / `robustness-review-output-implementation-exec.out` / `misalignment-review-output-implementation-exec.out`; derive the dir per `.cwf/docs/conventions/tmp-paths.md`, `mkdir -m 0700` on first use), classify with the single shared helper `.cwf/scripts/command-helpers/security-review-classify < <file>`, and append the matching `## Security Review` / `## Best-Practice Review` / `## Improvements Review` / `## Robustness Review` / `## Misalignment Review` section with `**State**: <token>` above the verbatim output. Each section is classified and recorded **independently** — one reviewer's `error` never suppresses another's. The helper is the sole classifier (a tool-level Agent failure is recorded as `error`). Do NOT apply any prose/heuristic rule.
+**Classify + record**: write each launched agent's verbatim output to its own scratch `.out` named `<reviewer>-review-output-implementation-exec.out` (`<reviewer>` ∈ {`security`, `best-practice`, `improvements`, `robustness`, `misalignment`}; derive the dir per `.cwf/docs/conventions/tmp-paths.md`, `mkdir -m 0700` on first use). Then classify **all** of them in ONE invocation — no shell loop, no `< <file>` redirect (this single literal argv matches the allowlist and raises no prompt):
+
+```
+.cwf/scripts/command-helpers/security-review-classify --dir <scratch-dir> --phase implementation-exec
+```
+
+It prints one `<reviewer>: <token>` line per discovered file (lexical order). Map each line's reviewer prefix to its section heading and record `**State**: <token>` above that agent's verbatim output:
+
+- `security` → `## Security Review`
+- `best-practice` → `## Best-Practice Review`
+- `improvements` → `## Improvements Review`
+- `robustness` → `## Robustness Review`
+- `misalignment` → `## Misalignment Review`
+
+The helper is the sole classifier — do NOT apply any prose/heuristic rule. Each section is recorded **independently**: one reviewer's `error` never suppresses another's. **Cross-check** the launched set against the classified lines: any reviewer you launched whose line is absent (its `.out` was never written) is recorded `error`, never silently dropped (an unreadable-but-present file already classifies as `error`). A tool-level Agent failure is recorded as `error`.
 
 Do NOT block on `findings` from either reviewer. Surface them; the user decides whether to fix-and-re-run or accept-and-record before Step 9.
 

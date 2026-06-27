@@ -375,7 +375,7 @@
     "security-review-classify" : {
       "path" : ".cwf/scripts/command-helpers/security-review-classify",
       "permissions" : "0500",
-      "sha256" : "e5a60675951e6c09b41843bf170b6de3f181d6642e7cb504352f3793f7798053"
+      "sha256" : "c009ac8d1becd636002a8eb708ead9b29970a847a31464a4ba0ff6b919274c4e"
     },
     "template-copier-v2.1" : {
       "path" : ".cwf/scripts/command-helpers/template-copier-v2.1",

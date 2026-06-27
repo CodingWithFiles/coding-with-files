@@ -103,8 +103,12 @@ Follow the procedure in your agent definition.
 
 ### Classification
 
-Identical to the security review: write the verbatim subagent output to a file
-and pipe it through the shared classifier:
+Identical to the security review: write the verbatim subagent output to a
+`best-practice-review-output-<phase>.out` file in the per-task scratch dir, then
+classify it alongside the other reviewers in the exec SKILL's single
+discovery-mode invocation (`security-review-classify --dir <scratch-dir>
+--phase <phase>`), which prints one `best-practice: <token>` line. The
+single-file stdin form remains available for ad-hoc use:
 
 ```
 .cwf/scripts/command-helpers/security-review-classify < <subagent-output-file>

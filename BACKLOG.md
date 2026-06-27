@@ -2,6 +2,31 @@
 
 Future tasks and improvements for the Coding with Files system.
 
+## Task: Align security-review-classify discovery mode with its sibling helper's interface
+
+### Task-Type: chore
+### Priority: Low
+### Status: Follow-up from Task 214 (j-retrospective.md §Future Work)
+### Identified in: Task 214 j-retrospective.md §What Could Be Improved / §Recommendations
+
+Task 214 added a `--dir <DIR> --phase <PHASE>` discovery mode to
+`security-review-classify`. Two exec-phase reviewers (improvements, misalignment)
+independently flagged that this interface diverges from its matched-pair sibling
+`security-review-changeset`, which (a) takes `--wf-step` validated against the canonical
+ten-step allowlist (`%WF_STEP`) rather than an unvalidated `--phase`, and (b) derives the
+per-task scratch dir itself via `CWF::Common::scratch_dir($task_num)` (the same
+`find_git_root` + dashified-`$TMPDIR` + two-level `0700` mkdir + symlink-parent-reject
+guard) rather than taking a caller-supplied `--dir`. The Task-214 form is deliberate and
+documented (the helper stays read-only; a single literal argv is what matches the
+`:*` allowlist), and was accepted to ship — but it pushes scratch-path derivation into
+SKILL prose and introduces a second name (`--phase`) for an established concept
+(`--wf-step`). Scope: add an alternative `--task-num <num> --wf-step <step>` invocation
+that reuses `scratch_dir()` and validates the step against the shared allowlist, keeping
+the two sibling helpers symmetric; the `--dir`/`--phase` form may stay as a lower-level
+escape hatch or be retired. A `--task-num` form still matches the same `:*` allowlist
+entry, so the no-prompt property is preserved. Update both exec skills and the two
+`*-review.md` snippets accordingly. Optional — purely a consistency/maintainability gain.
+
 ## Task: Path-resolution audits must cover generated artefacts and all path surfaces
 
 ### Task-Type: chore

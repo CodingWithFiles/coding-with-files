@@ -165,17 +165,27 @@ lead with a sentinel.
 
 ### Classification (deterministic, single source of truth)
 
-The exec SKILL does **not** apply a prose rule. It writes the verbatim
-subagent output to a file and pipes it through the deterministic helper:
+The exec SKILL does **not** apply a prose rule. It writes each verbatim
+subagent output to a `<reviewer>-review-output-<phase>.out` file in the
+per-task scratch dir, then classifies them all in one discovery-mode
+invocation (no shell loop — matches the allowlist, raises no prompt):
+
+```
+.cwf/scripts/command-helpers/security-review-classify --dir <scratch-dir> --phase <phase>
+```
+
+This prints one `<reviewer>: <token>` line per discovered file (lexical
+order). The single-file stdin form is unchanged and still used by the
+SubagentStop guard hook and any single-file caller:
 
 ```
 .cwf/scripts/command-helpers/security-review-classify < <subagent-output-file>
 ```
 
-The helper prints exactly one canonical token (`no findings` |
-`findings` | `error`) on stdout per the parse rule it owns: exactly one
-valid `cwf-review` block → that state; zero or more than one valid block
-→ `error`. Both exec SKILLs and the SubagentStop guard hook
+Each token is one canonical value (`no findings` | `findings` | `error`)
+per the parse rule the helper owns: exactly one valid `cwf-review` block
+→ that state; zero or more than one valid block → `error`. Both modes
+share one parser, and both exec SKILLs plus the SubagentStop guard hook
 (`.cwf/scripts/hooks/subagentstop-security-verdict-guard`) call the same
 helper, so there is no classifier drift.
 
