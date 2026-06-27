@@ -211,22 +211,6 @@ The v1 anchored interpreter regex covers `perl|bash|sh|ksh|zsh|fish|python\d?|ru
 
 `t/security-review-changeset.t` (and likely others) uses `chdir $repo` ... `chdir $orig` to scope subprocess invocations. If a test `die`s between the two, `chdir $orig` never runs, leaking cwd state into subsequent tests. Use `local $CWD` from `File::chdir` for exception-safe lexical scoping. Not currently broken (tests die fast, tempdirs auto-clean), but a worth-it refactor as the test scaffolding grows.
 
-## Task: Quantitatively justify the security-review subagent line-count cap
-
-### Task-Type: chore
-### Priority: Low
-### Status: Follow-up from Task 127
-### Approach: 
-### Out of scope: changing the subagent prompt itself (covered by the existing "Tighten security-subagent prompt for sentinel-line compliance" follow-up). This task is purely about the threshold value.
-### Identified in: Task 127 retrospective (j-retrospective.md § "What Could Be Improved")
-
-The current 500-line cap on security-review subagent invocations (set in Task 123, applied across `.cwf/docs/skills/security-review.md` and the exec-phase skills) is qualitatively justified — large changesets exceed the subagent's effective review window — but no empirical evidence backs the specific value of 500 vs 250 vs 1000. Task 127's changeset (2166 lines) blew through the cap and required a manual approval workflow; the user explicitly flagged the threshold's lack of quantitative basis.
-
-1. Pick 5-10 representative changesets from CWF history at varying sizes (250, 500, 1000, 2000 lines).
-2. Run the security-review subagent on each; record finding-rate, false-positive-rate, runtime, and the subagent's own self-reported coverage assessment.
-3. Plot finding-rate-per-line and runtime against changeset size; identify the inflection point where review quality starts to degrade.
-4. Set the cap from data, not vibes. Document the methodology in `.cwf/docs/skills/security-review.md` so future revisions have a baseline.
-
 ## Task: Standardise Placeholder Syntax in Remaining CLI Docs
 
 ### Task-Type: chore
@@ -516,46 +500,6 @@ Add explicit baseline verification step to implementation planning phase for tas
 - [ ] Section is conditional ("if applicable")
 - [ ] Provides clear example for count-based tasks
 - [ ] Future tasks establish accurate baselines before implementation
-
-## Task: Add Security Verification to Testing Workflow
-
-### Task-Type: chore
-### Priority: Medium
-### Status: Identified during Task 32 security verification
-### Problem: Task 32 modified 8 helper scripts and added 2 libraries, but security hash verification wasn't performed until after retrospective. Security verification should be part of the testing phase to catch hash mismatches early.
-### Solution: Update testing workflow documentation and templates to include security verification step.
-### Scope: 
-### Benefits: 
-### Success Criteria: 
-### Rationale: Security verification is currently ad-hoc. Integrating it into the testing workflow ensures it's performed consistently for all tasks that modify security-sensitive files.
-### Related: Task 32 (discovered during post-retrospective security check)
-
-Add instruction to include security integrity checks as a standard part of the testing workflow (g-testing-exec) for all tasks that modify helper scripts or libraries.
-
-
-
-
-1. **Update workflow documentation** (`.cwf/docs/workflow/workflow-steps.md`):
-   - Add "Security Verification" as recommended step in Testing Execution section
-   - Document when security checks are required (tasks modifying scripts/libraries)
-   - Document how to run verification (`/cwf-security-check verify`)
-
-2. **Update testing templates** (`.cwf/templates/pool/g-testing-exec.md.template`):
-   - Add "Security Verification" checkbox to execution checklist
-   - Add conditional guidance: "If this task modifies helper scripts or libraries, run `/cwf-security-check verify` and update hashes"
-
-3. **Update testing plan templates** (`.cwf/templates/pool/e-testing-plan.md.template`):
-   - Add "Security Verification" test case (TC-S1)
-   - Test case validates script-hashes.json is up to date after implementation
-
-- Catches hash mismatches early (during testing, not post-retrospective)
-- Makes security verification a standard practice, not an afterthought
-- Documents when and how to perform security checks
-
-- [ ] workflow-steps.md includes security verification guidance
-- [ ] g-testing-exec.md.template includes security checklist item
-- [ ] e-testing-plan.md.template includes security test case
-- [ ] Future tasks that modify scripts will include security verification in testing phase
 
 ## Task: Test Edge Cases for Task Context Inference System
 
@@ -954,21 +898,6 @@ Task 118 added a tool-selection rubric for CWF subagents (canonical doc + brief 
 - Audit existing callers (`cwf-apply-artefacts`, `cwf-claude-settings-merge`, `backlog-manager`) to confirm none rely on symlink-not-resolved behaviour.
 - Update `t/artefacthelpers.t` (or equivalent) with a symlink-escape regression test.
 
-## Task: Close TOCTOU window in atomic_write_text via O_NOFOLLOW
-
-### Task-Type: chore
-### Priority: Low
-### Status: Follow-up from Task 131
-### Scope: 
-### Risk: very low — single-developer maintenance helpers; concurrent attacker access to the working tree is out of the documented threat model. Worth fixing for defense in depth, especially before any tool that takes user-supplied paths is exposed to multi-user scenarios.
-### Identified in: Task 131 c-design-plan plan-review (security agent)
-
-`atomic_write_text` in `CWF::ArtefactHelpers` uses `rename($tmp, $path)` which writes through symlinks. Helpers that defend against this (e.g. `backlog-manager retire`, the `write_backlog_file` / `write_changelog_file` wrappers in `CWF::Backlog`) check `-l $path` before invoking `atomic_write_text`. There is a TOCTOU window between the check and the rename: an attacker who can rewrite the directory between the two calls could swap the regular file for a symlink and have the rename traverse it.
-
-- Modify `atomic_write_text` to use `sysopen` with `O_NOFOLLOW` on the destination, OR perform the `-l` check inside the helper immediately before the rename (narrows but does not eliminate the window).
-- Considered alternative: `link()` + `unlink()` instead of `rename()` — gives atomic semantics on POSIX but would change the helper's semantics for callers that rely on inode preservation.
-- Update `t/artefacthelpers.t` to verify symlink targets are refused.
-
 ## Task: Roll intent-CTA description convention to remaining skills
 
 ### Task-Type: chore
@@ -1118,14 +1047,6 @@ Fresh `install.bash` runs leave the `data` and `agents` sections at 0600 (whatev
 
 Claude Code's agent registry is loaded at session start. Newly installed `.claude/agents/cwf-*.md` files (via `install.bash` or `cwf-manage update`) are not discoverable until session restart. Task 143's TC-AC3b, TC-AC5a, TC-AC5b were classified BLOCKED-ENV for this reason. Options: (a) post-install helper that prints `"Restart Claude Code to load X new agent(s)"` and exits; (b) auto-re-exec of `claude` after install (probably too invasive); (c) document the constraint in `.cwf/docs/skills/cwf-agent-shared-rules.md` and `cwf-new-task` so authors know upfront. (a)+(c) is the minimal-risk path.
 
-## Task: Tune security-review-changeset 500-line cap to count edit-lines only
-
-### Task-Type: chore
-### Priority: Low
-### Identified in: Task 143 retrospective (j-retrospective.md)
-
-The 500-line review cap in `cwf-implementation-exec` / `cwf-testing-exec` SKILLs counts `wc -l` of the entire diff output, which includes hunk headers (`@@ ...`), file headers (`diff --git` / `+++` / `---`), and unchanged context lines. Task 143 fired the cap twice on changesets whose actual edit-line count (`grep -c '^[+-]'`) was well under cap: f-phase 538 total / 399 edits, g-phase 625 total / 419 edits. Either (a) change the SKILL to count `grep -cE '^[+-]' | grep -v '^[+]{3}\|^[-]{3}'` (edit lines only), or (b) raise the cap, or (c) split the cap into two thresholds (warn at 500 edit-lines, hard-stop at 1000). The intent was context-window protection for the subagent; edit-lines is closer to that intent than total-diff-lines.
-
 ## Task: Naming convention for throwaway test branches
 
 ### Task-Type: chore
@@ -1154,34 +1075,6 @@ Three slightly different `implementation-guide/N-*-*` directory scans now exist 
 Worth promoting the primitive into a small `CWF::TaskDir` module exposing a single `scan_task_dirs($task_num)` returning `(@matches)` plus two thin wrappers preserving the two existing contracts. Keeps the supported-task-types regex anchoring in one place, eliminates the three-scan drift surface, and lets future helpers share a single discipline (symlink rejection, anchored type alternation, `\Q$task_num\E` quoting).
 
 Out of scope for Task 147 — the new scan was intentionally factored only within `Backlog.pm` to avoid scope creep on the user-facing fix.
-
-## Task: Investigate UTF-8 mangling in backlog-roundtrip-live test against live BACKLOG.md
-
-### Task-Type: bugfix
-### Priority: Medium
-### Identified in: Task 147 retrospective (j-retrospective.md)
-
-`t/backlog-roundtrip-live.t::TC-ROUNDTRIP-LIVE-BACKLOG` fails on the live BACKLOG.md with UTF-8 character mangling: characters like `—` (U+2014) and `§` (U+00A7) get rewritten as `â` and `Â§` on round-trip. Reproduced on `main` HEAD as of 2026-05-17, prior to any Task 147 changes. The test reads the file, parses with `parse_backlog_tree`, serialises with `serialize_tree`, encodes back to UTF-8, and compares to the original bytes. Output shows truncated multi-byte UTF-8 sequences — looks like serialize_tree is operating on byte strings (not codepoints) somewhere along the way, or the decode chain is single-byte under one code path.
-
-Investigation candidates: `_read_file_with_global_checks` (uses `<:raw>` + explicit `decode(...)`), the `for ($i = 0; $i < @$lines; $i++)` loop in `_parse_tree` (does `$line` carry decoded text?), and `_serialize_entry`'s string concatenation. The other 5 backlog test files (mutators, parse, validate, manager, manager-argv-utf8) pass, so the round-trip-against-live-file path is the specific failure surface.
-
-Surfaced by Task 147 at f-step-1 baseline test run.
-
-## Task: Tune 500-line security-review cap so test files do not dominate
-
-### Task-Type: chore
-### Priority: Low
-### Identified in: Task 147 retrospective (j-retrospective.md)
-
-The 500-line cap on the security-review subagent's input (set in `.cwf/docs/skills/security-review.md` and applied by exec-phase SKILLs) is meant to keep the subagent's context window manageable. In practice the cap fires on test-heavy changes where the production delta is small — Task 147's production diff was ~120 lines (`Backlog.pm` helpers + 4-line `cmd_retire` branch), but the new test file `t/backlog-bootstrap-changelog.t` alone added 334 lines, pushing the total to 606. The exec SKILL classifies this as `error` and skips the subagent; the human is left to either split (often not viable for a single logical change) or perform manual review.
-
-Two reasonable options:
-1. Have `.cwf/scripts/command-helpers/security-review-changeset` exclude (or 0.5x weight) paths matching `^t/` or `^tests/` from the line-count tally that drives the cap decision. The diff would still include the test files (review covers them), but the cap would key off production volume.
-2. Add a configurable per-phase override in `cwf-project.json` so users can tune the cap.
-
-Option 1 is the smaller surface change; the cap stays in one place (the helper) and SKILLs keep their current "ask the helper" contract. Option 2 is more flexible but adds a config knob to maintain.
-
-Identified in Task 147 retrospective (j-retrospective.md § Recommendations).
 
 ## Task: Plan-review or impl-plan should grep existing tests for contract-message strings being changed
 
@@ -1255,15 +1148,6 @@ Audit script preserved at: `implementation-guide/151-discovery-consolidate-cross
 ### Identified in: Task 152 c-design-plan.md §Decision 3, §Follow-ups
 
 Promote the `sleep 1 && git` prefix convention from MEMORY.md/global CLAUDE.md (both maintainer-local) into a referenced convention doc under `.cwf/docs/conventions/` (e.g. `sleep-git-prefix.md`) so installed skills can reference one place instead of copy-pasting the rule. Task 152 was the first wf doc to bake the convention into installed wording other adopters will see; `retrospective-extras.md` Step 12 currently restates the scope inline. Rule scope (carry over verbatim to the new doc): the prefix applies only to (a) Bash-tool calls that invoke `git`, and (b) suggested user-facing `git ff` merge commands — both because Claude Code spawns a background `git` that briefly holds `.git/index.lock`. Naming must always include `git` (never `sleep 1 && convention`); the rule does NOT apply to non-git Bash calls. After the convention doc lands, edit `retrospective-extras.md` to reference it rather than restate it.
-
-## Task: Wire trunk-resolution fallback chain across retrospective-extras and security-review-changeset
-
-### Task-Type: chore
-### Priority: Low
-### Status: Follow-up from Task 152
-### Identified in: Task 152 c-design-plan.md §Decision 2, §Follow-ups
-
-Wire the documented trunk-resolution fallback chain (`cwf-project.json:trunk` → `git symbolic-ref refs/remotes/origin/HEAD` → hardcoded `main`) across the two call sites that need it: `.cwf/docs/skills/retrospective-extras.md` `## Suggest Merge (Step 12)` (top-level-task branch of the derivation rule) and `.cwf/scripts/command-helpers/security-review-changeset` (already documents the chain at `.cwf/docs/skills/security-review.md:28` but does not yet wire it). Today both sites hardcode `main`. Today's behaviour is loud-failure for non-`main` adopters: a suggested `git checkout main` simply fails on paste (and `security-review-changeset` falls back to `git merge-base HEAD main`, which also fails loudly). Doing both call sites in one task ensures a single convention, single `cwf-project.json` schema bump, single test surface. Trigger: either a non-`main` adopter shows up, or `security-review-changeset` needs the chain wired first for an independent reason.
 
 ## Task: Single source of truth for the canonical PERL5OPT value (-CDSLA)
 
@@ -1381,14 +1265,6 @@ Open question (why this is a candidate, not a commitment): whether the maintenan
 
 Identified in: Task 169 retrospective (j-retrospective.md).
 
-## Task: Rebrand TLA from CWF to CwF across project
-
-### Task-Type: chore
-### Priority: Low
-### Identified in: Task 184
-
-The canonical three-letter abbreviation is currently "CWF" (all-caps) across glossary.md, README.md, CLAUDE.md, docs, skills, and committed CHANGELOG entries. The intended branding is the mixed-case "CwF". This is pre-existing design drift not noticed until Task 184 (which used the current canonical CWF for the CHANGELOG header fix rather than mixing conventions). Sweep all production artefacts (glossary, README, CLAUDE.md, .cwf/docs, .cwf/templates, skills, agent defs) replacing the standalone TLA "CWF" -> "CwF", excluding immutable history (implementation-guide/* task docs, retired CHANGELOG entries). Verify with an output-level smoke test per the rebrand-smoke-test process memory. Update the glossary Abbrev definition and pronunciation note accordingly.
-
 ## Task: Retire remaining vestigial version fields (cwf-version, security.version-tracking)
 
 ### Task-Type: chore
@@ -1412,14 +1288,6 @@ Task 188 retired the top-level `version` field strictly-narrow. The identical ve
 ### Identified in: Task 189 d-implementation-plan.md (Deferred to BACKLOG)
 
 The live implementation-guide/cwf-project.json carries dead schema. Its templates block lists old plan.md and implementation.md filenames that are unused, since template-copier sources per-type file sets from CWF::WorkflowFiles::V21 %WORKFLOW_FILES rather than the config. Its security.canonical-source holds OWNER/REPO placeholders. Prune or correct these blocks so the live config no longer advertises schema the system ignores. Found during Task 189 docs-sync planning while grounding CWF-PROJECT-SPEC.md against the real schema.
-
-## Task: Retire residual CIG branding from .cwf code and POD
-
-### Task-Type: chore
-### Priority: Low
-### Identified in: Task 189 docs-sync stale-string sweep
-
-Code and POD under .cwf/scripts/ and .cwf/lib/ still carry the pre-rebrand "CIG" name: "CIG System" author tags in several Perl POD blocks (StatusAggregator/Core.pm, WorkflowFiles/V20.pm + V21.pm, TaskState.pm, TemplateCopier/Core.pm, ContextInheritance/Core.pm, Options.pm, Common.pm), "CIG tasks/scripts" in template-copier comments and POD, CIG_SOFTWARE_VERSION in context-manager.d/version, and "CIG Migration" banners in migrate-v1-to-v2.sh / rollback-migration.sh. Cosmetic only (not user-facing in normal operation). Out of scope for the Task 189 docs-sync chore because these are hash-tracked files: editing them pulls a code+sha256 change set that must not ride in a docs commit. Fix as its own task with the in-task hash refresh per .cwf/docs/conventions/hash-updates.md.
 
 ## Task: Extend BACKLOG-000 structural contract to CHANGELOG.md (KD5 parity)
 
@@ -1537,50 +1405,6 @@ to audit on reuse.
 
 When a design introduces a new reviewer/agent, the design phase must explicitly decide its concurrency: parallel peer in the existing MAP (default) vs a serial step, with any serialisation justified by a strict output→input data dependency (fast deterministic helpers feeding agent inputs do not count). Task 205 designed exec best-practice as a serial second step; it had to be restructured to a parallel peer during exec after explicit user direction. Codify as a checklist item (candidate home: docs/conventions/design-alignment.md) so the decision is made before code. Durable principle already in memory feedback-reviewers-parallel.
 
-## Task: Live-agent run of the best-practice reviewer with a populated config
-
-### Task-Type: discovery
-### Priority: Low
-### Identified in: Task 205 retrospective (j-retrospective.md); updated by Task 207 (verbatim-path simplification + session-cached agent edits)
-
-This repo ships no best-practices.json fixture with matching docs, so only the 0-match (no-op) branch is exercised end-to-end; the populated path (tag match → verbatim path emission → agent verdict) is covered by unit tests but not a live agent run. Task 207 changed the contract (no URL/manifest; the resolver emits one `- <tags>: <path>` line per match and the reviewer Reads the path directly) **and** its agent-definition edits are session-cached, so the new reviewer behaviour was never live-verified. In a FRESH session, exercise the reviewer in a consuming or throwaway fixture repo with a real best-practices.json over file and directory pointers and confirm: (a) both reviewer agents have no WebFetch and Read the listed sources directly; (b) the exec changeset reviewer emits the fail-closed `error` when a listed source is unreadable; (c) the planning plan-review column and the exec changeset reviewer emit sensible findings. Validates the agent prompts against a live model, not just the deterministic resolver.
-
-## Task: Narrow best-practice active-tags for CWF internal Perl/Markdown tasks
-
-### Task-Type: chore
-### Priority: Low
-### Status: Follow-up from Task 208
-### Identified in: Task 208 retrospective (j-retrospective.md)
-
-The best-practice changeset reviewer fires on every exec phase whenever active-tags match, but CWFs standing tags (golang, postgres) are out-of-domain for its own Perl/Markdown/JSON changes. Every CWF-internal task therefore spends two agent rounds producing not applicable verdicts. Scope a narrower tag set (or a per-task tag override) so best-practice-resolve returns 0 matches and skips the reviewer when no applicable corpus exists. Surfaced concretely in Tasks 207 and 208.
-
-## Task: Align best-practice-resolve relevance and output format with reviewer agents
-
-### Task-Type: discovery
-### Priority: Low
-### Status: Follow-up from Task 209
-### Identified in: Task 209 retrospective (j-retrospective.md)
-
-`best-practice-resolve` consistently tag-matches off-domain corpora for tasks
-whose code is in a different language. Across all five review phases of Task 209
-(a Perl helper bugfix) it resolved the `golang` and `postgres` corpora, none of
-which apply to Perl/JSON/Markdown. The best-practice reviewer agents also report
-that the resolver's `.out` format (a `- <tags>: <path>` list) does not match the
-`### DOCS` `file:`/`dir:` shape their agent definitions expect — they cope by
-enumerating directories directly, but the mismatch is undocumented.
-
-Two separable concerns:
-1. Relevance: tag matching surfaces corpora unrelated to the changed languages,
-   producing reviews that can only conclude "no supplied practice applies". Worth
-   deciding whether matching should consider the task's actual language/artefact
-   surface, or whether this is purely a user-config concern (the user owns
-   `active-tags` / per-task `Tags`).
-2. Format: align the resolver output with the `### DOCS` shape the reviewer
-   agents document, or update the agent definitions to the actual format.
-
-Scope: investigation first; no behaviour change until the relevance question is
-settled. Low risk — findings are advisory and never gate the workflow.
-
 ## Task: Hoist shared cwf-review verdict block into agent-shared-rules and de-dup the five changeset reviewers
 
 ### Task-Type: chore
@@ -1595,3 +1419,91 @@ intentionally withheld" paragraph) into `cwf-agent-shared-rules.md` and having
 each agent reference it, then de-dup the five changeset reviewers. Deferred from
 Task 210 to keep that task scoped (the hoist would force re-hashing the two
 pre-existing changeset agents and editing the hash-tracked shared-rules doc).
+
+## Task: Best-practice resolver: relevance, output format, and live-agent verification
+
+### Task-Type: discovery
+### Priority: Low
+### Identified in: Tasks 205, 207, 208, 209 retrospectives; consolidated in Task 212 backlog audit
+
+Consolidates three related concerns about the best-practice resolver and its reviewer
+agents. Scope: investigation first; no behaviour change until the relevance question is
+settled. Low risk — findings are advisory and never gate the workflow.
+
+1. Relevance. `best-practice-resolve` tag-matches off-domain corpora (the standing
+   `golang` / `postgres` tags) for CWF's own Perl/Markdown/JSON changes, so every
+   CWF-internal task spends two agent rounds producing "no supplied practice applies"
+   verdicts. Decide whether matching should consider the task's actual language/artefact
+   surface, or whether this is purely a user-config concern (a narrower active-tag set or
+   a per-task tag override so the resolver returns 0 matches and skips the reviewer).
+   Surfaced in Tasks 207, 208, 209 — and again in Task 212's own plan-review, where
+   golang/postgres matched a Markdown audit chore.
+
+2. Output format. The resolver's `.out` format (a `- <tags>: <path>` list) does not match
+   the `### DOCS` `file:`/`dir:` shape the reviewer agent definitions document. The agents
+   cope by enumerating directories directly, but the mismatch is undocumented. Align the
+   resolver output with the `### DOCS` shape, or update the agent definitions to the actual
+   format.
+
+3. Live-agent verification. This repo ships no best-practices.json fixture with matching
+   docs, so only the 0-match (no-op) branch is exercised end-to-end; the populated path is
+   covered by unit tests but never by a live agent run, and Task 207's agent-definition
+   edits are session-cached. In a FRESH session, exercise the reviewer in a consuming or
+   throwaway fixture repo with a real best-practices.json over file and directory pointers
+   and confirm: (a) both reviewer agents have no WebFetch and Read the listed sources
+   directly; (b) the exec changeset reviewer emits the fail-closed `error` when a listed
+   source is unreadable; (c) the planning plan-review column and the exec changeset
+   reviewer emit sensible findings.
+
+## Task: Revisit the security-review line cap: quantitative basis and edit-lines counting
+
+### Task-Type: chore
+### Priority: Medium
+### Identified in: Tasks 127, 143 retrospectives; consolidated in Task 212 backlog audit
+
+Revisits the security-review line cap (500, set in Task 123, applied across
+`.cwf/docs/skills/security-review.md` and the exec-phase skills) on two entangled axes.
+Task 168 has since added production-weighting plus `max-lines-exclude-paths` (test files
+excluded by default), so this item folds in that progress; the residual is the
+counting-basis decision and the empirical threshold. Out of scope: changing the subagent
+prompt itself.
+
+1. Quantitative basis. The value is qualitatively justified (large changesets exceed the
+   subagent's effective review window) but no empirical evidence backs 500 vs 250 vs 1000;
+   Task 127's 2166-line changeset blew the cap and required a manual approval workflow.
+   Pick 5-10 representative changesets at varying sizes (250 / 500 / 1000 / 2000), run the
+   security-review subagent on each, record finding-rate, false-positive-rate, runtime, and
+   self-reported coverage; plot finding-rate-per-line and runtime against changeset size;
+   set the cap from data and document the methodology in `security-review.md`.
+
+2. Counting basis. The cap counts production-weighted diff lines; an earlier framing
+   (Task 143) noted that total-diff counting includes hunk headers, file headers, and
+   context, and that edit-lines (`grep -cE '^[+-]'` excluding `+++`/`---`) is closer to the
+   context-window-protection intent. Decide between counting edit-lines only, raising the
+   cap, or splitting into warn / hard-stop thresholds.
+
+## Task: Branding cleanup: CWF to CwF rebrand and retire residual CIG naming
+
+### Task-Type: chore
+### Priority: Low
+### Identified in: Tasks 184, 189; consolidated in Task 212 backlog audit
+
+Two related branding sweeps over the codebase, best done as one coordinated pass with a
+single output-level smoke test (source-grep alone is insufficient, per the
+rebrand-smoke-test process memory). Both exclude immutable history (implementation-guide/*
+task docs, retired CHANGELOG entries).
+
+1. TLA case. The canonical three-letter abbreviation is currently all-caps "CWF" across
+   glossary.md, README.md, CLAUDE.md, .cwf/docs, .cwf/templates, skills, agent defs, and
+   committed CHANGELOG entries; the intended branding is mixed-case "CwF" (pre-existing
+   drift, noticed Task 184). Sweep all production artefacts replacing the standalone TLA
+   "CWF" with "CwF", and update the glossary Abbrev definition and pronunciation note.
+
+2. Pre-rebrand "CIG" name. Code and POD under `.cwf/scripts/` and `.cwf/lib/` still carry
+   the pre-rebrand "CIG" name: "CIG System" author tags in several Perl POD blocks
+   (StatusAggregator/Core.pm, WorkflowFiles/V20.pm and V21.pm, TaskState.pm,
+   TemplateCopier/Core.pm, ContextInheritance/Core.pm, Options.pm, Common.pm), "CIG
+   tasks/scripts" in template-copier comments and POD, CIG_SOFTWARE_VERSION in
+   context-manager.d/version, and "CIG Migration" banners in migrate-v1-to-v2.sh /
+   rollback-migration.sh. Cosmetic only. These are hash-tracked files, so the in-task hash
+   refresh per `.cwf/docs/conventions/hash-updates.md` applies.

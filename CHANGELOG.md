@@ -2,6 +2,44 @@
 
 All notable changes to the Coding with Files (CWF) project are documented in this file, organized by task.
 
+## Task 212: backlog audit and dedup
+
+### Status: Complete (2026-06-27)
+### Duration: a–j in one session; estimate 1–2 days, well under (the parallel 10-agent fan-out collapsed the 91-item assessment into one round).
+### Impact: Audited all 91 active BACKLOG items against the live codebase via a 10-way parallel Explore fan-out, then enacted a per-item verdict under a human approval gate. Retired 5 done/superseded items to CHANGELOG (each with cited evidence): *Add Security Verification to Testing Workflow* (superseded by checkpoint-commit auto-`validate` + hash-updates + Step-8 changeset review), *Close TOCTOU window in atomic_write_text via O_NOFOLLOW* (Task 182 `rename`-replace), *Investigate UTF-8 mangling in backlog-roundtrip-live test* (Task 137; test green), *Tune 500-line security-review cap so test files do not dominate* (Task 168 exclude-paths), *Wire trunk-resolution fallback chain* (done both sites). Merged 7 duplicate/related entries into 3 union survivors (best-practice resolver ×3→1, security-review line cap ×2→1, branding cleanup ×2→1). 16 partials kept as-is with residual noted; 1 item (shebang interpreter regex) left OPEN pending a closer read. One agent false-positive (a 0444 file read as "perm survives checkout") was caught by hand — git tracks only the execute bit — and correctly kept OPEN. Net 91 → 82 active items; conservation ledger balances, all 7 changeset reviews clean. Backlog/CHANGELOG only; no source-code change.
+
+### Retired Backlog Items
+#### Add Security Verification to Testing Workflow
+
+Add instruction to include security integrity checks as a standard part of the testing workflow (g-testing-exec) for all tasks that modify helper scripts or libraries.
+
+
+
+
+1. **Update workflow documentation** (`.cwf/docs/workflow/workflow-steps.md`):
+   - Add "Security Verification" as recommended step in Testing Execution section
+   - Document when security checks are required (tasks modifying scripts/libraries)
+   - Document how to run verification (`/cwf-security-check verify`)
+
+2. **Update testing templates** (`.cwf/templates/pool/g-testing-exec.md.template`):
+   - Add "Security Verification" checkbox to execution checklist
+   - Add conditional guidance: "If this task modifies helper scripts or libraries, run `/cwf-security-check verify` and update hashes"
+
+3. **Update testing plan templates** (`.cwf/templates/pool/e-testing-plan.md.template`):
+   - Add "Security Verification" test case (TC-S1)
+   - Test case validates script-hashes.json is up to date after implementation
+
+- Catches hash mismatches early (during testing, not post-retrospective)
+- Makes security verification a standard practice, not an afterthought
+- Documents when and how to perform security checks
+
+- [ ] workflow-steps.md includes security verification guidance
+- [ ] g-testing-exec.md.template includes security checklist item
+- [ ] e-testing-plan.md.template includes security test case
+- [ ] Future tasks that modify scripts will include security verification in testing phase
+
+<!-- Note: Superseded: cwf-manage validate runs on every checkpoint commit (checkpoint-commit.md:16), plus the hash-updates convention and the g-testing-exec Step 8 changeset Security Review. Audited obsolete in Task 212; residual workflow-steps.md doc note deemed marginal. -->
+
 ## Task 211: tc validate in flight false failure
 
 ### Status: Complete (2026-06-27)
@@ -584,6 +622,17 @@ are a ceiling as of Task 170).
 - **Reuse delivered the security properties for free.** `find_git_root` (worktree-safe, Task 173) + `atomic_write_text` (`rename`-replace = truncate **and** symlink no-write-through) meant no hand-rolled `O_NOFOLLOW`; the plan review caught and corrected a requirements/design divergence that had described the guarantee as open-failure rather than no-write-through.
 - **Tests consume the contract like the agent does.** Assertions parse the helper's confirmation line for the `.out` path instead of re-deriving it, which sidesteps the macOS `/private/tmp` symlink-resolution divergence; TC-SYMLINK and TC-WORKTREE actively prove the no-write-through and main-tree-namespace properties. A missed stdout→file assertion migration (TC-WIDEN1) was caught by *running* the suite — the standing "rebrand needs an output-level smoke-test" lesson again.
 
+### Retired Backlog Items
+#### Close TOCTOU window in atomic_write_text via O_NOFOLLOW
+
+`atomic_write_text` in `CWF::ArtefactHelpers` uses `rename($tmp, $path)` which writes through symlinks. Helpers that defend against this (e.g. `backlog-manager retire`, the `write_backlog_file` / `write_changelog_file` wrappers in `CWF::Backlog`) check `-l $path` before invoking `atomic_write_text`. There is a TOCTOU window between the check and the rename: an attacker who can rewrite the directory between the two calls could swap the regular file for a symlink and have the rename traverse it.
+
+- Modify `atomic_write_text` to use `sysopen` with `O_NOFOLLOW` on the destination, OR perform the `-l` check inside the helper immediately before the rename (narrows but does not eliminate the window).
+- Considered alternative: `link()` + `unlink()` instead of `rename()` — gives atomic semantics on POSIX but would change the helper's semantics for callers that rely on inode preservation.
+- Update `t/artefacthelpers.t` to verify symlink targets are refused.
+
+<!-- Note: Superseded by Task 182: atomic_write_text uses temp+rename, which replaces a destination symlink instead of writing through it, so no hand-rolled O_NOFOLLOW is needed. -->
+
 ## Task 181: adopt guarded worktree process (feature)
 
 ### Status: Complete (2026-06-06)
@@ -854,6 +903,26 @@ Out of scope: deciding whether the cap is the right limit at all. This item is a
 Identified in: task 166 (bugfix/166-task-inference-not-subtask-aware), f-implementation-exec security-review surfacing.
 
 <!-- Note: Moved the cap into security-review-changeset as a production-weighted count; test paths are consumer-declared git pathspecs (security.review.test-paths) matched by git :(glob,exclude). -->
+
+#### Tune 500-line security-review cap so test files do not dominate
+
+The 500-line cap on the security-review subagent's input (set in `.cwf/docs/skills/security-review.md` and applied by exec-phase SKILLs) is meant to keep the subagent's context window manageable. In practice the cap fires on test-heavy changes where the production delta is small — Task 147's production diff was ~120 lines (`Backlog.pm` helpers + 4-line `cmd_retire` branch), but the new test file `t/backlog-bootstrap-changelog.t` alone added 334 lines, pushing the total to 606. The exec SKILL classifies this as `error` and skips the subagent; the human is left to either split (often not viable for a single logical change) or perform manual review.
+
+Two reasonable options:
+1. Have `.cwf/scripts/command-helpers/security-review-changeset` exclude (or 0.5x weight) paths matching `^t/` or `^tests/` from the line-count tally that drives the cap decision. The diff would still include the test files (review covers them), but the cap would key off production volume.
+2. Add a configurable per-phase override in `cwf-project.json` so users can tune the cap.
+
+Option 1 is the smaller surface change; the cap stays in one place (the helper) and SKILLs keep their current "ask the helper" contract. Option 2 is more flexible but adds a config knob to maintain.
+
+Identified in Task 147 retrospective (j-retrospective.md § Recommendations).
+
+<!-- Note: Superseded by Task 168: production-weighted cap with max-lines-exclude-paths (default t/**) so test files no longer dominate the count. -->
+
+#### Wire trunk-resolution fallback chain across retrospective-extras and security-review-changeset
+
+Wire the documented trunk-resolution fallback chain (`cwf-project.json:trunk` → `git symbolic-ref refs/remotes/origin/HEAD` → hardcoded `main`) across the two call sites that need it: `.cwf/docs/skills/retrospective-extras.md` `## Suggest Merge (Step 12)` (top-level-task branch of the derivation rule) and `.cwf/scripts/command-helpers/security-review-changeset` (already documents the chain at `.cwf/docs/skills/security-review.md:28` but does not yet wire it). Today both sites hardcode `main`. Today's behaviour is loud-failure for non-`main` adopters: a suggested `git checkout main` simply fails on paste (and `security-review-changeset` falls back to `git merge-base HEAD main`, which also fails loudly). Doing both call sites in one task ensures a single convention, single `cwf-project.json` schema bump, single test surface. Trigger: either a non-`main` adopter shows up, or `security-review-changeset` needs the chain wired first for an independent reason.
+
+<!-- Note: Done: full trunk-resolution fallback chain wired in security-review-changeset (cwf-project trunk, then origin/HEAD, then main) and retrospective-extras. -->
 
 ## Task 167: install manifest baselines disagree with subtree
 
@@ -1869,6 +1938,17 @@ Task A is a prerequisite for Task B because the new validator should cite the ne
 - **`security-review-changeset` is blind to working-tree changes.** Helper diffs `anchor..HEAD` over committed history. For both f-phase and g-phase, the work was uncommitted at security-review time, so the helper returned `reviewed 0 files`. Workaround for this task was `git diff HEAD` → file → Read-tool input to the Explore subagent. Re-confirms the existing backlog item "Improve security-review-changeset feedback on empty-from-uncommitted changesets" (filed in Task 136); not adding a duplicate.
 - **`validate_path_allowlist` cargo-cult discovered.** While trying to write a body file to `/tmp/`, `backlog-manager add` rejected the path. Investigation showed `validate_path_allowlist` was copied from `cwf-apply-artefacts` (a write tool with strict allow-list) into `backlog-manager` (a read tool reading scratch input) where the threat model does not apply. Filed as Very-High backlog item "Split validate_path_allowlist into write/read/temp variants".
 - **TC-F8 deliberately deferred.** TC-F8 asserts `docs/conventions/perl-git-paths.md` no longer carries the false claim that `-CDSL` decodes `@ARGV`. Since the doc is *not* updated in this task, TC-F8 cannot pass and would fail-on-purpose. Recorded as DEFERRED with reference to the Re-align backlog item.
+
+### Retired Backlog Items
+#### Investigate UTF-8 mangling in backlog-roundtrip-live test against live BACKLOG.md
+
+`t/backlog-roundtrip-live.t::TC-ROUNDTRIP-LIVE-BACKLOG` fails on the live BACKLOG.md with UTF-8 character mangling: characters like `—` (U+2014) and `§` (U+00A7) get rewritten as `â` and `Â§` on round-trip. Reproduced on `main` HEAD as of 2026-05-17, prior to any Task 147 changes. The test reads the file, parses with `parse_backlog_tree`, serialises with `serialize_tree`, encodes back to UTF-8, and compares to the original bytes. Output shows truncated multi-byte UTF-8 sequences — looks like serialize_tree is operating on byte strings (not codepoints) somewhere along the way, or the decode chain is single-byte under one code path.
+
+Investigation candidates: `_read_file_with_global_checks` (uses `<:raw>` + explicit `decode(...)`), the `for ($i = 0; $i < @$lines; $i++)` loop in `_parse_tree` (does `$line` carry decoded text?), and `_serialize_entry`'s string concatenation. The other 5 backlog test files (mutators, parse, validate, manager, manager-argv-utf8) pass, so the round-trip-against-live-file path is the specific failure surface.
+
+Surfaced by Task 147 at f-step-1 baseline test run.
+
+<!-- Note: Resolved by Task 137 (argv double-encoding fix, -CDSLA); t/backlog-roundtrip-live.t passes byte-identity. No longer reproduces. -->
 
 ### New Backlog Items
 - Very High: Re-align Perl-Script Convention to Task-27 Form and Anchor in CLAUDE.md — split `docs/conventions/perl-git-paths.md` into `docs/conventions/perl.md` and `docs/conventions/git-path-output.md`; revert the 11 hardcoded `-CDSL` shebangs to `#!/usr/bin/env perl`; update SKILL.md/INSTALL.md/Common.pm/security-review.md PERL5OPT recommendation to `-CDSLA`; anchor the convention from CLAUDE.md so progressive discovery catches future drift.
