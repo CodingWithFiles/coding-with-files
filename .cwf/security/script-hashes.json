@@ -182,6 +182,11 @@
       "permissions" : "0500",
       "sha256" : "d0369f59d1537152960a63080818f1c996614a154a445b2146796c5df225bd56"
     },
+    "plan-mechanical-check" : {
+      "path" : ".cwf/scripts/command-helpers/plan-mechanical-check",
+      "permissions" : "0500",
+      "sha256" : "c358b18792d1eb8d4df25b70dfb0d316692ba141cbd7ac889361d075cc64bead"
+    },
     "checkpoints-branch-manager" : {
       "path" : ".cwf/scripts/command-helpers/checkpoints-branch-manager",
       "permissions" : "0500",

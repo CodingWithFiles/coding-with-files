@@ -1,0 +1,344 @@
+#!/usr/bin/env perl
+#
+# plan-mechanical-check - Deterministic plan-review gate. Scans one plan file and
+# surfaces two defect classes the LLM plan-reviewers structurally miss:
+#
+#   1. Path check  - referenced helper/script paths that do not resolve against
+#      the main repo root. HIGH-SIGNAL when a file with the same basename exists
+#      elsewhere (a likely wrong path, the Task-150 class); ADVISORY otherwise
+#      (a new file the task will create, or a typo).
+#   2. Symbol check - symbols the plan declares for deletion (a `- **Deletes**:`
+#      line) that still have live references elsewhere in the repo (the Task-174
+#      class: a deleted constant still asserted on by two test files).
+#
+# Both scans are mechanical and language-neutral: symbol names are opaque strings
+# grepped repo-wide; path existence is a filesystem test. The helper SURFACES
+# findings for reviewer adjudication and never blocks: a clean scan, an absent
+# plan file, or an internal scan error all degrade to "0 findings, exit 0". Only
+# a resolution failure (bad args, unresolvable task/root, unwritable scratch)
+# exits 1.
+#
+# Usage:
+#   plan-mechanical-check --task-num=NUM --plan-type=TYPE
+#   TYPE is one of requirements, design, implementation (-> b-/c-/d- plan file).
+#
+# Output:
+#   File:   <scratch>/task-<num>/plan-mechanical-check-<plan-type>.out (mode 0600)
+#           A human-readable findings report, one section per check.
+#   stdout: exactly one confirmation line -
+#           `plan-mechanical-check: wrote <N> findings to <abs-path>`.
+#   stderr: diagnostics (plan file absent, scan degradation) - never fatal.
+#
+# Exit:
+#   0 ok (including 0 findings; absent plan file; fail-open scan errors)
+#   1 resolution failure (bad args, unresolvable task/root, scratch/write failure)
+#
+use strict;
+use warnings;
+use utf8;
+use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use CWF::Common qw(check_perl5opt find_git_root scratch_dir);
+use CWF::TaskPath qw(resolve_num);
+use CWF::ArtefactHelpers qw(atomic_write_text);
+
+check_perl5opt();
+
+my $PROG = 'plan-mechanical-check';
+
+# --plan-type allowlist -> the plan file it scans. Validated before any use.
+my %PLAN_FILE = (
+    requirements   => 'b-requirements-plan.md',
+    design         => 'c-design-plan.md',
+    implementation => 'd-implementation-plan.md',
+);
+
+# ---------------------------------------------------------------------------
+# CLI parsing
+# ---------------------------------------------------------------------------
+my %opt = (task_num => undef, plan_type => undef);
+for my $arg (@ARGV) {
+    if    ($arg =~ /^--task-num=(.+)$/)   { $opt{task_num}  = $1 }
+    elsif ($arg =~ /^--plan-type=(.+)$/)  { $opt{plan_type} = $1 }
+    elsif ($arg eq '--help' || $arg eq '-h') { print_usage(); exit 0 }
+    else { warn "$PROG: unknown argument: $arg\n"; exit 1 }
+}
+
+unless (defined $opt{task_num} && $opt{task_num} =~ /^\d+(?:\.\d+)*$/) {
+    my $got = defined $opt{task_num} ? "'$opt{task_num}'" : '(missing)';
+    warn "$PROG: invalid --task-num $got (expected /^\\d+(\\.\\d+)*\$/)\n";
+    exit 1;
+}
+unless (defined $opt{plan_type} && $PLAN_FILE{$opt{plan_type}}) {
+    my $got = defined $opt{plan_type} ? "'$opt{plan_type}'" : '(missing)';
+    warn "$PROG: invalid --plan-type $got (expected one of: "
+       . join(', ', sort keys %PLAN_FILE) . ")\n";
+    exit 1;
+}
+
+# ---------------------------------------------------------------------------
+# Resolve the main repo root (worktree-safe) and the task directory.
+# Task dir unresolvable -> exit 1 (resolution failure).
+# Task dir resolves but the specific plan file is absent (phase not reached
+# yet) -> exit 0 with 0 findings (fail-open).
+# ---------------------------------------------------------------------------
+my $ROOT = find_git_root();
+unless (defined $ROOT && length $ROOT) {
+    warn "$PROG: cannot resolve git repository root\n";
+    exit 1;
+}
+$ROOT =~ s{/+$}{};
+
+my $task = resolve_num($opt{task_num});
+unless ($task && $task->{full_path}) {
+    warn "$PROG: cannot resolve task '$opt{task_num}'\n";
+    exit 1;
+}
+
+# Repo-relative task dir (for the symbol-check self-exclusion pathspec).
+(my $task_rel = $task->{full_path}) =~ s{^\Q$ROOT\E/}{};
+$task_rel =~ s{/+$}{};
+
+my $plan_file = "$task->{full_path}/$PLAN_FILE{$opt{plan_type}}";
+
+my @findings;
+if (-f $plan_file) {
+    my $text = read_file($plan_file);
+    if (defined $text) {
+        push @findings, path_check($text);
+        push @findings, symbol_check($text, $task_rel);
+    }
+} else {
+    warn "$PROG: plan file $plan_file not present; nothing to check\n";
+}
+
+# ---------------------------------------------------------------------------
+# Write the findings report to the per-task scratch dir.
+# ---------------------------------------------------------------------------
+my ($scratch, $kind) = scratch_dir($opt{task_num});
+unless (defined $scratch) {
+    warn "$PROG: cannot resolve scratch dir (${\($kind // 'unknown')})\n";
+    exit 1;
+}
+my $out = "$scratch/plan-mechanical-check-$opt{plan_type}.out";
+eval { atomic_write_text($out, render(\@findings), mode => 0600); 1 } or do {
+    warn "$PROG: cannot write $out: $@";
+    exit 1;
+};
+
+print "$PROG: wrote " . scalar(@findings) . " findings to $out\n";
+exit 0;
+
+# ===========================================================================
+# Subroutines
+# ===========================================================================
+
+sub print_usage {
+    print <<"USAGE";
+Usage: $PROG --task-num=NUM --plan-type=TYPE
+
+Scans one plan file and surfaces broken referenced paths and declared symbol
+deletions that still have live references. Designed to be run by the plan-review
+skill - invoke exactly as shown, with no surrounding boilerplate.
+
+Options:
+  --task-num=NUM    REQUIRED. Task number (/^\\d+(\\.\\d+)*\$/).
+  --plan-type=TYPE  REQUIRED. One of: requirements, design, implementation
+                    (selects the b-/c-/d- plan file to scan).
+  --help            Show this message.
+
+Output:
+  Writes findings to
+    <scratch>/task-<num>/plan-mechanical-check-<plan-type>.out
+  and prints one confirmation line to stdout:
+    $PROG: wrote <N> findings to <abs-path>
+
+Exit codes:
+  0  Scanned (N may be 0). Absent plan file / scan errors are fail-open.
+  1  Resolution failure (bad args, unresolvable task/root, scratch/write failure).
+USAGE
+}
+
+# Slurp a UTF-8 text file; undef (with a diagnostic) on failure (fail-open).
+sub read_file {
+    my ($path) = @_;
+    open(my $fh, '<:encoding(UTF-8)', $path) or do {
+        warn "$PROG: cannot read $path: $!\n";
+        return undef;
+    };
+    local $/;
+    my $blob = <$fh>;
+    close $fh;
+    return $blob;
+}
+
+# ---------------------------------------------------------------------------
+# Path check
+# ---------------------------------------------------------------------------
+# Extract backtick-quoted repo-relative path tokens, skip non-path shapes, and
+# classify each token that does not resolve against the repo root.
+sub path_check {
+    my ($text) = @_;
+    my @out;
+
+    my %seen;
+    my @tokens = grep { !$seen{$_}++ } extract_path_tokens($text);
+    return @out unless @tokens;
+
+    my $index = basename_index();   # basename => first repo-relative path
+
+    for my $tok (@tokens) {
+        # Strip a trailing markdown anchor (`path.md#section`) before probing:
+        # the anchor is not part of the filesystem path.
+        (my $probe = $tok) =~ s/#.*$//;
+        next unless length $probe;
+        next if -e "$ROOT/$probe";  # resolves -> fine
+
+        (my $bare = $probe) =~ s{/+$}{};
+        my ($base) = $bare =~ m{([^/]+)$};
+        $base = '' unless defined $base;
+
+        if (length $base && $index->{$base}) {
+            push @out, {
+                kind => 'path-high',
+                text => "referenced path `$tok` does not exist, but a file with "
+                      . "the same name exists at `$index->{$base}` - likely a "
+                      . "wrong path.",
+            };
+        } else {
+            push @out, {
+                kind => 'path-advisory',
+                text => "referenced path `$tok` does not exist - confirm it is a "
+                      . "new file this task creates, not a typo.",
+            };
+        }
+    }
+    return @out;
+}
+
+# Pull backtick-quoted tokens that look like repo-relative filesystem paths.
+# Rejects command fragments, URLs, globs, pathspecs, regexes, and placeholders.
+sub extract_path_tokens {
+    my ($text) = @_;
+    my @tokens;
+    while ($text =~ /`([^`]+)`/g) {
+        my $t = $1;
+        next unless $t =~ m{/};        # must look like a path (has a separator)
+        next if $t =~ /\s/;            # command fragments / prose
+        next if $t =~ m{://};          # URLs
+        next if $t =~ /^[:*\/]/;       # pathspecs (:!...), globs (*...), absolute
+        next if $t =~ /[*?\[\]]/;      # glob metacharacters
+        next if $t =~ /[\^\$]/;        # regex anchors
+        next if $t =~ /[<>]/;          # <placeholder> tokens
+        push @tokens, $t;
+    }
+    return @tokens;
+}
+
+# basename => first repo-relative tracked path, from `git ls-files -z`.
+sub basename_index {
+    my ($blob, $exit) = capture_git_z('ls-files', '-z');
+    my %index;
+    return \%index unless $exit == 0 && defined $blob;
+    for my $path (split /\0/, $blob) {
+        next unless length $path;
+        my ($base) = $path =~ m{([^/]+)$};
+        $index{$base} //= $path if defined $base && length $base;
+    }
+    return \%index;
+}
+
+# ---------------------------------------------------------------------------
+# Symbol check
+# ---------------------------------------------------------------------------
+# Read the declared `- **Deletes**:` line and report each symbol that still has
+# references outside the task's own directory.
+sub symbol_check {
+    my ($text, $task_rel) = @_;
+    my @out;
+
+    my @symbols = read_deletes($text);
+    return @out unless @symbols;
+
+    for my $sym (@symbols) {
+        my @pathspec = ('--');
+        push @pathspec, ":!$task_rel" if length $task_rel;
+
+        # -e pins the pattern and -- terminates options, so a symbol starting
+        # with '-' is a search term, never a git option. -c -z -> `path\0count`
+        # records (NUL-safe even for a newline in a path).
+        my ($blob, $exit) = capture_git_z(
+            'grep', '-c', '-z', '-w', '-F', '-e', $sym, @pathspec);
+
+        next if $exit == 1;           # zero matches -> safe to delete
+        next if $exit != 0;           # >=2: real git error -> fail-open
+        next unless defined $blob;
+
+        my @refs;
+        while ($blob =~ /\G(.*?)\0(\d+)\n/sg) {
+            push @refs, "$1 ($2)";
+        }
+        next unless @refs;
+
+        push @out, {
+            kind => 'symbol',
+            text => "symbol `$sym` is declared for deletion but is still "
+                  . "referenced in: " . join(', ', @refs) . ".",
+        };
+    }
+    return @out;
+}
+
+# Parse the `- **Deletes**: a, b, c` line (mirrors best-practice-resolve's Tags).
+sub read_deletes {
+    my ($text) = @_;
+    for my $line (split /\n/, $text) {
+        next unless $line =~ /^- \*\*Deletes\*\*:\s*(.+?)\s*$/;
+        return grep { length } map { s/^\s+|\s+$//gr } split /,/, $1;
+    }
+    return ();
+}
+
+# ---------------------------------------------------------------------------
+# git capture (list-form, no shell). Returns ($stdout, $exit). Unlike
+# security-review-changeset's capture_git, a non-zero exit is NOT fatal here -
+# the callers decide what each exit code means (git grep: 1 == no match).
+# ---------------------------------------------------------------------------
+sub capture_git_z {
+    my @args = @_;
+    my $pid = open(my $fh, '-|', 'git', @args);
+    unless ($pid) {
+        warn "$PROG: cannot run git @args: $!\n";
+        return (undef, -1);
+    }
+    binmode $fh, ':raw';
+    local $/;
+    my $blob = <$fh>;
+    close $fh;
+    return ($blob, $? >> 8);
+}
+
+# ---------------------------------------------------------------------------
+# Render the findings report.
+# ---------------------------------------------------------------------------
+sub render {
+    my ($findings) = @_;
+    my $body = "# plan-mechanical-check findings for task $opt{task_num}"
+             . " ($opt{plan_type} plan)\n\n";
+
+    unless (@$findings) {
+        $body .= "(no mechanical findings)\n";
+        return $body;
+    }
+
+    $body .= "These are mechanical, deterministic findings for reviewer "
+           . "adjudication - a net, not a proof. A 'high-signal' path finding "
+           . "is a likely typo; an 'advisory' one may simply be a new file. A "
+           . "symbol finding lists live references to a symbol slated for "
+           . "deletion.\n\n";
+
+    for my $f (@$findings) {
+        $body .= "- [$f->{kind}] $f->{text}\n";
+    }
+    return $body;
+}

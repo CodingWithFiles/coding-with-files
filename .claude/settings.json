@@ -91,6 +91,7 @@
       "Bash(.cwf/scripts/command-helpers/template-copier-v2.1:*)",
       "Bash(.cwf/scripts/command-helpers/workflow-manager:*)",
       "Bash(.cwf/scripts/command-helpers/best-practice-resolve:*)",
+      "Bash(.cwf/scripts/command-helpers/plan-mechanical-check:*)",
       "Bash(.cwf/scripts/hooks/userpromptsubmit-context-inject)"
     ]
   },

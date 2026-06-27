@@ -77,23 +77,6 @@ bootstrap (a new failure surface in the curl|bash path). If adopted, update AC f
 add a fresh-install validate-clean test; if declined, record AC1's scope as the
 update/migration path. No `cwf-detect-merges`/laydown change is implied.
 
-## Task: Plan-time symbol-deletion reference sweep
-
-### Task-Type: chore
-### Priority: Medium
-### Status: Follow-up from Task 174 (j-retrospective.md §Process Improvements)
-### Identified in: Task 174 d-implementation-plan.md §Lessons Learned, j-retrospective.md
-
-When a plan proposes deleting a named symbol (sub, constant, package var), grep the
-whole repo for every reference and surface them as a plan-review finding. In Task 174
-the plan source-grepped for the deleted `@CWF_INTERNAL_PREFIXES` but did not extend the
-grep to *test assertions* on it, so two test files (`t/cwf-check-tree-symlinks.t`,
-`t/install-bash-reinstall.t`) coupled to the constant surfaced only at exec. Symbol-
-deletion impact is a mechanical dimension distinct from plan logic — complementary to
-the existing "Plan-time helper-path verification gate" backlog item, and could share the
-same plan-review pass. Scope: grep d-plan (and ideally c-plan) for symbols slated for
-deletion, `grep` each across the repo, list references. Cheap; mechanical.
-
 ## Task: Add a lost-uncommitted-work recovery runbook
 
 ### Task-Type: chore
@@ -120,15 +103,6 @@ The new model reasoned from **remembered tool-rule semantics** and was wrong: ph
 ### Identified in: Task 172 f-implementation-exec.md §4, j-retrospective.md §Future Work
 
 The harness reserves "workflow" for its multi-agent `Workflow` orchestration tool, colliding with CWF's pervasive "workflow" vocabulary (a system-reminder steers toward the tool on the word; witnessed in-session during Task 172). Scope: **start with option 1 (behavioural guard)** — a short note in CLAUDE.md/skills: "in CWF, 'workflow' = the CWF phase system, not the harness `Workflow` tool; never spawn multi-agent orchestration for CWF phases." Hold option 2 (targeted wording: "Workflow Skills"→"CWF phase skills", update `glossary.md:157`) as a fast-follow. Option 3 (full rename across filenames/`workflow-manager`/`wf` abbrev) is a deferred **major-version** decision, not a first move.
-
-## Task: Plan-time helper-path verification gate
-
-### Task-Type: chore
-### Priority: Low
-### Status: Follow-up from Task 150
-### Identified in: Task 150 j-retrospective.md §Recommendations / §What Could Be Improved
-
-Add a plan-review pass (or a small helper invoked from the plan-review skill) that resolves any `.cwf/scripts/...` path referenced in a d-implementation-plan against the filesystem at plan time. Task 150's d-plan referenced `.cwf/scripts/command-helpers/cwf-manage`, but the actual helper lives at `.cwf/scripts/cwf-manage` (one level up). The plan-review subagents reviewed plan *logic* and missed the path-existence defect because helper-path verification is a separate dimension. Scope: grep d-plan for path patterns matching `.cwf/scripts/[^ ]+` (or similar), `test -x` each one, surface mismatches as a plan-review finding. Cheap; mechanical; complementary to the existing 4-subagent map/reduce. Optionally extend to b/c/d plan phases uniformly.
 
 ## Task: Mechanical detection of `echo "EXIT: $?"` / `echo "exit=$?"` bash habit
 
@@ -1297,6 +1271,8 @@ The live implementation-guide/cwf-project.json carries dead schema. Its template
 
 Task 190 added a generic intro-region structural predicate (CWF::Backlog::backlog_structure_errors, @EXPORT_OK) but wired it only into the BACKLOG validate/mutation path. The helper is format-agnostic. Extend the identical scan to CHANGELOG.md so a foreign-format CHANGELOG is rejected up front rather than mis-managed by retire. Security note: if a future CHANGELOG message ever cites verbatim offending-line text, the FR4(c) no-verbatim-echo surface reopens — apply NFR2 control-char-stripping/length-bounding then. TC-7 backstops only the BACKLOG path today.
 
+Concrete evidence (found during Task 213): CHANGELOG.md already carries an orphaned entry — a full Status/Duration/Impact triplet (the `cwf-backlog-manager` cd-prefix / kernel-ENOENT self-anchoring cleanup) with no `## Task N:` heading of its own, so it is silently folded under the preceding `## Task 139` section. A CHANGELOG structural predicate (a `## Task N:` heading must precede each Status/Duration/Impact triplet) would reject exactly this. A real defect a contract scan would catch.
+
 ## Task: BACKLOG-000 accepted-boundary gaps: unterminated-leading-fence masking and headerless-legacy
 
 ### Task-Type: feature
@@ -1507,3 +1483,21 @@ task docs, retired CHANGELOG entries).
    context-manager.d/version, and "CIG Migration" banners in migrate-v1-to-v2.sh /
    rollback-migration.sh. Cosmetic only. These are hash-tracked files, so the in-task hash
    refresh per `.cwf/docs/conventions/hash-updates.md` applies.
+
+## Task: Best-practice tags should trigger on task content, not blanket active-tags
+
+### Task-Type: feature
+### Priority: Medium
+### Identified in: Task 213 plan review (d-implementation-plan plan-review MAP)
+
+`best-practice-resolve` matches a best-practice entry whenever any of its tags is in `T = active-tags ∪ the task's manual **Tags** line`, with **no inspection of what content the task actually touches**. So globally-active tags fire the best-practice reviewer on every task regardless of subject. Observed during Task 213 plan review: a Perl-only CWF task matched both `golang` and `postgres` purely from the user-global `~/.cwf/best-practices.json` `active-tags: ["golang","postgres"]`; the 5th reviewer ran and correctly self-no-op'd, but it should not have been launched at all.
+
+Intended behaviour: a tag contributes to the match set only when the task actually authors/modifies content matching that tag (e.g. a `golang` tag fires only when the change touches Go content), not as a blanket always-on union.
+
+Design surface (why this is a feature, not a one-liner):
+- A tag/entry needs a **content-matcher** (file extensions? shebang? per-tag content regex?) — a `best-practices.json` schema addition + migration. This is the crux decision.
+- **Plan-time vs exec-time differ**: at plan-review time there is no diff yet, so triggering must infer from the plan's stated scope (e.g. "Files to Modify") — a softer heuristic; at exec/changeset time there is a real diff to scan for matching content. Likely two mechanisms.
+- **Security (FR4)**: scanning file/diff contents against tag matchers is an untrusted-content surface — bound/strip as per existing conventions.
+- Backward-compatible default: with no content-matcher configured, preserve today's tag-union behaviour (fail-open), so existing configs keep working.
+
+Keep the `active-tags` union escape hatch for users who genuinely want a tag always on; content-triggering is the additive, opt-in refinement.

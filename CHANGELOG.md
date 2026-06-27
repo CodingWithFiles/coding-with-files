@@ -2,6 +2,33 @@
 
 All notable changes to the Coding with Files (CWF) project are documented in this file, organized by task.
 
+## Task 213: plan time mechanical review gates
+
+### Status: Complete (2026-06-27)
+### Duration: a–j (chore phases a,d,e,f,g,j) in one session; estimate ~1 day, well under.
+### Impact: Added a deterministic, language-neutral plan-review gate that catches two recurring defect classes the LLM reviewers structurally miss. New helper `.cwf/scripts/command-helpers/plan-mechanical-check` (Perl core-only, 0500, hash-tracked) runs two scans over a plan file: (a) referenced helper/script paths that do not resolve against the main repo root (the Task-150 class — `.cwf/scripts/command-helpers/cwf-manage` vs the real `.cwf/scripts/cwf-manage`), classified high-signal when the basename exists elsewhere vs advisory otherwise; and (b) symbols declared for deletion via a `**Deletes**:` convention that still have live repo-wide references excluding the task's own dir (the Task-174 `@CWF_INTERNAL_PREFIXES` class). Wired into `plan-review.md` as a pre-MAP resolver (Step 0b, alongside best-practice) feeding REDUCE; fail-open throughout (no findings, absent plan, or scan error → clean no-op; only unresolvable task exits 1). Three a-plan open decisions resolved: one helper/two checks, pre-MAP deterministic resolver (not a reviewer-agent edit), declared-`**Deletes**` convention over heuristic. Plan review caught two library-contract misassumptions before exec (`run_quiet` cannot capture; `capture_git` dies on `git grep` exit 1) → custom `capture_git_z`. Dogfooding the helper on its own d-plan caught a markdown `#anchor` false-positive (boilerplate in nearly every plan) → fragment-strip fix + regression TC-11. 37 targeted + 919 full-suite tests green; `cwf-manage validate` OK; all changeset reviewers clean bar one accepted below-Rule-of-Three advisory (`read_deletes` duplicates `read_task_tags`). Backlogged the root cause of a recurring review false-trigger: best-practice tags should key on task content, not blanket user-global active-tags.
+
+### Retired Backlog Items
+#### Plan-time helper-path verification gate
+
+Add a plan-review pass (or a small helper invoked from the plan-review skill) that resolves any `.cwf/scripts/...` path referenced in a d-implementation-plan against the filesystem at plan time. Task 150's d-plan referenced `.cwf/scripts/command-helpers/cwf-manage`, but the actual helper lives at `.cwf/scripts/cwf-manage` (one level up). The plan-review subagents reviewed plan *logic* and missed the path-existence defect because helper-path verification is a separate dimension. Scope: grep d-plan for path patterns matching `.cwf/scripts/[^ ]+` (or similar), `test -x` each one, surface mismatches as a plan-review finding. Cheap; mechanical; complementary to the existing 4-subagent map/reduce. Optionally extend to b/c/d plan phases uniformly.
+
+<!-- Note: Consolidated into Task 213 (one mechanical pass with the symbol-deletion sweep); generalised beyond the .cwf/scripts/ prefix. -->
+
+#### Plan-time symbol-deletion reference sweep
+
+When a plan proposes deleting a named symbol (sub, constant, package var), grep the
+whole repo for every reference and surface them as a plan-review finding. In Task 174
+the plan source-grepped for the deleted `@CWF_INTERNAL_PREFIXES` but did not extend the
+grep to *test assertions* on it, so two test files (`t/cwf-check-tree-symlinks.t`,
+`t/install-bash-reinstall.t`) coupled to the constant surfaced only at exec. Symbol-
+deletion impact is a mechanical dimension distinct from plan logic — complementary to
+the existing "Plan-time helper-path verification gate" backlog item, and could share the
+same plan-review pass. Scope: grep d-plan (and ideally c-plan) for symbols slated for
+deletion, `grep` each across the repo, list references. Cheap; mechanical.
+
+<!-- Note: Consolidated into Task 213 (one mechanical pass with the helper-path check); keys on a declared **Deletes**: convention. -->
+
 ## Task 212: backlog audit and dedup
 
 ### Status: Complete (2026-06-27)

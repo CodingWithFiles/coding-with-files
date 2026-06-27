@@ -23,6 +23,13 @@ Patterns first → Test → Minimal impl → Refactor green → Commit message e
 - `path/to/config.ext` - Configuration updates
 - `path/to/test.ext` - Test additions
 
+<!-- If this task DELETES any named symbol (sub, constant, variable, function),
+     add a line here so the plan-mechanical-check gate sweeps the repo for stray
+     references, e.g.:
+         - **Deletes**: my_old_sub, $OLD_CONSTANT
+     Omit it entirely if nothing is deleted (a placeholder line would be grepped
+     literally). -->
+
 ## Implementation Steps
 ### Step 1: Setup
 - [ ] Task setup and environment preparation
