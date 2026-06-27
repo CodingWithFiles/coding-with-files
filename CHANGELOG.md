@@ -2,6 +2,29 @@
 
 All notable changes to the Coding with Files (CWF) project are documented in this file, organized by task.
 
+## Task 211: tc validate in flight false failure
+
+### Status: Complete (2026-06-27)
+### Duration: a–j in one session; estimate <0.5 day, on estimate. Scope grew from one subtest to two (the identical TC-10 twin) at design review, no time impact.
+### Impact: Two changeset-reviewer integrity subtests no longer false-fail when the suite runs mid-workflow. `t/security-review-changeset.t` (TC-VALIDATE) and `t/exec-changeset-reviewers.t` (TC-10) each dropped the whole-repo `is($rc, 0)` aggregate assertion (plus the now-dead `$pid`/`$rc`) that coupled a file-scoped integrity check to the entire live repo's validate state — which legitimately flips mid-flight on placeholder phase statuses and transient perm/hash drift. The file-scoped `unlike` checks remain the real assertion (proved still-biting by g-phase TC-B, a perturb-and-restore on a named hashed file), and a new liveness `like(qr/validate: OK|\d+ violation\(s\) found/)` guards the vacuous-pass hole the dropped assertion had incidentally covered (banners verified always-on-stdout at `cwf-manage:41,619,632`). Test-only: no change to `cwf-manage`, `security-review-changeset`, the agent files, or `script-hashes.json`; the integrity gate itself is untouched. Full `prove t/` 882 green; all seven changeset reviews (five in f, two in g) returned no findings. An unrelated permission drift (Task-210 lens-agent files at 0400 vs recorded 0444) surfaced during full-suite testing and was clamped on-sight to the recorded 0444; it corroborates the already-tracked "fix-security TC-8 floor vs ceiling" backlog item (Task 188).
+
+### Retired Backlog Items
+#### Fix TC-VALIDATE structural false-failure for in-flight tasks
+
+`t/security-review-changeset.t` contains a subtest (TC-VALIDATE) that asserts the **live**
+repo's `cwf-manage validate` exits 0. This assertion is red for **any** in-flight CWF task,
+because every task's phase files legitimately carry placeholder statuses
+("Planning"/"Requirements"/…) until that task's own pre-retrospective status sweep rewrites
+them to terminal. The failure is therefore not a regression in whatever change is under
+test — it is a property of running the suite mid-workflow — yet it costs real diagnostic
+effort each time to confirm that (Task 203 spent that effort). Fix options: (a) scope the
+assertion to a fixture/synthetic repo whose phase files are terminal, mirroring the existing
+fixture-based `t/validate-workflow.t`; or (b) have the live-repo assertion tolerate the known
+in-flight placeholder statuses (validate only the security/permission portions live, leaving
+workflow-status checks to the fixture suite). Decide which surface is the right home for a
+live-repo integrity assertion vs a fixture one. No production-code change to
+`security-review-changeset` is implied.
+
 ## Task 210: Add exec-changeset reviewer agents (reuse, reliability, alignment)
 
 ### Status: Complete (2026-06-22)

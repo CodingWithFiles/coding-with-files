@@ -1294,19 +1294,25 @@ subtest 'TC-DOCS: four consumer sites migrated, no stale --phase/--max-lines=500
 # TC-VALIDATE (AC8): cwf-manage validate reports no integrity violation for the
 # changed script (or its agent) — the same-commit hash refresh is consistent.
 # ---------------------------------------------------------------------------
-subtest 'TC-VALIDATE: cwf-manage validate is clean for the changed script + agent' => sub {
+subtest 'TC-VALIDATE: no integrity violation for the changed script + agent' => sub {
     my $mgr = "$FindBin::Bin/../.cwf/scripts/cwf-manage";
-    my $pid = open(my $fh, '-|', $mgr, 'validate') or die "fork cwf-manage: $!";
+    open(my $fh, '-|', $mgr, 'validate') or die "fork cwf-manage: $!";
     my $output = do { local $/; <$fh> };
     close $fh;
-    my $rc = $? >> 8;
     $output //= '';
+    # No `is($rc, 0)` whole-repo assertion: cwf-manage validate aggregates every
+    # sub-validator over the live repo, so its exit code flips on unrelated
+    # in-flight state (placeholder phase Statuses, transient perm/hash drift) —
+    # environmental noise, not a property of this change. The file-scoped unlike
+    # checks below are the actual AC8 assertion. The liveness check guards against
+    # a validate that runs-but-dies-early passing the unlike checks vacuously;
+    # the `or die` above guards a failed fork. (Task 211)
+    like($output, qr/validate: OK|\d+ violation\(s\) found/,
+         'cwf-manage validate ran to a verdict');
     unlike($output, qr{security-review-changeset},
            'no integrity violation names the changed helper');
     unlike($output, qr{cwf-security-reviewer-changeset},
            'no integrity violation names the migrated agent');
-    is($rc, 0, 'cwf-manage validate exits 0 (fully clean)')
-        or diag($output);
 };
 
 # ===========================================================================

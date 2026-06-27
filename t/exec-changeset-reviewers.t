@@ -209,12 +209,19 @@ subtest 'TC-9: error isolation across five classified outputs' => sub {
 # ---------------------------------------------------------------------------
 subtest 'TC-10: cwf-manage validate clean for the new agents' => sub {
     my $mgr = "$ROOT/.cwf/scripts/cwf-manage";
-    my $pid = open(my $fh, '-|', $mgr, 'validate') or die "fork cwf-manage: $!";
+    open(my $fh, '-|', $mgr, 'validate') or die "fork cwf-manage: $!";
     my $output = do { local $/; <$fh> };
     close $fh;
-    my $rc = $? >> 8;
     $output //= '';
-    is($rc, 0, 'cwf-manage validate exits 0');
+    # No `is($rc, 0)` whole-repo assertion: cwf-manage validate aggregates every
+    # sub-validator over the live repo, so its exit code flips on unrelated
+    # in-flight state (placeholder phase Statuses, transient perm/hash drift) —
+    # environmental noise, not a property of this change. The per-lens unlike
+    # checks below are the actual assertion. The liveness check guards against
+    # a validate that runs-but-dies-early passing the unlike checks vacuously;
+    # the `or die` above guards a failed fork. (Task 211)
+    like($output, qr/validate: OK|\d+ violation\(s\) found/,
+         'cwf-manage validate ran to a verdict');
     for my $lens (@LENSES) {
         unlike($output, qr/cwf-$lens-reviewer-changeset/,
                "no integrity violation names cwf-$lens-reviewer-changeset");

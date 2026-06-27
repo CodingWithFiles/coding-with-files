@@ -21,27 +21,6 @@ and what each resolves against, as an explicit design-phase spike item, and (b) 
 **generated** outputs, not just source. No production-code change implied; this is a docs/convention
 addition (candidate home: a short note under `.cwf/docs/conventions/` or the design-phase guidance).
 
-## Task: Fix TC-VALIDATE structural false-failure for in-flight tasks
-
-### Task-Type: bugfix
-### Priority: Medium
-### Status: Follow-up from Task 203 (j-retrospective.md §Future Work)
-### Identified in: Task 203 g-testing-exec.md (Test Failures), j-retrospective.md §Future Work
-
-`t/security-review-changeset.t` contains a subtest (TC-VALIDATE) that asserts the **live**
-repo's `cwf-manage validate` exits 0. This assertion is red for **any** in-flight CWF task,
-because every task's phase files legitimately carry placeholder statuses
-("Planning"/"Requirements"/…) until that task's own pre-retrospective status sweep rewrites
-them to terminal. The failure is therefore not a regression in whatever change is under
-test — it is a property of running the suite mid-workflow — yet it costs real diagnostic
-effort each time to confirm that (Task 203 spent that effort). Fix options: (a) scope the
-assertion to a fixture/synthetic repo whose phase files are terminal, mirroring the existing
-fixture-based `t/validate-workflow.t`; or (b) have the live-repo assertion tolerate the known
-in-flight placeholder statuses (validate only the security/permission portions live, leaving
-workflow-status checks to the fixture suite). Decide which surface is the right home for a
-live-repo integrity assertion vs a fixture one. No production-code change to
-`security-review-changeset` is implied.
-
 ## Task: Convention note — `effort`/`model` values on hash-tracked guard agents carry security weight
 
 ### Task-Type: chore
