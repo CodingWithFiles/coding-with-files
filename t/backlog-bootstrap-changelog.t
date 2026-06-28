@@ -36,9 +36,13 @@ my $CWF_PROJECT_JSON =
 # find_git_root() and load_config() both resolve. Tmp dir name follows the
 # project-namespaced template per .cwf/docs/conventions/tmp-paths.md.
 sub make_project {
+    # Honour $TMPDIR (read-only /tmp under the Claude Code sandbox — Task 215);
+    # fall back to /tmp off-sandbox. Mirrors the ${TMPDIR:-/tmp} base in
+    # .cwf/docs/conventions/tmp-paths.md.
+    my $tmp_base = (defined $ENV{TMPDIR} && length $ENV{TMPDIR}) ? $ENV{TMPDIR} : '/tmp';
     my $dir = tempdir(
         '-home-matt-repo-coding-with-files-task-147-XXXXXX',
-        DIR     => '/tmp',
+        DIR     => $tmp_base,
         CLEANUP => 1,
     );
     chmod 0700, $dir;

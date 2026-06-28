@@ -14,6 +14,14 @@ use POSIX ();
 
 our @EXPORT_OK = qw(check_perl5opt format_error parse_semver version_cmp find_git_root resolve_head_sha generate_slug run_quiet scratch_parent scratch_dir);
 
+# Conventional per-uid sandbox temp base, probed by scratch_parent when $TMPDIR
+# is unset (the unsandboxed context-inject hook — Task 215). Overridable so
+# tests can point the probe at a tempdir instead of the real shared
+# /tmp/claude-<uid>. The initialiser MUST run once at load — declaring it inside
+# the sub would re-run every call and clobber a test's `local` override.
+# Default: the path observed under Claude Code's bash sandbox on Linux/WSL2.
+our $SANDBOX_TMP_PROBE = "/tmp/claude-$>";
+
 # Check PERL5OPT environment configuration
 # Args: none
 # Returns: none (warns if not configured)
@@ -76,11 +84,17 @@ sub find_git_root {
     return length $root ? $root : undef;
 }
 
-# Derive the canonical per-project scratch PARENT directory (Task 206).
+# Derive the canonical per-project scratch PARENT directory (Task 206, 215).
 #
-# Pure string derivation, NO filesystem work — the context-inject hook calls
-# this every turn, so it must not touch disk. Mirrors the shell
-# `${TMPDIR:-/tmp}` + dashified-root form in .cwf/docs/conventions/tmp-paths.md.
+# On the env branch (in-sandbox hot path, $TMPDIR set) this is pure string
+# derivation with NO filesystem work — the context-inject hook calls it every
+# turn. When $TMPDIR is unset (the hook runs OUTSIDE Claude Code's bash sandbox,
+# so it does not inherit $TMPDIR — Task 215) it probes the per-uid sandbox temp
+# $SANDBOX_TMP_PROBE and adopts it only if it is a real writable directory; this
+# branch costs a single lstat (the -d/-w checks reuse its buffer). The probe lets the
+# unsandboxed hook emit the in-sandbox writable base instead of a read-only
+# /tmp/cwf-… literal. Mirrors the dashified-root form in
+# .cwf/docs/conventions/tmp-paths.md.
 #
 # Optional $root lets a caller that has already resolved the main root (e.g. the
 # hook, which needs it for the project_root line too) pass it in, so the whole
@@ -93,8 +107,17 @@ sub scratch_parent {
     $root = find_git_root() unless defined $root && length $root;
     return (undef, 'not_a_repo') unless defined $root && length $root;
     (my $dashed = $root) =~ s{/}{-}g;   # absolute path => canonical leading-dash form
-    my $base = (defined $ENV{TMPDIR} && length $ENV{TMPDIR}) ? $ENV{TMPDIR} : '/tmp';
-    $base =~ s{/+$}{};                  # match shell ${TMPDIR:-/tmp} + trailing-slash strip
+    my $base;
+    if (defined $ENV{TMPDIR} && length $ENV{TMPDIR}) {
+        $base = $ENV{TMPDIR};                   # in-sandbox (or a real shell TMPDIR)
+    } elsif (length $SANDBOX_TMP_PROBE
+             && !-l $SANDBOX_TMP_PROBE          # lstat: reject a planted symlink
+             && -d _ && -w _) {                 # ...real writable dir (reuses lstat buf)
+        $base = $SANDBOX_TMP_PROBE;             # hook unsandboxed: borrow sandbox temp
+    } else {
+        $base = '/tmp';                         # off-sandbox / convention absent
+    }
+    $base =~ s{/+$}{};                  # trailing-slash strip
     return ("$base/cwf${dashed}", undef);
 }
 

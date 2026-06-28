@@ -30,8 +30,9 @@ Worked example (this repository, task 145):
 ${TMPDIR:-/tmp}/cwf-home-matt-repo-coding-with-files/task-145/
 ```
 
-resolving to `/tmp/claude/cwf-home-…/task-145/` under the sandbox
-(`TMPDIR=/tmp/claude`) and `/tmp/cwf-home-…/task-145/` off-sandbox.
+resolving to `/tmp/claude-<uid>/cwf-home-…/task-145/` under the sandbox
+(`TMPDIR=/tmp/claude-<uid>`, e.g. `/tmp/claude-1000`) and
+`/tmp/cwf-home-…/task-145/` off-sandbox.
 
 Reference derivation — the canonical **spec**, not for agents to run by hand
 (a command carrying `$(...)`/`${...}` trips a Claude Code permission prompt on
@@ -70,12 +71,25 @@ captured subagent output, diff captures, etc. Examples:
 
 ## Sandbox alignment
 
-The base is `${TMPDIR:-/tmp}`, not a hardcoded `/tmp`, so scratch lands inside
-whatever temp root the environment provides. Under a Claude Code sandbox that
-restricts `/tmp` writes to `/tmp/claude`, the sandbox sets `TMPDIR=/tmp/claude`,
-so the form resolves to `/tmp/claude/cwf<dashified-repo>/task-<num>/`; off-sandbox
-(`$TMPDIR` unset or empty) it resolves to `/tmp/cwf<dashified-repo>/task-<num>/`.
-One unconditional form, no sandbox-detection branch.
+The base is `$TMPDIR` when set (the in-sandbox case, and any real shell
+`$TMPDIR`), not a hardcoded `/tmp`, so scratch lands inside whatever temp root
+the environment provides. Under a Claude Code sandbox that restricts `/tmp`
+writes, the sandbox sets `TMPDIR=/tmp/claude-<uid>` (e.g. `/tmp/claude-1000`),
+so the form resolves to `/tmp/claude-<uid>/cwf<dashified-repo>/task-<num>/`.
+
+When `$TMPDIR` is **unset** there is one sandbox-detection branch (Task 215):
+the `userpromptsubmit-context-inject` hook runs *outside* the sandbox and so
+does not inherit `$TMPDIR`, yet the path it emits is consumed by the in-sandbox
+Bash tool where `/tmp` is read-only. To bridge this, `scratch_parent` probes the
+conventional per-uid sandbox temp `/tmp/claude-<uid>` and adopts it as the base
+**iff** it is a real (non-symlink) writable directory; otherwise it falls back
+to `/tmp` (the status quo — genuinely off-sandbox, or on macOS where the
+Seatbelt sandbox uses a different temp dir the probe will not match). The probe
+is self-validating: a wrong or absent path degrades to `/tmp`, never a
+read-only literal. It couples to the `/tmp/claude-<uid>` naming convention,
+which is undocumented (the documented Claude Code contract is `$TMPDIR`, not a
+fixed path), so it is best-effort on the unsandboxed-hook branch only — the
+in-sandbox hot path stays on `$TMPDIR`.
 
 `$TMPDIR` is honoured verbatim (no `..`/`rel2abs` canonicalisation), trusted
 **only** under the single-user threat model below — `$TMPDIR` is set by the
@@ -96,7 +110,7 @@ concurrently in different working trees owned by the same user, but no
 untrusted local user is assumed.
 
 The base resolves to either `/tmp` (world-writable) or a sandbox-set `$TMPDIR`
-such as `/tmp/claude` (per-user `drwx------`). `/tmp/` is world-writable on POSIX
+such as `/tmp/claude-<uid>` (per-user `drwx------`). `/tmp/` is world-writable on POSIX
 systems and the directory name is predictable (it embeds the repo path and task
 number); the per-user sandbox base narrows the read-after-write surface, but the
 guard below applies to both bases. On a multi-user host the predictable name
@@ -150,8 +164,9 @@ Without namespacing, two concurrent agents in two different repos both
 working on a task numbered `145` would race for the same
 `/tmp/task-145/` directory, with each potentially overwriting the
 other's scratch state. Under the sandbox this matters more, not less:
-`/tmp/claude` is a host-global root shared across *all* projects (not just CWF
-repos), so the dashified prefix is what keeps repos from colliding there. The
+`/tmp/claude-<uid>` is a host-global per-user root shared across *all* projects
+(not just CWF repos), so the dashified prefix is what keeps repos from colliding
+there. The
 dashified-absolute-repo-path form is:
 
 - **Unambiguous across worktrees of the same repo** — a basename-only
@@ -179,7 +194,7 @@ against `code.claude.com/docs/en/permissions.md` and existing entries):
 
   ```
   Write(//tmp/cwf-home-matt-repo-coding-with-files/**)
-  Write(//tmp/claude/cwf-home-matt-repo-coding-with-files/**)   # sandbox base
+  Write(//tmp/claude-1000/cwf-home-matt-repo-coding-with-files/**)   # sandbox base (uid 1000)
   ```
 
 - **Script execution** — `Bash()` rules match the **command string**; `*`
@@ -187,7 +202,7 @@ against `code.claude.com/docs/en/permissions.md` and existing entries):
 
   ```
   Bash(/tmp/cwf-home-matt-repo-coding-with-files/*)
-  Bash(/tmp/claude/cwf-home-matt-repo-coding-with-files/*)      # sandbox base
+  Bash(/tmp/claude-1000/cwf-home-matt-repo-coding-with-files/*)      # sandbox base (uid 1000)
   ```
 
 **Granularity trade-off (deliberate)**: the old sibling form let you

@@ -81,7 +81,7 @@
     },
     "CWF::Common" : {
       "path" : ".cwf/lib/CWF/Common.pm",
-      "sha256" : "5387b99144ce807f0cdd7e5934cba8c2cfc1862abda355d7dab7865493a2e90f"
+      "sha256" : "2e6dfb8424fd8c68ef2ff3ff1198a7afe03e426c2714055adc924dd850f54c7d"
     },
     "CWF::ContextInheritance::Core" : {
       "path" : ".cwf/lib/CWF/ContextInheritance/Core.pm",

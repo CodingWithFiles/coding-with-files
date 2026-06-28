@@ -2,6 +2,28 @@
 
 Future tasks and improvements for the Coding with Files system.
 
+## Task: Extract a shared CWF::Common::tmp_base() helper
+
+### Task-Type: chore
+### Priority: Low
+### Status: Follow-up from Task 215 (j-retrospective.md §Future Work)
+### Identified in: Task 215 j-retrospective.md §Recommendations / f- and g-phase improvements review
+
+The `${TMPDIR:-/tmp}` base selection (Perl form:
+`(defined $ENV{TMPDIR} && length $ENV{TMPDIR}) ? $ENV{TMPDIR} : '/tmp'`) is now
+open-coded in four sites — `CWF::Common::scratch_parent`,
+`pretooluse-bash-tool-check`, `best-practice-resolve`, and the
+`t/backlog-bootstrap-changelog.t` fix added in Task 215 — crossing the Rule of Three.
+The Task 215 improvements reviewer flagged this; it was deferred from that bugfix to
+avoid widening its blast radius into two further production sites. Scope: add an
+exported `CWF::Common::tmp_base()` that returns the selected base (trailing-slash
+stripped, matching `scratch_parent`'s current normalisation), then replace the four
+inline ternaries with calls to it. Note the seam interaction with Task 215's
+`$SANDBOX_TMP_PROBE` — `scratch_parent` needs the env→probe→/tmp three-way logic, so
+`tmp_base()` is the *env-or-`/tmp`* half (the probe branch stays in `scratch_parent`),
+or `tmp_base()` takes an optional probe argument. Decide at design time. Refresh
+`Common.pm` sha256 in the same commit. Purely a consistency/maintainability gain.
+
 ## Task: Align security-review-classify discovery mode with its sibling helper's interface
 
 ### Task-Type: chore

@@ -16,6 +16,16 @@
 #   TC-7 symlink-parent reject, no chmod
 #   TC-8 idempotent re-call            -> success, mode unchanged
 #
+# Covers (e-testing-plan TC-9..TC-14, the Task 215 probe branch — exercised
+# hermetically via local $CWF::Common::SANDBOX_TMP_PROBE, never the real
+# shared /tmp/claude-<uid>):
+#   TC-9  env $TMPDIR wins over a present probe
+#   TC-10 probe adopted when $TMPDIR unset and probe is a writable dir
+#   TC-11 absent probe        -> /tmp fallback
+#   TC-12 non-writable probe  -> /tmp fallback (skip if EUID 0)
+#   TC-13 symlinked probe     -> /tmp fallback (skip if symlink unsupported)
+#   TC-14 empty probe string  -> /tmp fallback (length guard)
+#
 use strict;
 use warnings;
 use utf8;
@@ -29,7 +39,7 @@ use lib File::Spec->catdir($FindBin::Bin, 'lib');
 use CWF::Common qw(scratch_parent scratch_dir);
 use CWFTest::Fixtures qw(create_git_repo);
 
-plan tests => 8;
+plan tests => 14;
 
 # Mirror the tmp-paths.md shell Derivation snippet independently of the function
 # under test, so the byte-identity assertion is a genuine cross-check:
@@ -210,4 +220,143 @@ subtest 'TC-8: idempotent re-call -> success, mode unchanged' => sub {
     is($err, undef, 'second call succeeds');
     is($second, $first, 'same path on re-call');
     is(((stat($second))[2] & 07777), 0700, 'mode still 0700');
+};
+
+subtest 'TC-9: $TMPDIR set takes precedence over a present probe' => sub {
+    plan tests => 2;
+    my $base = tempdir(CLEANUP => 1);
+    my $repo = create_git_repo($base);
+    plan skip_all => 'could not create git repo' unless defined $repo;
+
+    my $sandbox = tempdir(CLEANUP => 1);
+    my $probe   = tempdir(CLEANUP => 1);          # a different, writable dir
+    local $ENV{TMPDIR} = $sandbox;
+    local $CWF::Common::SANDBOX_TMP_PROBE = $probe;
+    my $orig = cwd();
+    chdir $repo or die "chdir $repo: $!";
+    my ($parent, $err) = scratch_parent();
+    my $root = CWF::Common::find_git_root();
+    chdir $orig;
+
+    is($err, undef, 'no error');
+    is($parent, expected_parent($root, $sandbox),
+        'env $TMPDIR wins; probe ignored');
+};
+
+subtest 'TC-10: probe adopted when $TMPDIR unset and probe is a writable dir' => sub {
+    plan tests => 2;
+    my $base = tempdir(CLEANUP => 1);
+    my $repo = create_git_repo($base);
+    plan skip_all => 'could not create git repo' unless defined $repo;
+
+    my $probe = tempdir(CLEANUP => 1);
+    my $orig = cwd();
+    chdir $repo or die "chdir $repo: $!";
+    my $root = CWF::Common::find_git_root();
+    my ($parent, $err);
+    {
+        delete local $ENV{TMPDIR};
+        local $CWF::Common::SANDBOX_TMP_PROBE = $probe;
+        ($parent, $err) = scratch_parent();
+    }
+    chdir $orig;
+
+    is($err, undef, 'no error');
+    is($parent, expected_parent($root, $probe),
+        'probe base adopted when $TMPDIR unset');
+};
+
+subtest 'TC-11: absent probe path -> /tmp fallback' => sub {
+    plan tests => 2;
+    my $base = tempdir(CLEANUP => 1);
+    my $repo = create_git_repo($base);
+    plan skip_all => 'could not create git repo' unless defined $repo;
+
+    my $missing = File::Spec->catdir(tempdir(CLEANUP => 1), 'does-not-exist');
+    my $orig = cwd();
+    chdir $repo or die "chdir $repo: $!";
+    my $root = CWF::Common::find_git_root();
+    my ($parent, $err);
+    {
+        delete local $ENV{TMPDIR};
+        local $CWF::Common::SANDBOX_TMP_PROBE = $missing;
+        ($parent, $err) = scratch_parent();
+    }
+    chdir $orig;
+
+    is($err, undef, 'no error');
+    is($parent, expected_parent($root, '/tmp'), 'absent probe -> /tmp base');
+};
+
+subtest 'TC-12: probe exists but is not writable -> /tmp fallback' => sub {
+    plan skip_all => 'EUID 0 bypasses -w' if $> == 0;
+    plan tests => 2;
+    my $base = tempdir(CLEANUP => 1);
+    my $repo = create_git_repo($base);
+    plan skip_all => 'could not create git repo' unless defined $repo;
+
+    my $probe = tempdir(CLEANUP => 1);
+    chmod 0500, $probe;                            # readable+traversable, not writable
+    my $orig = cwd();
+    chdir $repo or die "chdir $repo: $!";
+    my $root = CWF::Common::find_git_root();
+    my ($parent, $err);
+    {
+        delete local $ENV{TMPDIR};
+        local $CWF::Common::SANDBOX_TMP_PROBE = $probe;
+        ($parent, $err) = scratch_parent();
+    }
+    chdir $orig;
+    chmod 0700, $probe;                            # restore so CLEANUP can remove it
+
+    is($err, undef, 'no error');
+    is($parent, expected_parent($root, '/tmp'), 'non-writable probe -> /tmp base');
+};
+
+subtest 'TC-13: symlinked probe rejected -> /tmp fallback' => sub {
+    plan tests => 2;
+    my $base = tempdir(CLEANUP => 1);
+    my $repo = create_git_repo($base);
+    plan skip_all => 'could not create git repo' unless defined $repo;
+
+    my $target = tempdir(CLEANUP => 1);           # real writable dir
+    my $holder = tempdir(CLEANUP => 1);
+    my $link   = File::Spec->catdir($holder, 'probe-link');
+    symlink($target, $link) or plan skip_all => 'symlink unsupported';
+
+    my $orig = cwd();
+    chdir $repo or die "chdir $repo: $!";
+    my $root = CWF::Common::find_git_root();
+    my ($parent, $err);
+    {
+        delete local $ENV{TMPDIR};
+        local $CWF::Common::SANDBOX_TMP_PROBE = $link;
+        ($parent, $err) = scratch_parent();
+    }
+    chdir $orig;
+
+    is($err, undef, 'no error');
+    is($parent, expected_parent($root, '/tmp'),
+        'symlinked probe not adopted (defence-in-depth) -> /tmp base');
+};
+
+subtest 'TC-14: empty $SANDBOX_TMP_PROBE -> /tmp fallback (length guard)' => sub {
+    plan tests => 2;
+    my $base = tempdir(CLEANUP => 1);
+    my $repo = create_git_repo($base);
+    plan skip_all => 'could not create git repo' unless defined $repo;
+
+    my $orig = cwd();
+    chdir $repo or die "chdir $repo: $!";
+    my $root = CWF::Common::find_git_root();
+    my ($parent, $err);
+    {
+        delete local $ENV{TMPDIR};
+        local $CWF::Common::SANDBOX_TMP_PROBE = '';
+        ($parent, $err) = scratch_parent();
+    }
+    chdir $orig;
+
+    is($err, undef, 'no error');
+    is($parent, expected_parent($root, '/tmp'), 'empty probe -> /tmp base');
 };
