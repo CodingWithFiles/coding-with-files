@@ -2,6 +2,12 @@
 
 All notable changes to the Coding with Files (CWF) project are documented in this file, organized by task.
 
+## Task 216: path-prefix retrospective-extras helper calls
+
+### Status: Complete (2026-07-04)
+### Duration: bugfix phases a,c,d,e,f,g,j in one session; estimate <0.5 day, on target.
+### Impact: Fixed five bare helper invocations in `.cwf/docs/skills/retrospective-extras.md` that ran without their `.cwf/scripts/command-helpers/` path prefix — three `checkpoints-branch-manager` calls (Step 10.1/10.2/10.3) and two `context-manager hierarchy` calls (Step 12). Surfaced when a live retrospective forced the agent to guess-then-search for the helper path. The deeper cost (raised by the misalignment reviewer) is that `.claude/settings.json` keys its Bash allowlist on the *prefixed* paths, so a bare invocation misses the allowlist and triggers a permission prompt mid-retrospective — prefixing removes both the path guess and the prompt. Edits were line-scoped (not a name-wide replace): the already-pathed lines 21 (`workflow-manager`) / 45 (`cwf-manage validate`) and the SKILL.md-pointer prose at 86/118 (`cwf-version-bump`/`cwf-version-tag`, which are name references, not invocations) were correctly left untouched. Doc-only change; `retrospective-extras.md` is not hash-tracked, so no `script-hashes.json` refresh. Plan review earned its keep: reviewers caught that the originally-drafted `^\s*`-anchored validation grep could never match the *inline* `context-manager` invocations (L122/127) and would have passed green with those unfixed — replaced with an inverting `grep … | grep -v 'command-helpers/'` that covers fenced and inline forms alike. A reviewer suggestion to widen the grep alternation to `cwf-manage` was declined with reason (it lives at `.cwf/scripts/cwf-manage`, not under `command-helpers/`, and would false-positive on line 45). 5/5 test cases pass (no bare in-scope invocation remains; counts 3+2; prose pointers bare; no double-prefix; `cwf-manage validate` OK). All seven changeset reviews across f/g clean; several noted the change *improves* posture by aligning with the allowlist.
+
 ## Task 215: fix hook sandbox tmpdir scratch path
 
 ### Status: Complete (2026-06-28)

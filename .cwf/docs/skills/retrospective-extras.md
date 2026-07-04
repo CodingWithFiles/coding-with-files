@@ -88,7 +88,7 @@ git add CHANGELOG.md BACKLOG.md
 ### 10.1 Create Checkpoints Branch
 
 ```bash
-checkpoints-branch-manager create
+.cwf/scripts/command-helpers/checkpoints-branch-manager create
 ```
 
 Preserves all checkpoint commits for future reference.
@@ -96,7 +96,7 @@ Preserves all checkpoint commits for future reference.
 ### 10.2 Squash Commits
 
 ```bash
-checkpoints-branch-manager show-history  # Find base commit
+.cwf/scripts/command-helpers/checkpoints-branch-manager show-history  # Find base commit
 git reset --soft {base-commit-hash}      # Soft reset to base
 git commit -m "Task {N}: {brief title}     # New squashed commit
 
@@ -108,7 +108,7 @@ Co-developed-by: Claude Opus 4.6 <noreply@anthropic.com>"
 ### 10.3 Verify
 
 ```bash
-checkpoints-branch-manager verify
+.cwf/scripts/command-helpers/checkpoints-branch-manager verify
 ```
 
 Confirm all checkpoint commits preserved on checkpoints branch.
@@ -119,12 +119,12 @@ Confirm all checkpoint commits preserved on checkpoints branch.
 
 Derive the merge target from the current task's position in the hierarchy:
 
-1. Run `context-manager hierarchy <task-path> --format=json`. Read `parent_path` and (for the current task's branch name) `task_type`, `task_num`, `task_slug`. The current task branch is `<task_type>/<task_num>-<task_slug>`.
+1. Run `.cwf/scripts/command-helpers/context-manager hierarchy <task-path> --format=json`. Read `parent_path` and (for the current task's branch name) `task_type`, `task_num`, `task_slug`. The current task branch is `<task_type>/<task_num>-<task_slug>`.
 2. If `parent_path` is empty, the task is top-level. Target is `main`. Suggest:
    ```bash
    sleep 1 && git checkout main && git merge --ff-only <current-task-branch>
    ```
-3. If `parent_path` is non-empty, the task is a subtask. Run `context-manager hierarchy <parent_path> --format=json`; read the parent's `task_type`, `task_num`, `task_slug`. Parent branch is `<type>/<num>-<slug>`. Suggest:
+3. If `parent_path` is non-empty, the task is a subtask. Run `.cwf/scripts/command-helpers/context-manager hierarchy <parent_path> --format=json`; read the parent's `task_type`, `task_num`, `task_slug`. Parent branch is `<type>/<num>-<slug>`. Suggest:
    ```bash
    sleep 1 && git checkout <parent-branch> && git merge --ff-only <current-task-branch>
    ```
