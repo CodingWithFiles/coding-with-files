@@ -1613,4 +1613,177 @@ subtest 'TC-209-2: char-device untracked entry (bind-mounted /dev/null) does not
     }
 };
 
+# ===========================================================================
+# Task 218: configurable cap via security.review.max-lines (CLI // config // 500).
+# NB: the e-testing-plan named these TC-CAP7..16, but TC-CAP7/8/9 already exist
+# for other purposes (exclude-paths pattern, unconfigured test path, deprecated
+# test-paths key). Renamed to TC-CONFIGCAP1..10 to avoid collision — same cases.
+# ===========================================================================
+
+# Build a cwf-project.json with security.review.max-lines set to a RAW JSON
+# token (a number, a "quoted" string, true, [500], null, …).
+sub cfg_maxlines {
+    my ($raw) = @_;
+    return qq({ "versioning": { "major_minor": "v1.0" },\n)
+         . qq(  "security": { "review": { "max-lines": $raw } } }\n);
+}
+
+# review present but the max-lines key absent → "not configured" (silent default).
+my $CFG_REVIEW_NO_MAXLINES =
+    qq({ "versioning": { "major_minor": "v1.0" },\n)
+  . qq(  "security": { "review": { "max-lines-exclude-paths": [] } } }\n);
+
+my $WARN_RE = qr{'security\.review\.max-lines' is not a positive integer};
+
+# --- Precedence (FR2) -------------------------------------------------------
+
+# TC-CONFIGCAP1 (plan TC-CAP7): config cap used when no CLI flag.
+subtest 'TC-CONFIGCAP1: config max-lines used when --max-lines absent' => sub {
+    my ($repo) = make_cap_repo(config_json => cfg_maxlines(20));
+    make_path("$repo/.cwf/scripts");
+    write_script("$repo/.cwf/scripts/s", 30);            # 30 production > 20
+    git_in($repo, 'add', '.cwf/scripts/s');
+    git_in($repo, 'commit', '-q', '-m', 'prod');
+
+    my ($out, $err, $rc) = run_helper($repo);            # no --max-lines
+    is($rc, 2, 'config cap of 20 fires (exit 2)');
+    like($err, qr{cap exceeded: \d+ production lines > 20}, 'stderr names the config cap');
+};
+
+# TC-CONFIGCAP2 (plan TC-CAP8): a 501–1000 diff passes at config cap 1000 (FR4).
+subtest 'TC-CONFIGCAP2: 600-line diff passes under config cap of 1000' => sub {
+    my ($repo) = make_cap_repo(config_json => cfg_maxlines(1000));
+    make_path("$repo/.cwf/scripts");
+    write_script("$repo/.cwf/scripts/s", 600);           # 600 production < 1000
+    git_in($repo, 'add', '.cwf/scripts/s');
+    git_in($repo, 'commit', '-q', '-m', 'prod');
+
+    my ($out, $err, $rc) = run_helper($repo);
+    is($rc, 0, 'exit 0 — 600 production under the 1000 config cap');
+    unlike($err, qr{cap exceeded}, 'no cap message');
+};
+
+# TC-CONFIGCAP3 (plan TC-CAP9): CLI flag overrides a higher config cap.
+subtest 'TC-CONFIGCAP3: --max-lines=10 beats config cap of 1000' => sub {
+    my ($repo) = make_cap_repo(config_json => cfg_maxlines(1000));
+    make_path("$repo/.cwf/scripts");
+    write_script("$repo/.cwf/scripts/s", 30);
+    git_in($repo, 'add', '.cwf/scripts/s');
+    git_in($repo, 'commit', '-q', '-m', 'prod');
+
+    my ($out, $err, $rc) = run_helper($repo, '--max-lines=10');
+    is($rc, 2, 'CLI 10 wins over config 1000 (exit 2)');
+    like($err, qr{cap exceeded: \d+ production lines > 10}, 'stderr names the CLI cap');
+};
+
+# TC-CONFIGCAP4 (plan TC-CAP10): explicit --max-lines=500 beats a higher config —
+# the default→unset motivator (500 must not read as "flag absent").
+subtest 'TC-CONFIGCAP4: explicit --max-lines=500 beats config cap of 1000' => sub {
+    my ($repo) = make_cap_repo(config_json => cfg_maxlines(1000));
+    make_path("$repo/.cwf/scripts");
+    write_script("$repo/.cwf/scripts/s", 600);           # 600 > 500, < 1000
+    git_in($repo, 'add', '.cwf/scripts/s');
+    git_in($repo, 'commit', '-q', '-m', 'prod');
+
+    my ($out, $err, $rc) = run_helper($repo, '--max-lines=500');
+    is($rc, 2, 'explicit 500 fires (not treated as absent → 1000)');
+    like($err, qr{cap exceeded: \d+ production lines > 500}, 'stderr names the explicit cap');
+};
+
+# --- Fail-safe degradation (FR3) -------------------------------------------
+
+# TC-CONFIGCAP5 (plan TC-CAP11): malformed scalar → warn (key only) + degrade to 500.
+subtest 'TC-CONFIGCAP5: non-integer scalar warns and degrades to 500' => sub {
+    my ($repo) = make_cap_repo(config_json => cfg_maxlines('"abc"'));
+    make_path("$repo/.cwf/scripts");
+    write_script("$repo/.cwf/scripts/s", 30);            # 30 < 500 default
+    git_in($repo, 'add', '.cwf/scripts/s');
+    git_in($repo, 'commit', '-q', '-m', 'prod');
+
+    my ($out, $err, $rc) = run_helper($repo);
+    is($rc, 0, 'exit 0 — degraded to the 500 default');
+    like($err, $WARN_RE, 'warning names the key');
+    unlike($err, qr{abc}, 'the offending value is NOT echoed (no info leak)');
+};
+
+# TC-CONFIGCAP6 (plan TC-CAP12): ref types (bool, array) warn + degrade — proves
+# a structured value is surfaced, not silently discarded.
+subtest 'TC-CONFIGCAP6: boolean and array values warn and degrade' => sub {
+    for my $raw ('true', '[500]') {
+        my ($repo) = make_cap_repo(config_json => cfg_maxlines($raw));
+        make_path("$repo/.cwf/scripts");
+        write_script("$repo/.cwf/scripts/s", 30);
+        git_in($repo, 'add', '.cwf/scripts/s');
+        git_in($repo, 'commit', '-q', '-m', 'prod');
+
+        my ($out, $err, $rc) = run_helper($repo);
+        is($rc, 0, "exit 0 — degraded to 500 (max-lines: $raw)");
+        like($err, $WARN_RE, "ref value warns (max-lines: $raw)");
+    }
+};
+
+# TC-CONFIGCAP7 (plan TC-CAP13): non-positive integers (0, -5, "007") warn +
+# degrade — confirms CLI/config parity on the ^[1-9]\d*$ contract.
+subtest 'TC-CONFIGCAP7: 0, negative, and leading-zero values warn and degrade' => sub {
+    for my $raw ('0', '-5', '"007"') {
+        my ($repo) = make_cap_repo(config_json => cfg_maxlines($raw));
+        make_path("$repo/.cwf/scripts");
+        write_script("$repo/.cwf/scripts/s", 30);
+        git_in($repo, 'add', '.cwf/scripts/s');
+        git_in($repo, 'commit', '-q', '-m', 'prod');
+
+        my ($out, $err, $rc) = run_helper($repo);
+        is($rc, 0, "exit 0 — degraded to 500 (max-lines: $raw)");
+        like($err, $WARN_RE, "non-positive-integer warns (max-lines: $raw)");
+    }
+};
+
+# TC-CONFIGCAP8 (plan TC-CAP14): missing key / JSON null → SILENT default (no
+# warning). Absence is not a typo. NB: plan said a ~600-line diff, but a missing
+# key degrades to 500 so 600 would exit 2 and conflate the signal; a small diff
+# isolates "silent + default" cleanly.
+subtest 'TC-CONFIGCAP8: missing key and null degrade silently (no warning)' => sub {
+    for my $cfg ($CFG_REVIEW_NO_MAXLINES, cfg_maxlines('null')) {
+        my ($repo) = make_cap_repo(config_json => $cfg);
+        make_path("$repo/.cwf/scripts");
+        write_script("$repo/.cwf/scripts/s", 30);        # < 500 default
+        git_in($repo, 'add', '.cwf/scripts/s');
+        git_in($repo, 'commit', '-q', '-m', 'prod');
+
+        my ($out, $err, $rc) = run_helper($repo);
+        is($rc, 0, 'exit 0 — silent 500 default');
+        unlike($err, $WARN_RE, 'no max-lines warning (absence ≠ typo)');
+    }
+};
+
+# TC-CONFIGCAP9 (plan TC-CAP15): a numeric string is accepted (JSON-scalar AC).
+subtest 'TC-CONFIGCAP9: numeric string "20" is accepted, no warning' => sub {
+    my ($repo) = make_cap_repo(config_json => cfg_maxlines('"20"'));
+    make_path("$repo/.cwf/scripts");
+    write_script("$repo/.cwf/scripts/s", 30);            # 30 > 20
+    git_in($repo, 'add', '.cwf/scripts/s');
+    git_in($repo, 'commit', '-q', '-m', 'prod');
+
+    my ($out, $err, $rc) = run_helper($repo);
+    is($rc, 2, 'string "20" treated as 20 → cap fires');
+    like($err, qr{cap exceeded: \d+ production lines > 20}, 'stderr names cap 20');
+    unlike($err, $WARN_RE, 'a valid numeric string does not warn');
+};
+
+# --- CLI-fatal / config-degrade asymmetry (regression) ----------------------
+
+# TC-CONFIGCAP10 (plan TC-CAP16): an invalid --max-lines CLI value stays FATAL
+# (exit 1) even when a valid config cap is present.
+subtest 'TC-CONFIGCAP10: invalid --max-lines stays fatal despite valid config' => sub {
+    my ($repo) = make_cap_repo(config_json => cfg_maxlines(1000));
+    make_path("$repo/.cwf/scripts");
+    write_script("$repo/.cwf/scripts/s", 30);
+    git_in($repo, 'add', '.cwf/scripts/s');
+    git_in($repo, 'commit', '-q', '-m', 'prod');
+
+    my ($out, $err, $rc) = run_helper($repo, '--max-lines=abc');
+    is($rc, 1, 'bad CLI value is fatal (exit 1), not degraded to config/default');
+    like($err, qr{invalid --max-lines}, 'stderr names the invalid CLI flag');
+};
+
 done_testing();

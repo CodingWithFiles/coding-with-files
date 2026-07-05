@@ -27,8 +27,10 @@
 #   Test-vs-production weighting applies only to the cap below.
 #
 # Production-weighted cap (--max-lines):
-#   The full diff is always written to the .out file (see Output). --max-lines
-#   defaults to 500 and is overridable; the helper computes a production-weighted
+#   The full diff is always written to the .out file (see Output). The effective
+#   cap resolves as --max-lines > security.review.max-lines (cwf-project.json) >
+#   built-in default (500); a malformed config value warns and degrades to the
+#   default. The helper computes a production-weighted
 #   line count: added+deleted lines (git diff --numstat) over the included files,
 #   minus any path matching a `security.review.max-lines-exclude-paths` pattern
 #   from cwf-project.json. Those patterns are gitignore/git pathspec globs,
@@ -91,6 +93,13 @@ check_perl5opt();
 
 my $PROG = 'security-review-changeset';
 
+# Built-in production-weighted line cap. Effective cap resolves as
+# CLI (--max-lines) > config (security.review.max-lines) > this default.
+# Single source for the two live-code sites (the resolver and the
+# interpolating print_usage POD); the plain-# header banner cannot
+# interpolate and keeps its own hand-maintained "500" literal.
+my $DEFAULT_MAX_LINES = 500;
+
 # ---------------------------------------------------------------------------
 # Intent-to-add cleanup machinery (Task 194)
 # Untracked, non-ignored files are made diff-visible via `git add -N` so the
@@ -132,7 +141,7 @@ my %WF_STEP = map { $_ => 1 } qw(
     implementation-exec testing-exec rollout maintenance retrospective
 );
 
-my %opt = (wf_step => undef, task_num => undef, max_lines => 500, verbose => 0);
+my %opt = (wf_step => undef, task_num => undef, max_lines => undef, verbose => 0);
 for my $arg (@ARGV) {
     if    ($arg =~ /^--wf-step=(.+)$/)   { $opt{wf_step} = $1 }
     elsif ($arg =~ /^--task-num=(.+)$/)  { $opt{task_num} = $1 }
@@ -165,10 +174,17 @@ if (defined $opt{task_num} && $opt{task_num} !~ /^\d+(?:\.\d+)*$/) {
 }
 
 # --max-lines must be a positive integer (rejects 0, leading zeros, non-numeric).
+# A bad CLI value is fatal (exit 1) — direct interactive input fails loud.
 if (defined $opt{max_lines} && $opt{max_lines} !~ /^[1-9]\d*$/) {
     warn "$PROG: invalid --max-lines '$opt{max_lines}' (expected a positive integer)\n";
     exit 1;
 }
+
+# Effective cap: CLI flag (validated above) > config key > built-in default.
+# Resolved after CLI validation so a config typo degrades safely (warn + default)
+# while a CLI typo stays fatal above.
+$opt{max_lines} = config_max_lines() // $DEFAULT_MAX_LINES
+    unless defined $opt{max_lines};
 
 # ---------------------------------------------------------------------------
 # Resolve task number (from --task-num, else from current branch)
@@ -326,8 +342,11 @@ Options:
                    NUM must match /^\\d+(\\.\\d+)*\$/.
   --max-lines=N    Cap on production-weighted lines (added+deleted over all changed
                    files, minus security.review.max-lines-exclude-paths globs). N is a
-                   positive integer; defaults to 500. When the count exceeds N, exit 2
-                   (the .out file is already written).
+                   positive integer. Precedence: this flag > the config key
+                   security.review.max-lines > built-in default ($DEFAULT_MAX_LINES).
+                   A malformed config value warns and degrades to the default; a bad
+                   flag value here is fatal (exit 1). When the count exceeds the
+                   effective cap, exit 2 (the .out file is already written).
   --verbose        On stderr, list the included paths after the summary line.
   --help           Show this message.
 
@@ -556,6 +575,38 @@ sub max_lines_exclude_paths {
         push @excludes, ":(glob,exclude)$p";
     }
     return @excludes;
+}
+
+# ---------------------------------------------------------------------------
+# Read the optional production-line cap from security.review.max-lines in
+# cwf-project.json. Mirrors max_lines_exclude_paths()'s defensive read.
+# Returns a positive integer, or undef so the caller falls back to
+# $DEFAULT_MAX_LINES. Fail-safe: any ambiguity degrades to the stricter
+# default, never a larger/disabled cap.
+#   - missing key / JSON null  => undef, SILENT (not configured, not a typo).
+#   - ref (bool/array/object)  => undef, WARN  (an unambiguous typo).
+#   - non-positive-integer     => undef, WARN  (reuses the CLI ^[1-9]\d*$
+#     contract; a JSON number and a numeric string both stringify and match).
+# The warning names the key only — no path or config contents echoed.
+# ---------------------------------------------------------------------------
+sub config_max_lines {
+    my $cfg = eval {
+        require CWF::Versioning;
+        CWF::Versioning::read_config();
+    };
+    return undef unless $cfg && ref $cfg eq 'HASH';
+    my $sec = $cfg->{security};
+    return undef unless ref $sec eq 'HASH';
+    my $review = $sec->{review};
+    return undef unless ref $review eq 'HASH';
+    my $v = $review->{'max-lines'};
+    return undef unless defined $v;      # missing key / JSON null => silent default
+    if (ref $v || "$v" !~ /^[1-9]\d*$/) {
+        warn "$PROG: warning: 'security.review.max-lines' is not a positive "
+           . "integer; using built-in default\n";
+        return undef;
+    }
+    return "$v" + 0;
 }
 
 # ---------------------------------------------------------------------------

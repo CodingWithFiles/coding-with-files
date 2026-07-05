@@ -37,6 +37,7 @@
       "scripts" : ".cwf/scripts/command-helpers/cwf-*"
     },
     "review" : {
+      "max-lines" : 1000,
       "max-lines-exclude-paths" : [
         "t/**",
         "implementation-guide/**"
@@ -100,7 +101,7 @@
     ]
   },
   "versioning" : {
-    "last_released" : "v1.1.217",
+    "last_released" : "v1.1.218",
     "major_minor" : "v1.1"
   },
   "wf_step_config" : {
