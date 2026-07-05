@@ -2,6 +2,28 @@
 
 Future tasks and improvements for the Coding with Files system.
 
+## Task: plan-mechanical-check — warn on hashed path missing script-hashes.json disclosure
+
+### Task-Type: chore
+### Priority: Medium
+### Status: Follow-up from Task 217 (j-retrospective.md §Future Work)
+### Identified in: Task 217 j-retrospective.md §Recommendations
+
+Task 217's d-plan wrongly asserted the edited `.claude/agents/*.md` files were not
+hash-tracked; in fact both are recorded in `.cwf/security/script-hashes.json` at
+`0444`. The error was caught by the security plan-reviewer (and only after two other
+reviewers had echoed it), not deterministically. The `hash-updates.md` plan-time
+disclosure rule already requires that any Files-to-Modify path which is hash-tracked
+be listed with `.cwf/security/script-hashes.json` as a Supporting Change — but nothing
+enforces it. Scope: extend `.cwf/scripts/command-helpers/plan-mechanical-check` with a
+third scan that, for each path referenced in the plan's Files-to-Modify list, checks
+whether that path has an entry in `script-hashes.json`; if it does AND the plan does
+not also list `script-hashes.json` as a Supporting Change, surface a `hash-disclosure`
+finding. Fail-open like the existing scans (advisory, never blocks). This closes the
+exact class of error Task 217 hit, at plan time, deterministically — complementary to
+the existing path-resolution and symbol-deletion scans. Refresh the helper's `sha256`
+in the same commit.
+
 ## Task: Extract a shared CWF::Common::tmp_base() helper
 
 ### Task-Type: chore

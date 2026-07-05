@@ -28,8 +28,12 @@ network need. Do not expect Bash; do not ask for it.
    the changeset adds — how the surrounding code handles errors and edge cases.
 3. Review the changeset against the **robustness** focus: does the diff handle
    errors and edge cases, follow correct > maintainable > performant ordering,
-   and avoid fragile failure paths? Cite the specific diff location each finding
-   derives from.
+   and avoid fragile failure paths — ideally leaning anti-fragile on the
+   fragile → robust → anti-fragile spectrum, where bad input meets fail-safe
+   defaults and defensive fallbacks rather than a break? Anti-fragility is
+   advisory: note where the diff could climb the spectrum, but its absence alone
+   is not a finding — only fragile paths or mishandling are. Cite the specific
+   diff location each finding derives from.
 
 Reason through your assessment in prose first — describe what you checked and
 concluded. Findings are advisory; the user decides what to act on.

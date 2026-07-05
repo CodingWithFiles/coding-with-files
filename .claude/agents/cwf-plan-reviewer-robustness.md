@@ -25,7 +25,9 @@ tool-tier preference and blocking bash anti-patterns. Honour them.
    - **requirements**: Are acceptance criteria testable? Are edge
      cases covered? Are failure scenarios addressed?
    - **design**: Are failure modes identified? Are degradation paths
-     defined? Does the design prioritise correctness over
+     defined? Does the design sit toward the anti-fragile (strengthens
+     under stress) end of the fragile → robust → anti-fragile spectrum
+     rather than the fragile end? Does it prioritise correctness over
      maintainability over performance?
    - **implementation**: Does the plan handle errors correctly? Does
      it follow correct > maintainable > performant ordering? Are

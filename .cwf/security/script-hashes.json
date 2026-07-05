@@ -34,7 +34,7 @@
     "cwf-plan-reviewer-robustness" : {
       "path" : ".claude/agents/cwf-plan-reviewer-robustness.md",
       "permissions" : "0444",
-      "sha256" : "df96c914acb20fb6c7bbd84cc9e861bad92e818d9bb0838838331a3fbd5e7877"
+      "sha256" : "ca358dde12f7addafd2819e70a37d2fef5af8797aafe1fe3abb9c10b088447d6"
     },
     "cwf-plan-reviewer-security" : {
       "path" : ".claude/agents/cwf-plan-reviewer-security.md",
@@ -44,7 +44,7 @@
     "cwf-robustness-reviewer-changeset" : {
       "path" : ".claude/agents/cwf-robustness-reviewer-changeset.md",
       "permissions" : "0444",
-      "sha256" : "cc61f58c8f7f2478a2ebec184f82b4f827f6d62f003a450b08afe383add6b910"
+      "sha256" : "e5024e49325683f339f4c589644cfb26ce5ebc538020770f070d60e4de83d81a"
     },
     "cwf-security-reviewer-changeset" : {
       "path" : ".claude/agents/cwf-security-reviewer-changeset.md",

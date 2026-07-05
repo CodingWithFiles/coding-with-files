@@ -2,6 +2,12 @@
 
 All notable changes to the Coding with Files (CWF) project are documented in this file, organized by task.
 
+## Task 217: anti-fragile concept in robustness reviewer
+
+### Status: Complete (2026-07-05)
+### Duration: hotfix phases a,d,e,f,g,h,j in one session; estimate <0.5 day, ~on target.
+### Impact: Introduced the anti-fragile concept into both robustness reviewers so they credit changes that *strengthen* under stress, not only ones that avoid fragile failure paths. `cwf-robustness-reviewer-changeset.md` step-3 focus gains a `fragile → robust → anti-fragile` spectrum clause plus a second sentence making anti-fragility explicitly advisory — its mere absence is **not** a `findings` trigger, protecting the `cwf-review` verdict semantics against false positives; `cwf-plan-reviewer-robustness.md`'s `design` bullet gets a matching clause (user chose both-file scope over the minimal changeset-only default). The `cwf-review` verdict block is byte-unchanged, so `security-review-classify` still parses it. Wording stays to diff-observable properties (fail-safe defaults, defensive fallbacks, bad-input handling); runtime-only terms (`load`, `partial failure`, `self-hardening`) were dropped because the changeset reviewer sees only a static diff — a finding raised by the plan-phase robustness reviewer. Plan review earned its keep: the security plan-reviewer caught that the draft's "agent defs are not hash-tracked" claim was **false** — both files are recorded in `script-hashes.json` at `0444` — which the robustness and misalignment reviewers had echoed; verifying directly against the manifest turned a would-be exec-time `validate` failure into a plan correction. Both `sha256` entries refreshed in the same commit per the hash-updates convention (`fix-security` clamps perms only and never recomputes hashes by design); pre-refresh `git log` confirmed this task's edit was the only change since each file was last hashed. Single-role guidance correctly stayed out of `cwf-agent-shared-rules.md` (inclusion bar needs 2+ roles). All 7 changeset reviews (5 at f, 2 at g) clean; TC-1..TC-7 + the verdict-block regression all pass; `cwf-manage validate` OK. Backlogged: extend `plan-mechanical-check` to warn when a Files-to-Modify path is hash-tracked but the plan omits `script-hashes.json` from Supporting Changes.
+
 ## Task 216: path-prefix retrospective-extras helper calls
 
 ### Status: Complete (2026-07-04)
