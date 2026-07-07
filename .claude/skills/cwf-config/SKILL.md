@@ -25,10 +25,11 @@ allowed-tools:
 
 ## Workflow
 
-**Parse arguments**: `[init|list|reset]`
+**Parse arguments**: `[init|list|reset|tool-check <on|off|seed>]`
 - init: Initialise global CIG configuration at `~/.cwf/`
 - list: Show current configuration locations and content
 - reset: Reset configurations to defaults
+- tool-check: Manage the Bash tool-check opt-in surface (see below)
 
 **Built-in Paths** (hardcoded for broken config recovery):
 - User config: `~/.cwf/autoload.yaml`
@@ -47,11 +48,35 @@ allowed-tools:
 1. Backup existing configs (.backup suffix), regenerate defaults
 2. Confirm reset completed and show new configuration
 
+### Steps for 'tool-check <on|off|seed>'
+
+The Bash tool-check framework ships **inert** (no rules). This surface is the
+single writer for enabling it. Dispatch the verb straight to the helper — it
+performs the symlink-safe, atomic writes and echoes the resulting state:
+
+```bash
+.cwf/scripts/command-helpers/tool-check-seed <on|off|seed>
+```
+
+- `seed` — merge the regex-only starter rules into the **checked-in** layer
+  (`{root}/.cwf/tool-check/bash/settings.json`) and clear a project-local off.
+  The checked-in file is a normal tracked file; **committing it is the user's
+  decision** — surface the helper's note, do not commit it automatically.
+- `on` / `off` — flip the **project-local** kill-switch
+  (`settings.local.json`, gitignored); an ephemeral, per-checkout toggle that
+  never dirties tracked state.
+- Any other verb: relay the helper's usage error; do not guess.
+
+Relay the helper's stdout verbatim. To inspect the effective state afterwards,
+run `.cwf/scripts/hooks/pretooluse-bash-tool-check --check` (human terminal
+only — never pipe its output back into agent context). See
+`.cwf/docs/tool-check-rules.md` for the layer/precedence model.
+
 **Configuration Priority**: Project `.cwf/autoload.yaml` > Global `~/.cwf/autoload.yaml` > Built-in defaults
 
 **Error Handling**: If config directory creation fails, check permissions and disk space. If user intent unclear, show current config status and ask for clarification.
 
 ## Success Criteria
 - [ ] Git root confirmed and configs loaded
-- [ ] Requested operation (init/list/reset) completed
+- [ ] Requested operation (init/list/reset/tool-check) completed
 - [ ] Configuration state displayed to user

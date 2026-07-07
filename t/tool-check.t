@@ -17,7 +17,8 @@ use lib "$FindBin::Bin/../.cwf/lib";
 use JSON::PP;
 
 use_ok('CWF::ToolCheck',
-       qw(load_layer merge_rules compile_perl rule_matches decide_repeat));
+       qw(load_layer merge_rules compile_perl rule_matches decide_repeat
+          resolve_active trusted_layers merge_seed));
 
 # Build the decoded shape JSON::PP->decode would yield for a layer file.
 sub layer { return { rules => [ @_ ] } }
@@ -131,6 +132,89 @@ subtest 'TC-6: compile_perl returns coderef on valid, undef on broken' => sub {
     ok(!rule_matches($prule, 'a|b',       $cref,  {}), 'perl rule no-match');
     ok(!rule_matches($prule, 'a|b|c|d|e', undef,  {}),
         'perl rule with undef coderef -> no match (fail open)');
+};
+
+# ----- TC-U1: resolve_active default-true (AC1 / DK2) -----------------------
+subtest 'TC-U1: no trusted layer defines active -> default true' => sub {
+    plan tests => 3;
+    is(resolve_active([]), 1, 'empty trusted list -> active (default true)');
+    is(resolve_active([ { rules => [] } ]), 1, 'a layer with no `active` key -> default true');
+    is(resolve_active([ { rules => [] }, { rules => [] } ]), 1,
+        'multiple layers, none define active -> default true');
+};
+
+# ----- TC-U2: boolean-only coercion (DK2) -----------------------------------
+subtest 'TC-U2: only a JSON boolean counts as defining active' => sub {
+    plan tests => 7;
+    is(resolve_active([ { active => JSON::PP::false } ]), 0, 'real JSON false -> 0');
+    is(resolve_active([ { active => JSON::PP::true  } ]), 1, 'real JSON true -> 1');
+    # Perl-truthy / non-boolean values must be IGNORED (fall through to default).
+    is(resolve_active([ { active => 'false' } ]), 1, 'the STRING "false" is ignored -> default true');
+    is(resolve_active([ { active => 0 }       ]), 1, 'the number 0 is ignored -> default true');
+    is(resolve_active([ { active => undef }   ]), 1, 'null/undef is ignored -> default true');
+    is(resolve_active([ { active => [] }      ]), 1, 'an array is ignored -> default true');
+    # A non-boolean in the first layer falls through to a real boolean below it.
+    is(resolve_active([ { active => 'false' }, { active => JSON::PP::false } ]), 0,
+        'non-boolean high layer skipped; real false in the next layer decides');
+};
+
+# ----- TC-U3: precedence high->low + error-layer skip (DK1 / AC7) -----------
+subtest 'TC-U3: first trusted layer with a boolean active wins' => sub {
+    plan tests => 3;
+    # Caller passes [project-local, user-global] high->low.
+    is(resolve_active([ { active => JSON::PP::false }, { active => JSON::PP::true } ]), 0,
+        'project-local false overrides user-global true');
+    is(resolve_active([ { active => JSON::PP::true }, { active => JSON::PP::false } ]), 1,
+        'project-local true overrides user-global false');
+    # An undef (error layer: symlink/bad-JSON/non-HASH) contributes nothing.
+    is(resolve_active([ undef, { active => JSON::PP::false } ]), 0,
+        'an undef/error layer is skipped; the boolean below it decides');
+};
+
+# ----- TC-U3b: trusted_layers selects + orders + excludes checked-in (DK1) --
+subtest 'TC-U3b: trusted_layers -> [project-local, user-global], checked-in dropped' => sub {
+    plan tests => 4;
+    my $decoded = [
+        { provenance => 'user-global',   decoded => { active => JSON::PP::true,  n => 'ug' } },
+        { provenance => 'checked-in',    decoded => { active => JSON::PP::false, n => 'ci' } },
+        { provenance => 'project-local', decoded => { active => JSON::PP::false, n => 'pl' } },
+    ];
+    my $t = trusted_layers($decoded);
+    is(scalar(@$t), 2, 'exactly two trusted layers returned (checked-in excluded)');
+    is($t->[0]{n}, 'pl', 'project-local first (highest precedence)');
+    is($t->[1]{n}, 'ug', 'user-global second');
+    # An absent/error layer (decoded undef) is dropped, not passed as undef.
+    my $t2 = trusted_layers([
+        { provenance => 'project-local', decoded => undef },
+        { provenance => 'user-global',   decoded => { active => JSON::PP::false } },
+    ]);
+    is_deeply($t2, [ { active => JSON::PP::false } ], 'undef project-local dropped; user-global kept');
+};
+
+# ----- TC-U4: merge_seed no-clobber + counts (AC6) --------------------------
+subtest 'TC-U4: merge_seed appends missing ids, never overwrites' => sub {
+    plan tests => 5;
+    my @existing = ({ id => 'x', regex => 'user-edited', guidance => 'mine' });
+    my @starter  = ({ id => 'x', regex => 'starter-x', guidance => 'g' },
+                    { id => 'y', regex => 'starter-y', guidance => 'g' });
+    my ($merged, $added, $skipped) = merge_seed(\@existing, \@starter);
+    is($added,   1, 'one id added (y)');
+    is($skipped, 1, 'one id skipped (x already present)');
+    is_deeply([map { $_->{id} } @$merged], [qw(x y)], 'x kept first, y appended');
+    my ($x) = grep { $_->{id} eq 'x' } @$merged;
+    is($x->{regex}, 'user-edited', 'the user-edited x rule is NOT overwritten');
+    is($x->{guidance}, 'mine', 'user guidance preserved');
+};
+
+# ----- TC-U5: merge_seed baseline (empty existing) --------------------------
+subtest 'TC-U5: merge_seed onto empty existing adds every starter rule' => sub {
+    plan tests => 3;
+    my @starter = ({ id => 'a', regex => 'ra', guidance => 'g' },
+                   { id => 'b', regex => 'rb', guidance => 'g' });
+    my ($merged, $added, $skipped) = merge_seed([], \@starter);
+    is($added,   2, 'all starter rules added');
+    is($skipped, 0, 'nothing skipped');
+    is_deeply([map { $_->{id} } @$merged], [qw(a b)], 'both starter ids present in order');
 };
 
 done_testing();

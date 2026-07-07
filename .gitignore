@@ -21,3 +21,4 @@ scratchpad
 # Silly files left around by macOS
 .DS_Store
 Thumbs.db
+.cwf/tool-check/*/settings.local.json

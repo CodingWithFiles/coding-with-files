@@ -19,6 +19,12 @@ Rules merge from three layers, low → high precedence:
 | project checked-in | `{repo}/.cwf/tool-check/bash/settings.json` | **yes** | yes | **ignored** |
 | project-local | `{repo}/.cwf/tool-check/bash/settings.local.json` (gitignored) | no | yes | yes |
 
+The project-local layer is **gitignored** (`.cwf/tool-check/*/settings.local.json`,
+shipped in the install manifest). This is a security control, not tidiness: the
+project-local layer honours `perl` rules, so keeping it out of `git` is what stops
+a committed project-local `perl` rule from executing on every cloner — the same
+clone-untrusted-execution hazard the checked-in `perl` drop guards against.
+
 `perl` rules execute arbitrary code, so they are honoured only from the two
 author-owned layers that never travel via `git clone`. A `perl` rule in the
 checked-in layer is **dropped before it is ever compiled** (a cloned repo cannot
@@ -26,9 +32,50 @@ run code on a collaborator's machine). `regex` rules are safe in every layer:
 the engine never enables `re 'eval'`, so an embedded `(?{...})`/`(??{...})` code
 block never executes (it dies → caught → treated as no-match).
 
+## Enabling: the `active` kill-switch and seeding
+
+The framework ships inert. Two things turn it on:
+
+- **Rules** in at least one layer (there is nothing to match otherwise).
+- The global **`active`** kill-switch resolving to true (its default).
+
+`/cwf-config tool-check seed` writes a small regex-only starter set into the
+**checked-in** layer (and `/cwf-init` offers the same on first setup, default
+decline). `/cwf-config tool-check off` / `on` flip the switch via the
+**project-local** layer — an ephemeral, gitignored, per-checkout toggle that
+never dirties tracked state. All three are the one helper
+(`.cwf/scripts/command-helpers/tool-check-seed`); do not hand-edit the files.
+
+### The `active` flag
+
+A settings file may carry an optional top-level `active`:
+
+```json
+{ "active": false, "rules": [ ... ] }
+```
+
+- `active` is resolved across the **trusted** layers only —
+  **project-local > user-global**, first definer wins, default **true**.
+- Only a JSON **boolean** counts. A string `"false"`, `0`, `null`, or an array
+  is ignored and falls through (so a hand-typed `"active":"false"` — which is
+  Perl-truthy — can never leave the switch stuck on).
+- A **checked-in** `active` is **ignored** for the switch — mirroring the
+  checked-in `perl` drop, a clone-travelling `active:false` must not silence a
+  downstream user's own user-global rules. (Seeded checked-in rules are active
+  anyway via the default.)
+- Default true means a pre-existing settings file (rules, no `active` key) keeps
+  working unchanged: this is a kill-switch, not an enable gate.
+
+Degradation: if a project-local layer that held `active:false` later becomes
+unreadable (symlink, corrupt JSON), it is skipped and the switch falls through to
+**true** — the hook comes back *on*. Consistent with the deny-is-safe posture (a
+broken kill-switch fails toward *more* nudging, never toward capability).
+`--check` surfaces the per-layer `active` values; re-running `off` restores it.
+
 ## Rule schema
 
-A settings file is `{"rules": [ ... ]}`. Each rule is keyed by a stable `id`:
+A settings file is `{"active": <bool, optional>, "rules": [ ... ]}`. Each rule is
+keyed by a stable `id`:
 
 ```json
 {

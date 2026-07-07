@@ -24,6 +24,12 @@ task via the normal workflow. Ordered impact-desc, effort-asc:
 - **R3 (feature, Med)** — Ship a consolidated shell-hygiene convention + a default Bash
   allowlist seed (read-only/`.cwf` helpers only, never mutating verbs) + the Task-206
   path-injection hook at `cwf-init`, so new projects inherit the ~10 avoidance rules.
+  **Partly delivered by Task 220**: the tool-check seed + toggle + `cwf-init` opt-in
+  now exist (regex-only starter set, `/cwf-config tool-check on|off|seed`). Note the
+  original "new projects re-derive them all" premise was stale — the corpus predates
+  the maintainer's Jul-2026 user-global ruleset (`~/.cwf/tool-check/bash/settings.json`),
+  which already enforces these across every project. Remaining R3 scope: the broader
+  shell-hygiene *convention* doc and the allowlist seed (distinct from tool-check).
 - **R4 (feature, Med)** — Add an "unresolved decisions" gate to `a-task-plan` (name every
   open surface/mechanism/constraint) and forbid mechanism-named acceptance criteria. 6 projects.
 - **R5 (feature, Med)** — CwF upgrade runbook; fix `.cwf/version` read-tree restage;
@@ -92,6 +98,29 @@ inline ternaries with calls to it. Note the seam interaction with Task 215's
 `tmp_base()` is the *env-or-`/tmp`* half (the probe branch stays in `scratch_parent`),
 or `tmp_base()` takes an optional probe argument. Decide at design time. Refresh
 `Common.pm` sha256 in the same commit. Purely a consistency/maintainability gain.
+
+## Task: Converge the three symlink-safe atomic settings-writers
+
+### Task-Type: chore
+### Priority: Low
+### Status: Follow-up from Task 220 (j-retrospective.md §Future Work)
+### Identified in: Task 220 f-implementation-exec.md §Misalignment Review (accepted-with-rationale)
+
+Task 220's `tool-check-seed` hand-rolls a symlink-safe atomic JSON writer (temp +
+`O_EXCL` + `rename` at 0600, per-level `-d && !-l` parent creation, every syscall
+checked) rather than reusing `CWF::ArtefactHelpers::atomic_write_text`, because the
+shared writer uses `File::Path::make_path` and does **not** reject a symlink target,
+and `read_json_file` has no symlink guard — so a direct swap would lose the NFR4
+symlink defence. The misalignment reviewer accepted the duplication as the right trade
+(bad abstraction is worse than duplication; a security-sensitive writer should not be
+coupled to a general-purpose one), but the temp+`O_EXCL`+`rename` pattern now exists in
+three places (`tool-check-seed`, `cwf-apply-artefacts`, `cwf-claude-settings-merge`),
+crossing the Rule of Three. Scope: add an opt-in symlink-reject mode (and per-level
+`-d && !-l` parent creation) to `CWF::ArtefactHelpers::atomic_write_text` — and a
+symlink guard to `read_json_file` — strong enough for the tool-check threat model, then
+converge all three writers onto it. `CWF::ArtefactHelpers` is hash-tracked and used by
+other helpers, so re-audit each caller and refresh its sha256 in the same commit.
+Purely a consistency gain; do not weaken the tool-check writer to achieve it.
 
 ## Task: Align security-review-classify discovery mode with its sibling helper's interface
 
@@ -1460,6 +1489,8 @@ Resolution rule (from Task 199 FR4 AC(ii)/(iii)): if `TMPDIR` is **set** (expect
 Task 201 shipped the bash tool-check *mechanism* inert (empty default ruleset). It deliberately did not seed the checked-in layer (`.cwf/tool-check/bash/settings.json`) with rules for this repo, because the set of commands that trip Claude Code's permission prompts shifts per model and per Claude Code version, so a fixed shipped set would be wrong by construction.
 
 Scope: author a starter rule pack for CWF's own development, targeting the recurring offenders already documented in MEMORY.md feedback (e.g. `sed -n` line-range reads, `find`, `tee`, inline `perl -e`/heredocs, `git -C`, `echo "EXIT: $?"`). Regex-only — the checked-in layer drops `perl` rules before compilation by design. Re-evaluate the pack whenever the session model or Claude Code version changes; treat it as living config, not a one-off.
+
+**Update (Task 220)**: the *seeding mechanism* now exists — `tool-check-seed seed` merges an embedded regex-only starter set (currently `sed -n`, `cat|grep`, `find -exec`) into the checked-in layer, exposed via `/cwf-config tool-check seed` and the `/cwf-init` opt-in. Task 220's h-phase settled the **rollout decision for *this* repo: declined for now** — ship the mechanism only, do not commit a checked-in starter set here (the maintainer already runs a richer user-global set, so the marginal value is low). This item therefore stays open as the standing adoption decision: revisit whether to commit a checked-in pack for CWF's own development and, if so, whether to widen the embedded pack to the fuller offender list above.
 
 Use `--check` to preview the merged effective set before committing the pack.
 

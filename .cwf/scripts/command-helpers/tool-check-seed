@@ -1,0 +1,237 @@
+#!/usr/bin/env perl
+#
+# tool-check-seed — the single DRY writer for the Bash tool-check opt-in surface
+# (Task 220). Invoked by /cwf-config and /cwf-init; NEVER on the hook hot path.
+#
+# Usage:
+#   tool-check-seed seed    # merge the embedded starter rules into the CHECKED-IN
+#                           #   layer, then clear a project-local `active:false`
+#                           #   ("seed implies on", eventual/re-run-convergent)
+#   tool-check-seed on      # project-local: set active:true  (preserving RMW)
+#   tool-check-seed off     # project-local: set active:false (preserving RMW)
+#   tool-check-seed --help
+#   <anything else>         # exit non-zero, usage to stderr, NO write
+#
+# Layers written (never the user-global $HOME layer):
+#   checked-in     {root}/.cwf/tool-check/bash/settings.json        (seed target)
+#   project-local  {root}/.cwf/tool-check/bash/settings.local.json  (toggle target,
+#                                                                     gitignored)
+#
+# The starter set is regex-only (a checked-in `perl` rule would be dropped before
+# compile anyway) and is EMBEDDED here, not shipped as a standalone data file, so
+# there is no unhashed runtime artefact (this script is itself hash-tracked).
+#
+# WRITE DISCIPLINE (fail-CLOSED — the security-sensitive surface, NFR4): every
+# write creates its parent dirs symlink-safely (per-level `-d && !-l`), refuses to
+# read or write through a symlink, and writes via temp + O_EXCL + atomic rename at
+# mode 0600. Every syscall is checked. A hard failure exits non-zero; being offline
+# tooling, that never affects the fail-OPEN hook.
+#
+# POSIX-only project; core Perl modules only.
+#
+use strict;
+use warnings;
+use utf8;
+use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use JSON::PP ();
+use Fcntl qw(O_CREAT O_EXCL O_WRONLY);
+use File::Basename qw(dirname);
+use CWF::Common qw(find_git_root);
+use CWF::ToolCheck qw(resolve_active trusted_layers merge_seed);
+
+my $PROG = 'tool-check-seed';
+
+# --- embedded starter ruleset (regex-only, from the documented anti-pattern
+# corpus: .cwf/docs/skills/cwf-agent-shared-rules.md "Blocking bash anti-patterns"
+# + the feedback_no_* MEMORY entries). Each rule anchors at a command boundary
+# (start, or after a pipe/;/& separator) to keep false positives low. -----------
+sub starter_rules {
+    return (
+        {
+            id       => 'no-sed-line-range',
+            regex    => '(?:^|[|;&]\s*)sed\s+-n',
+            guidance => "Use the Read tool with offset/limit, not `sed -n 'X,Yp'` "
+                      . "(sed for line ranges trips a permission prompt).",
+        },
+        {
+            id       => 'no-cat-pipe-grep',
+            regex    => '(?:^|[|;&]\s*)cat\s+\S+\s*\|\s*grep\b',
+            guidance => "Use the Grep tool instead of `cat file | grep` "
+                      . "(the pipeline trips a permission prompt).",
+        },
+        {
+            id       => 'no-find-exec',
+            regex    => '(?:^|[|;&]\s*)find\b[^|;&]*\s-exec\b',
+            guidance => "Use the Grep tool with a glob filter instead of "
+                      . "`find … -exec` (find -exec trips a permission prompt).",
+        },
+    );
+}
+
+sub usage {
+    my ($fh) = @_;
+    print {$fh} <<"END";
+$PROG — writer for the Bash tool-check opt-in surface (Task 220)
+
+Usage:
+  $PROG seed    merge starter rules into the checked-in layer, then imply on
+  $PROG on      set project-local active:true  (preserving)
+  $PROG off     set project-local active:false (preserving)
+  $PROG --help  show this help
+
+Inspect the resulting effective state with:
+  .cwf/scripts/hooks/pretooluse-bash-tool-check --check
+END
+}
+
+sub die_err { my ($msg) = @_; print STDERR "[CWF] ERROR: $PROG: $msg\n"; exit 1; }
+
+# Read a settings file into a decoded HASH. Absent -> {} (a fresh layer). A
+# symlink / non-regular / non-JSON / non-object file is REFUSED.
+#
+# Two postures, by call site:
+#   default (write path): a refusal is FATAL (die_err -> exit) — fail-closed, so we
+#     never overwrite something we cannot safely parse.
+#   soft => 1 (read-only echo path): a refusal returns undef instead of exiting —
+#     a broken layer contributes nothing to the state read, never aborts a write
+#     that has ALREADY succeeded. (die_err calls exit, so an eval around the fatal
+#     form cannot trap it — hence an explicit soft mode, not an eval wrapper.)
+sub read_settings {
+    my ($file, %opt) = @_;
+    my $refuse = $opt{soft}
+        ? sub { return undef }
+        : sub { my ($m) = @_; die_err($m); };
+    return {} unless -e $file;
+    return $refuse->("refusing to read through a symlink: $file") if -l $file;
+    return $refuse->("$file is not a regular file")               unless -f $file;
+    open(my $fh, '<:raw', $file) or return $refuse->("open $file: $!");
+    my $blob = do { local $/; <$fh> };
+    close $fh;
+    my $decoded = eval { JSON::PP->new->decode($blob) };
+    return $refuse->("$file is not valid JSON") if $@ || ref $decoded ne 'HASH';
+    return $decoded;
+}
+
+# Create each missing component of the target's parent dir symlink-safely
+# (per-level `-d && !-l`, mirroring the hook's ensure_state_dir). $root is trusted
+# (find_git_root); only the CWF-owned components below it are created.
+sub ensure_parent {
+    my ($root) = @_;
+    my $base = $root;
+    for my $comp (qw(.cwf tool-check bash)) {
+        $base = "$base/$comp";
+        if (!-e $base) {
+            mkdir($base, 0700) or die_err("mkdir $base: $!");
+        }
+        die_err("refusing: $base is a symlink or not a directory")
+            unless -d $base && !-l $base;
+    }
+}
+
+# Atomic, symlink-safe write of $text to $file (temp + O_EXCL + rename, 0600).
+# rename replaces even a pre-planted symlink target atomically (the symlink, not
+# its referent, is replaced).
+sub atomic_write {
+    my ($file, $text) = @_;
+    die_err("refusing to write through a symlink: $file") if -l $file;
+    my $tmp = "$file.$$.tmp";
+    unlink($tmp);                                     # clear any stale/planted temp
+    sysopen(my $fh, $tmp, O_CREAT | O_EXCL | O_WRONLY, 0600)
+        or die_err("open (O_EXCL) $tmp: $!");
+    binmode($fh, ':raw');
+    print {$fh} $text        or do { unlink($tmp); die_err("write $tmp: $!") };
+    close($fh)               or do { unlink($tmp); die_err("close $tmp: $!") };
+    rename($tmp, $file)      or do { unlink($tmp); die_err("rename $tmp -> $file: $!") };
+}
+
+sub encode_settings {
+    my ($settings) = @_;
+    return JSON::PP->new->canonical->pretty->encode($settings) ;
+}
+
+# Effective active for the state echo, resolved through the SAME trusted_layers +
+# resolve_active path the hook uses — so the reported state cannot drift from what
+# the hook will actually do. Reads every layer in SOFT mode (a broken/symlinked
+# layer -> undef, never aborts this post-write echo); trusted_layers then excludes
+# the checked-in layer and orders project-local > user-global.
+sub effective_active {
+    my ($root) = @_;
+    my $home = (defined $ENV{HOME} && length $ENV{HOME}) ? $ENV{HOME} : undef;
+    my @decoded = (
+        { provenance => 'user-global',
+          decoded => (defined $home
+                        ? read_settings("$home/.cwf/tool-check/bash/settings.json", soft => 1)
+                        : undef) },
+        { provenance => 'checked-in',
+          decoded => read_settings("$root/.cwf/tool-check/bash/settings.json", soft => 1) },
+        { provenance => 'project-local',
+          decoded => read_settings("$root/.cwf/tool-check/bash/settings.local.json", soft => 1) },
+    );
+    return resolve_active(trusted_layers(\@decoded));
+}
+
+# --- subcommands ------------------------------------------------------------
+sub cmd_seed {
+    my ($root) = @_;
+    my $ci_path = "$root/.cwf/tool-check/bash/settings.json";
+    my $pl_path = "$root/.cwf/tool-check/bash/settings.local.json";
+
+    # 1) checked-in: preserving RMW, add-missing-by-id (never overwrite).
+    my $ci = read_settings($ci_path);
+    my @existing = (ref $ci->{rules} eq 'ARRAY') ? @{ $ci->{rules} } : ();
+    my ($merged, $added, $skipped) = merge_seed(\@existing, [ starter_rules() ]);
+    $ci->{rules} = $merged;
+    ensure_parent($root);
+    atomic_write($ci_path, encode_settings($ci));
+
+    # 2) THEN clear a project-local `active:false` ("seed implies on"). Ordering
+    #    is rules-first so a crash between the two writes leaves the hook still
+    #    conservatively off, never on-without-rules (re-run reconciles). Only
+    #    rewrite if there is an explicit off to clear (never create an empty file).
+    if (-e $pl_path) {
+        my $pl = read_settings($pl_path);
+        if (exists $pl->{active} && JSON::PP::is_bool($pl->{active}) && !$pl->{active}) {
+            delete $pl->{active};                     # revert to the default (on)
+            atomic_write($pl_path, encode_settings($pl));
+        }
+    }
+
+    printf "%s: seeded %d rule%s into %s (%d already present)\n",
+        $PROG, $added, ($added == 1 ? '' : 's'), $ci_path, $skipped;
+    printf "%s: tool-check effective active: %s\n",
+        $PROG, effective_active($root) ? 'yes' : 'no';
+    print  "$PROG: note — whether to COMMIT the checked-in settings is your call.\n";
+    return 0;
+}
+
+sub cmd_toggle {
+    my ($root, $want_on) = @_;
+    my $pl_path = "$root/.cwf/tool-check/bash/settings.local.json";
+    my $pl = read_settings($pl_path);
+    $pl->{active} = $want_on ? JSON::PP::true : JSON::PP::false;
+    $pl->{rules} = [] unless exists $pl->{rules};     # keep the schema shape
+    ensure_parent($root);
+    atomic_write($pl_path, encode_settings($pl));
+    printf "%s: tool-check turned %s (project-local; gitignored)\n",
+        $PROG, $want_on ? 'ON' : 'OFF';
+    printf "%s: effective active: %s\n",
+        $PROG, effective_active($root) ? 'yes' : 'no';
+    return 0;
+}
+
+# --- entry ------------------------------------------------------------------
+my $sub = shift @ARGV;
+if (!defined $sub) { usage(\*STDERR); exit 2; }
+if ($sub eq '--help' || $sub eq '-h') { usage(\*STDOUT); exit 0; }
+
+my $root = find_git_root() or die_err('not inside a git repository (no root found)');
+
+if    ($sub eq 'seed') { exit cmd_seed($root); }
+elsif ($sub eq 'on')   { exit cmd_toggle($root, 1); }
+elsif ($sub eq 'off')  { exit cmd_toggle($root, 0); }
+else {
+    print STDERR "[CWF] ERROR: $PROG: unknown subcommand '$sub'\n";
+    usage(\*STDERR);
+    exit 2;
+}

@@ -121,7 +121,7 @@
     },
     "CWF::ToolCheck" : {
       "path" : ".cwf/lib/CWF/ToolCheck.pm",
-      "sha256" : "a8071f49ba5144415279a42b9db88fb9701d41700956e59585d4a0f403521c4a"
+      "sha256" : "d66157c7cbc8488e218e3cd05a41ac99df726aa37b07ae481c99189d7a29f11a"
     },
     "CWF::Validate::Agents" : {
       "path" : ".cwf/lib/CWF/Validate/Agents.pm",
@@ -310,7 +310,7 @@
     "pretooluse-bash-tool-check" : {
       "path" : ".cwf/scripts/hooks/pretooluse-bash-tool-check",
       "permissions" : "0500",
-      "sha256" : "412d807e53971b6df0898f2f40ce8c0adc7a5b7646f103c203d0268131abe916"
+      "sha256" : "18faec015c6384e1b41eb05a5c3a2d6f03e3cbf668d36b8f7190efcca6e599e7"
     },
     "pretooluse-planning-write-guard" : {
       "path" : ".cwf/scripts/hooks/pretooluse-planning-write-guard",
@@ -366,6 +366,11 @@
       "path" : ".cwf/scripts/command-helpers/template-copier-v2.0",
       "permissions" : "0500",
       "sha256" : "fca4c9ca7bed1d1fefdd1f7b3bc13fdfb63cc6cbd2bd2bf9efee6a8c8ee180e6"
+    },
+    "tool-check-seed" : {
+      "path" : ".cwf/scripts/command-helpers/tool-check-seed",
+      "permissions" : "0500",
+      "sha256" : "367d644bca8a6e2658b73992f82143495b1ed1abf102b615dd21d6f35fbcf474"
     },
     "security-review-changeset" : {
       "path" : ".cwf/scripts/command-helpers/security-review-changeset",

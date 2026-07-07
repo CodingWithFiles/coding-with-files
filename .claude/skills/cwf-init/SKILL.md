@@ -134,10 +134,32 @@ Run, using the Bash tool:
 - This enables Unicode handling (including `@ARGV` decoding) in Perl helper
   scripts. Restart Claude Code after init so the session picks up the new env var.
 
-### 8. Commit Init Output
-- Stage all files created or modified by init:
+### 7b. Offer the Bash tool-check (opt-in, default decline)
+
+The Bash tool-check hook is registered (step 6d) but ships **inert** — no rules,
+a strict no-op. Offer to seed a small regex-only starter set that nudges the
+agent away from commands which trip Claude Code's own permission prompts (e.g.
+`sed -n 'X,Yp'`, `cat file | grep`, `find … -exec`).
+
+- Show the user this one-line summary and **ask them to confirm**. The default,
+  on any non-affirmative or unclear answer, is **decline** (leave it inert).
+- **On decline**: do nothing — continue to step 8. Nothing is written.
+- **On accept**, run, using the Bash tool:
   ```bash
-  git add implementation-guide/ .gitignore CLAUDE.md .claude/settings.json .claude/rules/
+  .cwf/scripts/command-helpers/tool-check-seed seed
+  ```
+  Relay its stdout verbatim (it writes `{root}/.cwf/tool-check/bash/settings.json`
+  and echoes the effective state). This checked-in file is a normal tracked
+  file; it is staged by the step-8 `git add` below. Turning it off later is
+  `/cwf-config tool-check off` (project-local, gitignored).
+- Non-fatal: a helper failure here must NOT abort `/cwf-init`. Relay the error
+  and continue to step 8 with tool-check left inert.
+
+### 8. Commit Init Output
+- Stage all files created or modified by init (include the tool-check settings
+  file if step 7b seeded it — it lives under `.cwf/tool-check/bash/`):
+  ```bash
+  git add implementation-guide/ .gitignore CLAUDE.md .claude/settings.json .claude/rules/ .cwf/tool-check/
   ```
 - Create the init commit now:
   ```bash

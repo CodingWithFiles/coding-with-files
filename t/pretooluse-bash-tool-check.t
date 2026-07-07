@@ -58,6 +58,19 @@ sub write_layer {
     close $fh;
 }
 
+# Write a settings file with an optional top-level `active` plus rules. $active:
+# undef -> omit the key; a JSON::PP boolean -> real JSON true/false; any other
+# scalar (e.g. the string 'false') -> encoded as-is (to exercise DK2 coercion).
+sub write_settings {
+    my ($path, $active, @rules) = @_;
+    make_path(dirname($path));
+    my %s = (rules => [ @rules ]);
+    $s{active} = $active if defined $active;
+    open(my $fh, '>:raw', $path) or die "write $path: $!";
+    print $fh JSON::PP->new->encode(\%s);
+    close $fh;
+}
+
 # Run the hook with cwd at the repo root, $HOME + $TMPDIR pinned into the
 # tempdir. Returns ($exit, $stdout, $stderr). %opt: timeout => N wraps the call
 # in an external `timeout N`; args => '--check' passes argv.
@@ -299,6 +312,136 @@ subtest 'TC-15: --check lists dropped checked-in perl, overrides, effective set'
     print $cf '{ not json'; close $cf;
     my ($e2) = run_hook($tmp, $hook, '', args => '--check');
     isnt($e2, 0, '--check exits non-zero when a layer fails to parse');
+};
+
+# ----- TC-H1: live active toggle (AC1) --------------------------------------
+subtest 'TC-H1: active:false allows a would-deny cmd; flip to true -> deny' => sub {
+    plan tests => 2;
+    my ($tmp, $hook) = mkrepo();
+    my $p = "$tmp/.cwf/tool-check/bash/settings.local.json";
+    my $cmd = "sed -n '1,5p' file";
+
+    write_settings($p, JSON::PP::false, $SED_RULE);
+    my (undef, $off) = run_hook($tmp, $hook, payload(command => $cmd, session_id => 'h1'));
+    is($off, '', 'active:false -> the matching command is allowed (empty stdout)');
+
+    # Flip the file only; no process/hook restart — the next call re-reads it.
+    write_settings($p, JSON::PP::true, $SED_RULE);
+    my (undef, $on) = run_hook($tmp, $hook, payload(command => $cmd, session_id => 'h1b'));
+    like($on, qr/"permissionDecision":"deny"/, 'active:true -> denies, no restart needed');
+};
+
+# ----- TC-H2: active:true with zero rules -> allow --------------------------
+subtest 'TC-H2: active:true but no rules -> strict no-op allow' => sub {
+    plan tests => 2;
+    my ($tmp, $hook) = mkrepo();
+    write_settings("$tmp/.cwf/tool-check/bash/settings.local.json", JSON::PP::true);
+    my ($e, $o) = run_hook($tmp, $hook,
+        payload(command => "sed -n '1,5p' file", session_id => 'h2'));
+    is($e, 0, 'exit 0');
+    is($o, '', 'no rules -> allow even with active:true');
+};
+
+# ----- TC-H3: fail-open still holds with an active key present (AC2) ---------
+subtest 'TC-H3: active-bearing settings that are empty/symlinked -> allow' => sub {
+    plan tests => 2;
+    # {} with no rules -> allow (nothing to match).
+    {
+        my ($tmp, $hook) = mkrepo();
+        my $p = "$tmp/.cwf/tool-check/bash/settings.local.json";
+        make_path(dirname($p));
+        open(my $fh, '>:raw', $p) or die $!; print $fh '{}'; close $fh;
+        my ($e, $o) = run_hook($tmp, $hook,
+            payload(command => "sed -n '1,5p' f", session_id => 'h3a'));
+        is("$e/$o", '0/', 'empty-object settings -> allow');
+    }
+    # A symlinked project-local layer -> error state -> contributes nothing.
+    {
+        my ($tmp, $hook) = mkrepo();
+        my $real = "$tmp/real.json"; write_settings($real, JSON::PP::true, $SED_RULE);
+        my $p = "$tmp/.cwf/tool-check/bash/settings.local.json";
+        make_path(dirname($p)); symlink($real, $p);
+        my ($e, $o) = run_hook($tmp, $hook,
+            payload(command => "sed -n '1,5p' f", session_id => 'h3b'));
+        is("$e/$o", '0/', 'symlinked active-bearing layer -> ignored -> allow');
+    }
+};
+
+# ----- TC-H4: trusted precedence — project-local off beats user-global (AC7) -
+subtest 'TC-H4: user-global active:true+rules, project-local active:false -> off' => sub {
+    plan tests => 1;
+    my ($tmp, $hook) = mkrepo();
+    write_settings("$tmp/home/.cwf/tool-check/bash/settings.json", JSON::PP::true, $SED_RULE);
+    write_settings("$tmp/.cwf/tool-check/bash/settings.local.json", JSON::PP::false);
+    my (undef, $o) = run_hook($tmp, $hook,
+        payload(command => "sed -n '1,5p' f", session_id => 'h4'));
+    is($o, '', 'project-local active:false overrides user-global active:true -> allow');
+};
+
+# ----- TC-H5: checked-in active:false is IGNORED (DK1 clone-suppression) -----
+subtest 'TC-H5: user-global rules active; a checked-in active:false -> still deny' => sub {
+    plan tests => 1;
+    my ($tmp, $hook) = mkrepo();
+    write_layer("$tmp/home/.cwf/tool-check/bash/settings.json", $SED_RULE);  # active default true
+    write_settings("$tmp/.cwf/tool-check/bash/settings.json", JSON::PP::false, $SED_RULE);
+    my (undef, $o) = run_hook($tmp, $hook,
+        payload(command => "sed -n '1,5p' f", session_id => 'h5'));
+    like($o, qr/"permissionDecision":"deny"/,
+        'a cloned checked-in active:false cannot silence the user-global rule');
+};
+
+# ----- TC-H6: F2 documented degradation -------------------------------------
+subtest 'TC-H6: an active:false project-local corrupted -> falls through to deny' => sub {
+    plan tests => 2;
+    my ($tmp, $hook) = mkrepo();
+    write_layer("$tmp/home/.cwf/tool-check/bash/settings.json", $SED_RULE);  # active rule source
+    my $p = "$tmp/.cwf/tool-check/bash/settings.local.json";
+    write_settings($p, JSON::PP::false);
+    my (undef, $off) = run_hook($tmp, $hook,
+        payload(command => "sed -n '1,5p' f", session_id => 'h6a'));
+    is($off, '', 'while valid, active:false suppresses the deny');
+
+    open(my $cf, '>:raw', $p) or die $!; print $cf '{ not json'; close $cf;
+    my (undef, $on) = run_hook($tmp, $hook,
+        payload(command => "sed -n '1,5p' f", session_id => 'h6b'));
+    like($on, qr/"permissionDecision":"deny"/,
+        'corrupted kill-switch -> error layer skipped -> default true -> deny (deny-safe)');
+};
+
+# ----- TC-H7: kill-switch short-circuits BEFORE any perl compile (NFR1) ------
+subtest 'TC-H7: active:false -> a would-compile perl rule is never compiled' => sub {
+    plan tests => 3;
+    my ($tmp, $hook) = mkrepo();
+    my $p = "$tmp/.cwf/tool-check/bash/settings.local.json";
+    my $sentinel = "$tmp/compiled.d";
+    # A perl rule whose BEGIN{} makes a sentinel dir AT COMPILE TIME (mkdir is
+    # unambiguous inside a JSON-embedded string). If the match loop is ever
+    # reached, compile_perl runs the BEGIN and the sentinel appears.
+    my $body = 'sub { BEGIN { mkdir "' . $sentinel . '" } 1 }';
+    my $rule = { id => 'compile-probe', perl => $body, guidance => 'g' };
+
+    write_settings($p, JSON::PP::false, $rule);   # project-local (perl honoured), but OFF
+    run_hook($tmp, $hook, payload(command => 'anything', session_id => 'h7a'));
+    ok(!-d $sentinel, 'active:false short-circuits before compile -> BEGIN never ran');
+
+    write_settings($p, JSON::PP::true, $rule);     # positive control: now it compiles
+    run_hook($tmp, $hook, payload(command => 'anything', session_id => 'h7b'));
+    ok(-d $sentinel, 'active:true -> the rule IS compiled (sentinel proves the probe works)');
+    ok(1, 'short-circuit ordering confirmed against a live positive control');
+};
+
+# ----- TC-H8: --check "Effective active" matches; checked-in active shown ----
+subtest 'TC-H8: --check reports effective active and ignores checked-in active' => sub {
+    plan tests => 3;
+    my ($tmp, $hook) = mkrepo();
+    write_layer("$tmp/home/.cwf/tool-check/bash/settings.json", $SED_RULE); # user-global, no active key
+    write_settings("$tmp/.cwf/tool-check/bash/settings.json", JSON::PP::false, $SED_RULE); # checked-in false
+    my ($e, $o) = run_hook($tmp, $hook, '', args => '--check');
+    is($e, 0, '--check exits 0');
+    like($o, qr/Effective active:\s+yes/,
+        'checked-in active:false is ignored; user-global default keeps it effective-yes');
+    like($o, qr/checked-in\s+\S+\s+active=false\s+.*\(active ignored\)/,
+        'per-layer line shows the checked-in active value and marks it ignored');
 };
 
 done_testing();

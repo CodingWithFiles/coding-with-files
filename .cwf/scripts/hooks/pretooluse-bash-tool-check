@@ -52,7 +52,8 @@ use Digest::SHA qw(sha256_hex);
 use Time::HiRes ();
 use Fcntl qw(O_CREAT O_EXCL O_WRONLY);
 use CWF::Common qw(find_git_root);
-use CWF::ToolCheck qw(load_layer merge_rules compile_perl rule_matches decide_repeat);
+use CWF::ToolCheck qw(load_layer merge_rules compile_perl rule_matches decide_repeat
+                      resolve_active trusted_layers);
 
 # Best-effort in-process wall-clock bound around compile+match. The GUARANTEED
 # bound is the registration `timeout => 5` SIGKILL from cwf-claude-settings-merge
@@ -93,20 +94,30 @@ sub read_layer_file {
     return ($json, 'ok');
 }
 
-# Load + merge the live layers for $root. Returns ($merged_arrayref, \@notes),
-# where each note is { provenance, path, state }. The checked-in `perl` drop
-# happens inside load_layer (provenance-keyed).
+# Load + merge the live layers for $root. Returns
+# ($merged_arrayref, \@notes, \@decoded), where each note is
+# { provenance, path, state } and each @decoded entry is
+# { provenance, decoded } — both in low -> high precedence order, from the SAME
+# single read pass (no second stat/read; protects NFR1). @decoded carries the raw
+# parsed HASH (or undef on absent/error) so the caller can resolve the top-level
+# `active` kill-switch without re-reading. The checked-in `perl` drop happens
+# inside load_layer (provenance-keyed).
 sub load_merged {
     my ($root) = @_;
-    my (@layers, @notes);
+    my (@layers, @notes, @decoded);
     for my $spec (layer_paths($root)) {
         my ($prov, $path) = @$spec;
         my ($decoded, $state) = read_layer_file($path);
-        push @notes,  { provenance => $prov, path => $path, state => $state };
-        push @layers, load_layer($decoded, $prov);   # undef decoded -> []
+        push @notes,   { provenance => $prov, path => $path, state => $state };
+        push @decoded, { provenance => $prov, decoded => $decoded };
+        push @layers,  load_layer($decoded, $prov);   # undef decoded -> []
     }
-    return (merge_rules(\@layers), \@notes);
+    return (merge_rules(\@layers), \@notes, \@decoded);
 }
+
+# The kill-switch trust boundary (project-local > user-global; checked-in
+# excluded) lives in CWF::ToolCheck::trusted_layers — single-sourced there and
+# imported above, so the hook and the seed helper resolve it identically.
 
 # --- repeat-state I/O -------------------------------------------------------
 # Dir: ${TMPDIR:-/tmp}/<dashified-repo-root>-tool-check/ (tmp-paths convention).
@@ -208,9 +219,13 @@ sub run_hook {
     my $sid = $data->{session_id};
     my $cwd = (defined $data->{cwd} && !ref $data->{cwd}) ? $data->{cwd} : '';
 
-    my $root      = find_git_root();
-    my ($merged)  = load_merged($root);
+    my $root = find_git_root();
+    my ($merged, undef, $decoded) = load_merged($root);
     return unless @$merged;                           # no rules -> strict no-op
+    # Global kill-switch (DK1/DK2): resolved over the TRUSTED layers only
+    # (project-local > user-global; checked-in excluded). Short-circuits BEFORE
+    # any compile/match — an `active:false` costs nothing beyond the one read.
+    return unless resolve_active(trusted_layers($decoded));
 
     # Repeat-state is READ before matching and only WRITTEN after a clean
     # decision (state ordering: a mid-match SIGKILL leaves no state -> the next
@@ -266,8 +281,24 @@ sub run_check {
         push @raw, { provenance => $prov, path => $path, state => $state, decoded => $decoded };
     }
 
+    # Effective kill-switch, derived through the SAME resolve_active +
+    # trusted_layers filter as the hot path (no divergence): checked-in `active`
+    # is ignored; project-local > user-global; default true.
+    my $trusted = trusted_layers([ map { { provenance => $_->{provenance},
+                                           decoded    => $_->{decoded} } } @raw ]);
+    my $active  = resolve_active($trusted);
+
     print "CWF Bash tool-check — layer status\n";
-    printf "  %-13s  %-6s  %s\n", $_->{provenance}, $_->{state}, $_->{path} for @raw;
+    printf "  Effective active: %s\n", $active ? 'yes' : 'no (rules suppressed)';
+    for my $r (@raw) {
+        my $a = (ref $r->{decoded} eq 'HASH' && exists $r->{decoded}{active}
+                    && JSON::PP::is_bool($r->{decoded}{active}))
+              ? ($r->{decoded}{active} ? 'true' : 'false')
+              : '-';
+        my $trust = $r->{provenance} eq 'checked-in' ? ' (active ignored)' : '';
+        printf "  %-13s  %-6s  active=%-5s  %s%s\n",
+            $r->{provenance}, $r->{state}, $a, $r->{path}, $trust;
+    }
 
     my @layers = map { load_layer($_->{decoded}, $_->{provenance}) } @raw;
     my $merged = merge_rules(\@layers);

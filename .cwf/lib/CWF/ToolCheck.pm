@@ -36,8 +36,10 @@ use strict;
 use warnings;
 use utf8;
 use Exporter 'import';
+use JSON::PP ();   # is_bool — an `active` value counts only if it is a JSON boolean
 
-our @EXPORT_OK = qw(load_layer merge_rules compile_perl rule_matches decide_repeat);
+our @EXPORT_OK = qw(load_layer merge_rules compile_perl rule_matches decide_repeat
+                    resolve_active trusted_layers merge_seed);
 
 # Commands longer than this are never matched (defence-in-depth: bounds the
 # backtracking input, and refuses the truncate-to-evade vector). An over-cap
@@ -166,6 +168,69 @@ sub decide_repeat {
     return 'allow' unless $matched;
     return 'bypass' if defined $last && defined $cur && $last eq $cur;
     return 'deny';
+}
+
+# trusted_layers(\@decoded_low_to_high) -> \@trusted_decoded_high_to_low. Selects
+# the kill-switch trust boundary in ONE place (single-sourced; both the hook hot
+# path and the seed helper's state echo call this, so the boundary cannot drift).
+# @decoded_low_to_high entries are { provenance, decoded } in the layer_paths
+# order [user-global, checked-in, project-local]. Returns the two author-trusted,
+# non-clone layers' decoded objects HIGH -> LOW [project-local, user-global] — the
+# exact shape resolve_active expects. The checked-in layer is EXCLUDED: a
+# clone-travelling `active:false` must never silence a downstream user's own rules
+# (mirrors the checked-in `perl` drop). An absent/error layer (decoded undef) is
+# dropped, so resolve_active only sees layers that actually parsed.
+sub trusted_layers {
+    my ($decoded) = @_;
+    my %by_prov = map { $_->{provenance} => $_->{decoded} } @{ $decoded || [] };
+    return [ grep { defined } @by_prov{ 'project-local', 'user-global' } ];
+}
+
+# resolve_active(\@trusted_decoded_high_to_low) -> 1 | 0. The global kill-switch.
+# @trusted_decoded_high_to_low are the decoded layer HASHes the caller trusts for
+# the flag, HIGHEST precedence first — i.e. ONLY [project-local, user-global]; the
+# hook excludes the checked-in layer here (a clone-travelling `active:false` must
+# not silence a downstream user's own rules, mirroring the checked-in `perl` drop).
+# The first layer whose top-level `active` is a JSON BOOLEAN decides. Any other
+# type ("false" string, 0, null, array) or an undef/error layer is skipped — so a
+# hand-typed (Perl-truthy) `"active":"false"` can never leave the switch stuck on.
+# Default 1 when none define it: this is a kill-switch, not an enable gate, so a
+# settings file that predates the key (rules, no `active`) stays active.
+sub resolve_active {
+    my ($layers) = @_;
+    for my $decoded (@{ $layers || [] }) {
+        next unless ref $decoded eq 'HASH' && exists $decoded->{active};
+        my $v = $decoded->{active};
+        next unless JSON::PP::is_bool($v);        # only a JSON boolean counts
+        return $v ? 1 : 0;
+    }
+    return 1;
+}
+
+# merge_seed(\@existing_rules, \@starter_rules) -> (\@merged, $added, $skipped).
+# Append each starter rule whose `id` is absent from @existing; NEVER overwrite an
+# id already present (a user edit to a seeded rule survives re-seeding). Returns the
+# merged list plus the added/skipped counts (for the echo and the AC6 no-clobber
+# check). Rules-only — the caller preserves any other top-level settings keys.
+sub merge_seed {
+    my ($existing, $starter) = @_;
+    my @merged = grep { ref $_ eq 'HASH' } @{ $existing || [] };
+    my %have;
+    for my $r (@merged) {
+        my $id = $r->{id};
+        $have{$id} = 1 if defined $id && !ref $id && length $id;
+    }
+    my ($added, $skipped) = (0, 0);
+    for my $r (@{ $starter || [] }) {
+        next unless ref $r eq 'HASH';
+        my $id = $r->{id};
+        next unless defined $id && !ref $id && length $id;   # skip malformed starter
+        if ($have{$id}) { $skipped++; next; }
+        push @merged, $r;
+        $have{$id} = 1;
+        $added++;
+    }
+    return (\@merged, $added, $skipped);
 }
 
 1;
