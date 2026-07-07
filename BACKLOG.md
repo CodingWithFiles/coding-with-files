@@ -2,6 +2,53 @@
 
 Future tasks and improvements for the Coding with Files system.
 
+## Task: Task 219 cross-project friction remediation (14 seeded follow-ups)
+
+### Task-Type: feature (group — promote items individually)
+### Priority: High (R1, R2, R7 first)
+### Status: Follow-up from Task 219 (j-retrospective.md §Future Work)
+### Identified in: Task 219 f-implementation-exec.md §4
+
+Task 219 mined 601 retrospectives across 11 CwF projects plus session logs and LMM and
+produced 14 ranked, tradeoff-stated recommendations (full detail + sources in
+`implementation-guide/219-.../f-implementation-exec.md` §3/§4). Promote each into its own
+task via the normal workflow. Ordered impact-desc, effort-asc:
+
+- **R1 (feature, High)** — Seed default `security.review.max-lines-exclude-paths`
+  (`*_test.*`, generated/vendored globs, doc-only markdown) at `cwf-init`, and/or deweight
+  test+generated lines in `security-review-changeset`. Dominant finding: the cap trips on
+  test/generated/doc across 7 projects (~40 task instances). Builds on Task 218.
+- **R2 (feature, High)** — Planning/exec skills set terminal `Status` at their own
+  checkpoint commit (extend the checkpoint-commit status-update to every phase skill), so
+  the retrospective status sweep is a no-op. Status leak seen in 8 projects.
+- **R3 (feature, Med)** — Ship a consolidated shell-hygiene convention + a default Bash
+  allowlist seed (read-only/`.cwf` helpers only, never mutating verbs) + the Task-206
+  path-injection hook at `cwf-init`, so new projects inherit the ~10 avoidance rules.
+- **R4 (feature, Med)** — Add an "unresolved decisions" gate to `a-task-plan` (name every
+  open surface/mechanism/constraint) and forbid mechanism-named acceptance criteria. 6 projects.
+- **R5 (feature, Med)** — CwF upgrade runbook; fix `.cwf/version` read-tree restage;
+  document sandbox-off requirement + expect-perm-drift/`fix-security`. 5 projects.
+- **R6 (chore, Med)** — Replace the `a-task-plan` day-effort field with a complexity tier +
+  risk register (LLM-paced work makes calendar estimates noise). 4 projects.
+- **R7 (bugfix, High)** — Resolve tool-check hook paths from the git root so rules don't
+  silently skip (fail open) when cwd is a subdirectory. Security-relevant.
+- **R8 (feature, Med)** — Plan-review refinements: testing-plan contradiction check
+  (expected verdicts vs locked rules); verify-before-assert to cut false positives; REDUCE
+  weighs live-session corrections over subagent doc-citation consensus. 5 projects.
+- **R9 (feature, Med)** — Fail-closed test-DB config (never fall back to production
+  `DATABASE_URL`) + a standing test-DB wrapper. Enforces the existing "always test DB" rule
+  (a prod embeddings wipe occurred).
+- **R10 (feature, Med)** — Library/internal task-type variant with non-SaaS
+  rollout/maintenance templates (merge-to-trunk / build-gate / git-revert). 2 projects.
+- **R11 (chore, Low)** — Testing-exec read-not-script default for unchanged ≤500-line artefacts.
+- **R12 (feature, Med)** — Size-gate reviewer/agent fan-out on trivial changesets to curb
+  per-spawn re-init token overhead.
+- **R13 (chore, Low)** — Extend `plan-mechanical-check` to flag unsourced count claims
+  ("N sites", "M bytes") for plan-time re-verification.
+- **R14 (feature, Low)** — Fixture-migration helper + targeted-test/profile-first guidance.
+- **Incidental (bugfix, Low)** — Fix the `Wide character in print` UTF-8 output defect in
+  `plan-mechanical-check`/`CWF::ArtefactHelpers.pm:73` (missing `binmode`/`PERL5OPT=-CDSLA`).
+
 ## Task: plan-mechanical-check — warn on hashed path missing script-hashes.json disclosure
 
 ### Task-Type: chore
