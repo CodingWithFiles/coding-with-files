@@ -25,7 +25,7 @@ The exec-phase subagent reviews the changeset constructed by:
 .cwf/scripts/command-helpers/security-review-changeset --wf-step=<step>
 ```
 
-where `<step>` is the calling workflow step (`implementation-exec` or `testing-exec`). The helper is **agent-invoked**: run it exactly as shown, with no surrounding redirect / `wc` / `cat` / `grep` boilerplate. It writes the full changeset to a per-task `.out` file and prints one confirmation line `security-review-changeset: wrote <N> lines to <abs-path>` on stdout — the agent Reads that file rather than capturing a diff from stdout.
+where `<step>` is the calling workflow step (`implementation-exec` or `testing-exec`). The helper is **agent-invoked**: run it exactly as shown, with no surrounding redirect / `wc` / `cat` / `grep` boilerplate. It writes the full changeset to a per-task `.out` file and prints the confirmation line `security-review-changeset: wrote <N> lines to <abs-path>` on stdout — the agent Reads that file rather than capturing a diff from stdout. On an over-cap breach (exit 2) a **second** confirmation line `wrote <D> doc lines to <docs-abs-path>` follows (see § "Deferred code review (over-cap)").
 
 This helper is the **single source of truth** for changeset construction (the diff anchor, the output file, and the review cap) in CWF. Both exec SKILLs invoke the helper rather than inlining a pathspec or anchor.
 
@@ -46,9 +46,41 @@ If a user rebases their task branch onto a newer trunk mid-task, the recorded ba
 
 The full changeset is always written to the `.out` file for the subagent. Independently, the helper enforces a review cap on a **production-weighted** line count rather than the raw diff. The effective cap resolves by precedence: the `--max-lines` CLI flag > the `security.review.max-lines` key in `cwf-project.json` > the built-in default (`1000`). The exec SKILLs no longer pass `--max-lines`, so a project raises its cap by setting `security.review.max-lines` (a positive integer) rather than editing the vendored helper. A malformed value (non-positive-integer, or a non-scalar JSON type) is **fail-safe**: the helper warns (naming the key only) and degrades to `1000`, never a larger or disabled cap; a missing key or JSON `null` degrades silently. By contrast an invalid `--max-lines` CLI value stays fatal (exit 1). The production count is the sum of added+deleted lines (`git diff --numstat`) over all changed files, **minus** any path matching a `security.review.max-lines-exclude-paths` glob. Those patterns are gitignore/git pathspec globs declared in `cwf-project.json`; git's own `:(glob,exclude)` engine does the matching — the helper performs no path classification of its own and the count excludes diff context/hunk-header lines by construction. Excluded paths are still **reviewed** (emitted in the changeset) — they are only discounted from the cap count (tests, generated code, the repo's own process docs, etc.). The former key name `test-paths` is deprecated but still honoured (with a warning) when the new key is absent.
 
-Contract: when the production count exceeds the cap the helper exits `2` (the `.out` file is already written and the confirmation line already printed, so a manual reviewer can still recover the path); the exec SKILL records `**State**: error` with the helper's `cap exceeded:` reason and does not invoke the subagent. Exit `1` (any construction failure, including an uncreatable scratch dir, a `.out` write failure, or a malformed `max-lines-exclude-paths` pattern git rejects) is likewise surfaced as `error` — never silently read as an empty "no findings" changeset. An empty changeset is **not** an error: the helper writes a 0-line `.out` file, prints the confirmation with count 0, and exits `0`; the exec SKILL reads `**State**: no findings` (`no findings: empty changeset`) from the count, not from empty stdout.
+**Two discount layers.** On top of that *configurable* `max-lines-exclude-paths` list, the helper **always** discounts task-doc markdown under `directory-structure.base-path` (the `<base-path>/**/*.md` glob), independent of any configuration (Task 223). The rationale: CWF authors the a–j workflow markdown, and a consumer's cap must never be billed for CWF-authored process prose. The discount is **markdown-only** — a code file under the task-doc tree still counts (it is not a doc), which is what stops a `base-path` from becoming a whole-tree cap-bypass. The derivation is fail-safe toward *counting*: an absent, empty, or adversarial `base-path` (wildcards, `..`, absolute, `.cwf`, a trailing `/`, or a value carrying pathspec-magic) yields **no** discount, so ambiguity never widens the exclusion. A present-but-malformed value emits a one-line diagnostic (naming the key and that markdown will count as production); an absent one is silent.
+
+Contract: the cap gates the **code** portion only (docs are discounted), so exceeding it is not a hard stop on review — it defers *code* review while docs are still reviewed (Task 223, see § "Deferred code review (over-cap)"). The helper exits `2` (the full `.out` is already written and its confirmation printed) and, when `directory-structure.base-path` is valid, ALSO writes a doc-scoped `…-<step>-docs.out` and prints a second confirmation line; the exec SKILL reviews those docs and records `**State**: deferred` for the code. Exit `1` (any construction failure, including an uncreatable scratch dir, a `.out` write failure, or a malformed `max-lines-exclude-paths` pattern git rejects) is surfaced as `error` — never silently read as an empty "no findings" changeset. An empty changeset is **not** an error: the helper writes a 0-line `.out` file, prints the confirmation with count 0, and exits `0`; the exec SKILL reads `**State**: no findings` (`no findings: empty changeset`) from the count, not from empty stdout.
 
 Fail-safe direction and limitation: `security.review.max-lines-exclude-paths` defaults unset, so with no configuration there is no discount and the cap measures raw production lines (no regression for any repo). Any layout that is unconfigured or unmatched counts as *production* — the cap fires earlier, never later. Directory-based test layouts (e.g. `t/**`, `tests/**`) are covered cleanly; co-located suffix conventions (`**/*_test.go`, `**/*.spec.ts`) are expressible as globs but not exhaustively pursued. An uncovered test file is a *coverage* gap (counts as production), never an *unsafe* one. The helper (`.cwf/scripts/command-helpers/security-review-changeset`) is the source of truth for this count.
+
+**Counting basis and cap value.** The production count is `git diff --numstat` added+deleted columns — i.e. **edit-lines** (a modified line counts as one deletion + one addition), not net line growth. This is deliberate: review effort scales with lines touched, not with the file's final length. The built-in cap is `1000` production edit-lines (raised from `500` in Task 221). That threshold is **calibrated observationally** from real changeset sizes across CWF-using projects — this repo dog-foods it and downstream adopters exercise it — rather than from a one-off synthetic study; because the cap is a config knob (`security.review.max-lines`), a project that finds the default too tight or too loose adjusts it without editing the vendored helper, and that lived experience is what informs future default changes.
+
+### Deferred code review (over-cap)
+
+Single source of truth for the exit-2 deferred path, referenced by both exec SKILLs (`cwf-implementation-exec` and `cwf-testing-exec`) so the two do not drift. The cap gates **code**, not docs — so an over-cap breach reviews the docs now and defers only the code.
+
+On exit 2 the helper emits a **second** confirmation line and (when `directory-structure.base-path` is valid) a doc-scoped `…-<step>-docs.out`:
+
+```
+security-review-changeset: wrote <D> doc lines to <docs-abs-path>
+```
+
+`<D>` is the raw diff-line count of the base-path markdown, the same basis as the primary `<N>` line — so `D == 0` reliably means an empty doc diff. The SKILL parses this line and branches:
+
+- **line present, `D` > 0** — review the docs: run the phase's reviewers (five for implementation-exec, security-only + best-practice for testing-exec) with `{changeset_file}` = `<docs-abs-path>`.
+- **line present, `D` == 0** — configured base-path, but this changeset touched no task-doc markdown: record the review sections `no findings` (`no findings: no docs to review`); no agents.
+- **line ABSENT** — `base-path` was absent, empty, or adversarial, so docs could not be separated from code and already counted toward the cap: record the review sections `no findings` (`no findings: docs not separable — base-path unconfigured`); no agents. This is deliberately **distinct** from the `D == 0` message — a missing line must never be mislabelled "no docs".
+
+In every case the SKILL ALSO appends a dedicated section for the deferred code:
+
+```
+## Changeset Review — Code (Deferred)
+
+**State**: deferred
+
+cap exceeded: <P> production lines > <cap>
+```
+
+`**State**: deferred` is a first-class, skill-authored State (not a classifier token — the classifier's `no findings|findings|error` set is unchanged). It exists so a State-keyed reader sees the deferral structurally rather than mistaking an absent code review for a pass. The remedy is to split the task into a smaller changeset (the code is reviewed once under the cap), not to raise the cap to make the signal disappear.
 
 ## Threat categories
 

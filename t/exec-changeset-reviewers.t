@@ -228,4 +228,53 @@ subtest 'TC-10: cwf-manage validate clean for the new agents' => sub {
     }
 };
 
+# ---------------------------------------------------------------------------
+# Task 223: the over-cap deferred-docs contract. Both exec SKILLs review docs
+# on exit 2 (never record it as a flat error) and emit a first-class
+# `**State**: deferred` code-review section; security-review.md is the DRY home.
+# ---------------------------------------------------------------------------
+my $SECREVIEW = "$ROOT/.cwf/docs/skills/security-review.md";
+my $HELPER223 = "$ROOT/.cwf/scripts/command-helpers/security-review-changeset";
+
+subtest 'TC-223-A: impl-exec Step 8 exit-2 defers code, reviews docs' => sub {
+    my $txt = slurp($IMPL_EXEC);
+    my ($step8) = $txt =~ /(\*\*Step 8.*?)\*\*Step 9\*\*/s;
+    ok($step8, 'Step 8 region located');
+    like($step8, qr/## Changeset Review — Code \(Deferred\)/,
+         'emits the deferred code-review section heading');
+    like($step8, qr/\*\*State\*\*: deferred/, 'carries the first-class deferred State');
+    like($step8, qr/docs not separable/, 'distinguishes docs-not-separable from no-docs');
+    like($step8, qr/wrote <D> doc lines/, 'parses the second (doc) confirmation line');
+    unlike($step8, qr/exit 2.{0,80}record those same four sections as `error`/s,
+           'exit 2 is no longer recorded as a flat error/no-agents');
+};
+
+subtest 'TC-223-B: testing-exec Step 8 exit-2 defers code, reviews docs' => sub {
+    my $txt = slurp($TEST_EXEC);
+    my ($step8) = $txt =~ /(\*\*Step 8.*?)\*\*Step 9\*\*/s;
+    ok($step8, 'Step 8 region located');
+    like($step8, qr/## Changeset Review — Code \(Deferred\)/, 'deferred section heading present');
+    like($step8, qr/\*\*State\*\*: deferred/, 'first-class deferred State present');
+    unlike($step8, qr/exit 2.{0,80}record `## Security Review` `error`/s,
+           'exit 2 is no longer a flat error');
+};
+
+subtest 'TC-223-C: security-review.md owns the shared deferred contract' => sub {
+    my $txt = slurp($SECREVIEW);
+    like($txt, qr/### Deferred code review \(over-cap\)/, 'shared section present (DRY home)');
+    like($txt, qr/wrote <D> doc lines to <docs-abs-path>/, 'documents the doc confirmation line');
+    like($txt, qr/\*\*State\*\*: deferred/, 'documents the deferred State');
+};
+
+# TC-223-D (AC4): the now-false "one/exactly-one confirmation line" self-contract
+# is gone from every surface (helper header + POD, both skills, the doc).
+subtest 'TC-223-D: no stale "one confirmation line" wording anywhere' => sub {
+    for my $path ($HELPER223, $IMPL_EXEC, $TEST_EXEC, $SECREVIEW) {
+        my $txt = slurp($path);
+        (my $short = $path) =~ s{.*/}{};
+        unlike($txt, qr/exactly one confirmation line/, "$short: no 'exactly one confirmation line'");
+        unlike($txt, qr/prints one confirmation line/, "$short: no 'prints one confirmation line'");
+    }
+};
+
 done_testing();

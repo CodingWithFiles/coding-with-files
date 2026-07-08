@@ -29,7 +29,7 @@
     "violation-logging": false,
     "planning-write-guard": "off"
   },
-  "_security-review-note": "Paths discounted from the security.review.max-lines production-line cap only — every path here is still fully reviewed; the cap gates review invocation, not content. Defaults cover common test/generated/vendored/doc-only layouts; edit for your project. NOTE: markdown (*.md, docs/**/*.md) is the primary prompt-injection carrier — it is discounted from the cap by default, so a large adversarial-markdown changeset stays under the cap (still fully reviewed). Drop those two entries if you want prose volume to count. See .cwf/docs/skills/security-review.md.",
+  "_security-review-note": "Paths discounted from the security.review.max-lines production-line cap only — every path here is still fully reviewed; the cap gates review invocation, not content. Defaults cover common test/generated/vendored/doc-only layouts; edit for your project. NOTE: markdown (*.md, docs/**/*.md) is the primary prompt-injection carrier — it is discounted from the cap by default, so a large adversarial-markdown changeset stays under the cap (still fully reviewed). Drop those two entries if you want prose volume to count. Separately and ALWAYS-ON (independent of this list), task-doc markdown under directory-structure.base-path is discounted too, and on an over-cap breach it is reviewed on its own while code review is deferred — so docs are never left unreviewed. See .cwf/docs/skills/security-review.md.",
   "security": {
     "review": {
       "max-lines-exclude-paths": [

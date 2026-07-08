@@ -2,6 +2,38 @@
 
 All notable changes to the Coding with Files (CWF) project are documented in this file, organized by task.
 
+## Task 223: always review docs regardless of the line cap
+
+### Status: Complete (2026-07-08)
+### Duration: feature phases a–j in one session; estimate 1–2 days, within estimate (surface shrank below plan).
+### Impact: Reframed the security-review cap to gate the **code** portion of a changeset only. Two entangled fixes surfaced by an external consumer (gate-to-breakout-tech task 67, on an older CWF but reproducing the residual gap on current main): (FR1) task-doc markdown under `directory-structure.base-path` is now discounted from the production count **always-on** for any consumer with no per-project config — a consumer's cap must never be billed for CWF-authored a–j process prose; (FR2, the user's headline requirement) on an over-cap breach the helper writes a doc-scoped `…-<step>-docs.out` and the exec skills **review the docs anyway** while recording code review as a first-class `**State**: deferred` — replacing the old "cap exceeded → launch no agents" that left plan/design/test docs unreviewed. Reviewing the plan docs is the cheapest, highest-value review; adapting a doc before code is written beats fixing it after. **No new runtime engine** (Improvements reviewer: strong reuse): the discount rides git's `:(glob,exclude)` pathspec machinery, the doc artefact reuses `capture_git`/`atomic_write_text`/numstat, and the existing `exit 2` contract is extended (a second confirmation line + doc `.out`) rather than a new exit code minted — so an old skill + new helper (ignores the extra line) and a new skill + old helper (no doc line → takes the "docs not separable" path) both degrade safely. The new `doc_pathspec()` reads the real kebab key `directory-structure.base-path` (deliberately **not** template-copier-v2.1:194's snake_case accessor, a latent bug now backlogged) and is fail-safe **toward counting**: a positive charset allowlist `\A[A-Za-z0-9._/-]+\z` (`\A…\z` **not** `^…$` — `$` matches before a trailing newline, a porous-anchor validator hole caught in design review and confirmed at impl) plus explicit rejections of `.`/`./`, leading `./`, trailing `/`, `//`, `..`, absolute, and `.cwf`; every ambiguity degrades to no-discount (the stricter direction), and the discount is **markdown-only** (`<base-path>/**/*.md`) so code under the task-doc tree still counts — a base-path can never become a whole-tree cap-bypass, and `.cwf` security docs are never discounted (a hard test assertion). Design confirmed the SubagentStop verdict guard and exec templates are **non-consumers** of `exit 2` (guard name-matches the security reviewer; templates carry no exit-2 wording), shrinking the surface to 1 helper + 2 exec skills + `security-review.md` (the DRY home for the shared deferred contract) + the template `_security-review-note` + 2 test files. FR3 folded in the backlog cap item: the counting basis is documented as numstat **edit-lines** (already true), and the cap value (1000, Task 221) is now stated to be **calibrated observationally from real-world usage** across CWF projects — the empirical finding-rate study was deferred to that lived signal by explicit user decision (superseded, not pending), since the cap is a config knob. The feature dog-fooded itself: the f/g changeset counted 211 production lines because the task's own a–j markdown was discounted by the very mechanism being shipped. `security-review-changeset` sha256 refreshed in the same commit (only hash-tracked file changed; perms stay 0500); one unrelated pre-existing permission drift on `stop-stale-status-detector` clamped fix-on-sight. TC-223-1..6 (helper) + TC-223-A..D (skill contract) added; full suite `Files=76, Tests=1008, PASS`; `cwf-manage validate` OK. All 7 changeset reviews (5 at f, 2 at g) clean bar one accepted advisory — the config-read triplication, already backlogged as a Very Low chore. Backlogged: the template-copier snake_case latent bug and the shared cached config read.
+
+### Retired Backlog Items
+#### Revisit the security-review line cap: quantitative basis and edit-lines counting
+
+Revisits the security-review line cap (500, set in Task 123, applied across
+`.cwf/docs/skills/security-review.md` and the exec-phase skills) on two entangled axes.
+Task 168 has since added production-weighting plus `max-lines-exclude-paths` (test files
+excluded by default), so this item folds in that progress; the residual is the
+counting-basis decision and the empirical threshold. Out of scope: changing the subagent
+prompt itself.
+
+1. Quantitative basis. The value is qualitatively justified (large changesets exceed the
+   subagent's effective review window) but no empirical evidence backs 500 vs 250 vs 1000;
+   Task 127's 2166-line changeset blew the cap and required a manual approval workflow.
+   Pick 5-10 representative changesets at varying sizes (250 / 500 / 1000 / 2000), run the
+   security-review subagent on each, record finding-rate, false-positive-rate, runtime, and
+   self-reported coverage; plot finding-rate-per-line and runtime against changeset size;
+   set the cap from data and document the methodology in `security-review.md`.
+
+2. Counting basis. The cap counts production-weighted diff lines; an earlier framing
+   (Task 143) noted that total-diff counting includes hunk headers, file headers, and
+   context, and that edit-lines (`grep -cE '^[+-]'` excluding `+++`/`---`) is closer to the
+   context-window-protection intent. Decide between counting edit-lines only, raising the
+   cap, or splitting into warn / hard-stop thresholds.
+
+<!-- Note: Folded into Task 223 FR3. Counting basis resolved: numstat = added+deleted edit-lines (already true), now documented in security-review.md; the warn/hard-stop split is expressed as graceful degradation (over-cap reviews docs, defers code). Empirical threshold study (axis 1) superseded by observational real-world calibration across CWF projects (user decision): the cap is a config knob, so lived usage informs the default rather than a synthetic finding-rate study. -->
+
 ## Task 222: phase skills set own terminal status at checkpoint
 
 ### Status: Complete (2026-07-08)

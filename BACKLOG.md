@@ -1586,33 +1586,6 @@ settled. Low risk — findings are advisory and never gate the workflow.
    source is unreadable; (c) the planning plan-review column and the exec changeset
    reviewer emit sensible findings.
 
-## Task: Revisit the security-review line cap: quantitative basis and edit-lines counting
-
-### Task-Type: chore
-### Priority: Medium
-### Identified in: Tasks 127, 143 retrospectives; consolidated in Task 212 backlog audit
-
-Revisits the security-review line cap (500, set in Task 123, applied across
-`.cwf/docs/skills/security-review.md` and the exec-phase skills) on two entangled axes.
-Task 168 has since added production-weighting plus `max-lines-exclude-paths` (test files
-excluded by default), so this item folds in that progress; the residual is the
-counting-basis decision and the empirical threshold. Out of scope: changing the subagent
-prompt itself.
-
-1. Quantitative basis. The value is qualitatively justified (large changesets exceed the
-   subagent's effective review window) but no empirical evidence backs 500 vs 250 vs 1000;
-   Task 127's 2166-line changeset blew the cap and required a manual approval workflow.
-   Pick 5-10 representative changesets at varying sizes (250 / 500 / 1000 / 2000), run the
-   security-review subagent on each, record finding-rate, false-positive-rate, runtime, and
-   self-reported coverage; plot finding-rate-per-line and runtime against changeset size;
-   set the cap from data and document the methodology in `security-review.md`.
-
-2. Counting basis. The cap counts production-weighted diff lines; an earlier framing
-   (Task 143) noted that total-diff counting includes hunk headers, file headers, and
-   context, and that edit-lines (`grep -cE '^[+-]'` excluding `+++`/`---`) is closer to the
-   context-window-protection intent. Decide between counting edit-lines only, raising the
-   cap, or splitting into warn / hard-stop thresholds.
-
 ## Task: Branding cleanup: CWF to CwF rebrand and retire residual CIG naming
 
 ### Task-Type: chore
@@ -1664,3 +1637,19 @@ Keep the `active-tags` union escape hatch for users who genuinely want a tag alw
 ### Identified in: Task 222 retrospective (j-retrospective.md)
 
 With phases a–i all Finished and only j outstanding, `workflow-manager status <n> --workflow` reported the task aggregate as 25%. The per-phase percentages are correct (each 100%) but the roll-up weighting is unintuitive and could mislead a status sweep into thinking a near-complete task is barely started. Investigate the aggregation in the status roll-up (likely primary-path weighting), confirm intended semantics, and either fix the weighting or document why it reads this way. Correctness-of-display only; no functional impact. Identified in Task 222 retrospective.
+
+## Task: template-copier reads snake_case directory_structure.base_path (latent bug)
+
+### Task-Type: bugfix
+### Priority: Low
+### Identified in: Task 223
+
+template-copier-v2.1:194 reads $config->{directory_structure}{base_path}, but the config key is the kebab-case directory-structure.base-path. It never matches, so a project with a non-default base-path silently gets the implementation-guide default. Task 223 added doc_pathspec() which reads the correct kebab key; the copier remains on the wrong one. Fix: read the kebab key (and consider a shared accessor).
+
+## Task: Shared cached config read in security-review-changeset
+
+### Task-Type: chore
+### Priority: Very Low
+### Identified in: Task 223
+
+The helper now has three independent CWF::Versioning::read_config() sites (max_lines_exclude_paths, config_max_lines, doc_pathspec) plus the fallback-anchor path. A single memoised/cached read would remove the duplication. Out of scope for Task 223 (each site is already eval-guarded and correct).

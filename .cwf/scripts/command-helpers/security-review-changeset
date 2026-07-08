@@ -33,13 +33,17 @@
 #   default. The helper computes a production-weighted
 #   line count: added+deleted lines (git diff --numstat) over the included files,
 #   minus any path matching a `security.review.max-lines-exclude-paths` pattern
-#   from cwf-project.json. Those patterns are gitignore/git pathspec globs,
-#   applied by git's own :(glob,exclude) engine — no Perl-side path matching.
-#   Default unset => no excludes => count == raw production lines. If the
-#   production count exceeds the cap, the helper exits 2 (the .out file is
-#   already written and the confirmation already printed). Unconfigured /
-#   unmatched layouts count as production, so the cap fires earlier, never
-#   later; a malformed pattern makes git fatal => capture_git exits 1.
+#   from cwf-project.json, minus task-doc markdown under
+#   `directory-structure.base-path` (discounted always-on, Task 223 — CWF
+#   authors that prose; a consumer's cap must not be billed for it). Those
+#   patterns are gitignore/git pathspec globs, applied by git's own
+#   :(glob,exclude) engine — no Perl-side path matching. Default unset => only
+#   the base-path markdown discount applies. Because docs are discounted, the
+#   cap gates the CODE portion only: on breach the helper exits 2 but ALSO
+#   writes a doc-scoped .out + second confirmation line (see Output) so the exec
+#   skill still reviews the docs and defers code review. Unconfigured / unmatched
+#   layouts count as production, so the cap fires earlier, never later; a
+#   malformed pattern makes git fatal => capture_git exits 1.
 #
 # Agent contract:
 #   This helper is designed to be run by an agent, invoked exactly as
@@ -61,8 +65,12 @@
 #           ${TMPDIR:-/tmp}/cwf<dashified-abs-main-root>/task-<num>/security-review-changeset-<step>.out
 #           (mode 0600; parent and task-<num> leaf created mkdir 0700 on first use).
 #           The agent Reads this file. An empty changeset still writes a 0-line file.
-#   stdout: exactly one confirmation line —
+#   stdout: one confirmation line —
 #           `security-review-changeset: wrote <N> lines to <abs-path>`.
+#           On a cap breach (exit 2) with a valid directory-structure.base-path,
+#           a SECOND line follows — `wrote <D> doc lines to <docs-abs-path>` —
+#           and a doc-scoped `…-<step>-docs.out` is written (Task 223): the cap
+#           gates code only, so the exec skill reviews the docs and defers code.
 #   stderr: one-line summary
 #           `reviewed N files, M lines (P production), anchor=<sha7>`,
 #           with optional `, includes uncommitted` suffix when the working
@@ -77,8 +85,10 @@
 #   1 error (missing/invalid --wf-step, unparseable branch, task not found,
 #     malformed trunk, invalid --max-lines, uncreatable scratch dir, .out
 #     write failure, malformed max-lines-exclude-paths pattern, etc.)
-#   2 production-weighted line count exceeds --max-lines (.out file written +
-#     confirmation printed before exit)
+#   2 production-weighted (code) line count exceeds --max-lines (the full .out
+#     file + confirmation are already written; on a valid base-path a doc-scoped
+#     `…-<step>-docs.out` + second confirmation line are ALSO written first, so
+#     the exec skill reviews the docs and records code review as deferred)
 
 use strict;
 use warnings;
@@ -295,14 +305,23 @@ eval { atomic_write_text($out, $diff, mode => 0600); 1 } or do {
     exit 1;
 };
 
-# The whole agent-facing contract: one confirmation line on stdout. No diff is
-# ever written to stdout (the agent Reads the .out file).
+# The primary confirmation line on stdout (a cap breach adds a second, doc-scoped
+# line below — Task 223). No diff is ever written to stdout (the agent Reads the
+# .out file).
 print "$PROG: wrote $line_count lines to $out\n";
 
 # Production-weighted count: added+deleted lines over the included files,
 # minus any path matching a consumer-declared exclude glob. Git owns the
 # matching (:(glob,exclude) magic pathspecs) — no Perl path classification.
-my @exclude = max_lines_exclude_paths();
+#
+# FR1 (Task 223): task-doc markdown under directory-structure.base-path is
+# ALSO discounted always-on (unioned with the configurable excludes above).
+# Derive the pathspec ONCE — one read_config, one guard pass, one diagnostic at
+# most — and reuse the hashref for both the cap count here and the deferred doc
+# diff below (all five reviewers), so the discounted set and the reviewed set
+# provably derive from the same read. undef => no discount (docs count).
+my $doc = doc_pathspec();
+my @exclude = (max_lines_exclude_paths(), (defined $doc ? $doc->{exclude} : ()));
 my $production = count_production_lines($anchor, \@included, \@exclude);
 
 warn sprintf("reviewed %d files, %d lines (%d production), anchor=%s%s\n",
@@ -316,6 +335,30 @@ if ($opt{verbose}) {
 # exit 2. max_lines now always defined (default 1000) — no `defined` guard.
 if ($production > $opt{max_lines}) {
     warn "cap exceeded: $production production lines > $opt{max_lines}\n";
+    # FR2 (Task 223): the cap gates CODE only — docs are always reviewed. When
+    # base-path yielded a valid pathspec, write a doc-scoped artefact and print
+    # a second confirmation line the exec skill keys on to review the docs while
+    # deferring code review. The diff runs inside the still-active intent-to-add
+    # window (above), so untracked task markdown is captured. <D> is the raw
+    # diff-line count (tr/\n//), the SAME basis as the primary <N> line — so
+    # D==0 reliably means an empty doc diff. Distinguishing contract:
+    #   $doc defined  => ALWAYS print the line (D>=0): configured; the skill can
+    #                    tell "0 docs in this changeset" from a missing line.
+    #   $doc undef    => print NO doc line: base-path absent/adversarial, docs
+    #                    were not separable and already counted toward the cap.
+    # A failing doc diff makes capture_git exit 1 (safe collapse exit-2->exit-1;
+    # do not rescue it into a pass).
+    if (defined $doc) {
+        my $doc_diff = capture_git('diff', "$anchor", '--', $doc->{include});
+        $doc_diff .= "\n" if length $doc_diff && $doc_diff !~ /\n\z/;
+        my $doc_lines = ($doc_diff =~ tr/\n//);
+        my $doc_out = "$scratch/security-review-changeset-$opt{wf_step}-docs.out";
+        eval { atomic_write_text($doc_out, $doc_diff, mode => 0600); 1 } or do {
+            warn "$PROG: cannot write $doc_out: $@";
+            exit 1;
+        };
+        print "$PROG: wrote $doc_lines doc lines to $doc_out\n";
+    }
     exit 2;
 }
 exit 0;
@@ -353,13 +396,18 @@ Options:
 Output:
   Writes the full diff to
     \${TMPDIR:-/tmp}/cwf<dashified-abs-main-root>/task-<num>/security-review-changeset-<step>.out
-  and prints one confirmation line to stdout:
+  and prints a confirmation line to stdout:
     $PROG: wrote <N> lines to <abs-path>
+  On a cap breach (exit 2) with a valid directory-structure.base-path, a second
+  line follows and a doc-scoped -docs.out is also written first:
+    $PROG: wrote <D> doc lines to <docs-abs-path>
 
 Exit codes:
   0  Changeset written (may be empty — a 0-line .out file is still written).
   1  Error.
-  2  Production-weighted line count exceeds --max-lines (.out written first).
+  2  Production-weighted (code) line count exceeds --max-lines (.out written
+     first; a doc-scoped -docs.out + second confirmation line are also written
+     when directory-structure.base-path is valid, so docs stay reviewable).
 USAGE
 }
 
@@ -575,6 +623,67 @@ sub max_lines_exclude_paths {
         push @excludes, ":(glob,exclude)$p";
     }
     return @excludes;
+}
+
+# ---------------------------------------------------------------------------
+# Derive the task-doc markdown pathspec from directory-structure.base-path
+# (Task 223). CWF authors the a-j workflow markdown under this tree, so it is
+# ALWAYS discounted from the production cap (a consumer's cap must never be
+# billed for CWF-authored process prose) AND, on an over-cap breach, reviewed
+# on its own artefact — docs are never left unreviewed just because the code
+# is large.
+#
+# Returns a context-safe hashref carrying BOTH pathspec forms, derived from ONE
+# config read so the cap-excluded set (FR1) and the reviewed set (FR2) are
+# identical by construction:
+#   { exclude => ':(glob,exclude)<bp>/**/*.md', include => ':(glob)<bp>/**/*.md' }
+# or a bare `return;` (fail-safe) when base-path is absent/empty/adversarial.
+#
+# Fail-safe is toward COUNTING (no exclude): over-exclusion is the dangerous
+# failure — a wildcard base-path like `**` would discount ALL markdown, a
+# cap-bypass — so every ambiguity fails toward the stricter direction. The
+# discount is markdown-ONLY, never the whole tree: a code file under the
+# task-doc tree still counts (it is not a doc). The positive charset allowlist
+# blocks git pathspec-magic (`* ? [ ] ( ) : ,`) that would expand the exclude;
+# `\A..\z` NOT `^..$` — `$` matches before a trailing newline, so `^..$` would
+# admit "docs-tree\n" (a porous-anchor hole in a security guard). Uses the same
+# kebab key the config actually stores (`directory-structure.base-path`); do NOT
+# copy template-copier-v2.1's snake_case accessor (it never matches, latent bug).
+# Absent/empty => silent fail-safe; present-but-malformed => a STDERR diagnostic
+# (which key, the rejected value, that counting-as-production is the fallback).
+# ---------------------------------------------------------------------------
+sub doc_pathspec {
+    my $cfg = eval {
+        require CWF::Versioning;
+        CWF::Versioning::read_config();
+    };
+    return unless $cfg && ref $cfg eq 'HASH';
+    my $ds = $cfg->{'directory-structure'};
+    return unless ref $ds eq 'HASH';
+    my $bp = $ds->{'base-path'};
+    return unless defined $bp && !ref $bp;   # missing/JSON-null/non-scalar => silent
+    return if $bp eq '';                      # empty => silent fail-safe
+
+    # Present but rejected => name the reason, then fail toward counting.
+    my $bad;
+    if    ($bp !~ m{\A[A-Za-z0-9._/-]+\z})       { $bad = 'contains disallowed characters' }
+    elsif ($bp eq '.' || $bp eq './')            { $bad = 'resolves to the repo root' }
+    elsif ($bp =~ m{\A\./})                      { $bad = 'has a leading ./' }
+    elsif ($bp =~ m{/\z})                        { $bad = 'has a trailing /' }
+    elsif ($bp =~ m{//})                         { $bad = 'contains //' }
+    elsif ($bp =~ m{(?:\A|/)\.\.(?:/|\z)})       { $bad = 'contains ..' }
+    elsif ($bp =~ m{\A/})                        { $bad = 'is absolute' }
+    elsif ($bp eq '.cwf' || $bp =~ m{\A\.cwf/})  { $bad = 'names or is under .cwf' }
+    if (defined $bad) {
+        warn "$PROG: warning: directory-structure.base-path '$bp' $bad; "
+           . "task-doc markdown counts as production (not discounted)\n";
+        return;
+    }
+
+    return {
+        exclude => ":(glob,exclude)$bp/**/*.md",
+        include => ":(glob)$bp/**/*.md",
+    };
 }
 
 # ---------------------------------------------------------------------------

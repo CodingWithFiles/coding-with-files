@@ -57,7 +57,11 @@ Two independent reviewers assess the exec changeset: the **security** reviewer (
    - **exit 0, count > 0**: a security agent will be launched in the MAP, `{changeset_file}` = the `<abs-path>`.
    - **exit 0, count 0**: record `## Security Review` `no findings` (`no findings: empty changeset`); no security agent.
    - **exit 0 but no parseable confirmation line**: record `## Security Review` `error` (`error: changeset helper produced no parseable confirmation line`); no security agent.
-   - **exit 2** (cap exceeded): record `## Security Review` `error` (`error: <the helper's `cap exceeded:` stderr line>`); no security agent.
+   - **exit 2** (cap exceeded — the CODE portion is over the cap; **docs are always reviewed**, Task 223): follow the deferred-docs contract in `.cwf/docs/skills/security-review.md` § "Deferred code review (over-cap)". Parse the helper's SECOND confirmation line, `security-review-changeset: wrote <D> doc lines to <docs-abs-path>`:
+     - **doc line present, `D` > 0**: launch the security agent on the docs — `{changeset_file}` = `<docs-abs-path>`.
+     - **doc line present, `D` == 0**: record `## Security Review` `no findings` (`no findings: no docs to review`); no security agent.
+     - **doc line ABSENT**: record `## Security Review` `no findings` (`no findings: docs not separable — base-path unconfigured`); no security agent. Do **not** read this as "no docs".
+     - **In ALL three cases** ALSO append a dedicated `## Changeset Review — Code (Deferred)` section carrying `**State**: deferred` and the helper's `cap exceeded: <P> production lines > <cap>` stderr line as the detail — code review is deferred, never silently passed.
    - **any other non-zero**: record `## Security Review` `error` (`error: changeset construction failed (<helper stderr>)`); no security agent.
    - **Regardless of exit code**: surface any stderr `warning:` line (e.g. the deprecated `security.review.test-paths` key) to the user verbatim and note it under `## Security Review`.
 
@@ -68,7 +72,7 @@ Two independent reviewers assess the exec changeset: the **security** reviewer (
    Capture stdout/stderr/exit. It prints `best-practice-resolve: wrote <N> matched entries to <abs-path>`. Branch on the **exit code first**, then the count, to decide the **Best-Practice verdict-or-agent**:
    - **exit 1**: record `## Best-Practice Review` `error` (`error: best-practice-resolve failed (<helper stderr>)`); no bp agent (a broken config must never read as clean).
    - **exit 0, count 0**: record `## Best-Practice Review` `no findings` (`no findings: no applicable best practices`); no bp agent.
-   - **exit 0, count ≥1**: a bp agent will be launched **iff** helper #1 produced a usable changeset (exit 0, count > 0) — `{changeset_file}` = that `.out`, `{bp_context_file}` = this resolver's `<abs-path>`. If there is no changeset to review, record `## Best-Practice Review` `no findings` (`no findings: no changeset to review`); no bp agent.
+   - **exit 0, count ≥1**: a bp agent will be launched **iff** helper #1 produced a usable changeset — either an exit-0 changeset (count > 0) OR, on an exit-2 breach, a deferred doc `.out` with `D` > 0 (Task 223: the docs are reviewed, so best-practice reviews them too). `{changeset_file}` = whichever applies, `{bp_context_file}` = this resolver's `<abs-path>`. If there is no changeset to review (empty exit-0 changeset, or an over-cap breach with no doc line or `D` == 0), record `## Best-Practice Review` `no findings` (`no findings: no changeset to review`); no bp agent.
    - **Regardless of exit code**: surface any stderr `warning:` line verbatim and note it under `## Best-Practice Review`.
 
 **MAP (launch in parallel)**: in ONE message, issue the Agent calls for whichever reviewers the Prep selected (0, 1, or 2 calls):

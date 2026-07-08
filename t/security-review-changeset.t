@@ -161,6 +161,11 @@ sub run_helper_raw {
     if ($stdout =~ /^security-review-changeset: wrote \d+ lines to (.+)$/m) {
         push @CLEANUP_OUT, $1;
     }
+    # Task 223: an over-cap run also writes a doc-scoped .out in the same leaf.
+    # Queue it for cleanup so the leaf rmdir succeeds.
+    if ($stdout =~ /^security-review-changeset: wrote \d+ doc lines to (.+)$/m) {
+        push @CLEANUP_OUT, $1;
+    }
     return ($stdout, $stderr // '', $rc);
 }
 
@@ -189,6 +194,49 @@ sub confirm_count {
     return undef unless defined $stdout
         && $stdout =~ /^security-review-changeset: wrote (\d+) lines to /m;
     return $1;
+}
+
+# Task 223: the doc-scoped confirmation line emitted on an over-cap breach when
+# directory-structure.base-path is valid (undef when absent — the "docs not
+# separable" signal the exec skill distinguishes from a present 0-count line).
+sub doc_out_path {
+    my ($stdout) = @_;
+    return undef unless defined $stdout
+        && $stdout =~ /^security-review-changeset: wrote \d+ doc lines to (.+)$/m;
+    return $1;
+}
+sub doc_confirm_count {
+    my ($stdout) = @_;
+    return undef unless defined $stdout
+        && $stdout =~ /^security-review-changeset: wrote (\d+) doc lines to /m;
+    return $1;
+}
+
+# Read the doc-scoped changeset (Task 223). '' when no doc .out was produced.
+sub doc_changeset_of {
+    my ($stdout) = @_;
+    my $p = doc_out_path($stdout);
+    return '' unless defined $p && -e $p;
+    open my $fh, '<:raw', $p or die "open $p: $!";
+    local $/;
+    my $c = <$fh>;
+    close $fh;
+    return $c // '';
+}
+
+# A cap-repo config carrying a directory-structure.base-path (Task 223). The
+# base-path is included only when passed (so callers can model an ABSENT key).
+# Deliberately NO seeded max-lines-exclude-paths unless the caller supplies one
+# — the base-path markdown discount under test must not be masked by this repo's
+# real excludes (test-isolation, misalignment F2).
+sub cfg_basepath {
+    my (%o) = @_;
+    my %cfg = ( versioning => { major_minor => 'v1.0' } );
+    $cfg{'directory-structure'} = { 'base-path' => $o{base_path} }
+        if exists $o{base_path};
+    $cfg{security} = { review => { 'max-lines-exclude-paths' => $o{exclude} } }
+        if $o{exclude};
+    return JSON::PP->new->canonical->encode(\%cfg);
 }
 
 # Read the changeset the helper wrote (the new diff destination). Returns ''
@@ -1927,6 +1975,168 @@ subtest 'TC-SEED-GUARDRAIL: no seeded glob excludes a security-relevant path (li
     is(scalar @hits, 0,
        'seeded globs discount no .cwf/{scripts,hooks,security,docs} or cwf-project.json path')
         or diag("guardrail breach:\n" . join("\n", @hits));
+};
+
+# ===========================================================================
+# Always-review-docs-regardless-of-line-cap — Task 223
+#
+# directory-structure.base-path markdown is discounted from the production cap
+# always-on (FR1) and, on an over-cap breach, written to a doc-scoped .out for
+# review while code review is deferred (FR2). Each case writes its OWN config
+# with a NON-default base-path and no overlapping seeded excludes, so the
+# discount under test is observable and never masked (test-isolation).
+# ===========================================================================
+
+# TC-223-1 (AC1a): markdown under a non-default base-path is discounted.
+subtest 'TC-223-1: base-path markdown is discounted from the cap' => sub {
+    my ($repo) = make_cap_repo(config_json => cfg_basepath(base_path => 'docs-tree'));
+    make_path("$repo/docs-tree");
+    make_path("$repo/.cwf/scripts");
+    write_script("$repo/docs-tree/guide.md", 300);   # discounted prose
+    write_script("$repo/.cwf/scripts/small", 3);      # 3 production lines
+    git_in($repo, 'add', '.');
+    git_in($repo, 'commit', '-q', '-m', 'prose + small code');
+
+    my ($out, $err, $rc) = run_helper($repo, '--max-lines=100');
+    is($rc, 0, 'exit 0 — 300 lines of base-path markdown discounted, code under cap');
+    unlike($err, qr{cap exceeded}, 'no breach: prose volume does not trip the cap');
+    like(changeset_of($out), qr{docs-tree/guide\.md},
+         'the discounted markdown is still fully REVIEWED (present in the .out)');
+};
+
+# TC-223-2 (AC1/security): a CODE file under the task-doc tree still counts —
+# proves the discount is markdown-scoped, not whole-tree (no cap-bypass).
+subtest 'TC-223-2: code under base-path still counts (markdown-scoped, not tree)' => sub {
+    my ($repo) = make_cap_repo(config_json => cfg_basepath(base_path => 'docs-tree'));
+    make_path("$repo/docs-tree");
+    write_script("$repo/docs-tree/tool.pl", 60);   # code UNDER the doc tree
+    git_in($repo, 'add', '.');
+    git_in($repo, 'commit', '-q', '-m', 'code under doc tree');
+
+    my ($out, $err, $rc) = run_helper($repo, '--max-lines=10');
+    is($rc, 2, 'exit 2 — a .pl under base-path is NOT discounted (markdown-only)');
+    like($err, qr{cap exceeded: \d+ production lines > 10}, 'breach names the count');
+};
+
+# TC-223-3 (AC2, HARD): base-path=.cwf is REJECTED, so CWF's own security-doc
+# markdown is never discounted. The control that stops base-path from turning
+# into a discount of .cwf security docs.
+subtest 'TC-223-3: base-path=.cwf rejected → .cwf markdown never discounted' => sub {
+    my ($repo) = make_cap_repo(config_json => cfg_basepath(base_path => '.cwf'));
+    make_path("$repo/.cwf/docs");
+    write_script("$repo/.cwf/docs/threat-model.md", 60);   # would-be-discounted
+    git_in($repo, 'add', '.');
+    git_in($repo, 'commit', '-q', '-m', 'cwf security doc');
+
+    my ($out, $err, $rc) = run_helper($repo, '--max-lines=10');
+    is($rc, 2, 'exit 2 — .cwf markdown counts as production (base-path guard rejects .cwf)');
+    like($err, qr{directory-structure\.base-path '\.cwf' names or is under \.cwf},
+         'diagnostic names the rejected .cwf base-path');
+};
+
+# TC-223-4 (AC2/AC1c): every adversarial/malformed base-path fails safe (no
+# discount). A PRESENT-but-malformed value emits a diagnostic; absent/empty is
+# silent. The "x\n" sub-case proves \A..\z anchoring (a ^..$ guard would accept
+# it silently — the diagnostic firing is the discriminator).
+subtest 'TC-223-4: adversarial base-path fails safe (no discount)' => sub {
+    my @malformed = (
+        ['.'       => qr{resolves to the repo root}],
+        ['./'      => qr{resolves to the repo root}],
+        ['content/' => qr{has a trailing /}],
+        ['./content' => qr{has a leading \./}],
+        ['../escape' => qr{contains \.\.}],
+        ['/abs'    => qr{is absolute}],
+        ['**'      => qr{contains disallowed characters}],
+        ['a*b'     => qr{contains disallowed characters}],
+        ['a,b'     => qr{contains disallowed characters}],
+        ["content\n" => qr{contains disallowed characters}],   # proves \A..\z
+    );
+    for my $case (@malformed) {
+        my ($bp, $diag_re) = @$case;
+        my ($repo) = make_cap_repo(config_json => cfg_basepath(base_path => $bp));
+        make_path("$repo/content");
+        write_script("$repo/content/big.md", 60);   # a valid base-path='content' would discount this
+        git_in($repo, 'add', '.');
+        git_in($repo, 'commit', '-q', '-m', 'markdown');
+
+        my ($out, $err, $rc) = run_helper($repo, '--max-lines=1');
+        (my $show = $bp) =~ s/\n/\\n/g;
+        is($rc, 2, "base-path '$show' → markdown counts as production (no silent discount)");
+        like($err, $diag_re, "base-path '$show' emits the fail-safe diagnostic");
+    }
+
+    # Absent and empty are SILENT fail-safes (no diagnostic).
+    for my $case (['(absent)', cfg_basepath()],
+                  ['(empty)',  cfg_basepath(base_path => '')]) {
+        my ($label, $cfg) = @$case;
+        my ($repo) = make_cap_repo(config_json => $cfg);
+        make_path("$repo/content");
+        write_script("$repo/content/big.md", 60);
+        git_in($repo, 'add', '.');
+        git_in($repo, 'commit', '-q', '-m', 'markdown');
+
+        my ($out, $err, $rc) = run_helper($repo, '--max-lines=1');
+        is($rc, 2, "base-path $label → markdown still counts (fail-safe)");
+        unlike($err, qr{directory-structure\.base-path},
+               "base-path $label is silent (no diagnostic)");
+    }
+};
+
+# TC-223-5 (AC3a): an over-cap breach writes a doc-scoped .out containing ONLY
+# the base-path markdown diff, prints a second confirmation line (D>0), and still
+# exits 2 with the cap-exceeded stderr. The full .out remains code+docs.
+subtest 'TC-223-5: over-cap breach writes the deferred doc artefact' => sub {
+    my ($repo) = make_cap_repo(config_json => cfg_basepath(base_path => 'docs-tree'));
+    make_path("$repo/docs-tree");
+    make_path("$repo/.cwf/scripts");
+    write_script("$repo/docs-tree/design.md", 40);   # discounted, but reviewed on the doc .out
+    write_script("$repo/.cwf/scripts/big", 60);       # 60 production lines > cap
+    git_in($repo, 'add', '.');
+    git_in($repo, 'commit', '-q', '-m', 'big code + docs');
+
+    my ($out, $err, $rc) = run_helper($repo, '--max-lines=10');
+    is($rc, 2, 'exit 2 — code over cap (docs discounted)');
+    like($err, qr{cap exceeded: \d+ production lines > 10}, 'stderr still carries the code breach');
+    like($out, qr{^security-review-changeset: wrote \d+ lines to }m, 'primary confirmation line present');
+
+    my $dp = doc_out_path($out);
+    ok(defined $dp, 'a second, doc-scoped confirmation line is printed');
+    like($dp, qr{/security-review-changeset-implementation-exec-docs\.out$},
+         'doc .out carries the -docs suffix');
+    cmp_ok(doc_confirm_count($out), '>', 0, 'reported doc-line count is > 0');
+    is(((stat($dp))[2] & 07777), 0600, 'doc .out mode is 0600 (no world-read widening)');
+
+    my $dc = doc_changeset_of($out);
+    like($dc, qr{docs-tree/design\.md}, 'doc .out contains the base-path markdown diff');
+    unlike($dc, qr{\.cwf/scripts/big}, 'doc .out excludes the code (docs-only)');
+};
+
+# TC-223-6 (AC2c/robustness F1): the doc line PRESENT-with-0 (configured, no
+# docs in this changeset) is distinguishable on the wire from ABSENT (base-path
+# unconfigured → docs not separable). The exec skill keys off this distinction.
+subtest 'TC-223-6: present-0 doc line vs absent doc line are distinguishable' => sub {
+    # (a) valid base-path, over-cap code, NO markdown → line present, count 0.
+    my ($ra) = make_cap_repo(config_json => cfg_basepath(base_path => 'docs-tree'));
+    make_path("$ra/.cwf/scripts");
+    write_script("$ra/.cwf/scripts/big", 60);
+    git_in($ra, 'add', '.');
+    git_in($ra, 'commit', '-q', '-m', 'code only, valid base-path');
+    my ($oa, $ea, $rca) = run_helper($ra, '--max-lines=10');
+    is($rca, 2, '(a) exit 2');
+    is(doc_confirm_count($oa), 0,
+       '(a) configured base-path with no doc churn → "wrote 0 doc lines" (present, zero)');
+    is(doc_changeset_of($oa), '', '(a) doc .out written but empty');
+
+    # (b) base-path unconfigured, over-cap code → NO doc line at all.
+    my ($rb) = make_cap_repo(config_json => cfg_basepath());   # no directory-structure
+    make_path("$rb/.cwf/scripts");
+    write_script("$rb/.cwf/scripts/big", 60);
+    git_in($rb, 'add', '.');
+    git_in($rb, 'commit', '-q', '-m', 'code only, no base-path');
+    my ($ob, $eb, $rcb) = run_helper($rb, '--max-lines=10');
+    is($rcb, 2, '(b) exit 2');
+    is(doc_out_path($ob), undef,
+       '(b) unconfigured base-path → NO doc line (docs not separable, not mislabelled "no docs")');
 };
 
 done_testing();
