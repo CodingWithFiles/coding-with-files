@@ -18,6 +18,7 @@ use File::Path qw(make_path);
 use FindBin;
 use Cwd qw(cwd);
 use POSIX ();
+use JSON::PP;
 
 my $HELPER = "$FindBin::Bin/../.cwf/scripts/command-helpers/security-review-changeset";
 
@@ -754,21 +755,21 @@ subtest 'TC-CAP2: large t/ diff is discounted; production stays under cap' => su
 };
 
 # ---------------------------------------------------------------------------
-# TC-CAP3: absent --max-lines now DEFAULTS to 500 (Task 182; was: no cap). A
-# sub-500 diff still passes with exit 0 and no cap message — the behaviour-
-# neutral half of the default change. The >500 (default-fires) half is
-# TC-DEFAULTCAP below.
+# TC-CAP3: absent --max-lines now DEFAULTS to 1000 (Task 182 introduced the cap;
+# Task 221 raised it from 500). A sub-1000 diff still passes with exit 0 and no
+# cap message — the behaviour-neutral half of the default change. The >1000
+# (default-fires) half is TC-DEFAULTCAP below.
 # ---------------------------------------------------------------------------
-subtest 'TC-CAP3: absent --max-lines defaults to 500; a sub-500 diff passes' => sub {
+subtest 'TC-CAP3: absent --max-lines defaults to 1000; a sub-1000 diff passes' => sub {
     my ($repo) = make_cap_repo(config_json => $CFG_NO_TESTPATHS);
 
     make_path("$repo/.cwf/scripts");
-    write_script("$repo/.cwf/scripts/huge", 200);   # 200 production lines < 500
+    write_script("$repo/.cwf/scripts/huge", 200);   # 200 production lines < 1000
     git_in($repo, 'add', '.cwf/scripts/huge');
     git_in($repo, 'commit', '-q', '-m', 'huge script');
 
     my ($out, $err, $rc) = run_helper($repo);
-    is($rc, 0, 'helper exits 0 (200 production < default cap of 500)');
+    is($rc, 0, 'helper exits 0 (200 production < default cap of 1000)');
     unlike($err, qr{cap exceeded}, 'no cap message — under the default cap');
 };
 
@@ -1021,22 +1022,45 @@ subtest 'TC-WFSTEP-ACCEPT: --wf-step=design-plan accepted; filename carries the 
 };
 
 # ---------------------------------------------------------------------------
-# TC-DEFAULTCAP (AC3): with NO --max-lines, a >500-production diff trips the
-# default cap (exit 2); an explicit large --max-lines override lets it through.
+# TC-DEFAULTCAP (AC4, Task 221): with NO --max-lines, a >1000-production diff
+# trips the default cap (exit 2); an explicit large --max-lines override lets it
+# through. Re-baselined from 500 to the raised built-in default of 1000.
 # ---------------------------------------------------------------------------
-subtest 'TC-DEFAULTCAP: default cap of 500 fires; explicit override lifts it' => sub {
+subtest 'TC-DEFAULTCAP: default cap of 1000 fires; explicit override lifts it' => sub {
     my ($repo) = make_cap_repo(config_json => $CFG_NO_TESTPATHS);
     make_path("$repo/.cwf/scripts");
-    write_script("$repo/.cwf/scripts/big", 520);   # 520 production lines > 500
+    write_script("$repo/.cwf/scripts/big", 1020);  # 1020 production lines > 1000
     git_in($repo, 'add', '.cwf/scripts/big');
     git_in($repo, 'commit', '-q', '-m', 'big script');
 
     my ($o1, $e1, $r1) = run_helper($repo);
-    is($r1, 2, 'no --max-lines: default cap of 500 fires (exit 2)');
-    like($e1, qr{cap exceeded: \d+ production lines > 500}, 'breach names the default cap of 500');
+    is($r1, 2, 'no --max-lines: default cap of 1000 fires (exit 2)');
+    like($e1, qr{cap exceeded: \d+ production lines > 1000}, 'breach names the default cap of 1000');
 
     my ($o2, $e2, $r2) = run_helper($repo, '--max-lines=100000');
     is($r2, 0, 'explicit --max-lines=100000 override lets the same diff through');
+};
+
+# ---------------------------------------------------------------------------
+# TC-CAPBOUNDARY (AC4, Task 221): pin both sides of the 1000 default boundary
+# with no flag/config — exactly 1000 passes, 1001 exits 2.
+# ---------------------------------------------------------------------------
+subtest 'TC-CAPBOUNDARY: 1000 passes, 1001 exits 2 at the default cap' => sub {
+    my ($repo_pass) = make_cap_repo(config_json => $CFG_NO_TESTPATHS);
+    make_path("$repo_pass/.cwf/scripts");
+    write_script("$repo_pass/.cwf/scripts/big", 1000);  # exactly 1000 production lines
+    git_in($repo_pass, 'add', '.cwf/scripts/big');
+    git_in($repo_pass, 'commit', '-q', '-m', 'exactly 1000');
+    my ($op, $ep, $rp) = run_helper($repo_pass);
+    is($rp, 0, 'exactly 1000 production lines passes at the default cap (exit 0)');
+
+    my ($repo_fail) = make_cap_repo(config_json => $CFG_NO_TESTPATHS);
+    make_path("$repo_fail/.cwf/scripts");
+    write_script("$repo_fail/.cwf/scripts/big", 1001);  # one over
+    git_in($repo_fail, 'add', '.cwf/scripts/big');
+    git_in($repo_fail, 'commit', '-q', '-m', 'one over 1000');
+    my ($of, $eff, $rf) = run_helper($repo_fail);
+    is($rf, 2, '1001 production lines trips the default cap (exit 2)');
 };
 
 # ---------------------------------------------------------------------------
@@ -1614,7 +1638,7 @@ subtest 'TC-209-2: char-device untracked entry (bind-mounted /dev/null) does not
 };
 
 # ===========================================================================
-# Task 218: configurable cap via security.review.max-lines (CLI // config // 500).
+# Task 218: configurable cap via security.review.max-lines (CLI // config // 1000).
 # NB: the e-testing-plan named these TC-CAP7..16, but TC-CAP7/8/9 already exist
 # for other purposes (exclude-paths pattern, unconfigured test path, deprecated
 # test-paths key). Renamed to TC-CONFIGCAP1..10 to avoid collision — same cases.
@@ -1692,16 +1716,16 @@ subtest 'TC-CONFIGCAP4: explicit --max-lines=500 beats config cap of 1000' => su
 
 # --- Fail-safe degradation (FR3) -------------------------------------------
 
-# TC-CONFIGCAP5 (plan TC-CAP11): malformed scalar → warn (key only) + degrade to 500.
-subtest 'TC-CONFIGCAP5: non-integer scalar warns and degrades to 500' => sub {
+# TC-CONFIGCAP5 (plan TC-CAP11): malformed scalar → warn (key only) + degrade to 1000.
+subtest 'TC-CONFIGCAP5: non-integer scalar warns and degrades to 1000' => sub {
     my ($repo) = make_cap_repo(config_json => cfg_maxlines('"abc"'));
     make_path("$repo/.cwf/scripts");
-    write_script("$repo/.cwf/scripts/s", 30);            # 30 < 500 default
+    write_script("$repo/.cwf/scripts/s", 30);            # 30 < 1000 default
     git_in($repo, 'add', '.cwf/scripts/s');
     git_in($repo, 'commit', '-q', '-m', 'prod');
 
     my ($out, $err, $rc) = run_helper($repo);
-    is($rc, 0, 'exit 0 — degraded to the 500 default');
+    is($rc, 0, 'exit 0 — degraded to the 1000 default');
     like($err, $WARN_RE, 'warning names the key');
     unlike($err, qr{abc}, 'the offending value is NOT echoed (no info leak)');
 };
@@ -1717,7 +1741,7 @@ subtest 'TC-CONFIGCAP6: boolean and array values warn and degrade' => sub {
         git_in($repo, 'commit', '-q', '-m', 'prod');
 
         my ($out, $err, $rc) = run_helper($repo);
-        is($rc, 0, "exit 0 — degraded to 500 (max-lines: $raw)");
+        is($rc, 0, "exit 0 — degraded to 1000 (max-lines: $raw)");
         like($err, $WARN_RE, "ref value warns (max-lines: $raw)");
     }
 };
@@ -1733,25 +1757,25 @@ subtest 'TC-CONFIGCAP7: 0, negative, and leading-zero values warn and degrade' =
         git_in($repo, 'commit', '-q', '-m', 'prod');
 
         my ($out, $err, $rc) = run_helper($repo);
-        is($rc, 0, "exit 0 — degraded to 500 (max-lines: $raw)");
+        is($rc, 0, "exit 0 — degraded to 1000 (max-lines: $raw)");
         like($err, $WARN_RE, "non-positive-integer warns (max-lines: $raw)");
     }
 };
 
 # TC-CONFIGCAP8 (plan TC-CAP14): missing key / JSON null → SILENT default (no
 # warning). Absence is not a typo. NB: plan said a ~600-line diff, but a missing
-# key degrades to 500 so 600 would exit 2 and conflate the signal; a small diff
-# isolates "silent + default" cleanly.
+# key degrades to 1000 so a >1000 diff would exit 2 and conflate the signal; a
+# small diff isolates "silent + default" cleanly.
 subtest 'TC-CONFIGCAP8: missing key and null degrade silently (no warning)' => sub {
     for my $cfg ($CFG_REVIEW_NO_MAXLINES, cfg_maxlines('null')) {
         my ($repo) = make_cap_repo(config_json => $cfg);
         make_path("$repo/.cwf/scripts");
-        write_script("$repo/.cwf/scripts/s", 30);        # < 500 default
+        write_script("$repo/.cwf/scripts/s", 30);        # < 1000 default
         git_in($repo, 'add', '.cwf/scripts/s');
         git_in($repo, 'commit', '-q', '-m', 'prod');
 
         my ($out, $err, $rc) = run_helper($repo);
-        is($rc, 0, 'exit 0 — silent 500 default');
+        is($rc, 0, 'exit 0 — silent 1000 default');
         unlike($err, $WARN_RE, 'no max-lines warning (absence ≠ typo)');
     }
 };
@@ -1784,6 +1808,125 @@ subtest 'TC-CONFIGCAP10: invalid --max-lines stays fatal despite valid config' =
     my ($out, $err, $rc) = run_helper($repo, '--max-lines=abc');
     is($rc, 1, 'bad CLI value is fatal (exit 1), not degraded to config/default');
     like($err, qr{invalid --max-lines}, 'stderr names the invalid CLI flag');
+};
+
+# ===========================================================================
+# Seeded-template exclude defaults (Task 221). These guard the ACTUAL shipped
+# template globs (loaded from the template, not hardcoded) through git's real
+# :(glob,exclude) engine — never a Perl-side approximation.
+# ===========================================================================
+
+my $TEMPLATE = "$FindBin::Bin/../.cwf/templates/cwf-project.json.template";
+
+# The seeded security.review.max-lines-exclude-paths from the shipped template.
+sub seeded_exclude_globs {
+    open my $fh, '<:raw', $TEMPLATE or die "open $TEMPLATE: $!";
+    my $raw = do { local $/; <$fh> };
+    close $fh;
+    my $cfg = decode_json($raw);
+    my $g = $cfg->{security}{review}{'max-lines-exclude-paths'};
+    return ref $g eq 'ARRAY' ? @$g : ();
+}
+
+# A cap-repo config carrying the seeded globs verbatim (no max-lines → default).
+sub cfg_seeded {
+    my @globs = seeded_exclude_globs();
+    return JSON::PP->new->canonical->encode({
+        versioning => { major_minor => 'v1.0' },
+        security   => { review => { 'max-lines-exclude-paths' => \@globs } },
+    });
+}
+
+# TC-SEED-VALID (AC4/FR4): every seeded glob is a valid git pathspec. A malformed
+# glob makes git fatal → the helper exits 1, breaking review for every new
+# project. Exercised through the real engine (run_helper → git diff --numstat).
+subtest 'TC-SEED-VALID: every seeded glob is a valid git pathspec (real engine)' => sub {
+    my @globs = seeded_exclude_globs();
+    ok(@globs > 0, 'template seeds a non-empty exclude set');
+
+    my ($repo) = make_cap_repo(config_json => cfg_seeded());
+    make_path("$repo/src");
+    write_script("$repo/src/main.js", 30);   # production, not excluded
+    git_in($repo, 'add', 'src/main.js');
+    git_in($repo, 'commit', '-q', '-m', 'prod');
+
+    my ($out, $err, $rc) = run_helper($repo);
+    isnt($rc, 1, 'no seeded glob makes git fatal (helper does not exit 1)');
+    is($rc, 0, 'small production changeset under the seeded config passes');
+    unlike($err, qr/fatal:/, 'git raised no fatal on any seeded pathspec');
+};
+
+# TC-SEED-EXCLUDE (AC1/FR1): churn confined to seeded test/generated/vendored
+# paths counts 0 production lines — proven by passing an intentionally tiny cap.
+subtest 'TC-SEED-EXCLUDE: seeded test/generated/vendored churn counts 0 production' => sub {
+    my ($repo) = make_cap_repo(config_json => cfg_seeded());
+    make_path("$repo/src");
+    make_path("$repo/vendor");
+    make_path("$repo/dist");
+    write_script("$repo/src/foo_test.js", 60);   # **/*_test.*
+    write_script("$repo/vendor/lib.go",   60);   # **/vendor/**
+    write_script("$repo/dist/app.min.js", 60);   # **/*.min.* (and **/dist/**)
+    git_in($repo, 'add', '.');
+    git_in($repo, 'commit', '-q', '-m', 'excluded churn');
+
+    # A cap of 1 fires on a single production line, so exit 0 proves count == 0.
+    my ($out, $err, $rc) = run_helper($repo, '--max-lines=1');
+    is($rc, 0, 'all churn discounted → 0 production lines, passes cap of 1');
+    unlike($err, qr{cap exceeded}, 'no cap breach on fully-excluded churn');
+};
+
+# TC-SEED-DOC (AC2/FR2): doc markdown is discounted but SCOPED — top-level *.md
+# and docs/**/*.md only, never blanket **/*.md. A markdown file in a production
+# location still counts.
+subtest 'TC-SEED-DOC: doc markdown scoped-discounted; non-doc *.md still counts' => sub {
+    # (a) top-level *.md and a top-level docs/ tree are discounted.
+    my ($r1) = make_cap_repo(config_json => cfg_seeded());
+    make_path("$r1/docs");
+    write_script("$r1/NOTES.md",      300);   # top-level *.md
+    write_script("$r1/docs/guide.md", 300);   # docs/**/*.md
+    git_in($r1, 'add', '.');
+    git_in($r1, 'commit', '-q', '-m', 'docs');
+    my ($o1, $e1, $c1) = run_helper($r1, '--max-lines=100');
+    is($c1, 0, 'top-level and docs/ markdown discounted → passes cap 100');
+
+    # (b) markdown outside a doc location still counts as production.
+    my ($r2) = make_cap_repo(config_json => cfg_seeded());
+    make_path("$r2/src");
+    write_script("$r2/src/inline.md", 150);   # NOT matched by *.md / docs/**/*.md
+    git_in($r2, 'add', '.');
+    git_in($r2, 'commit', '-q', '-m', 'inline md');
+    my ($o2, $e2, $c2) = run_helper($r2, '--max-lines=100');
+    is($c2, 2, 'src/inline.md counts as production → trips cap 100 (not blanket **/*.md)');
+};
+
+# TC-SEED-GUARDRAIL (AC3/FR3): no seeded glob discounts a security-relevant path.
+# Re-runnable against the LIVE tree (not a one-time design assertion) so future
+# drift — e.g. a new .cwf/scripts/foo_test.pl — is caught here.
+subtest 'TC-SEED-GUARDRAIL: no seeded glob excludes a security-relevant path (live tree)' => sub {
+    my @globs = seeded_exclude_globs();
+    my $root  = "$FindBin::Bin/..";
+    my @hits;
+    for my $glob (@globs) {
+        open my $gp, '-|', 'git', '-C', $root, 'ls-files', '-z', '--', ":(glob)$glob"
+            or die "git ls-files (glob=$glob): $!";
+        {
+            local $/ = "\0";
+            while (my $f = <$gp>) {
+                chomp $f;
+                next unless length $f;
+                push @hits, "$glob -> $f"
+                    if $f =~ m{^\.cwf/(?:scripts|hooks|security|docs)/}
+                    || $f =~ m{(?:^|/)cwf-project\.json$};
+            }
+        }
+        # Check the close: a non-zero git exit (e.g. an unparseable pathspec)
+        # otherwise reads as zero lines → an empty @hits → a false-PASS guardrail.
+        close $gp or die "git ls-files failed (glob=$glob): status "
+            . ($? >> 8) . "\n";
+    }
+    is(scalar @hits, 0,
+       'seeded globs discount no .cwf/{scripts,hooks,security,docs} or cwf-project.json path')
+        or diag("guardrail breach:\n" . join("\n", @hits));
 };
 
 done_testing();

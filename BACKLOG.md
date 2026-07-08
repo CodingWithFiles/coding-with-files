@@ -5,7 +5,7 @@ Future tasks and improvements for the Coding with Files system.
 ## Task: Task 219 cross-project friction remediation (14 seeded follow-ups)
 
 ### Task-Type: feature (group — promote items individually)
-### Priority: High (R1, R2, R7 first)
+### Priority: High (R2, R7 first; R1 delivered by Task 221)
 ### Status: Follow-up from Task 219 (j-retrospective.md §Future Work)
 ### Identified in: Task 219 f-implementation-exec.md §4
 
@@ -14,10 +14,12 @@ produced 14 ranked, tradeoff-stated recommendations (full detail + sources in
 `implementation-guide/219-.../f-implementation-exec.md` §3/§4). Promote each into its own
 task via the normal workflow. Ordered impact-desc, effort-asc:
 
-- **R1 (feature, High)** — Seed default `security.review.max-lines-exclude-paths`
-  (`*_test.*`, generated/vendored globs, doc-only markdown) at `cwf-init`, and/or deweight
-  test+generated lines in `security-review-changeset`. Dominant finding: the cap trips on
-  test/generated/doc across 7 projects (~40 task instances). Builds on Task 218.
+- **R1 (feature, High)** — ✅ **Delivered by Task 221.** Seeded a generic 20-glob
+  `security.review.max-lines-exclude-paths` default (`*_test.*`, generated/vendored globs,
+  scoped doc-only markdown) into the `cwf-init` config template, and raised the built-in
+  cap 500→1000. Reused Task 218's exclude engine (no new runtime code); seed reaches new
+  inits only, cap bump reaches every updating install. Dominant finding was the cap
+  tripping on test/generated/doc across 7 projects (~40 task instances).
 - **R2 (feature, High)** — Planning/exec skills set terminal `Status` at their own
   checkpoint commit (extend the checkpoint-commit status-update to every phase skill), so
   the retrospective status sweep is a no-op. Status leak seen in 8 projects.

@@ -86,7 +86,11 @@ validator will catch a mistake in them.
 - **`integration`**: tool paths (e.g. `claude-code.autoload-config`).
 - **`security`**: `canonical-source` for the install/verify origin, `file-integrity`
   globs, `review.max-lines-exclude-paths`, and `version-tracking`. (Hash enforcement
-  itself lives in `.cwf/security/script-hashes.json`, not here.)
+  itself lives in `.cwf/security/script-hashes.json`, not here.) The
+  `review.max-lines-exclude-paths` default ships **seeded** in
+  `cwf-project.json.template` (generic test/generated/vendored/doc-only globs) for
+  new projects. `review.max-lines` is **not** template-seeded — the built-in cap
+  default (1000) lives in `security-review-changeset`; set the key only to diverge.
 - **`workflow`**: `required-sections` and the `status-values` map used by status
   aggregation.
 - **`templates`**: a legacy per-type filename map. The active template source is

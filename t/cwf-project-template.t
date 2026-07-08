@@ -60,4 +60,18 @@ like($cfg->{'source-management'}{'branch-naming-convention'} // '',
     qr/\{description-slug\}/,
     'branch-naming-convention uses the {description-slug} placeholder');
 
+# TC-6 (Task 221): the security-review exclude default ships seeded. The template
+# must carry `security.review.max-lines-exclude-paths` as a non-empty array so new
+# projects inherit the generic test/generated/vendored/doc-only discount, and must
+# NOT seed `security.review.max-lines` (per design D2 — new projects inherit the
+# built-in cap default; the key is set only to diverge).
+my $review = defined $cfg ? ($cfg->{security}{review} // undef) : undef;
+is(ref $review, 'HASH', 'template carries a security.review block');
+my $excl = ref $review eq 'HASH' ? $review->{'max-lines-exclude-paths'} : undef;
+is(ref $excl, 'ARRAY', 'security.review.max-lines-exclude-paths is an array');
+ok(ref $excl eq 'ARRAY' && @$excl > 0,
+    'seeded max-lines-exclude-paths is non-empty');
+ok(ref $review ne 'HASH' || !exists $review->{'max-lines'},
+    'template does NOT seed security.review.max-lines (D2)');
+
 done_testing;

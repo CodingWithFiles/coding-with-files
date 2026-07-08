@@ -29,7 +29,7 @@
 # Production-weighted cap (--max-lines):
 #   The full diff is always written to the .out file (see Output). The effective
 #   cap resolves as --max-lines > security.review.max-lines (cwf-project.json) >
-#   built-in default (500); a malformed config value warns and degrades to the
+#   built-in default (1000); a malformed config value warns and degrades to the
 #   default. The helper computes a production-weighted
 #   line count: added+deleted lines (git diff --numstat) over the included files,
 #   minus any path matching a `security.review.max-lines-exclude-paths` pattern
@@ -97,8 +97,8 @@ my $PROG = 'security-review-changeset';
 # CLI (--max-lines) > config (security.review.max-lines) > this default.
 # Single source for the two live-code sites (the resolver and the
 # interpolating print_usage POD); the plain-# header banner cannot
-# interpolate and keeps its own hand-maintained "500" literal.
-my $DEFAULT_MAX_LINES = 500;
+# interpolate and keeps its own hand-maintained numeric literal.
+my $DEFAULT_MAX_LINES = 1000;
 
 # ---------------------------------------------------------------------------
 # Intent-to-add cleanup machinery (Task 194)
@@ -313,7 +313,7 @@ if ($opt{verbose}) {
 
 # Cap on production-weighted lines. The .out file is already written and the
 # confirmation already printed, so the caller can still recover the path on
-# exit 2. max_lines now always defined (default 500) — no `defined` guard.
+# exit 2. max_lines now always defined (default 1000) — no `defined` guard.
 if ($production > $opt{max_lines}) {
     warn "cap exceeded: $production production lines > $opt{max_lines}\n";
     exit 2;
