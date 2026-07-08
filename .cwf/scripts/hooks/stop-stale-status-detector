@@ -2,8 +2,11 @@
 #
 # stop-stale-status-detector — Stop event hook for CWF
 #
-# Detects wf files modified since last commit whose Status field
-# is still "Backlog" (template default). Emits a systemMessage warning.
+# Detects wf files modified since last commit whose Status field is stale:
+# the template default "Backlog", or any value outside the canonical status
+# set (e.g. a hand-typed "Design"/"Implemented" leak). Valid in-progress
+# statuses (In Progress, Testing) on files you are actively editing are left
+# alone. Emits a systemMessage warning.
 #
 # Fires on every agent stop (including /clear, resume, compact).
 # Must always exit 0 — non-zero causes error display to user.
@@ -14,30 +17,45 @@ use utf8;
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 
-use CWF::TaskState qw(status_get);
+use CWF::TaskState qw(status_get status_is_valid);
 
-# Always exit 0 — wrap everything in eval
-eval {
-    my @changed = `git diff HEAD --name-only -- 'implementation-guide/*/[a-j]-*.md' 2>/dev/null`;
-    chomp @changed;
-    @changed = grep { -f $_ } @changed;
+# Flag a changed phase file's status as needing attention: the template
+# default Backlog, or any non-canonical value (an invalid enum leak such as
+# Design/Requirements/Implemented). Valid in-progress values pass. Kept as a
+# named predicate so it can be unit-tested (t/status-terminality.t).
+sub is_flaggable {
+    my $status = shift // '';
+    return $status eq 'Backlog' || !status_is_valid($status);
+}
 
-    exit 0 unless @changed;
+# Only run the detector when executed directly; `do`/`require` (the test)
+# loads is_flaggable without running the git-diff scan.
+unless (caller) {
+    # Always exit 0 — wrap everything in eval
+    eval {
+        my @changed = `git diff HEAD --name-only -- 'implementation-guide/*/[a-j]-*.md' 2>/dev/null`;
+        chomp @changed;
+        @changed = grep { -f $_ } @changed;
 
-    my @stale;
-    for my $file (@changed) {
-        my $status = status_get($file);
-        push @stale, $file if $status eq 'Backlog';
-    }
+        exit 0 unless @changed;
 
-    exit 0 unless @stale;
+        my @stale;
+        for my $file (@changed) {
+            my $status = status_get($file);
+            push @stale, $file if is_flaggable($status);
+        }
 
-    # Cap at 3 files reported
-    my @display = map { m{([^/]+)$} ? $1 : $_ } @stale[0 .. ($#stale > 2 ? 2 : $#stale)];
-    my $msg = join(', ', @display);
-    $msg .= " +@{[$#stale - 2]} more" if @stale > 3;
+        exit 0 unless @stale;
 
-    print qq({"systemMessage":"\\u26a0 Stale status: $msg still Backlog"}\n);
-};
+        # Cap at 3 files reported
+        my @display = map { m{([^/]+)$} ? $1 : $_ } @stale[0 .. ($#stale > 2 ? 2 : $#stale)];
+        my $msg = join(', ', @display);
+        $msg .= " +@{[$#stale - 2]} more" if @stale > 3;
 
-exit 0;
+        print qq({"systemMessage":"\\u26a0 Stale status: $msg needs a valid status"}\n);
+    };
+
+    exit 0;
+}
+
+1;

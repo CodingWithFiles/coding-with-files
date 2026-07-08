@@ -5,7 +5,7 @@ Future tasks and improvements for the Coding with Files system.
 ## Task: Task 219 cross-project friction remediation (14 seeded follow-ups)
 
 ### Task-Type: feature (group — promote items individually)
-### Priority: High (R2, R7 first; R1 delivered by Task 221)
+### Priority: High (R7 first; R1 delivered by Task 221, R2 by Task 222)
 ### Status: Follow-up from Task 219 (j-retrospective.md §Future Work)
 ### Identified in: Task 219 f-implementation-exec.md §4
 
@@ -20,9 +20,15 @@ task via the normal workflow. Ordered impact-desc, effort-asc:
   cap 500→1000. Reused Task 218's exclude engine (no new runtime code); seed reaches new
   inits only, cap bump reaches every updating install. Dominant finding was the cap
   tripping on test/generated/doc across 7 projects (~40 task instances).
-- **R2 (feature, High)** — Planning/exec skills set terminal `Status` at their own
-  checkpoint commit (extend the checkpoint-commit status-update to every phase skill), so
-  the retrospective status sweep is a no-op. Status leak seen in 8 projects.
+- **R2 (feature, High)** — ✅ **Delivered by Task 222.** Every phase now stamps its **own**
+  wf file to a terminal `Status` at its checkpoint (a–i via `cwf-checkpoint-commit`; `j`
+  via an `&&`-chained `cwf-set-status … Finished` hard precondition), and the shipped
+  `f-implementation-exec` template's non-canonical `"Implemented"` hint was removed. Per
+  the explicit constraint the retrospective status sweep is **retained as defence-in-depth**
+  (not made a no-op — inconsistent state causes false positives in the hierarchical
+  context scripts), and the `stop-stale-status-detector` hook was strengthened to flag any
+  non-canonical status, not just `Backlog`. Reuse-only (exported `status_is_valid`); one
+  hashed-file edit. Status leak was seen in 8 projects.
 - **R3 (feature, Med)** — Ship a consolidated shell-hygiene convention + a default Bash
   allowlist seed (read-only/`.cwf` helpers only, never mutating verbs) + the Task-206
   path-injection hook at `cwf-init`, so new projects inherit the ~10 avoidance rules.
@@ -1650,3 +1656,11 @@ Design surface (why this is a feature, not a one-liner):
 - Backward-compatible default: with no content-matcher configured, preserve today's tag-union behaviour (fail-open), so existing configs keep working.
 
 Keep the `active-tags` union escape hatch for users who genuinely want a tag always on; content-triggering is the additive, opt-in refinement.
+
+## Task: workflow-manager status aggregate percentage weighting
+
+### Task-Type: bugfix
+### Priority: Low
+### Identified in: Task 222 retrospective (j-retrospective.md)
+
+With phases a–i all Finished and only j outstanding, `workflow-manager status <n> --workflow` reported the task aggregate as 25%. The per-phase percentages are correct (each 100%) but the roll-up weighting is unintuitive and could mislead a status sweep into thinking a near-complete task is barely started. Investigate the aggregation in the status roll-up (likely primary-path weighting), confirm intended semantics, and either fix the weighting or document why it reads this way. Correctness-of-display only; no functional impact. Identified in Task 222 retrospective.

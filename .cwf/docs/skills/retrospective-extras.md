@@ -26,18 +26,32 @@ Before documenting retrospective:
 
 ## Retrospective Checkpoint Commit
 
-After completing j-retrospective.md, stage the **entire task directory** and commit.
-This overrides the single-file staging in `checkpoint-commit.md` (which applies to all
-other phases) — status corrections from Step 7 must be included in this commit:
+After completing j-retrospective.md, stamp its own terminal status, then stage the
+**entire task directory** and commit. This overrides the single-file staging in
+`checkpoint-commit.md` (which applies to all other phases) — status corrections from
+Step 7 must be included in this commit.
+
+The `cwf-set-status … Finished` stamp is a **hard precondition**, `&&`-chained before
+`git add`: the other phases (a–i) reach a terminal status via `cwf-checkpoint-commit`,
+but `j` makes its own whole-directory commit, so it must stamp itself the same way. If
+the stamp exits non-zero the chain stops and **no commit is made** — a failed stamp
+must never be papered over by a green commit (the Step-7 sweep runs *before* this and
+cannot backstop it; the `stop-stale-status-detector` hook is the remaining backstop).
 
 ```bash
-git add implementation-guide/{task-dir}/
-git commit -m "Task {N}: Complete retrospective — {one-line summary}
+.cwf/scripts/command-helpers/cwf-set-status \
+    implementation-guide/{task-dir}/j-retrospective.md Finished \
+  && git add implementation-guide/{task-dir}/ \
+  && git commit -m "Task {N}: Complete retrospective — {one-line summary}
 
 <Why — what this task accomplished>
 
 Co-developed-by: Claude Sonnet 4.6 <noreply@anthropic.com>"
 ```
+
+`cwf-set-status` takes `{task-dir}` from the resolved hierarchy; if a helper ever
+executes this line instead of the operator pasting it, interpolate the slug via
+list-form `system()` per the *Maintainer note* at the end of this document.
 
 Then validate:
 

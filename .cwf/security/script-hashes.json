@@ -325,7 +325,7 @@
     "stop-stale-status-detector" : {
       "path" : ".cwf/scripts/hooks/stop-stale-status-detector",
       "permissions" : "0500",
-      "sha256" : "845f576a4ff22bcc688bbb3e7b4ec7b6fbf5efef55442677002c033ec635e543"
+      "sha256" : "2f735434f4820e0f68bd16baec8ccf3557ccd73fa3e3804eb1cd3b72e2457dab"
     },
     "stop-uncommitted-changes-warning" : {
       "path" : ".cwf/scripts/hooks/stop-uncommitted-changes-warning",

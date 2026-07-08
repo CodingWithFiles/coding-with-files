@@ -85,6 +85,17 @@ subtest 'status_get() - extract status from file' => sub {
     is(status_get('/nonexistent'), 'Unknown', 'Unknown for missing file');
 };
 
+# Test _is_closed terminal-set predicate (single source of the terminal set)
+subtest '_is_closed() - terminal status set' => sub {
+    plan tests => 5;
+
+    ok(CWF::TaskState::_is_closed('Finished'),  'Finished is terminal');
+    ok(CWF::TaskState::_is_closed('Skipped'),   'Skipped is terminal');
+    ok(CWF::TaskState::_is_closed('Cancelled'), 'Cancelled is terminal');
+    ok(!CWF::TaskState::_is_closed('Backlog'),     'Backlog is not terminal');
+    ok(!CWF::TaskState::_is_closed('In Progress'), 'In Progress is not terminal');
+};
+
 #==============================================================================
 # STATE_DONE TESTS (Retrospective - MIN Bottleneck)
 #==============================================================================
