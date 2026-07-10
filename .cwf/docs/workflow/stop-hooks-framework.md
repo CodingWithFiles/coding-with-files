@@ -161,7 +161,7 @@ The resulting `.claude/settings.json` shape is a `{matcher, hooks}` group under
     "matcher": "cwf-security-reviewer-changeset",
     "hooks": [
       { "type": "command",
-        "command": ".cwf/scripts/hooks/subagentstop-security-verdict-guard",
+        "command": "${CLAUDE_PROJECT_DIR}/.cwf/scripts/hooks/subagentstop-security-verdict-guard",
         "timeout": 5 }
     ]
   }

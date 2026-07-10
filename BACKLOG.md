@@ -5,7 +5,7 @@ Future tasks and improvements for the Coding with Files system.
 ## Task: Task 219 cross-project friction remediation (14 seeded follow-ups)
 
 ### Task-Type: feature (group — promote items individually)
-### Priority: High (R7 first; R1 delivered by Task 221, R2 by Task 222)
+### Priority: High (R1 delivered by Task 221, R2 by Task 222, R7 by Task 224; R3 partly by Task 220)
 ### Status: Follow-up from Task 219 (j-retrospective.md §Future Work)
 ### Identified in: Task 219 f-implementation-exec.md §4
 
@@ -44,8 +44,15 @@ task via the normal workflow. Ordered impact-desc, effort-asc:
   document sandbox-off requirement + expect-perm-drift/`fix-security`. 5 projects.
 - **R6 (chore, Med)** — Replace the `a-task-plan` day-effort field with a complexity tier +
   risk register (LLM-paced work makes calendar estimates noise). 4 projects.
-- **R7 (bugfix, High)** — Resolve tool-check hook paths from the git root so rules don't
-  silently skip (fail open) when cwd is a subdirectory. Security-relevant.
+- **R7 (bugfix, High)** — ✅ **Delivered by Task 224**, with a corrected premise. The stated
+  defect — hook paths resolved from cwd, so rules silently skip from a subdirectory — was
+  **already fixed by Task 204** (`d985db3`, one day after R7's evidence was recorded);
+  `find_git_root()` was never implicated. Task 224 verified this and re-aimed at the two
+  live residuals of the same class: the shipped `stop-hooks-framework.md` example still
+  taught the bare-relative (fail-open) registration, and nothing enforced the
+  `${CLAUDE_PROJECT_DIR}/` prefix, so a hand-edited `.claude/settings.json` silently
+  disabled a hook with no signal. A new `CWF::Validate::Hooks` now surfaces (never repairs)
+  any CWF hook command carrying a bare `.cwf/` reference.
 - **R8 (feature, Med)** — Plan-review refinements: testing-plan contradiction check
   (expected verdicts vs locked rules); verify-before-assert to cut false positives; REDUCE
   weighs live-session corrections over subagent doc-citation consensus. 5 projects.
@@ -1653,3 +1660,77 @@ template-copier-v2.1:194 reads $config->{directory_structure}{base_path}, but th
 ### Identified in: Task 223
 
 The helper now has three independent CWF::Versioning::read_config() sites (max_lines_exclude_paths, config_max_lines, doc_pathspec) plus the fallback-anchor path. A single memoised/cached read would remove the duplication. Out of scope for Task 223 (each site is already eval-guarded and correct).
+
+## Task: Make CwF aware that sandbox null-routing pollutes git status
+
+### Task-Type: chore
+### Priority: Medium
+### Identified in: Task 224 kickoff
+
+Sandboxes commonly "null route" sensitive config files to limit the blast radius of a
+sandboxed agent — bind-mounting `/dev/null` over a config filename/filepath (or using an
+equivalent mapping method) so the agent can neither read nor write the real file. A
+side effect is that these mapped paths surface inside the working tree, where `git status`
+reports them as untracked entries.
+
+Observed at Task 224 kickoff: `git status` in the repo root listed `.bashrc`,
+`.bash_profile`, `.profile`, `.zshrc`, `.zprofile`, `.gitconfig`, `.ripgreprc`,
+`.gitmodules`, `.idea/`, `.vscode/`, `.mcp.json`, and `.claude/{hooks,launch.json,routines,workflows}`
+as untracked. None are stray files; all are sandbox artefacts. `stat(1)` reports every one
+as a character special file, not a regular file, confirming the bind mount.
+
+CwF is currently unaware of this. Consequences:
+
+- **False positives.** The standing "run `git status` before every commit" rule makes an
+  agent inspect untracked files. Sandbox artefacts read as unexplained stray files, so the
+  agent raises a spurious warning and burns turns investigating (this happened at Task 224).
+- **Commit hazard.** A blanket `git add -A` would stage `/dev/null`-backed entries.
+- **Detection surfaces.** Any helper or skill that reasons about working-tree cleanliness
+  (checkpoint commit, status sweep, changeset diffing) may draw wrong conclusions.
+
+Scope to settle at kickoff:
+
+- Where the knowledge lives: a sandboxing limitations doc (see the pending Task-178-seeded
+  sandboxing feature decisions, which already call for an explicit advises-not-enforces
+  limitations doc) versus a standalone convention.
+- Whether the wf step skills / commit helpers should recognise and ignore null-routed
+  entries, and how to identify one reliably (stat the path; a bind-mounted `/dev/null` is a
+  character device, not a regular file — detection by content/type, not by filename, per the
+  "filenames are not classifications" rule).
+- Whether `cwf-init` should seed `.gitignore` entries, and the tradeoff: an ignore rule hides
+  a genuinely stray file of the same name, so detection-by-type is likely preferable to
+  ignore-by-name.
+- Non-goal: defeating or working around the sandbox. The mapping is a security control; CwF
+  should understand it, not route around it.
+
+## Task: Doc-drift check when a task changes an enforced shape
+
+### Task-Type: chore
+### Priority: Medium
+### Status: Follow-up from Task 224
+### Identified in: Task 224 j-retrospective.md §What Could Be Improved
+
+When a task changes a shipped behaviour or a required shape, the docs that *teach* that
+shape are not automatically part of the changeset, and nothing checks them.
+
+Task 204 fixed `cwf-claude-settings-merge` to emit `${CLAUDE_PROJECT_DIR}/`-rooted hook
+commands, but left `.cwf/docs/workflow/stop-hooks-framework.md` documenting the
+bare-relative form. That example sat wrong for roughly a year. An operator hand-registering
+a hook from it would have reproduced the exact fail-open the task had just closed. Task 224
+found it only because it went looking.
+
+This is the same class as the existing "rebrands need output-level smoke-test" rule:
+source-level correctness is not documentation correctness, and a clean grep of the code
+proves nothing about the prose.
+
+Scope to investigate:
+
+1. A plan-time prompt (or a `plan-mechanical-check` extension) that asks: does this task
+   change a shape, path, or invariant that any doc, template, or skill demonstrates? If so,
+   name the files and grep them for the old shape.
+2. Whether the check can be made mechanical for the narrow, high-value case of *registration
+   examples* — fenced JSON blocks under `.cwf/docs/` containing a `"command":` key — since
+   those are executable-shaped and drift silently.
+
+Explicit non-goal: a general documentation linter. The value is in the narrow case where a
+doc teaches a shape that code elsewhere enforces.

@@ -135,6 +135,10 @@
       "path" : ".cwf/lib/CWF/Validate/Consistency.pm",
       "sha256" : "d772d571b1949210792c0efa34b95ff507355b52d030bdc660d3df457a3f95dd"
     },
+    "CWF::Validate::Hooks" : {
+      "path" : ".cwf/lib/CWF/Validate/Hooks.pm",
+      "sha256" : "f9133ffdac546666becc8e8d5edbf1c99a1c4c233cb3527ef4bd4a1145ed93f9"
+    },
     "CWF::Validate::PerlConventions" : {
       "path" : ".cwf/lib/CWF/Validate/PerlConventions.pm",
       "sha256" : "c860622e4da5e35b5c6c28878a19517bd5c2afaecda992215470b341cb4c9538"
@@ -260,7 +264,7 @@
     "cwf-manage" : {
       "path" : ".cwf/scripts/cwf-manage",
       "permissions" : "0700",
-      "sha256" : "aa198dd59e184b863d0651660973b9c473d4a26dbafeb9ab98f8790c7de343ed"
+      "sha256" : "e4c9b4229f58855afd08b891115425f09d09a6c324e662a7e34e1f5b63ba579c"
     },
     "cwf-set-status" : {
       "path" : ".cwf/scripts/command-helpers/cwf-set-status",
