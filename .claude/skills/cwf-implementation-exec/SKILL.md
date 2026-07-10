@@ -32,6 +32,8 @@ allowed-tools:
 
 ## Workflow
 
+**Pre-Step**: Subtask gate. Run `.cwf/scripts/command-helpers/workflow-manager gate --task-path=<task-path> --phase=f`. Non-zero exit: STOP and report its message verbatim.
+
 **Steps 1-4 (Preamble)**: Read `.cwf/docs/skills/workflow-preamble.md` and follow Steps 1-4 (argument parsing, task resolution, parent context, LLM decision).
 
 **Step 5**: Read `d-implementation-plan.md` for detailed implementation steps, files to modify, and expected changes.

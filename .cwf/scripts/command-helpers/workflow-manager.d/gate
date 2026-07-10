@@ -1,0 +1,81 @@
+#!/usr/bin/env perl
+#
+# workflow-gate - Refuse a parent task's exec and later phases while any child
+#                 subtask is non-terminal
+#
+# Usage: workflow-manager gate --task-path <task-path> --phase <letter>
+#
+# Examples:
+#   workflow-manager gate --task-path=225 --phase=f
+#   workflow-manager gate --task-path=1.2 --phase=j
+#
+# Exit codes:
+#   0 - Permitted (phase is ungated, or every child subtask is terminal)
+#   1 - Invalid arguments
+#   2 - Task not found
+#   3 - Blocked: one or more child subtasks are not in a terminal status
+#
+# Output:
+#   Silent on exit 0. The refusal message goes to stderr on exit 3.
+
+use strict;
+use warnings;
+use utf8;
+use FindBin;
+use lib "$FindBin::Bin/../../../lib";
+use CWF::Common qw(check_perl5opt);
+
+check_perl5opt();
+
+use CWF::Options qw(parse);
+use CWF::SubtaskGate qw(nonterminal_children phase_is_gated format_blocked);
+
+my $spec = {
+    description => "Refuse a task's exec and later phases while a subtask is non-terminal",
+    options => [
+        { long => 'task-path', type => 'value', desc => 'Hierarchical task number (e.g., 28, 1.2, 3.1.4)' },
+        { long => 'phase', type => 'value', desc => 'Workflow phase letter (a-j)' },
+    ],
+};
+
+my $opts = parse($spec, @ARGV);
+
+unless (defined $opts->{'task-path'} && defined $opts->{'phase'}) {
+    print STDERR "Error: Missing required arguments\n";
+    print STDERR "Usage: workflow-manager gate --task-path=<task-path> --phase=<letter>\n";
+    exit 1;
+}
+
+my $task_path = $opts->{'task-path'};
+my $phase     = $opts->{'phase'};
+
+# \A and \z, not ^ and $: `$` also matches before a trailing newline, so /^[a-j]$/
+# accepts "f\n", which phase_is_gated then reports ungated — a silent fail-open.
+# /a keeps \d to ASCII; a Unicode digit is not a task path.
+# Rejected values are never echoed: they are unvalidated input, and this message
+# is read verbatim by an agent.
+unless ($task_path =~ /\A\d+(?:\.\d+)*\z/a) {
+    print STDERR "Error: Invalid task-path format\n";
+    print STDERR "Task path must be hierarchical numbers (e.g., '28', '1.2', '3.1.4')\n";
+    exit 1;
+}
+
+# An unrecognised phase is an error, never an implicit "ungated".
+unless ($phase =~ /\A[a-j]\z/) {
+    print STDERR "Error: Invalid phase\n";
+    print STDERR "Phase must be a single workflow letter (a-j)\n";
+    exit 1;
+}
+
+exit 0 unless phase_is_gated($phase);
+
+my @blocked = eval { nonterminal_children($task_path) };
+if ($@) {
+    print STDERR "Error: $@";
+    exit 2;
+}
+
+exit 0 unless @blocked;
+
+print STDERR format_blocked($task_path, $phase, \@blocked);
+exit 3;

@@ -2,6 +2,10 @@
 use strict;
 use warnings;
 use utf8;
+use FindBin;
+use lib "$FindBin::Bin/../../lib";
+use CWF::TaskPath qw(parse_branch);
+use CWF::SubtaskGate qw(nonterminal_children format_blocked);
 
 # Compute script path once at module level
 my $SCRIPT_PATH = get_script_rel_path();
@@ -24,6 +28,17 @@ sub get_current_branch {
 
 sub create_checkpoints_branch {
     my $branch = get_current_branch();
+
+    # This runs immediately before the retrospective's `git reset --soft` squash,
+    # which rewrites the base an open subtask branched from. Refuse while a child
+    # is still open. A branch that names no task (parse_branch returns ()) is left
+    # to the pre-existing behaviour.
+    my ($num) = parse_branch($branch);
+    if (defined $num) {
+        my @blocked = nonterminal_children($num);
+        die format_blocked($num, 'j', \@blocked) if @blocked;
+    }
+
     my $checkpoints_branch = "$branch-checkpoints";
 
     system("git", "branch", $checkpoints_branch);

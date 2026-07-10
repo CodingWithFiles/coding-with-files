@@ -7,6 +7,7 @@ use lib "$FindBin::Bin/../../lib";
 use File::Basename;
 use CWF::TaskPath qw(resolve);
 use CWF::TaskState qw(status_set);
+use CWF::SubtaskGate qw(nonterminal_children phase_is_gated format_blocked);
 
 my $PROG = 'cwf-checkpoint-commit';
 
@@ -17,17 +18,30 @@ unless (@ARGV == 3) {
 
 my ($task_path, $letter, $why) = @ARGV;
 
-unless ($task_path =~ /^\d+(\.\d+)*$/) {
+# \A and \z, not ^ and $: `$` also matches before a trailing newline, so /^[a-j]$/
+# would accept "f\n" from @ARGV, and phase_is_gated would then report it ungated —
+# skipping the subtask gate below. /a keeps \d to ASCII digits.
+unless ($task_path =~ /\A\d+(?:\.\d+)*\z/a) {
     warn "$PROG: invalid task path: $task_path\n";
     exit 1;
 }
-unless ($letter =~ /^[a-j]$/) {
+unless ($letter =~ /\A[a-j]\z/) {
     warn "$PROG: invalid phase letter: $letter (expected a-j)\n";
     exit 1;
 }
 
 my $task = resolve($task_path)
     or do { warn "$PROG: task not found: $task_path\n"; exit 1 };
+
+# A blocked phase must not reach status_set: recording it Finished would mark the
+# parent complete while a child is still open. A die from the gate aborts here.
+if (phase_is_gated($letter)) {
+    my @blocked = nonterminal_children($task->{num});
+    if (@blocked) {
+        warn format_blocked($task->{num}, $letter, \@blocked);
+        exit 3;
+    }
+}
 
 my @matches = glob("$task->{full_path}/$letter-*.md");
 unless (@matches == 1) {

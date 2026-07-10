@@ -12,15 +12,19 @@ Before proceeding, verify you're on the correct task branch:
 
 **Rationale**: Retrospective must run on task branch so git operations apply to correct branch before merge.
 
-## Verify Task Status (Step 7)
+## Verify Task Status (Step 6)
 
 Before documenting retrospective:
 
-1. Ensure all wf step files reflect reality — every step must be in a terminal status
+1. Confirm no subtask is still open:
+   `.cwf/scripts/command-helpers/workflow-manager gate --task-path={task_num} --phase=j`.
+   Non-zero exit: STOP and report its message verbatim. A subtask blocks its parent
+   until it is Finished, Skipped, or Cancelled.
+2. Ensure all wf step files reflect reality — every step must be in a terminal status
    (Finished, Skipped, Cancelled). Update any that don't.
-2. Run `.cwf/scripts/command-helpers/workflow-manager status {task_num} --workflow`
+3. Run `.cwf/scripts/command-helpers/workflow-manager status {task_num} --workflow`
    to confirm the overall task is at 100%.
-3. **100% is the norm.** If below 100%: identify and resolve missing work or create
+4. **100% is the norm.** If below 100%: identify and resolve missing work or create
    follow-up tasks. The user must be explicitly informed if the task cannot reach 100%
    before the retrospective proceeds.
 
@@ -31,16 +35,19 @@ After completing j-retrospective.md, stamp its own terminal status, then stage t
 `checkpoint-commit.md` (which applies to all other phases) — status corrections from
 Step 7 must be included in this commit.
 
-The `cwf-set-status … Finished` stamp is a **hard precondition**, `&&`-chained before
-`git add`: the other phases (a–i) reach a terminal status via `cwf-checkpoint-commit`,
-but `j` makes its own whole-directory commit, so it must stamp itself the same way. If
-the stamp exits non-zero the chain stops and **no commit is made** — a failed stamp
-must never be papered over by a green commit (the Step-7 sweep runs *before* this and
-cannot backstop it; the `stop-stale-status-detector` hook is the remaining backstop).
+The subtask gate and the `cwf-set-status … Finished` stamp are **hard preconditions**,
+`&&`-chained before `git add`: the other phases (a–i) reach a terminal status via
+`cwf-checkpoint-commit`, which gates itself, but `j` makes its own whole-directory
+commit, so it must gate and stamp itself the same way. If either exits non-zero the
+chain stops and **no commit is made** — a blocked retrospective must never record the
+parent as Finished while a child is open, and a failed stamp must never be papered over
+by a green commit (the Step-6 sweep runs *before* this and cannot backstop it; the
+`stop-stale-status-detector` hook is the remaining backstop).
 
 ```bash
-.cwf/scripts/command-helpers/cwf-set-status \
-    implementation-guide/{task-dir}/j-retrospective.md Finished \
+.cwf/scripts/command-helpers/workflow-manager gate --task-path={N} --phase=j \
+  && .cwf/scripts/command-helpers/cwf-set-status \
+       implementation-guide/{task-dir}/j-retrospective.md Finished \
   && git add implementation-guide/{task-dir}/ \
   && git commit -m "Task {N}: Complete retrospective — {one-line summary}
 
@@ -106,6 +113,10 @@ git add CHANGELOG.md BACKLOG.md
 ```
 
 Preserves all checkpoint commits for future reference.
+
+`create` re-runs the subtask gate itself and refuses while any child is non-terminal.
+It is the last guard before the 10.2 squash, which rewrites the very base an open
+subtask branch was cut from — stranding it on the pre-squash history.
 
 ### 10.2 Squash Commits
 

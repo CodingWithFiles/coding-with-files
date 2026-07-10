@@ -103,6 +103,10 @@
       "path" : ".cwf/lib/CWF/StatusAggregator/Core.pm",
       "sha256" : "a778f61dde2176da9d4abb25600b6568b0a04bc5e38dcba29db265e03c85830a"
     },
+    "CWF::SubtaskGate" : {
+      "path" : ".cwf/lib/CWF/SubtaskGate.pm",
+      "sha256" : "a2f91fc2272d60ce787a4309231da4fc8095e5332bf62fe1f97c8533b8f7e8dc"
+    },
     "CWF::TaskContextInference" : {
       "path" : ".cwf/lib/CWF/TaskContextInference.pm",
       "sha256" : "fc51db575411d0fd4edcbccacd9f3f10c9c8b72bacce3514fc265b7489cf7d7b"
@@ -113,7 +117,7 @@
     },
     "CWF::TaskState" : {
       "path" : ".cwf/lib/CWF/TaskState.pm",
-      "sha256" : "7d800ce080f6b374fd4316a879b1a771d865cd3a112411a5aa5ef6232bdd4f73"
+      "sha256" : "569aa4727c10cedbae8550eaaba84eac19059e69bf90f366dc5c975414ceace5"
     },
     "CWF::TemplateCopier::Core" : {
       "path" : ".cwf/lib/CWF/TemplateCopier/Core.pm",
@@ -194,7 +198,7 @@
     "checkpoints-branch-manager" : {
       "path" : ".cwf/scripts/command-helpers/checkpoints-branch-manager",
       "permissions" : "0500",
-      "sha256" : "c2564f506a13ad66db476b1b1c5ddad41616b9eab72b4e65009a041fee4d2272"
+      "sha256" : "660130229bed8fb79563f9b1314dc57b09ac0c082a33cd4cc4ede8a4da3d0bc4"
     },
     "context-inheritance-v2.0" : {
       "path" : ".cwf/scripts/command-helpers/context-inheritance-v2.0",
@@ -249,7 +253,7 @@
     "cwf-checkpoint-commit" : {
       "path" : ".cwf/scripts/command-helpers/cwf-checkpoint-commit",
       "permissions" : "0700",
-      "sha256" : "a7a6b8154021a02ec46e5ebba017c04814bed178123818ad249ecb09634e754c"
+      "sha256" : "58f9e33a9564e677c80dd760e836e366353092be9769a95566d8a55a633bfa9d"
     },
     "backlog-manager" : {
       "path" : ".cwf/scripts/command-helpers/backlog-manager",
@@ -404,12 +408,17 @@
     "workflow-manager" : {
       "path" : ".cwf/scripts/command-helpers/workflow-manager",
       "permissions" : "0500",
-      "sha256" : "f4947b75561d8c649e212bae7fbf9a176ef3279f905fdbf8dea4a87f04dae1e9"
+      "sha256" : "b9226492c3864c5761008f691f4386bd526931c920e3ed38bccab2ad48de9d85"
     },
     "workflow-manager.d/control" : {
       "path" : ".cwf/scripts/command-helpers/workflow-manager.d/control",
       "permissions" : "0500",
       "sha256" : "6b5a7219c0010c1ada308cd74c672aed8b719c51673170453e16eed47f8f16b6"
+    },
+    "workflow-manager.d/gate" : {
+      "path" : ".cwf/scripts/command-helpers/workflow-manager.d/gate",
+      "permissions" : "0500",
+      "sha256" : "7e239a4217067adede14806c66d3a14321fd871fdc4b4eb03fe38f33a70f799c"
     },
     "workflow-manager.d/status" : {
       "path" : ".cwf/scripts/command-helpers/workflow-manager.d/status",

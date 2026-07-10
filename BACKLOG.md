@@ -1734,3 +1734,62 @@ Scope to investigate:
 
 Explicit non-goal: a general documentation linter. The value is in the narrow case where a
 doc teaches a shape that code elsewhere enforces.
+
+## Task: plan-mechanical-check false-positives on path:line references
+
+### Task-Type: bugfix
+### Priority: Low
+### Identified in: Task 225 design-phase plan review (c-design-plan.md)
+
+`plan-mechanical-check` flags valid `path:line` references as broken paths.
+
+Two independent defects in the path check, both confirmed against source:
+
+1. **No `:NN` strip before the existence test.** `path_check()` strips a trailing
+   markdown anchor (`plan-mechanical-check:193`, `s/#.*$//`) but never strips a
+   trailing line-number suffix. The token `docs/conventions/design-alignment.md:46`
+   is therefore probed verbatim with `-e`, always fails, and is reported as
+   `path-advisory` even though both the file and the cited line exist.
+
+2. **Selector silently skips bare `file.ext:NN` tokens.** `extract_path_tokens()`
+   requires a `/` in the token (`plan-mechanical-check:226`,
+   `next unless $t =~ m{/}`). So `TaskState.pm:99` is never checked at all, while
+   `docs/conventions/design-alignment.md:46` is checked and false-positives. The
+   two defects mask each other: only *some* line-anchored references misfire, which
+   is why this has gone unnoticed.
+
+This matters because `path:line` is CWF's own documented cross-doc convention
+(`docs/conventions/cross-doc-references.md`) and the clickable form the harness
+expects. The checker systematically false-positives on the most idiomatic way to
+cite a location, and systematically under-checks the other idiomatic form.
+
+**Severity is bounded, deliberately.** The finding is emitted in the `path-advisory`
+tier, the helper's own preamble says findings are "a net, not a proof", and the gate
+never blocks. It is misfiring *inside* its stated contract, not breaking it. That is
+why this is Low rather than higher.
+
+**Likely fix**: strip `/:\d+$/` from the probe token alongside the existing anchor
+strip, and widen the selector so bare `file.ext:NN` references are candidates too.
+Guard against the obvious over-strip — a real path may legitimately end in a colon
+and digits — by only stripping when the residue resolves.
+
+Observed during Task 225's design-phase plan review, where the design plan's
+reference to `docs/conventions/design-alignment.md:46` was reported as a
+non-existent path. Out of scope for Task 225, which should not absorb it.
+
+## Task: Gate j-phase squash on child branch merged-ness (Finished does not imply merged)
+
+### Task-Type: bugfix
+### Priority: Medium
+### Status: Follow-up from Task 225
+### Identified in: Task 225 design phase (c-design-plan.md) and retrospective
+
+Task 225 gates exec-and-later phases on child *status* (Finished/Skipped/Cancelled). That makes the reported squash-stranding unreachable only if Finished children have actually been merged into the parent branch. A child can today be Finished and unmerged, in which case `j` still squashes the parent and rewrites the base the child branched from — the exact failure Task 225 was opened for.
+
+Scope: add a git-ancestry invariant to the `j` chokepoint (`checkpoints-branch-manager create`), asserting each Finished child branch is an ancestor of the parent tip before the `git reset --soft`.
+
+`CWF::TaskPath::parent_branch_ancestry()` (`TaskPath.pm:536`) already exists and looks like the right primitive.
+
+Open question the design must settle: policy for already-deleted child branches (a merged child whose branch was pruned has no ref to test).
+
+Rationale for deferral: the Task 225 gate is a *status* invariant, testable purely against the file tree. Merged-ness is a *git* invariant needing branch resolution, ancestry checks, and the deleted-branch policy. Bundling them would have doubled the surface and delayed the fix for the common case.

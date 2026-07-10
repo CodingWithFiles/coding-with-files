@@ -34,6 +34,8 @@ allowed-tools:
 
 **Pre-Step**: Verify git branch. Read `.cwf/docs/skills/retrospective-extras.md#verify-git-branch` — must be on task branch before proceeding.
 
+**Pre-Step**: Subtask gate. Run `.cwf/scripts/command-helpers/workflow-manager gate --task-path=<task-path> --phase=j`. Non-zero exit: STOP and report its message verbatim.
+
 **Steps 1-4 (Preamble)**: Read `.cwf/docs/skills/workflow-preamble.md` and follow Steps 1-4. Also read all task workflow files for retrospective context.
 
 **Step 5**: Read `.cwf/docs/workflow/workflow-steps/retrospective.md` for detailed retrospective guidance.

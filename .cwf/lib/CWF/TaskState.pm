@@ -17,6 +17,8 @@ our @EXPORT_OK = qw(
     status_get
     status_set
     status_is_valid
+    status_is_terminal
+    expected_files
 );
 
 our $VERSION = '1.0.0';
@@ -263,6 +265,46 @@ sub status_is_valid {
     return exists $_status_map_cache->{$status};
 }
 
+=head2 status_is_terminal($status)
+
+Returns true if C<$status> means the step is intentionally ended — Finished,
+Skipped, or Cancelled — rather than merely un-started or in flight.
+
+Terminal is not the same as complete: Cancelled maps to 0%, yet a cancelled step
+is no longer a progress bottleneck. Callers that need "is this step done with"
+must ask this rather than compare percentages.
+
+=cut
+
+sub status_is_terminal {
+    my ($status) = @_;
+    return 0 unless defined $status;
+    return ($status eq 'Finished' || $status eq 'Cancelled' || $status eq 'Skipped') ? 1 : 0;
+}
+
+=head2 expected_files($task_dir, $task_type)
+
+Returns an arrayref of the workflow filenames C<$task_dir> is expected to hold,
+detecting v2.1 by the presence of C<f-implementation-exec.md> and falling back to
+v2.0 otherwise.
+
+Single source of truth for "which files should be here". Callers that measure a
+task's completeness must agree with C<state_done> on the expected set, so they
+share this detection rather than re-deriving it.
+
+Deliberately not C<CWF::TaskPath::detect_format>, whose file-based rule is broader
+(it also accepts C<e-testing-plan.md>) and would disagree with the aggregation here.
+
+=cut
+
+sub expected_files {
+    my ($task_dir, $task_type) = @_;
+
+    return -f "$task_dir/f-implementation-exec.md"
+        ? CWF::WorkflowFiles::V21::get_workflow_files($task_type)
+        : CWF::WorkflowFiles::V20::get_workflow_files($task_type);
+}
+
 =head1 PRIVATE FUNCTIONS
 
 =cut
@@ -300,16 +342,7 @@ sub _get_all_statuses {
     my ($task_type) = $dir_name =~ /^[0-9.]+-([a-z]+)-/;
     $task_type ||= 'feature';  # Default
 
-    # Detect format (v2.1 if f-implementation-exec.md exists, otherwise v2.0)
-    my $is_v21 = -f "$task_dir/f-implementation-exec.md";
-
-    # Get workflow files for detected format
-    my $workflow_files;
-    if ($is_v21) {
-        $workflow_files = CWF::WorkflowFiles::V21::get_workflow_files($task_type);
-    } else {
-        $workflow_files = CWF::WorkflowFiles::V20::get_workflow_files($task_type);
-    }
+    my $workflow_files = expected_files($task_dir, $task_type);
 
     return () unless $workflow_files && @$workflow_files;
 
@@ -329,7 +362,7 @@ sub _get_all_statuses {
 # Check if status indicates step is intentionally ended (not a progress bottleneck)
 sub _is_closed {
     my ($status) = @_;
-    return ($status eq 'Finished' || $status eq 'Cancelled' || $status eq 'Skipped');
+    return status_is_terminal($status);
 }
 
 # Check if status indicates active work (In Progress, Testing)
