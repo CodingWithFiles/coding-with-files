@@ -50,5 +50,7 @@ allowed-tools:
 - [ ] Goals, success criteria, and milestones defined
 - [ ] Any scope change (narrowing **or** widening) or goal/why tension surfaced to the owner as a decision — not resolved silently
 - [ ] Risks identified with mitigation strategies
+- [ ] Open decisions captured — every open surface/mechanism/constraint choice is named as a question, or an explicit "None open — <justification>" is given (not a bare token)
+- [ ] Success criteria are outcome-shaped — none is named after a not-yet-chosen mechanism (see `planning.md`)
 - [ ] Decomposition check completed
 - [ ] Next steps suggested with clear reasoning

@@ -19,6 +19,9 @@
      scope change (either direction) or goal/why tension to the owner as a decision. -->
 
 ## Success Criteria
+<!-- Criteria must be outcome-shaped (observable results), never named after a
+     not-yet-chosen mechanism. See `planning.md`, "Open-decisions gate & outcome-shaped
+     criteria", for the definition and worked examples. -->
 - [ ] Criterion 1 - measurable outcome
 - [ ] Criterion 2 - measurable outcome
 - [ ] Criterion 3 - measurable outcome
@@ -49,6 +52,14 @@
 ## Constraints
 - Technical limitations and boundaries
 - Resource and timeline constraints
+
+## Open Decisions
+List every surface/mechanism/constraint choice not yet made (transport, storage, layout,
+licensing-class, …), each as a question to resolve in requirements/design. Naming ≠ choosing.
+- <open decision as a question>
+
+<!-- If genuinely none, write exactly: "None open — <one-line justification>". A bare
+     "None" is not conformant. -->
 
 ## Decomposition Check
 Review these signals to determine if this task should be broken into subtasks:
