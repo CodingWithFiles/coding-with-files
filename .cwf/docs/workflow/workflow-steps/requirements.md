@@ -15,6 +15,7 @@
 - User stories capturing user perspective
 - Acceptance criteria as testable checkpoints
 - Constraints (technical, integration, resource)
+- **Simplicity — challenge every requirement**: this is where "the best part is no part" and "reduce, reuse, recycle" apply. Test whether each requirement is *actually* needed rather than inheriting the conventional/default set — LLMs default to "the way it's always been done"; counter that. A cut that touches the task's **goal** or a user-named deliverable is not yours to make: surface it to the owner as a decision (see the goals phase), never apply it silently.
 
 **Avoid**:
 - Implementation approaches or "how" details

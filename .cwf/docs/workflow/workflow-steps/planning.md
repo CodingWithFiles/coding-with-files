@@ -4,20 +4,16 @@
 
 **Purpose**: Establish clear objectives, success criteria, and high-level approach before diving into details.
 
-**Simplicity Principles**:
+**Goal vs means**:
 
-Keeping the system simple is a core goal. Sometimes this means "don't add new features/code for the sake of adding" and can also sometimes mean "we don't need that (anymore), remove it".
+"The best part is no part" and "reduce, reuse, recycle" are first-class engineering ideals — but they apply to the **means** of achieving the goal, never to the goal itself or the deliverables the user named. In this phase you capture the goal; you do not cut it. Challenge and simplify *requirements* (the means) in the requirements and implementation phases, not here. "You can't cut your way to success" — descoping the goal is not simplification.
 
-- **"The best part is no part"**: The simplest, most reliable solution often involves removing unnecessary code or not adding it in the first place
-- **"Reduce, reuse, recycle"**: Minimise new code, leverage existing solutions, extract common patterns only when proven necessary
+**Goal ownership**:
 
-When planning, explicitly consider:
-- What can be removed or simplified?
-- What existing code/files/artifacts does this make obsolete?
-- What's the minimal solution that satisfies requirements?
+A task's goal is owner-owned and near-inviolable. Do **not** unilaterally narrow **or** expand it. If the user's explicit request is in tension with the stated "why", or a scope change (in **either** direction) looks beneficial, **loudly surface it to the owner as a decision** — never resolve it silently by editing the goal yourself.
 
 **Focus on**:
-- Single-sentence objective that captures the "why"
+- Objective capturing **both** the "why" (intent) **and** the user's explicit request — every deliverable the user named, preserved verbatim in intent; "none stated" if the request is a genuine one-liner with no named deliverables. No paraphrase that drops a named deliverable.
 - 3-5 measurable success criteria that define "done"
 - Major milestones showing progression
 - Top 3-5 risks with mitigation strategies

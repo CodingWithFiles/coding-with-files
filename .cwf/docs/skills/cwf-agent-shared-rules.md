@@ -64,3 +64,17 @@ A rule belongs here only if it satisfies BOTH:
 Single-role guidance lives in that role's own agent file. Anything
 that fails either gate belongs in the calling SKILL's prompt
 template, not here.
+
+## Goal integrity and scope changes
+
+A task's goal — the owner's intent **and** the deliverables the user
+explicitly named — is owner-owned. You may propose cutting
+**requirements** (the means of achieving the goal), but a user-stated
+goal or a named deliverable is **never a silent de-scope target**. Do
+not propose deferring, dropping, or narrowing one — and equally do not
+silently widen scope. When a scope change (in **either** direction)
+looks beneficial, or the explicit request is in tension with the stated
+"why", **surface it to the owner as a decision**; never resolve it
+yourself. Rooted in the Task-31 incident, where a lossy goal paraphrase
+let a review agent propose deferring a deliverable the user had
+specifically asked for.

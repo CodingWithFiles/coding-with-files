@@ -10,7 +10,13 @@
 - **Template Version**: 2.1
 
 ## Goal
-{{description}} - single sentence objective
+{{description}}
+
+**Why (intent):** <why this matters>
+**Explicit request:** <deliverables the user named, verbatim; "none stated" if none>
+
+<!-- The goal is owner-owned. Do not unilaterally narrow or widen it. Surface any
+     scope change (either direction) or goal/why tension to the owner as a decision. -->
 
 ## Success Criteria
 - [ ] Criterion 1 - measurable outcome

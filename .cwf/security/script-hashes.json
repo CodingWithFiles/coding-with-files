@@ -66,7 +66,7 @@
     "agent-shared-rules" : {
       "path" : ".cwf/docs/skills/cwf-agent-shared-rules.md",
       "permissions" : "0444",
-      "sha256" : "cff45fb35d6c9d4cf90f0022c6f321e5ff4ec9a666a9425c7a6dfa6a80f5f561"
+      "sha256" : "d079837a6d29fe38af83cd169ad5c7618d953c2471076be3f2d2943500582e3f"
     }
   },
   "lib" : {

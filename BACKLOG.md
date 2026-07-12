@@ -1793,3 +1793,49 @@ Scope: add a git-ancestry invariant to the `j` chokepoint (`checkpoints-branch-m
 Open question the design must settle: policy for already-deleted child branches (a merged child whose branch was pruned has no ref to test).
 
 Rationale for deferral: the Task 225 gate is a *status* invariant, testable purely against the file tree. Merged-ness is a *git* invariant needing branch resolution, ancestry checks, and the deleted-branch policy. Bundling them would have doubled the surface and delayed the fix for the common case.
+
+## Task: Refactor tmp/working-dir handling for Claude Code sandbox compatibility (inside and outside sandbox)
+
+### Task-Type: chore
+### Priority: Medium
+### Identified in: Task 225 tagging session
+
+Refactor how CwF derives and uses per-task scratch / working directories so the scheme is coherent and correct in **both** execution contexts Claude Code presents: outside the sandbox (hooks run unsandboxed, `TMPDIR` unset → `/tmp`) and inside the Bash sandbox (`TMPDIR=/tmp/claude-1000`, `/tmp` read-only except allowlisted paths). Today the handling is spread across scripts, hooks, docs and the tmp-paths convention, and the two contexts disagree on the actual path.
+
+**Root friction (Task 215, [[reference-hook-sandbox-tmpdir-asymmetry]]):** the path-injection hook runs unsandboxed and emits a path under `/tmp`, while the Bash tool runs sandboxed and can only write under `/tmp/claude-1000`. The scratch base an agent is told to use and the base it can actually write can therefore differ. Task 215 patched the hook to probe a writable base; this item is the wider cleanup that convention, scripts and docs still need.
+
+**Goal:** one canonical, single-source-of-truth derivation for the scratch path that resolves correctly regardless of sandbox state — honour `$TMPDIR` when set, fall back to `/tmp` — with every consumer (scripts, hooks, templates, docs) going through it, and the security guards intact in both contexts.
+
+**Workstreams:**
+1. Canonical path resolver — one helper/derivation that yields the right base inside and outside the sandbox; retire ad-hoc `/tmp` and bare-`$TMPDIR` assumptions at call sites (this session hit the `$TMPDIR`-lacks-project-slug trap directly).
+2. Site audit — sweep every place that builds a tmp/working path (`.cwf/scripts`, hooks, conventions, templates, skill docs) and route them through the resolver; grep a generated artefact for stale bare-`/tmp` paths (output-level smoke test, not just source grep).
+3. Guard integrity — confirm the mandatory two-level `mkdir -m 0700` guard and parent-symlink reject still hold under both contexts and both path variants.
+4. Permissions / sandbox auto-registration (the original narrow item, now one component) — optionally register the scratch dir in the host repo's per-user `.claude/settings.local.json` at install and `cwf-manage update`, across two layers:
+   - Layer 1 `permissions.additionalDirectories` — suppresses file-tool (Read/Edit/Write) prompts; a defined, tolerated schema key.
+   - Layer 2 `sandbox.filesystem.allowWrite` — grants sandboxed Bash write; the harness accepts `sandbox` though SchemaStore does not define it. The sandbox may already permit the scratch dir depending on host defaults, so Layer 2 may be unnecessary — confirm per host.
+   - Must be `settings.local.json` (per-user, gitignored), never the committed `settings.json`: the scratch path is derived from the *absolute* repo path plus `TMPDIR` prefix, so it differs per developer/machine, whereas the committed file is identical on every clone. The path cannot be made clone-stable — absolute-path derivation is the concurrent-checkout collision guarantee (two checkouts of one repo on one machine need distinct scratch dirs).
+5. Docs/convention update — fold the outcome back into `.cwf/docs/conventions/tmp-paths.md` and the CLAUDE.md summary so the canonical form documents both contexts.
+
+**Open risks / unknowns to resolve before design:**
+- Two-writer contention on `settings.local.json` — it is harness-owned (rewritten on "always allow" grants and `/sandbox` selections). CwF's existing `cwf-claude-settings-merge` targets only `settings.json`; it does not cover racing the harness on the local file. Design for idempotent re-merge, treat harness-written keys as read-only.
+- `additionalDirectories` takes concrete dirs, not globs, so both TMPDIR path variants may need enumerating.
+- Widening no-prompt writes under world-writable `/tmp` touches the tmp-paths threat model — route Layer 1/2 through the security reviewer.
+- Coupling — writing a permissions grant into a Claude Code config file couples CwF to the harness more than the Task 206 path hook does.
+
+**Empirical tests owed (before relying on any of this):**
+- Real harness behaviour for unknown keys and rewrite-on-grant in `settings.local.json`, on a throwaway copy. The earlier "an unknown key nukes the whole file" belief was traced to a stale memory and refuted against the current schema (`additionalProperties: true`; `sandbox` not even defined there). Behavioural GitHub-issue claims (#3481/#9234/#19487) remain unverified.
+- Actual writable scratch base inside vs outside the sandbox on a target host, to validate the resolver.
+
+**Payoff:** removes a recurring class of friction (wrong scratch base across the sandbox boundary, ad-hoc `/tmp` assumptions, and Write-tool permission prompts) rather than the narrow prompt-suppression the original item scoped. Judged Medium as it touches a foundational convention; not urgent, since scratch writes currently function.
+
+## Task: Fix dangling challenge-requirements cross-reference for no-requirements-phase task types
+
+### Task-Type: bugfix
+### Priority: Low
+### Identified in: Task 226 retrospective (j-retrospective.md)
+
+Task 226 fenced "best part is no part" to the means in planning.md, pointing to "the requirements and implementation phases" for the fuller challenge-every-requirement discipline. That discipline text lives only in requirements.md, which bugfix/hotfix/chore tasks lack (no b phase). The maxim itself is still stated inline in planning.md for all types, so this is a dangling cross-reference, not a broken path.
+
+Fix: either give bugfix/hotfix/chore a dedicated downstream home for the challenge-requirements discipline (e.g. in the implementation-phase docs), or soften planning.md's cross-reference so it does not point at a phase those types lack.
+
+Low priority — cosmetic doc-consistency, no functional impact.

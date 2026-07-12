@@ -32,7 +32,7 @@ allowed-tools:
 - Open a-task-plan.md (v2.1) or a-plan.md (v2.0) or plan.md (v1.0)
 - **Focus on**: Goals, success criteria, milestones, risks, decomposition signals
 - **Avoid**: Implementation details, code specifics, detailed design decisions
-- Key questions: Single-sentence objective? 3-5 measurable success criteria? Major milestones? Top 3-5 risks? Dependencies? Constraints?
+- Key questions: Does the goal capture **both** the "why" and the user's explicit request (every named deliverable, verbatim)? 3-5 measurable success criteria? Major milestones? Top 3-5 risks? Dependencies? Constraints?
 
 **Step 7**: Check decomposition signals (5 universal signals). See `.cwf/docs/workflow/decomposition-guide.md`. If 2+ triggered, strongly recommend subtasks.
 
@@ -46,7 +46,9 @@ allowed-tools:
 
 ## Success Criteria
 - [ ] Planning file opened and updated
+- [ ] Goal records **both** the "why" and the user's explicit request faithfully — every named deliverable preserved verbatim, no lossy paraphrase ("none stated" if none)
 - [ ] Goals, success criteria, and milestones defined
+- [ ] Any scope change (narrowing **or** widening) or goal/why tension surfaced to the owner as a decision — not resolved silently
 - [ ] Risks identified with mitigation strategies
 - [ ] Decomposition check completed
 - [ ] Next steps suggested with clear reasoning
