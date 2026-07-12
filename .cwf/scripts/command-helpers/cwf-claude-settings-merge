@@ -403,6 +403,29 @@ my $CANONICAL_PERL5OPT = '-CDSLA';
 # from any cwd — a bare relative `cat .cwf/...` fails-open silently off-root.
 my $CANONICAL_RULES_INJECT_CMD = 'cat "${CLAUDE_PROJECT_DIR}/.cwf/rules-inject.txt" 2>/dev/null || true';
 
+# Task 227: read-only generic-command allowlist, seeded into
+# .claude/settings.json → permissions.allow alongside the manifest-derived
+# .cwf/ helper entries. Every entry is read-only across the ENTIRE argument
+# space its glob admits (the admission criterion): no flag or subcommand
+# anywhere in the command's option space can mutate state, exec an arbitrary
+# child, or do network I/O. This MUST stay a compile-time constant for the same
+# FR4(e) reason as $CANONICAL_PERL5OPT / $CANONICAL_RULES_INJECT_CMD above — it
+# is written into settings.json with no trust-gate, so it must never be sourced
+# from probe or manifest content. See .cwf/docs/conventions/shell-hygiene.md
+# for the admission criterion and the excluded-entry rationale.
+#
+#   ls / pwd / git status / git rev-parse — read-only for every arg vector, so
+#     seeded as Bash(<cmd>:*) prefixes.
+#   git branch --show-current — seeded as an EXACT entry, never a prefix: the
+#     Bash(git branch:*) prefix would admit `git branch -D` (mutation).
+my @READ_ONLY_ALLOWLIST = (
+    'Bash(ls:*)',
+    'Bash(pwd:*)',
+    'Bash(git status:*)',
+    'Bash(git rev-parse:*)',
+    'Bash(git branch --show-current)',
+);
+
 # Merge env.PERL5OPT into project settings: add-if-absent, warn-on-mismatch.
 # Single key, constant value — a direct check, not a list merge. Returns 1 if
 # the key was added, 0 otherwise. Warnings fire regardless of --dry-run so a
@@ -629,6 +652,9 @@ my $register_guard = ($sandbox_on && $planning_write_guard ne 'off') ? 1 : 0;
 my $manifest = read_manifest();
 my ($allow_entries, $hook_entries) =
     partition_manifest($manifest, $register_r3, $register_guard);
+# Task 227: append the read-only generic-command corpus to the manifest-derived
+# entries, so the single existing merge_allow call below adds both in one pass.
+push @$allow_entries, @READ_ONLY_ALLOWLIST;
 
 my $settings = read_settings();
 

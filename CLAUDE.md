@@ -109,6 +109,12 @@ needs goes in `docs/`; a rule any CWF-using project must honour goes in `.cwf/do
 - `worktree.baseRef: head` configuration and the user-global fallback
 - Threat model: request-is-data, no standing teardown permission, dangerous-allowlist-entry detection, tool-load-failure-is-a-stop
 
+**Shell Hygiene**: Portable, prompt-free shell idioms and the read-only command allowlist CWF seeds at init. See `.cwf/docs/conventions/shell-hygiene.md` for:
+- Prompt-free idioms: no heredocs/inline scripts (write to scratch), `chmod +x && ./script` not `perl script`, no `perl -c`/`bash -n`, avoid prompt-tripping command substitution, NUL-separated git paths
+- The read-only allowlist seed: admission criterion (read-only for the whole `:*` glob space), the excluded-near-neighbour table, and the seeded corpus
+- Opting out via a user/`.local`-layer `ask`/`deny` rule (durable; deleting the committed entry is transient)
+- The harness-matching caveat (operators safe; redirection/substitution undocumented, harness-wide)
+
 ## Architecture Overview
 
 **Hierarchical Workflow System**: Ten lettered workflow phases (a–j) guide tasks from planning through retrospective. Non-linear state machine with dynamic transitions based on step outcomes. Universal decomposition signals (5 criteria) guide task breakdown into subtasks.

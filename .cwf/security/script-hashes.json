@@ -66,7 +66,7 @@
     "agent-shared-rules" : {
       "path" : ".cwf/docs/skills/cwf-agent-shared-rules.md",
       "permissions" : "0444",
-      "sha256" : "d079837a6d29fe38af83cd169ad5c7618d953c2471076be3f2d2943500582e3f"
+      "sha256" : "4f315924c47c30ac8a5c503e453fd05a50ffcef4d9a1233aeceaa74f320e48e1"
     }
   },
   "lib" : {
@@ -263,7 +263,7 @@
     "cwf-claude-settings-merge" : {
       "path" : ".cwf/scripts/command-helpers/cwf-claude-settings-merge",
       "permissions" : "0500",
-      "sha256" : "a59a88ba393b9fdd568404be4d58d43d56254f386a36f8f4fc3bcae3321ab88d"
+      "sha256" : "60c1fdd7cc6f8ba10cad5c266f5e7375f4ee1e134889b8bf503883a1fbb52350"
     },
     "cwf-manage" : {
       "path" : ".cwf/scripts/cwf-manage",

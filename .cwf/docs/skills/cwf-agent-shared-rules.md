@@ -51,6 +51,9 @@ the built-in instead.
 | `sed`/`grep`/`cat` over a `.md` to pull a section | markdown-reader `section` / `sections` / `frontmatter` (when available) |
 
 Full rubric: `.cwf/docs/conventions/subagent-tool-selection.md`.
+Portable, prompt-free shell idioms (heredoc/inline-script avoidance,
+`chmod +x && ./script`, no `perl -c`, NUL-separated git paths) and the
+read-only allowlist seed: `.cwf/docs/conventions/shell-hygiene.md`.
 
 ## Inclusion bar
 

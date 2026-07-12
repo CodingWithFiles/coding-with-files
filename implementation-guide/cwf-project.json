@@ -100,7 +100,7 @@
     ]
   },
   "versioning" : {
-    "last_released" : "v1.1.226",
+    "last_released" : "v1.1.227",
     "major_minor" : "v1.1"
   },
   "wf_step_config" : {

@@ -123,8 +123,9 @@ subtest 'TC-U1: empty .claude/settings.json — full population' => sub {
     is($exit, 0, 'exit 0');
     # 2 hook entries: the manifest Stop hook + the always-on rules-inject
     # UserPromptSubmit hook (Task 195).
-    like($out, qr/added 3 allowlist entries, 2 hook entries/,
-         'summary reports 3 allow + 2 hooks');
+    # 3 manifest-derived allow entries + 5 Task-227 read-only corpus entries.
+    like($out, qr/added 8 allowlist entries, 2 hook entries/,
+         'summary reports 8 allow (3 manifest + 5 corpus) + 2 hooks');
     my $s = read_settings($tmp);
     ok($s, 'settings.json was created');
     my %allow = map { $_ => 1 } @{ $s->{permissions}{allow} };
@@ -228,8 +229,8 @@ subtest 'TC-U4: --dry-run prints, does not write' => sub {
     is($exit, 0, 'exit 0');
     ok(!-e "$tmp/.claude/settings.json", 'settings.json not created');
     like($out, qr/"permissions"/, 'stdout contains rendered JSON');
-    like($out, qr/would add 3 allowlist entries, 2 hook entries, 1 env keys \(dry-run\)/,
-         'dry-run summary present (incl. always-on rules-inject hook)');
+    like($out, qr/would add 8 allowlist entries, 2 hook entries, 1 env keys \(dry-run\)/,
+         'dry-run summary present (3 manifest + 5 corpus allow; incl. rules-inject hook)');
 };
 
 # ----- TC-U5(a): manifest path traversal ------------------------------------
@@ -1220,6 +1221,137 @@ subtest 'TC-17: hook allowlist entries remain relative' => sub {
        'hook allowlist entry is the bare relative Bash(.cwf/scripts/hooks/a-hook)');
     ok((!grep { /CLAUDE_PROJECT_DIR/ } keys %allow),
        'no allowlist entry carries the ${CLAUDE_PROJECT_DIR} prefix');
+};
+
+# ===========================================================================
+# Task 227: read-only generic-command allowlist seed
+# ===========================================================================
+#
+# is_read_only_safe() is the fail-closed membership gate for the corpus. It is
+# authored HERE from the admission criterion's first principles (read-only for
+# every argument vector the glob admits), NEVER by transforming the script's
+# @READ_ONLY_ALLOWLIST — deriving it from the corpus would make this check a
+# tautology that rubber-stamps whatever the corpus already contains. The two
+# sets below are hand-verified and independent of the script.
+#
+# %SAFE_PREFIX_KEYS — command (+ subcommand) words whose ENTIRE Bash(<key>:*)
+#   glob space is read-only: no flag or subcommand anywhere in their option
+#   space can mutate, exec an arbitrary child, or do network I/O.
+# %SAFE_EXACT_KEYS — inner strings safe ONLY as an exact Bash(<inner>) entry,
+#   because the prefix form WOULD admit a mutating sibling (e.g. the
+#   `git branch:*` prefix admits `git branch -D`). Kept in a separate set so a
+#   prefix entry can never be accepted through an exact slot.
+my %SAFE_PREFIX_KEYS = map { $_ => 1 } (
+    'ls', 'pwd', 'git status', 'git rev-parse',
+);
+my %SAFE_EXACT_KEYS = map { $_ => 1 } (
+    'git branch --show-current',
+);
+
+sub is_read_only_safe {
+    my ($entry) = @_;
+    return 0 unless defined $entry;
+    # Parse Bash(<inner>): negated char class (no greedy .*), ASCII, fully
+    # anchored with \A/\z so a trailing newline can never sneak past.
+    return 0 unless $entry =~ m{\ABash\(([^()]+)\)\z}aa;
+    my $inner = $1;
+    # Split the :* suffix by exact substr, not a backtracking regex.
+    if (length($inner) >= 2 && substr($inner, -2) eq ':*') {
+        my $key = substr($inner, 0, -2);
+        return $SAFE_PREFIX_KEYS{$key} ? 1 : 0;
+    }
+    return $SAFE_EXACT_KEYS{$inner} ? 1 : 0;
+}
+
+# ----- TC-RO1: predicate accept/reject controls (both directions, one case) -
+subtest 'TC-RO1: is_read_only_safe accepts the corpus, rejects unsafe neighbours' => sub {
+    plan tests => 13;
+    # Positive controls — the 5 corpus entries (4 prefix + 1 exact).
+    ok(is_read_only_safe('Bash(ls:*)'),               'ls:* accepted');
+    ok(is_read_only_safe('Bash(pwd:*)'),              'pwd:* accepted');
+    ok(is_read_only_safe('Bash(git status:*)'),       'git status:* accepted');
+    ok(is_read_only_safe('Bash(git rev-parse:*)'),    'git rev-parse:* accepted');
+    ok(is_read_only_safe('Bash(git branch --show-current)'),
+       'git branch --show-current (exact) accepted');
+    # Negative controls — each unsafe for a distinct reason (see design KD2).
+    ok(!is_read_only_safe('Bash(git diff:*)'),  'git diff:* rejected (--output/--ext-diff escape)');
+    ok(!is_read_only_safe('Bash(rg:*)'),        'rg:* rejected (--pre child exec)');
+    ok(!is_read_only_safe('Bash(git:*)'),       'bare git:* rejected (commit/push/branch -D)');
+    ok(!is_read_only_safe('Bash(find:*)'),      'find:* rejected (-exec/-delete)');
+    ok(!is_read_only_safe('Bash(sed -i:*)'),    'sed -i:* rejected (in-place write)');
+    ok(!is_read_only_safe('Bash(git branch:*)'),
+       'git branch:* rejected (nearest dangerous neighbour: -D)');
+    # The prefix form of the exact entry — MUST be rejected by the set split.
+    ok(!is_read_only_safe('Bash(git branch --show-current:*)'),
+       'prefix form of the exact entry rejected (exact/prefix split)');
+    # Anchor discipline: a trailing newline must not slip past \z.
+    ok(!is_read_only_safe("Bash(ls:*)\n"),
+       'trailing-newline entry rejected (\\z, not $, anchoring)');
+};
+
+# ----- TC-RO2: exact/prefix split proven independent ------------------------
+subtest 'TC-RO2: exact entry accepted, its prefix + parent prefix rejected' => sub {
+    plan tests => 3;
+    ok(is_read_only_safe('Bash(git branch --show-current)'),
+       'exact git branch --show-current accepted');
+    ok(!is_read_only_safe('Bash(git branch --show-current:*)'),
+       'its prefix form cannot hit the exact slot');
+    ok(!is_read_only_safe('Bash(git branch:*)'),
+       'the parent prefix stays rejected');
+};
+
+# ----- TC-RO3: corpus present after a clean merge; only-safe generic entries -
+subtest 'TC-RO3: clean merge seeds the corpus; every generic entry is safe' => sub {
+    plan tests => 8;
+    my $tmp = build_fixture(manifest => standard_manifest());
+    my ($exit) = run_helper($tmp);
+    is($exit, 0, 'exit 0');
+    my $s = read_settings($tmp);
+    my @allow = @{ $s->{permissions}{allow} };
+    my %allow = map { $_ => 1 } @allow;
+    # All 5 corpus entries present.
+    ok($allow{'Bash(ls:*)'},                        'ls:* seeded');
+    ok($allow{'Bash(pwd:*)'},                       'pwd:* seeded');
+    ok($allow{'Bash(git status:*)'},                'git status:* seeded');
+    ok($allow{'Bash(git rev-parse:*)'},             'git rev-parse:* seeded');
+    ok($allow{'Bash(git branch --show-current)'},   'git branch --show-current seeded');
+    # Every allow entry that is NOT a .cwf/scripts/ manifest entry is the
+    # generic corpus — each must pass the independent safety gate...
+    my @generic = grep { !m{\.cwf/scripts/} } @allow;
+    ok((!grep { !is_read_only_safe($_) } @generic),
+       'every generic allow entry passes is_read_only_safe');
+    # ...and the generic set must equal exactly the expected corpus.
+    my @expected = ('Bash(ls:*)', 'Bash(pwd:*)', 'Bash(git status:*)',
+                    'Bash(git rev-parse:*)', 'Bash(git branch --show-current)');
+    is_deeply([sort @generic], [sort @expected],
+              'generic allow set equals exactly the corpus');
+};
+
+# ----- TC-RO4: additive — a pre-existing user entry survives ----------------
+subtest 'TC-RO4: corpus adds alongside a pre-existing non-CWF user entry' => sub {
+    plan tests => 3;
+    my $tmp = build_fixture(manifest => standard_manifest());
+    write_settings($tmp, { permissions => { allow => ['Bash(npm test:*)'] } });
+    my ($exit) = run_helper($tmp);
+    is($exit, 0, 'exit 0');
+    my $s = read_settings($tmp);
+    my %allow = map { $_ => 1 } @{ $s->{permissions}{allow} };
+    ok($allow{'Bash(npm test:*)'}, 'pre-existing user entry preserved');
+    ok($allow{'Bash(ls:*)'},       'corpus added alongside it');
+};
+
+# ----- TC-RO5: idempotent — re-run adds zero corpus duplicates --------------
+subtest 'TC-RO5: re-running the merge adds no duplicate corpus entries' => sub {
+    plan tests => 2;
+    my $tmp = build_fixture(manifest => standard_manifest());
+    run_helper($tmp);
+    run_helper($tmp);
+    my $s = read_settings($tmp);
+    my @allow = @{ $s->{permissions}{allow} };
+    my $ls_count = grep { $_ eq 'Bash(ls:*)' } @allow;
+    is($ls_count, 1, 'Bash(ls:*) appears exactly once after a second merge');
+    my %uniq; $uniq{$_}++ for @allow;
+    ok((!grep { $_ > 1 } values %uniq), 'no allow entry is duplicated');
 };
 
 done_testing();

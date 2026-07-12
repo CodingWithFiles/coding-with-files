@@ -5,7 +5,7 @@ Future tasks and improvements for the Coding with Files system.
 ## Task: Task 219 cross-project friction remediation (14 seeded follow-ups)
 
 ### Task-Type: feature (group — promote items individually)
-### Priority: High (R1 delivered by Task 221, R2 by Task 222, R7 by Task 224; R3 partly by Task 220)
+### Priority: High (R1 delivered by Task 221, R2 by Task 222, R7 by Task 224; R3 by Tasks 220+224+227)
 ### Status: Follow-up from Task 219 (j-retrospective.md §Future Work)
 ### Identified in: Task 219 f-implementation-exec.md §4
 
@@ -29,15 +29,18 @@ task via the normal workflow. Ordered impact-desc, effort-asc:
   context scripts), and the `stop-stale-status-detector` hook was strengthened to flag any
   non-canonical status, not just `Backlog`. Reuse-only (exported `status_is_valid`); one
   hashed-file edit. Status leak was seen in 8 projects.
-- **R3 (feature, Med)** — Ship a consolidated shell-hygiene convention + a default Bash
-  allowlist seed (read-only/`.cwf` helpers only, never mutating verbs) + the Task-206
-  path-injection hook at `cwf-init`, so new projects inherit the ~10 avoidance rules.
-  **Partly delivered by Task 220**: the tool-check seed + toggle + `cwf-init` opt-in
-  now exist (regex-only starter set, `/cwf-config tool-check on|off|seed`). Note the
-  original "new projects re-derive them all" premise was stale — the corpus predates
-  the maintainer's Jul-2026 user-global ruleset (`~/.cwf/tool-check/bash/settings.json`),
-  which already enforces these across every project. Remaining R3 scope: the broader
-  shell-hygiene *convention* doc and the allowlist seed (distinct from tool-check).
+- **R3 (feature, Med)** — ✅ **Delivered across Tasks 220, 224, 227.** Ship a consolidated
+  shell-hygiene convention + a default Bash allowlist seed (read-only/`.cwf` helpers only,
+  never mutating verbs) + the Task-206 path-injection hook at `cwf-init`, so new projects
+  inherit the ~10 avoidance rules. **Task 220** shipped the tool-check enforcement half
+  (deny/warn seed + toggle + `cwf-init` opt-in, `/cwf-config tool-check on|off|seed`).
+  **Task 224** covered the path-injection-hook residual (the `${CLAUDE_PROJECT_DIR}/`-rooting
+  class, R7). **Task 227** shipped the remaining documentation + friction-reduction half: the
+  `.cwf/docs/conventions/shell-hygiene.md` convention doc (referenced from the FR3 anchor in
+  `cwf-agent-shared-rules.md`) and the read-only Bash allowlist seed (5 entries via the existing
+  `merge_allow` path, additive + idempotent, fail-closed test gate). The original "new projects
+  re-derive them all" premise was noted stale — the corpus predates the maintainer's Jul-2026
+  user-global ruleset — so the beneficiary is a new/other CwF project without that setup.
 - **R4 (feature, Med)** — Add an "unresolved decisions" gate to `a-task-plan` (name every
   open surface/mechanism/constraint) and forbid mechanism-named acceptance criteria. 6 projects.
 - **R5 (feature, Med)** — CwF upgrade runbook; fix `.cwf/version` read-tree restage;
@@ -1839,3 +1842,11 @@ Task 226 fenced "best part is no part" to the means in planning.md, pointing to 
 Fix: either give bugfix/hotfix/chore a dedicated downstream home for the challenge-requirements discipline (e.g. in the implementation-phase docs), or soften planning.md's cross-reference so it does not point at a phase those types lack.
 
 Low priority — cosmetic doc-consistency, no functional impact.
+
+## Task: Verify harness auto-approval of redirection/substitution under Bash prefix allow rules
+
+### Task-Type: discovery
+### Priority: Medium
+### Identified in: Task 227
+
+Claude Code documents that a `Bash(<prefix>:*)` allow rule matches each subcommand of a compound command independently, splitting on `&&`, `||`, `;`, `|`, `|&`, `&`, and newlines (verified against code.claude.com/docs/en/permissions.md, Task 227). It does NOT document whether output redirection (`>`, `>>`) or command substitution (`$(...)`, backticks) are auto-approved under such a rule — confirmed undocumented. If either is auto-approved, it is a harness-wide property affecting EVERY `permissions.allow` entry (including the pre-existing `.cwf/scripts/command-helpers/*:*` seeds), not just the Task-227 read-only corpus. Investigate: run a controlled live probe with a single `Bash(ls:*)` allow rule and observe whether `ls > f`, `ls >> f`, `` ls `mut` ``, and `ls $(mut)` auto-approve or prompt. If any auto-approves, widen the harness-matching caveat in `.cwf/docs/conventions/shell-hygiene.md` and review whether any seeded prefix entry becomes a mutation/exec vector. Seeded because Task 227 could not run the probe offline (the session permission scope differs from a controlled single-rule fixture), so the residual was treated as unresolved per the surface-never-smooth principle.
