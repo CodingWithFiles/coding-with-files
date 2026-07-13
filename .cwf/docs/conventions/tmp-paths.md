@@ -9,7 +9,7 @@ shared task numbers (e.g. two repos each having a task `145`).
 Canonical form — a single per-project parent holding per-task leaves:
 
 ```
-${TMPDIR:-/tmp}/cwf<dashified-absolute-repo-path>/task-<num>/
+/tmp/claude-<euid>/cwf<dashified-absolute-repo-path>/task-<num>/
 ```
 
 Where `<dashified-absolute-repo-path>` is the repository's absolute path
@@ -17,22 +17,24 @@ with every `/` replaced by `-` (leading dash preserved), mirroring the
 `~/.claude/projects/` directory-naming convention. The literal `cwf`
 prefix abuts that leading dash — no extra separator — so the parent reads
 cleanly as `cwf-home-matt-repo-coding-with-files`. The base is
-`${TMPDIR:-/tmp}` (not a hardcoded `/tmp`) so scratch lands inside whatever
-temp root the environment provides — see [Sandbox alignment](#sandbox-alignment).
+`/tmp/claude-<euid>` — the per-uid writable session temp — derived purely from
+the effective UID and **never** from `$TMPDIR`, so the path is identical in
+every process context (sandboxed or not); see
+[Sandbox alignment](#sandbox-alignment).
 
 The per-project parent is the unit a devops operator reasons about: every
 CWF scratch dir for a repo lives under one clearly-named `cwf-<repo>/`, and
 the `task-<num>/` leaves beneath it show what is live vs. deletable.
 
-Worked example (this repository, task 145):
+Worked example (this repository, task 145, uid 1000):
 
 ```
-${TMPDIR:-/tmp}/cwf-home-matt-repo-coding-with-files/task-145/
+/tmp/claude-1000/cwf-home-matt-repo-coding-with-files/task-145/
 ```
 
-resolving to `/tmp/claude-<uid>/cwf-home-…/task-145/` under the sandbox
-(`TMPDIR=/tmp/claude-<uid>`, e.g. `/tmp/claude-1000`) and
-`/tmp/cwf-home-…/task-145/` off-sandbox.
+The same path is produced whether the caller runs inside the Claude Code Bash
+sandbox, in the unsandboxed context-inject hook, or off-sandbox — that
+mode-invariance is the point (Task 229).
 
 Reference derivation — the canonical **spec**, not for agents to run by hand
 (a command carrying `$(...)`/`${...}` trips a Claude Code permission prompt on
@@ -41,12 +43,12 @@ every call; that is precisely what Task 206 removed):
 ```bash
 # Worktree-safe: resolve the MAIN tree, not a linked worktree (Task 173), so the
 # scratch namespace is stable whether you run from the main tree or a worktree.
-base="${TMPDIR:-/tmp}"; base="${base%/}"   # honour the sandbox temp root; off-sandbox → /tmp
+base="/tmp/claude-$(id -u)"              # EUID-derived; NOT $TMPDIR (mode-invariant, Task 229)
 repo_root=$(cd "$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")" && pwd)
 num=145
 parent="${base}/cwf${repo_root//\//-}"   # stable per-project parent (cwf abuts leading dash)
 scratch="${parent}/task-${num}"          # per-task leaf
-mkdir -m 0700 -p "$scratch"              # -p creates parent then leaf, 0700 on both
+mkdir -m 0700 -p "$scratch"              # -p creates base, parent, then leaf, 0700 on all
 ```
 
 **Single source of truth (Task 206)**: agents do not run the snippet above. The
@@ -59,46 +61,46 @@ literal and creates it with an all-literal `mkdir -m 0700 -p <parent>/task-<num>
 Perl implementation of this derivation. The shell snippet is the human-readable
 definition those implement.
 
-Use the leaf — `${TMPDIR:-/tmp}/cwf<dash>/task-<num>/` — for every scratch
+Use the leaf — `/tmp/claude-<euid>/cwf<dash>/task-<num>/` — for every scratch
 artefact produced during the task: script files, commit-message drafts,
 captured subagent output, diff captures, etc. Examples:
 
 - One-off scripts (per [[feedback_no_heredocs]]):
-  `${TMPDIR:-/tmp}/cwf-home-matt-repo-coding-with-files/task-145/refresh-hashes.pl`
-- Commit-message drafts: `${TMPDIR:-/tmp}/cwf-home-matt-repo-coding-with-files/task-145/msg.txt`
+  `/tmp/claude-1000/cwf-home-matt-repo-coding-with-files/task-145/refresh-hashes.pl`
+- Commit-message drafts: `/tmp/claude-1000/cwf-home-matt-repo-coding-with-files/task-145/msg.txt`
 - Subagent prompt / output captures (per [[feedback_no_tee_permissions]]):
-  `${TMPDIR:-/tmp}/cwf-home-matt-repo-coding-with-files/task-145/f-changeset.diff`
+  `/tmp/claude-1000/cwf-home-matt-repo-coding-with-files/task-145/f-changeset.diff`
 
 ## Sandbox alignment
 
-The base is `$TMPDIR` when set (the in-sandbox case, and any real shell
-`$TMPDIR`), not a hardcoded `/tmp`, so scratch lands inside whatever temp root
-the environment provides. Under a Claude Code sandbox that restricts `/tmp`
-writes, the sandbox sets `TMPDIR=/tmp/claude-<uid>` (e.g. `/tmp/claude-1000`),
-so the form resolves to `/tmp/claude-<uid>/cwf<dashified-repo>/task-<num>/`.
+The base is `/tmp/claude-<euid>`, derived purely from the effective UID and
+**never** from `$TMPDIR` (Task 229). This is the key property: the Claude Code
+Bash sandbox makes `/tmp` read-only and provides `/tmp/claude-<uid>` as the
+per-uid writable session temp, and *that same path is writable off-sandbox too*.
+Because the derivation reads no environment variable, the hook (which runs
+*outside* the sandbox), the in-sandbox Bash tool, and an off-sandbox fallback all
+compute the **identical** path — so a path-based permission rule holds regardless
+of whether the agent is sandboxed on any given call (the harness can fall back to
+non-sandbox mid-session depending on user settings).
 
-When `$TMPDIR` is **unset** there is one sandbox-detection branch (Task 215):
-the `userpromptsubmit-context-inject` hook runs *outside* the sandbox and so
-does not inherit `$TMPDIR`, yet the path it emits is consumed by the in-sandbox
-Bash tool where `/tmp` is read-only. To bridge this, `scratch_parent` probes the
-conventional per-uid sandbox temp `/tmp/claude-<uid>` and adopts it as the base
-**iff** it is a real (non-symlink) writable directory; otherwise it falls back
-to `/tmp` (the status quo — genuinely off-sandbox, or on macOS where the
-Seatbelt sandbox uses a different temp dir the probe will not match). The probe
-is self-validating: a wrong or absent path degrades to `/tmp`, never a
-read-only literal. It couples to the `/tmp/claude-<uid>` naming convention,
-which is undocumented (the documented Claude Code contract is `$TMPDIR`, not a
-fixed path), so it is best-effort on the unsandboxed-hook branch only — the
-in-sandbox hot path stays on `$TMPDIR`.
+Why not `$TMPDIR`? It varies by process context (the unsandboxed hook does not
+inherit the sandbox's value) and can itself already contain a `cwf-<slug>`
+segment. Reading it produced two failures the reporter hit (Task 229): **path
+doubling** (`…/cwf-<slug>/cwf-<slug>/…` when `$TMPDIR` already held the parent)
+and **hook/writer divergence** (the hook advertised one path, writers used
+another). Deriving from the EUID removes both by construction, and it removes the
+`$TMPDIR`-injection surface entirely — a hostile `$TMPDIR` (`..`, relative,
+symlink) can no longer steer the path, so no `rel2abs`/canonicalisation is needed.
 
-`$TMPDIR` is honoured verbatim (no `..`/`rel2abs` canonicalisation), trusted
-**only** under the single-user threat model below — `$TMPDIR` is set by the
-harness, not an attacker. If that assumption is relaxed (multi-user host), the
-`mkdir -m 0700` guard remains the containment boundary; do not copy the
-verbatim-`$TMPDIR` handling into a context where the single-user invariant does
-not hold.
+**Known limitation (Linux/WSL2 only)**: `/tmp/claude-<euid>` is the writable
+session temp on Linux and WSL2. On a macOS Seatbelt sandbox the writable temp is
+under `/var/folders/…`, so this base is not writable and `scratch_dir` fails
+closed (`mkdir_failed`) with a `scratch_fail_hint` naming the cause — it does not
+silently write somewhere unexpected. A platform-specific base (detect OS/sandbox,
+pick the per-platform writable temp while keeping mode-invariance) is a BACKLOG
+follow-up, to be formulated once macOS user data is in.
 
-This aligns CWF's own scratch discipline with the sandbox (Task 199). It is
+This aligns CWF's own scratch discipline with the sandbox (Task 199, 229). It is
 distinct from the CWF-managed sandbox *configuration* feature seeded by Task 178
 (a toggle that writes sandbox settings): that conforms the harness; this conforms
 our paths.
@@ -109,12 +111,10 @@ Scope: a single-user developer host. Multiple agent sessions may run
 concurrently in different working trees owned by the same user, but no
 untrusted local user is assumed.
 
-The base resolves to either `/tmp` (world-writable) or a sandbox-set `$TMPDIR`
-such as `/tmp/claude-<uid>` (per-user `drwx------`). `/tmp/` is world-writable on POSIX
-systems and the directory name is predictable (it embeds the repo path and task
-number); the per-user sandbox base narrows the read-after-write surface, but the
-guard below applies to both bases. On a multi-user host the predictable name
-opens two attack surfaces:
+The base is `/tmp/claude-<euid>` (per-user, expected `drwx------`), created under
+world-writable `/tmp/` when absent. The directory name is fully predictable (it
+embeds the uid, the repo path, and the task number). On a multi-user host that
+predictability opens two attack surfaces:
 
 1. **Symlink pre-creation**: a hostile local user could pre-create the
    scratch directory or a file within it as a symlink to an attacker-owned
@@ -137,21 +137,27 @@ caller. If a directory exists but is owned by another user, the subsequent
 write will fail closed. That atomic `0700` create plus the fail-closed write
 is the containment boundary.
 
-The per-project parent is now **shared across tasks and longer-lived** than a
-per-task sibling was. Code that creates scratch dirs therefore routes through
-`CWF::Common::scratch_dir($num)` (Task 206; used by `security-review-changeset`
-and any future writer), which adds one **defence-in-depth** check the bare
-`mkdir` above omits: after the parent `mkdir`, it rejects a parent that is a
-**symlink** (`-d && !-l`, i.e. `lstat` semantics — a plain `stat` follows the
-link and would validate the target, the dangerous symlink-to-dir case) by
-returning a `symlink_parent` error (callers map it to a non-zero exit). It does
-**not** re-assert ownership/mode (that stays enforced by the fail-closed write —
-no TOCTOU stat masquerading as the boundary) and **never auto-chmods** a
-wrong-mode parent (surface, never smooth). The bare `mkdir -m 0700 -p` form is
-the single-user, one-shot case (e.g. the task-creation skills creating their
-literal leaf); `scratch_dir` adds the guard because it may meet a pre-existing
-shared parent. The leaf is intentionally left to the fail-closed write (no
-redundant leaf check).
+Both the `/tmp/claude-<euid>` base and the `cwf<dash>` parent are **shared across
+tasks and longer-lived** than a per-task sibling was, and the base is now a
+CWF-created level under world-writable `/tmp/` rather than a harness-provided one.
+Code that creates scratch dirs therefore routes through
+`CWF::Common::scratch_dir($num)` (Task 206, 229; used by `security-review-changeset`,
+`best-practice-resolve`, `plan-mechanical-check`, and any future writer), which
+adds a **two-level defence-in-depth** guard the bare `mkdir` omits: it runs the
+mkdir-then-`lstat`-recheck triad for the base **and then** the `cwf<dash>` parent,
+in that order. Each level: `mkdir(0700)` if absent, then reject a **symlink** at
+that level (`-l`, i.e. `lstat` semantics — a plain `stat` follows the link and
+would validate the target, the dangerous symlink-to-dir case) with a
+`symlink_parent` error, then confirm it is a directory (`mkdir_failed` otherwise);
+callers map both to a non-zero exit and surface a `scratch_fail_hint`. The base
+level **must** be validated before the parent `mkdir`, else that mkdir could
+descend through a symlinked base. It does **not** re-assert ownership/mode (that
+stays enforced by the fail-closed write — no TOCTOU stat masquerading as the
+boundary) and **never auto-chmods** a wrong-mode level (surface, never smooth).
+The bare `mkdir -m 0700 -p` form is the single-user, one-shot case (e.g. the
+task-creation skills creating their literal leaf); `scratch_dir` adds the guard
+because it may meet pre-existing shared levels. The leaf is intentionally left to
+the fail-closed write (no redundant leaf check).
 
 Do not write secrets, `.env` content, or credentials into the scratch
 directory even with the `0700` guard — the directory is intended for
@@ -193,17 +199,19 @@ against `code.claude.com/docs/en/permissions.md` and existing entries):
 - **Write tool** — gitignore-style paths (`//` = absolute root, `**` = subtree):
 
   ```
-  Write(//tmp/cwf-home-matt-repo-coding-with-files/**)
-  Write(//tmp/claude-1000/cwf-home-matt-repo-coding-with-files/**)   # sandbox base (uid 1000)
+  Write(//tmp/claude-1000/cwf-home-matt-repo-coding-with-files/**)   # EUID base (uid 1000)
   ```
 
 - **Script execution** — `Bash()` rules match the **command string**; `*`
   spans `/`; `**` is **not** supported in `Bash()`:
 
   ```
-  Bash(/tmp/cwf-home-matt-repo-coding-with-files/*)
-  Bash(/tmp/claude-1000/cwf-home-matt-repo-coding-with-files/*)      # sandbox base (uid 1000)
+  Bash(/tmp/claude-1000/cwf-home-matt-repo-coding-with-files/*)      # EUID base (uid 1000)
   ```
+
+Substitute your own uid for `1000`. A single base now serves every context
+(sandboxed or not), so one rule per tool suffices — there is no separate
+off-sandbox `/tmp/cwf-…` path to allowlist.
 
 **Granularity trade-off (deliberate)**: the old sibling form let you
 allowlist a *single* task's path; one subtree rule on the nested form

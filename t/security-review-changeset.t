@@ -1549,27 +1549,30 @@ subtest 'TC-7: no untracked files — behaviour unchanged, index untouched' => s
 };
 
 # ---------------------------------------------------------------------------
-# TC-TMPDIR-1/2/3 (Task 199): the scratch .out path honours $TMPDIR, so it lands
-# inside the sandbox-permitted temp root (e.g. /tmp/claude) when the sandbox sets
-# TMPDIR, and degrades to /tmp off-sandbox. These assert path *construction*; the
-# sandbox *denial* check is BLOCKED-ENV (see g-testing-exec.md, FR7).
+# TC-TMPDIR-1/2/3 (Task 199, revised Task 229): the scratch .out path is derived
+# purely from the EUID (/tmp/claude-<euid>) and is INVARIANT to $TMPDIR — set,
+# unset, or empty, the path is identical. This is the regression guard for the
+# reporter's doubling/divergence bug: a hostile or doubled $TMPDIR can no longer
+# steer the .out. These assert path *construction*; the sandbox *denial* check is
+# BLOCKED-ENV (see g-testing-exec.md, FR7).
 # ---------------------------------------------------------------------------
-subtest 'TC-TMPDIR-1: scratch .out honours a set $TMPDIR' => sub {
+subtest 'TC-TMPDIR-1: scratch .out lands under the EUID base regardless of $TMPDIR' => sub {
     my ($repo) = make_synthetic_repo(baseline => '__MAIN__');
     my $tmpbase = tempdir(CLEANUP => 1);
 
     my ($out, $err, $rc);
     {
-        local $ENV{TMPDIR} = $tmpbase;
+        local $ENV{TMPDIR} = $tmpbase;   # deliberately NOT the base the helper uses
         ($out, $err, $rc) = run_helper($repo);
     }
     is($rc, 0, 'helper exits 0');
     my $p = out_path($out);
     ok(defined $p, 'helper reported a .out path');
-    like($p, qr{^\Q$tmpbase\E/}, '.out lands under the set $TMPDIR');
+    like($p,   qr{^/tmp/claude-$>/}, '.out lands under /tmp/claude-<euid>');
+    unlike($p, qr{^\Q$tmpbase\E/},   '.out ignores the set $TMPDIR');
 };
 
-subtest 'TC-TMPDIR-2: unset $TMPDIR falls back to /tmp (no regression)' => sub {
+subtest 'TC-TMPDIR-2: unset $TMPDIR -> same EUID base (no $TMPDIR dependence)' => sub {
     my ($repo) = make_synthetic_repo(baseline => '__MAIN__');
 
     my ($out, $err, $rc);
@@ -1578,10 +1581,10 @@ subtest 'TC-TMPDIR-2: unset $TMPDIR falls back to /tmp (no regression)' => sub {
         ($out, $err, $rc) = run_helper($repo);
     }
     is($rc, 0, 'helper exits 0');
-    like(out_path($out), qr{^/tmp/}, '.out falls back under /tmp when $TMPDIR unset');
+    like(out_path($out), qr{^/tmp/claude-$>/}, '.out under /tmp/claude-<euid> when $TMPDIR unset');
 };
 
-subtest 'TC-TMPDIR-3: empty $TMPDIR falls back to /tmp (no root collapse)' => sub {
+subtest 'TC-TMPDIR-3: empty $TMPDIR -> same EUID base (no root collapse)' => sub {
     my ($repo) = make_synthetic_repo(baseline => '__MAIN__');
 
     my ($out, $err, $rc);
@@ -1591,8 +1594,8 @@ subtest 'TC-TMPDIR-3: empty $TMPDIR falls back to /tmp (no root collapse)' => su
     }
     is($rc, 0, 'helper exits 0');
     my $p = out_path($out);
-    like($p,   qr{^/tmp/}, 'empty $TMPDIR falls back under /tmp');
-    unlike($p, qr{^/-},    'empty $TMPDIR does NOT collapse to filesystem root');
+    like($p,   qr{^/tmp/claude-$>/}, 'empty $TMPDIR -> /tmp/claude-<euid>');
+    unlike($p, qr{^/-},              'empty $TMPDIR does NOT collapse to filesystem root');
 };
 
 # ===========================================================================
@@ -1671,6 +1674,17 @@ subtest 'TC-209-2: char-device untracked entry (bind-mounted /dev/null) does not
         my $rc = system($unshare, '-rm', 'sh', '-c', $script) >> 8;
 
         skip 'user+mount namespace / bind-mount unavailable', 3 unless -e $marker;
+
+        # `unshare -r` remaps this process to uid 0, so the helper derives the
+        # scratch base /tmp/claude-0 (Task 229, EUID-derived) — uncreatable under a
+        # read-only /tmp. That is a fail-closed scratch error, NOT the Task 209
+        # abort this case guards; the two are distinguishable because the fix names
+        # the cause in stderr (scratch_fail_hint). Skip only on that exact signal,
+        # so a genuine char-device abort still fails loudly. (A creatable base — the
+        # common case off this sandbox — runs the assertions normally.)
+        my $stderr = do { local $/; open my $fh, '<', $se or die; <$fh> } // '';
+        skip 'euid-derived scratch base unwritable under uid-0 namespace remap (Task 229)', 3
+            if $stderr =~ /scratch unavailable \(mkdir_failed\)/;
 
         is($rc, 0, 'helper exits 0 with a char-device untracked entry present');
 

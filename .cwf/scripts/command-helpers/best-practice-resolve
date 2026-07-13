@@ -33,8 +33,8 @@
 #   component of the output filename, so it is allowlist-validated).
 #
 # Output:
-#   File:   ${TMPDIR:-/tmp}/cwf<dashified-abs-main-root>/task-<num>/best-practice-context-<phase>.out
-#           (mode 0600; parent and task-<num> leaf created mkdir 0700 on first use).
+#   File:   /tmp/claude-<euid>/cwf<dashified-abs-main-root>/task-<num>/best-practice-context-<phase>.out
+#           (mode 0600; base, cwf<root> parent, and task-<num> leaf created mkdir 0700 on first use).
 #           One `- <tags>: <path>` line per matched entry, path verbatim.
 #   stdout: exactly one confirmation line —
 #           `best-practice-resolve: wrote <N> matched entries to <abs-path>`.
@@ -51,7 +51,7 @@ use warnings;
 use utf8;
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use CWF::Common qw(check_perl5opt find_git_root);
+use CWF::Common qw(check_perl5opt find_git_root scratch_dir scratch_fail_hint);
 use CWF::TaskPath qw(resolve_num);
 use CWF::ArtefactHelpers qw(atomic_write_text);
 use JSON::PP ();
@@ -171,7 +171,7 @@ Options:
 
 Output:
   Writes the matched paths to
-    \${TMPDIR:-/tmp}/cwf<dashified-abs-main-root>/task-<num>/best-practice-context-<phase>.out
+    /tmp/claude-<euid>/cwf<dashified-abs-main-root>/task-<num>/best-practice-context-<phase>.out
   and prints one confirmation line to stdout:
     $PROG: wrote <N> matched entries to <abs-path>
 
@@ -286,25 +286,18 @@ sub render {
     return $out;
 }
 
-# Canonical per-task scratch .out path, with the mandatory two-level 0700
-# first-use guard + parent-symlink reject (tmp-paths.md). Mirrors
-# security-review-changeset.
+# Canonical per-task scratch .out path. Delegates to the shared scratch_dir
+# helper (Task 229) — EUID-derived base + the two-level 0700 first-use guard +
+# symlink reject — so this script has a single derivation point in common with
+# every other writer. Any failure maps to this script's warn+exit-1 convention,
+# augmented with scratch_fail_hint so a base-not-writable / planted-symlink cause
+# is named rather than left as a bare kind token.
 sub scratch_out_path {
-    (my $dashed = $ROOT) =~ s{/}{-}g;
-    my $base = (defined $ENV{TMPDIR} && length $ENV{TMPDIR}) ? $ENV{TMPDIR} : '/tmp';
-    $base =~ s{/+$}{};
-    my $parent  = "$base/cwf${dashed}";
-    my $scratch = "$parent/task-$opt{task_num}";
-    mkdir($parent, 0700) unless -d $parent;
-    unless (-d $parent && !-l $parent) {
-        warn "$PROG: scratch parent $parent is not a usable directory\n";
+    my ($scratch, $kind) = scratch_dir($opt{task_num});
+    unless (defined $scratch) {
+        my $hint = scratch_fail_hint($kind);
+        warn "$PROG: scratch unavailable ($kind)" . ($hint ? ": $hint" : '') . "\n";
         exit 1;
-    }
-    unless (-d $scratch) {
-        mkdir($scratch, 0700) or do {
-            warn "$PROG: cannot create scratch dir $scratch: $!\n";
-            exit 1;
-        };
     }
     return "$scratch/best-practice-context-$opt{phase}.out";
 }

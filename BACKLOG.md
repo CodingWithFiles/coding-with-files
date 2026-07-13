@@ -95,28 +95,6 @@ exact class of error Task 217 hit, at plan time, deterministically — complemen
 the existing path-resolution and symbol-deletion scans. Refresh the helper's `sha256`
 in the same commit.
 
-## Task: Extract a shared CWF::Common::tmp_base() helper
-
-### Task-Type: chore
-### Priority: Low
-### Status: Follow-up from Task 215 (j-retrospective.md §Future Work)
-### Identified in: Task 215 j-retrospective.md §Recommendations / f- and g-phase improvements review
-
-The `${TMPDIR:-/tmp}` base selection (Perl form:
-`(defined $ENV{TMPDIR} && length $ENV{TMPDIR}) ? $ENV{TMPDIR} : '/tmp'`) is now
-open-coded in four sites — `CWF::Common::scratch_parent`,
-`pretooluse-bash-tool-check`, `best-practice-resolve`, and the
-`t/backlog-bootstrap-changelog.t` fix added in Task 215 — crossing the Rule of Three.
-The Task 215 improvements reviewer flagged this; it was deferred from that bugfix to
-avoid widening its blast radius into two further production sites. Scope: add an
-exported `CWF::Common::tmp_base()` that returns the selected base (trailing-slash
-stripped, matching `scratch_parent`'s current normalisation), then replace the four
-inline ternaries with calls to it. Note the seam interaction with Task 215's
-`$SANDBOX_TMP_PROBE` — `scratch_parent` needs the env→probe→/tmp three-way logic, so
-`tmp_base()` is the *env-or-`/tmp`* half (the probe branch stays in `scratch_parent`),
-or `tmp_base()` takes an optional probe argument. Decide at design time. Refresh
-`Common.pm` sha256 in the same commit. Purely a consistency/maintainability gain.
-
 ## Task: Converge the three symlink-safe atomic settings-writers
 
 ### Task-Type: chore
@@ -1850,3 +1828,11 @@ Low priority — cosmetic doc-consistency, no functional impact.
 ### Identified in: Task 227
 
 Claude Code documents that a `Bash(<prefix>:*)` allow rule matches each subcommand of a compound command independently, splitting on `&&`, `||`, `;`, `|`, `|&`, `&`, and newlines (verified against code.claude.com/docs/en/permissions.md, Task 227). It does NOT document whether output redirection (`>`, `>>`) or command substitution (`$(...)`, backticks) are auto-approved under such a rule — confirmed undocumented. If either is auto-approved, it is a harness-wide property affecting EVERY `permissions.allow` entry (including the pre-existing `.cwf/scripts/command-helpers/*:*` seeds), not just the Task-227 read-only corpus. Investigate: run a controlled live probe with a single `Bash(ls:*)` allow rule and observe whether `ls > f`, `ls >> f`, `` ls `mut` ``, and `ls $(mut)` auto-approve or prompt. If any auto-approves, widen the harness-matching caveat in `.cwf/docs/conventions/shell-hygiene.md` and review whether any seeded prefix entry becomes a mutation/exec vector. Seeded because Task 227 could not run the probe offline (the session permission scope differs from a controlled single-rule fixture), so the residual was treated as unresolved per the surface-never-smooth principle.
+
+## Task: Platform-specific scratch base (Linux/macOS/…)
+
+### Task-Type: feature
+### Priority: Medium
+### Identified in: Task 229
+
+Task 229 hardcodes the scratch base to /tmp/claude-<euid>, which is the writable session temp only on Linux/WSL2. On a macOS Seatbelt sandbox the writable temp is under /var/folders, so /tmp/claude-<euid> fails closed. Once user data is in, formulate a platform-specific scratch base (detect OS/sandbox, choose the writable temp per platform) so scratch works on macOS and other platforms while keeping the mode-invariant property. Seeded by Task 229 requirements/design review (macOS known-limitation).

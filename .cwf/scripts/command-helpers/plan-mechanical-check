@@ -38,7 +38,7 @@ use warnings;
 use utf8;
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use CWF::Common qw(check_perl5opt find_git_root scratch_dir);
+use CWF::Common qw(check_perl5opt find_git_root scratch_dir scratch_fail_hint);
 use CWF::TaskPath qw(resolve_num);
 use CWF::ArtefactHelpers qw(atomic_write_text);
 
@@ -117,7 +117,9 @@ if (-f $plan_file) {
 # ---------------------------------------------------------------------------
 my ($scratch, $kind) = scratch_dir($opt{task_num});
 unless (defined $scratch) {
-    warn "$PROG: cannot resolve scratch dir (${\($kind // 'unknown')})\n";
+    my $hint = scratch_fail_hint($kind);
+    warn "$PROG: cannot resolve scratch dir (${\($kind // 'unknown')})"
+       . ($hint ? ": $hint" : '') . "\n";
     exit 1;
 }
 my $out = "$scratch/plan-mechanical-check-$opt{plan_type}.out";

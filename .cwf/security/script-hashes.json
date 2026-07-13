@@ -81,7 +81,7 @@
     },
     "CWF::Common" : {
       "path" : ".cwf/lib/CWF/Common.pm",
-      "sha256" : "2e6dfb8424fd8c68ef2ff3ff1198a7afe03e426c2714055adc924dd850f54c7d"
+      "sha256" : "ff319f3340e38ee6c4fdc3d3b11e2afe6ab929ed8797a4c0123b2bfef658624c"
     },
     "CWF::ContextInheritance::Core" : {
       "path" : ".cwf/lib/CWF/ContextInheritance/Core.pm",
@@ -188,12 +188,12 @@
     "best-practice-resolve" : {
       "path" : ".cwf/scripts/command-helpers/best-practice-resolve",
       "permissions" : "0500",
-      "sha256" : "d0369f59d1537152960a63080818f1c996614a154a445b2146796c5df225bd56"
+      "sha256" : "76400b61fcc79092f73410fc7fd71e5a932e8a6adb6856957f211e3326975bbe"
     },
     "plan-mechanical-check" : {
       "path" : ".cwf/scripts/command-helpers/plan-mechanical-check",
       "permissions" : "0500",
-      "sha256" : "c358b18792d1eb8d4df25b70dfb0d316692ba141cbd7ac889361d075cc64bead"
+      "sha256" : "1a9f31fe3def8e30d314b6124feb9fd4a6e7be7f276e9e8b29a5e2560d84825d"
     },
     "checkpoints-branch-manager" : {
       "path" : ".cwf/scripts/command-helpers/checkpoints-branch-manager",
@@ -383,7 +383,7 @@
     "security-review-changeset" : {
       "path" : ".cwf/scripts/command-helpers/security-review-changeset",
       "permissions" : "0500",
-      "sha256" : "c878ca10795ceb0b3b2c4029551638d13a31344937bf8cfb8dc8e4c86ae7f19f"
+      "sha256" : "4e32c62bf9767a8da9ee5519f2acd633ecd1a826129323e440941c1a8b40e273"
     },
     "security-review-classify" : {
       "path" : ".cwf/scripts/command-helpers/security-review-classify",

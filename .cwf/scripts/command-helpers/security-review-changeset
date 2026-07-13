@@ -62,8 +62,8 @@
 #
 # Output:
 #   File:   the full changeset (git diff, anchor → working tree) is written to
-#           ${TMPDIR:-/tmp}/cwf<dashified-abs-main-root>/task-<num>/security-review-changeset-<step>.out
-#           (mode 0600; parent and task-<num> leaf created mkdir 0700 on first use).
+#           /tmp/claude-<euid>/cwf<dashified-abs-main-root>/task-<num>/security-review-changeset-<step>.out
+#           (mode 0600; base, cwf<root> parent, and task-<num> leaf created mkdir 0700 on first use).
 #           The agent Reads this file. An empty changeset still writes a 0-line file.
 #   stdout: one confirmation line —
 #           `security-review-changeset: wrote <N> lines to <abs-path>`.
@@ -95,7 +95,7 @@ use warnings;
 use utf8;
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use CWF::Common qw(check_perl5opt scratch_dir);
+use CWF::Common qw(check_perl5opt scratch_dir scratch_fail_hint);
 use CWF::TaskPath qw(parse_branch resolve_num);
 use CWF::ArtefactHelpers qw(atomic_write_text);
 
@@ -279,13 +279,14 @@ my $dirty_suffix = ($dirty_rc == 1 || @untracked) ? ', includes uncommitted' : '
 # don't fail. The primary diff has already succeeded; disclosure is informational.
 
 # Derive + create the per-task scratch dir via the shared CWF::Common helper
-# (Task 206): find_git_root (worktree-safe) + dashified ${TMPDIR:-/tmp} parent +
-# two-level 0700 mkdir + symlink-parent reject, with NO auto-chmod (surface,
+# (Task 206, 229): find_git_root (worktree-safe) + EUID-derived /tmp/claude-<euid>
+# base + two-level 0700 mkdir + symlink-parent reject, with NO auto-chmod (surface,
 # never smooth). Any failure maps to this script's warn+exit-1 convention — the
 # "error" classification the SubagentStop verdict guard relies on.
 my ($scratch, $kind) = scratch_dir($task_num);
 unless (defined $scratch) {
-    warn "$PROG: scratch unavailable ($kind)\n";   # not_a_repo|bad_num|symlink_parent|mkdir_failed
+    my $hint = scratch_fail_hint($kind);           # names a base-not-writable / symlink cause
+    warn "$PROG: scratch unavailable ($kind)" . ($hint ? ": $hint" : '') . "\n";   # not_a_repo|bad_num|symlink_parent|mkdir_failed
     exit 1;
 }
 my $out = "$scratch/security-review-changeset-$opt{wf_step}.out";
@@ -395,7 +396,7 @@ Options:
 
 Output:
   Writes the full diff to
-    \${TMPDIR:-/tmp}/cwf<dashified-abs-main-root>/task-<num>/security-review-changeset-<step>.out
+    /tmp/claude-<euid>/cwf<dashified-abs-main-root>/task-<num>/security-review-changeset-<step>.out
   and prints a confirmation line to stdout:
     $PROG: wrote <N> lines to <abs-path>
   On a cap breach (exit 2) with a valid directory-structure.base-path, a second

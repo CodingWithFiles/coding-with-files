@@ -12,15 +12,21 @@ use utf8;
 use Exporter 'import';
 use POSIX ();
 
-our @EXPORT_OK = qw(check_perl5opt format_error parse_semver version_cmp find_git_root resolve_head_sha generate_slug run_quiet scratch_parent scratch_dir);
+our @EXPORT_OK = qw(check_perl5opt format_error parse_semver version_cmp find_git_root resolve_head_sha generate_slug run_quiet scratch_parent scratch_dir scratch_fail_hint);
 
-# Conventional per-uid sandbox temp base, probed by scratch_parent when $TMPDIR
-# is unset (the unsandboxed context-inject hook — Task 215). Overridable so
-# tests can point the probe at a tempdir instead of the real shared
-# /tmp/claude-<uid>. The initialiser MUST run once at load — declaring it inside
-# the sub would re-run every call and clobber a test's `local` override.
-# Default: the path observed under Claude Code's bash sandbox on Linux/WSL2.
-our $SANDBOX_TMP_PROBE = "/tmp/claude-$>";
+# The canonical scratch base: the per-uid writable session temp. Derived purely
+# from the effective UID so the SAME path is produced in every process context —
+# the unsandboxed context-inject hook, the sandboxed Bash tool, and an off-sandbox
+# fallback — which is what makes path-based permissions hold regardless of sandbox
+# mode (Task 229). $TMPDIR is deliberately NOT read: it varies by context and can
+# already contain a cwf-<slug> segment, which caused path doubling and hook/writer
+# divergence (Task 229 bug report). Overridable so tests can point at a tempdir
+# instead of the real shared /tmp/claude-<uid>. The initialiser MUST run once at
+# load — declaring it inside the sub would re-run every call and clobber a test's
+# `local` override. Linux/WSL2 only: on a macOS Seatbelt sandbox the writable temp
+# is under /var/folders, so this fails closed (documented known limitation; see
+# .cwf/docs/conventions/tmp-paths.md and the BACKLOG platform-specific-base item).
+our $SCRATCH_BASE = "/tmp/claude-$>";   # $> = effective UID
 
 # Check PERL5OPT environment configuration
 # Args: none
@@ -84,17 +90,15 @@ sub find_git_root {
     return length $root ? $root : undef;
 }
 
-# Derive the canonical per-project scratch PARENT directory (Task 206, 215).
+# Derive the canonical per-project scratch PARENT directory (Task 206, 215, 229).
 #
-# On the env branch (in-sandbox hot path, $TMPDIR set) this is pure string
-# derivation with NO filesystem work — the context-inject hook calls it every
-# turn. When $TMPDIR is unset (the hook runs OUTSIDE Claude Code's bash sandbox,
-# so it does not inherit $TMPDIR — Task 215) it probes the per-uid sandbox temp
-# $SANDBOX_TMP_PROBE and adopts it only if it is a real writable directory; this
-# branch costs a single lstat (the -d/-w checks reuse its buffer). The probe lets the
-# unsandboxed hook emit the in-sandbox writable base instead of a read-only
-# /tmp/cwf-… literal. Mirrors the dashified-root form in
-# .cwf/docs/conventions/tmp-paths.md.
+# Pure string derivation with NO filesystem work — the context-inject hook calls
+# it every turn. The base is $SCRATCH_BASE (the EUID-derived per-uid session temp);
+# $TMPDIR is NOT consulted, so the parent is identical across every process context
+# (unsandboxed hook, sandboxed Bash tool, off-sandbox fallback). This eliminates
+# both the path-doubling and the hook/writer path divergence of Task 229, and it
+# removes the $TMPDIR-injection surface entirely. Mirrors the dashified-root form
+# in .cwf/docs/conventions/tmp-paths.md.
 #
 # Optional $root lets a caller that has already resolved the main root (e.g. the
 # hook, which needs it for the project_root line too) pass it in, so the whole
@@ -107,29 +111,22 @@ sub scratch_parent {
     $root = find_git_root() unless defined $root && length $root;
     return (undef, 'not_a_repo') unless defined $root && length $root;
     (my $dashed = $root) =~ s{/}{-}g;   # absolute path => canonical leading-dash form
-    my $base;
-    if (defined $ENV{TMPDIR} && length $ENV{TMPDIR}) {
-        $base = $ENV{TMPDIR};                   # in-sandbox (or a real shell TMPDIR)
-    } elsif (length $SANDBOX_TMP_PROBE
-             && !-l $SANDBOX_TMP_PROBE          # lstat: reject a planted symlink
-             && -d _ && -w _) {                 # ...real writable dir (reuses lstat buf)
-        $base = $SANDBOX_TMP_PROBE;             # hook unsandboxed: borrow sandbox temp
-    } else {
-        $base = '/tmp';                         # off-sandbox / convention absent
-    }
-    $base =~ s{/+$}{};                  # trailing-slash strip
-    return ("$base/cwf${dashed}", undef);
+    return ("$SCRATCH_BASE/cwf${dashed}", undef);   # $TMPDIR not read (mode-invariant)
 }
 
-# Derive AND create the per-task scratch directory (Task 206), with the
+# Derive AND create the per-task scratch directory (Task 206, 229), with the
 # tmp-paths symlink-attack defences. Used by writers (e.g.
 # security-review-changeset); the hook uses scratch_parent() (no filesystem).
 #
 # Validates $num against the anchored task-number pattern BEFORE any filesystem
 # work (rejects `..`, empty/`.` components, `/`, shell metacharacters; leading
-# zeros accepted). Then mkdir-then-lstat-recheck the parent (race-tolerant
-# symlink reject) and mkdir the leaf at 0700. Deliberately NO chmod-clamp — never
-# auto-chmod a foreign or wrong-mode parent (surface, never smooth; design D2).
+# zeros accepted). Then runs the mkdir-then-lstat-recheck triad TWICE — once for
+# the intermediate $SCRATCH_BASE, then for the cwf<dashed> parent — in that order
+# (Task 229). The base triad MUST complete before the parent mkdir: since
+# $SCRATCH_BASE now names a new intermediate level under world-writable /tmp, a
+# symlinked base must be rejected before any mkdir descends through it. Then mkdir
+# the leaf at 0700. Deliberately NO chmod-clamp — never auto-chmod a foreign or
+# wrong-mode dir (surface, never smooth; design D2).
 #
 # Returns: ($path, undef) on success, or (undef, $kind) where
 # $kind ∈ {not_a_repo, bad_num, symlink_parent, mkdir_failed}.
@@ -138,14 +135,36 @@ sub scratch_dir {
     return (undef, 'bad_num') unless defined $num && $num =~ /^[0-9]+(\.[0-9]+)*$/;
     my ($parent, $err) = scratch_parent();
     return (undef, $err) unless defined $parent;
+    for my $dir ($SCRATCH_BASE, $parent) {              # base BEFORE parent (ordering matters)
+        mkdir($dir, 0700) unless -d $dir;
+        return (undef, 'symlink_parent') if -l $dir;    # lstat: reject a symlinked level
+        return (undef, 'mkdir_failed')   unless -d $dir; # level could not be created
+    }
     my $scratch = "$parent/task-$num";
-    mkdir($parent, 0700) unless -d $parent;
-    return (undef, 'symlink_parent') if -l $parent;     # lstat: reject a symlinked parent
-    return (undef, 'mkdir_failed')   unless -d $parent;  # parent could not be created
     unless (-d $scratch) {
         mkdir($scratch, 0700) or return (undef, 'mkdir_failed');
     }
     return ($scratch, undef);
+}
+
+# A cause-naming diagnostic sentence for the fail-closed $kind values that stem
+# from an unusable scratch BASE (Task 229) — so every scratch_dir caller can emit
+# the same actionable hint instead of a bare kind token. Returns '' for kinds that
+# are not base-related (bad_num, not_a_repo) and for anything unrecognised, so a
+# caller can append it unconditionally and get a clean line when there is no hint.
+sub scratch_fail_hint {
+    my ($kind) = @_;
+    return '' unless defined $kind;
+    if ($kind eq 'mkdir_failed') {
+        return "the scratch base $SCRATCH_BASE is not writable — expected on a "
+             . "non-Linux (e.g. macOS Seatbelt) sandbox, where the writable temp "
+             . "is elsewhere; see .cwf/docs/conventions/tmp-paths.md";
+    }
+    if ($kind eq 'symlink_parent') {
+        return "a symlink was found at the scratch base $SCRATCH_BASE or its "
+             . "cwf<root> parent — refusing to write through it (surface, never smooth)";
+    }
+    return '';
 }
 
 # Resolve the SHA of HEAD in the current git repository.

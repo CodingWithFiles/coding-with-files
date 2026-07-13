@@ -1,30 +1,30 @@
 #!/usr/bin/env perl
 #
-# scratch.t - Unit tests for CWF::Common::scratch_parent / scratch_dir (Task 206).
+# scratch.t - Unit tests for CWF::Common::scratch_parent / scratch_dir /
+# scratch_fail_hint (Task 206, 229).
 #
 # scratch_parent: pure, $num-free, NO filesystem (used by the context-inject
-# hook every turn). scratch_dir: scratch_parent + per-task leaf + the tmp-paths
-# symlink-attack defences (used by writers, e.g. security-review-changeset).
+# hook every turn). scratch_dir: scratch_parent + two-level 0700 create + the
+# tmp-paths symlink-attack defences (used by writers, e.g.
+# security-review-changeset). The scratch base is $CWF::Common::SCRATCH_BASE,
+# derived purely from the EUID and never from $TMPDIR (Task 229) — every test
+# that needs a hermetic base sets `local $CWF::Common::SCRATCH_BASE = tempdir`,
+# and none touches the real shared /tmp/claude-<uid> or reads $TMPDIR.
 #
-# Covers (e-testing-plan TC-1..TC-8):
-#   TC-1 scratch_parent happy path     -> byte-identical to the tmp-paths snippet form
-#   TC-2 worktree main-root            -> parent uses MAIN root, not the worktree
-#   TC-3 not_a_repo                    -> (undef,'not_a_repo'); no filesystem
-#   TC-4 scratch_dir happy path        -> ("<parent>/task-<num>", undef), mode 0700
-#   TC-5 bad_num rejects + NO FS work  -> (undef,'bad_num'); nothing created
-#   TC-6 leading-zero accepted         -> success (contract locked)
-#   TC-7 symlink-parent reject, no chmod
-#   TC-8 idempotent re-call            -> success, mode unchanged
-#
-# Covers (e-testing-plan TC-9..TC-14, the Task 215 probe branch — exercised
-# hermetically via local $CWF::Common::SANDBOX_TMP_PROBE, never the real
-# shared /tmp/claude-<uid>):
-#   TC-9  env $TMPDIR wins over a present probe
-#   TC-10 probe adopted when $TMPDIR unset and probe is a writable dir
-#   TC-11 absent probe        -> /tmp fallback
-#   TC-12 non-writable probe  -> /tmp fallback (skip if EUID 0)
-#   TC-13 symlinked probe     -> /tmp fallback (skip if symlink unsupported)
-#   TC-14 empty probe string  -> /tmp fallback (length guard)
+# Covers (e-testing-plan TC-1..TC-13):
+#   TC-1  scratch_parent happy path      -> "<base>/cwf<dashified-root>"
+#   TC-2  worktree main-root             -> parent uses MAIN root, not the worktree
+#   TC-3  not_a_repo                     -> (undef,'not_a_repo'); no filesystem
+#   TC-4  scratch_dir happy path         -> ("<parent>/task-<num>", undef), mode 0700
+#   TC-5  bad_num rejects + NO FS work   -> (undef,'bad_num'); nothing created
+#   TC-6  leading-zero / dotted accepted -> success (contract locked)
+#   TC-7  symlinked cwf<dash> parent rejected, target not chmod-ed
+#   TC-8  idempotent re-call             -> success, mode unchanged
+#   TC-9  default base literal (pure)    -> SCRATCH_BASE eq "/tmp/claude-$>"
+#   TC-10 poison-$TMPDIR invariance      -> output independent of $ENV{TMPDIR}
+#   TC-11 intermediate symlink guard     -> symlinked BASE rejected, target not chmod-ed
+#   TC-12 two-level create + 0700        -> absent base + parent both created 0700
+#   TC-13 scratch_fail_hint              -> base-related kinds hint; others ''
 #
 use strict;
 use warnings;
@@ -36,22 +36,15 @@ use FindBin;
 use Cwd qw(cwd);
 use lib File::Spec->catdir($FindBin::Bin, '..', '.cwf', 'lib');
 use lib File::Spec->catdir($FindBin::Bin, 'lib');
-use CWF::Common qw(scratch_parent scratch_dir);
+use CWF::Common qw(scratch_parent scratch_dir scratch_fail_hint);
 use CWFTest::Fixtures qw(create_git_repo);
 
-plan tests => 14;
+plan tests => 13;
 
-# Mirror the tmp-paths.md shell Derivation snippet independently of the function
-# under test, so the byte-identity assertion is a genuine cross-check:
-#   base="${TMPDIR:-/tmp}"; base="${base%/}"
-#   scratch_parent="${base}/cwf${repo_root//\//-}"
-sub expected_parent {
-    my ($root, $tmpdir) = @_;
-    (my $dashed = $root) =~ s{/}{-}g;
-    my $base = (defined $tmpdir && length $tmpdir) ? $tmpdir : '/tmp';
-    $base =~ s{/+$}{};
-    return "$base/cwf$dashed";
-}
+# Only the mechanical /->- transform is factored; the BASE is a hard-coded
+# literal at every call site (never a mirrored base-selection), so an oracle
+# cannot mask a base-derivation bug.
+sub dash { my ($p) = @_; (my $d = $p) =~ s{/}{-}g; return $d; }
 
 sub make_repo_with_worktree {
     my $base = shift;
@@ -63,14 +56,14 @@ sub make_repo_with_worktree {
     return ($repo, $wt);
 }
 
-subtest 'TC-1: scratch_parent happy path is byte-identical to the snippet form' => sub {
+subtest 'TC-1: scratch_parent happy path -> <base>/cwf<dashified-root>' => sub {
     plan tests => 2;
     my $base = tempdir(CLEANUP => 1);
     my $repo = create_git_repo($base);
     plan skip_all => 'could not create git repo' unless defined $repo;
 
-    my $sandbox = tempdir(CLEANUP => 1);
-    local $ENV{TMPDIR} = $sandbox;
+    my $sbase = tempdir(CLEANUP => 1);
+    local $CWF::Common::SCRATCH_BASE = $sbase;
     my $orig = cwd();
     chdir $repo or die "chdir $repo: $!";
     my ($parent, $err) = scratch_parent();
@@ -78,8 +71,8 @@ subtest 'TC-1: scratch_parent happy path is byte-identical to the snippet form' 
     chdir $orig;
 
     is($err, undef, 'no error in a git repo');
-    is($parent, expected_parent($root, $sandbox),
-        'parent == ${TMPDIR}/cwf<dashified-root> (trailing-slash-stripped base)');
+    is($parent, "$sbase/cwf" . dash($root),
+        'parent == <SCRATCH_BASE>/cwf<dashified-root>');
 };
 
 subtest 'TC-2: worktree -> parent uses the MAIN root, not the worktree' => sub {
@@ -88,8 +81,8 @@ subtest 'TC-2: worktree -> parent uses the MAIN root, not the worktree' => sub {
     plan skip_all => 'git worktree unavailable' unless defined $main;
     plan tests => 1;
 
-    my $sandbox = tempdir(CLEANUP => 1);
-    local $ENV{TMPDIR} = $sandbox;
+    my $sbase = tempdir(CLEANUP => 1);
+    local $CWF::Common::SCRATCH_BASE = $sbase;
     my $orig = cwd();
     chdir $main or die "chdir $main: $!";
     my ($from_main) = scratch_parent();
@@ -104,8 +97,8 @@ subtest 'TC-2: worktree -> parent uses the MAIN root, not the worktree' => sub {
 subtest 'TC-3: not_a_repo -> (undef, not_a_repo), no filesystem' => sub {
     plan tests => 3;
     my $not_a_repo = tempdir(CLEANUP => 1);
-    my $sandbox    = tempdir(CLEANUP => 1);
-    local $ENV{TMPDIR} = $sandbox;
+    my $sbase      = tempdir(CLEANUP => 1);
+    local $CWF::Common::SCRATCH_BASE = $sbase;
     my $orig = cwd();
     chdir $not_a_repo or die "chdir $not_a_repo: $!";
     my ($p, $perr) = scratch_parent();
@@ -123,8 +116,8 @@ subtest 'TC-4: scratch_dir happy path -> created leaf at mode 0700' => sub {
     my $repo = create_git_repo($base);
     plan skip_all => 'could not create git repo' unless defined $repo;
 
-    my $sandbox = tempdir(CLEANUP => 1);
-    local $ENV{TMPDIR} = $sandbox;
+    my $sbase = tempdir(CLEANUP => 1);
+    local $CWF::Common::SCRATCH_BASE = $sbase;
     my $orig = cwd();
     chdir $repo or die "chdir $repo: $!";
     my ($scratch, $err) = scratch_dir('206');
@@ -132,8 +125,8 @@ subtest 'TC-4: scratch_dir happy path -> created leaf at mode 0700' => sub {
     chdir $orig;
 
     is($err, undef, 'no error');
-    is($scratch, expected_parent($root, $sandbox) . '/task-206',
-        'leaf == <parent>/task-206');
+    is($scratch, "$sbase/cwf" . dash($root) . '/task-206',
+        'leaf == <base>/cwf<dashified-root>/task-206');
     is(((stat($scratch))[2] & 07777), 0700, 'leaf mode is 0700');
 };
 
@@ -144,11 +137,12 @@ subtest 'TC-5: bad_num rejects with NO filesystem work' => sub {
     my $repo = create_git_repo($base);
     plan skip_all => 'could not create git repo' unless defined $repo;
 
-    my $sandbox = tempdir(CLEANUP => 1);
-    local $ENV{TMPDIR} = $sandbox;
+    my $sbase = tempdir(CLEANUP => 1);
+    local $CWF::Common::SCRATCH_BASE = $sbase;
     my $orig = cwd();
     chdir $repo or die "chdir $repo: $!";
-    my $parent = expected_parent(CWF::Common::find_git_root(), $sandbox);
+    my $root   = CWF::Common::find_git_root();
+    my $parent = "$sbase/cwf" . dash($root);
     for my $n (@bad) {
         my ($d, $err) = scratch_dir($n);
         is($err, 'bad_num', "rejects '$n' as bad_num");
@@ -163,8 +157,8 @@ subtest 'TC-6: leading-zero / dotted numbers accepted' => sub {
     my $repo = create_git_repo($base);
     plan skip_all => 'could not create git repo' unless defined $repo;
 
-    my $sandbox = tempdir(CLEANUP => 1);
-    local $ENV{TMPDIR} = $sandbox;
+    my $sbase = tempdir(CLEANUP => 1);
+    local $CWF::Common::SCRATCH_BASE = $sbase;
     my $orig = cwd();
     chdir $repo or die "chdir $repo: $!";
     my (undef, $e1) = scratch_dir('007');
@@ -175,19 +169,21 @@ subtest 'TC-6: leading-zero / dotted numbers accepted' => sub {
     is($e2, undef, "'1.01' accepted");
 };
 
-subtest 'TC-7: symlinked parent rejected, target not chmod-ed' => sub {
+subtest 'TC-7: symlinked cwf<dash> parent rejected, target not chmod-ed' => sub {
     plan tests => 4;
     my $base = tempdir(CLEANUP => 1);
     my $repo = create_git_repo($base);
     plan skip_all => 'could not create git repo' unless defined $repo;
 
-    my $sandbox = tempdir(CLEANUP => 1);
-    local $ENV{TMPDIR} = $sandbox;
+    my $sbase = tempdir(CLEANUP => 1);
+    local $CWF::Common::SCRATCH_BASE = $sbase;
     my $orig = cwd();
     chdir $repo or die "chdir $repo: $!";
-    my $parent = expected_parent(CWF::Common::find_git_root(), $sandbox);
+    my $root   = CWF::Common::find_git_root();
+    my $parent = "$sbase/cwf" . dash($root);
 
-    # Pre-plant the parent as a symlink to an attacker-controlled directory.
+    # Pre-plant the cwf<dash> parent (the inner level) as a symlink to an
+    # attacker-controlled directory. The base ($sbase) itself is a real dir.
     my $attacker = File::Temp::tempdir(CLEANUP => 1);
     chmod 0755, $attacker;
     my $before = (stat($attacker))[2] & 07777;
@@ -197,7 +193,7 @@ subtest 'TC-7: symlinked parent rejected, target not chmod-ed' => sub {
     my $after = (stat($attacker))[2] & 07777;
     chdir $orig;
 
-    is($err, 'symlink_parent', 'symlinked parent rejected');
+    is($err, 'symlink_parent', 'symlinked cwf<dash> parent rejected');
     is($d, undef, 'no path returned');
     ok(-l $parent, 'parent left as a symlink (not followed/replaced)');
     is($after, $before, 'attacker target mode unchanged (no auto-chmod)');
@@ -209,8 +205,8 @@ subtest 'TC-8: idempotent re-call -> success, mode unchanged' => sub {
     my $repo = create_git_repo($base);
     plan skip_all => 'could not create git repo' unless defined $repo;
 
-    my $sandbox = tempdir(CLEANUP => 1);
-    local $ENV{TMPDIR} = $sandbox;
+    my $sbase = tempdir(CLEANUP => 1);
+    local $CWF::Common::SCRATCH_BASE = $sbase;
     my $orig = cwd();
     chdir $repo or die "chdir $repo: $!";
     my ($first)  = scratch_dir('206');
@@ -222,141 +218,119 @@ subtest 'TC-8: idempotent re-call -> success, mode unchanged' => sub {
     is(((stat($second))[2] & 07777), 0700, 'mode still 0700');
 };
 
-subtest 'TC-9: $TMPDIR set takes precedence over a present probe' => sub {
+subtest 'TC-9: default SCRATCH_BASE is the pure EUID literal' => sub {
     plan tests => 2;
     my $base = tempdir(CLEANUP => 1);
     my $repo = create_git_repo($base);
     plan skip_all => 'could not create git repo' unless defined $repo;
 
-    my $sandbox = tempdir(CLEANUP => 1);
-    my $probe   = tempdir(CLEANUP => 1);          # a different, writable dir
-    local $ENV{TMPDIR} = $sandbox;
-    local $CWF::Common::SANDBOX_TMP_PROBE = $probe;
+    # No `local` override: observe the real default. scratch_parent is pure
+    # (no filesystem), so this touches nothing under the real base.
+    is($CWF::Common::SCRATCH_BASE, "/tmp/claude-$>",
+        'SCRATCH_BASE defaults to /tmp/claude-<euid>');
+
     my $orig = cwd();
     chdir $repo or die "chdir $repo: $!";
-    my ($parent, $err) = scratch_parent();
+    my ($parent) = scratch_parent();
     my $root = CWF::Common::find_git_root();
     chdir $orig;
 
-    is($err, undef, 'no error');
-    is($parent, expected_parent($root, $sandbox),
-        'env $TMPDIR wins; probe ignored');
+    is($parent, "/tmp/claude-$>/cwf" . dash($root),
+        'scratch_parent composes the EUID base with the dashified root');
 };
 
-subtest 'TC-10: probe adopted when $TMPDIR unset and probe is a writable dir' => sub {
-    plan tests => 2;
+subtest 'TC-10: output is invariant under a poisoned $TMPDIR' => sub {
+    # $TMPDIR is deliberately NOT read (Task 229): any value — hostile, doubled,
+    # relative, empty, unset — must leave the derived path unchanged. This is the
+    # regression test for the reporter's doubling / divergence bug.
+    my @poison = ('/tmp/cwf-x', '/tmp/cwf-x/claude-9', '/tmp/a/../b', 'tmp', '');
+    plan tests => scalar(@poison) + 1;    # each poison value + the unset case
     my $base = tempdir(CLEANUP => 1);
     my $repo = create_git_repo($base);
     plan skip_all => 'could not create git repo' unless defined $repo;
 
-    my $probe = tempdir(CLEANUP => 1);
+    my $sbase = tempdir(CLEANUP => 1);
+    local $CWF::Common::SCRATCH_BASE = $sbase;
     my $orig = cwd();
     chdir $repo or die "chdir $repo: $!";
-    my $root = CWF::Common::find_git_root();
-    my ($parent, $err);
+    my $root     = CWF::Common::find_git_root();
+    my $expected = "$sbase/cwf" . dash($root);
+
+    for my $t (@poison) {
+        local $ENV{TMPDIR} = $t;
+        my ($parent) = scratch_parent();
+        is($parent, $expected, "invariant under \$TMPDIR='$t'");
+    }
     {
         delete local $ENV{TMPDIR};
-        local $CWF::Common::SANDBOX_TMP_PROBE = $probe;
-        ($parent, $err) = scratch_parent();
+        my ($parent) = scratch_parent();
+        is($parent, $expected, 'invariant when $TMPDIR is unset');
     }
     chdir $orig;
-
-    is($err, undef, 'no error');
-    is($parent, expected_parent($root, $probe),
-        'probe base adopted when $TMPDIR unset');
 };
 
-subtest 'TC-11: absent probe path -> /tmp fallback' => sub {
-    plan tests => 2;
+subtest 'TC-11: symlinked SCRATCH_BASE (intermediate) rejected, target not chmod-ed' => sub {
+    plan tests => 4;
     my $base = tempdir(CLEANUP => 1);
     my $repo = create_git_repo($base);
     plan skip_all => 'could not create git repo' unless defined $repo;
 
-    my $missing = File::Spec->catdir(tempdir(CLEANUP => 1), 'does-not-exist');
-    my $orig = cwd();
-    chdir $repo or die "chdir $repo: $!";
-    my $root = CWF::Common::find_git_root();
-    my ($parent, $err);
-    {
-        delete local $ENV{TMPDIR};
-        local $CWF::Common::SANDBOX_TMP_PROBE = $missing;
-        ($parent, $err) = scratch_parent();
-    }
-    chdir $orig;
-
-    is($err, undef, 'no error');
-    is($parent, expected_parent($root, '/tmp'), 'absent probe -> /tmp base');
-};
-
-subtest 'TC-12: probe exists but is not writable -> /tmp fallback' => sub {
-    plan skip_all => 'EUID 0 bypasses -w' if $> == 0;
-    plan tests => 2;
-    my $base = tempdir(CLEANUP => 1);
-    my $repo = create_git_repo($base);
-    plan skip_all => 'could not create git repo' unless defined $repo;
-
-    my $probe = tempdir(CLEANUP => 1);
-    chmod 0500, $probe;                            # readable+traversable, not writable
-    my $orig = cwd();
-    chdir $repo or die "chdir $repo: $!";
-    my $root = CWF::Common::find_git_root();
-    my ($parent, $err);
-    {
-        delete local $ENV{TMPDIR};
-        local $CWF::Common::SANDBOX_TMP_PROBE = $probe;
-        ($parent, $err) = scratch_parent();
-    }
-    chdir $orig;
-    chmod 0700, $probe;                            # restore so CLEANUP can remove it
-
-    is($err, undef, 'no error');
-    is($parent, expected_parent($root, '/tmp'), 'non-writable probe -> /tmp base');
-};
-
-subtest 'TC-13: symlinked probe rejected -> /tmp fallback' => sub {
-    plan tests => 2;
-    my $base = tempdir(CLEANUP => 1);
-    my $repo = create_git_repo($base);
-    plan skip_all => 'could not create git repo' unless defined $repo;
-
-    my $target = tempdir(CLEANUP => 1);           # real writable dir
+    # The base level itself is a symlink to an attacker dir; the guard must reject
+    # it BEFORE the cwf<dash> mkdir descends through it (Task 229 two-level guard).
+    my $attacker = tempdir(CLEANUP => 1);
+    chmod 0755, $attacker;
+    my $before = (stat($attacker))[2] & 07777;
     my $holder = tempdir(CLEANUP => 1);
-    my $link   = File::Spec->catdir($holder, 'probe-link');
-    symlink($target, $link) or plan skip_all => 'symlink unsupported';
+    my $link   = File::Spec->catdir($holder, 'base-link');
+    symlink($attacker, $link) or plan skip_all => 'symlink unsupported';
 
+    local $CWF::Common::SCRATCH_BASE = $link;
     my $orig = cwd();
     chdir $repo or die "chdir $repo: $!";
-    my $root = CWF::Common::find_git_root();
-    my ($parent, $err);
-    {
-        delete local $ENV{TMPDIR};
-        local $CWF::Common::SANDBOX_TMP_PROBE = $link;
-        ($parent, $err) = scratch_parent();
-    }
+    my ($d, $err) = scratch_dir('206');
+    my $after = (stat($attacker))[2] & 07777;
     chdir $orig;
 
-    is($err, undef, 'no error');
-    is($parent, expected_parent($root, '/tmp'),
-        'symlinked probe not adopted (defence-in-depth) -> /tmp base');
+    is($err, 'symlink_parent', 'symlinked base rejected');
+    is($d, undef, 'no path returned');
+    ok(-l $link, 'base left as a symlink (not followed/replaced)');
+    is($after, $before, 'attacker target mode unchanged (no auto-chmod)');
 };
 
-subtest 'TC-14: empty $SANDBOX_TMP_PROBE -> /tmp fallback (length guard)' => sub {
-    plan tests => 2;
+subtest 'TC-12: absent base + parent both created at 0700 (two-level)' => sub {
+    plan tests => 4;
     my $base = tempdir(CLEANUP => 1);
     my $repo = create_git_repo($base);
     plan skip_all => 'could not create git repo' unless defined $repo;
 
+    # SCRATCH_BASE points one level below an existing tempdir, so it does not yet
+    # exist — scratch_dir must create the base, then the cwf<dash> parent, then
+    # the leaf. This is the off-sandbox "create the base" path.
+    my $sbase = File::Spec->catdir(tempdir(CLEANUP => 1), 'claude-x');
+    local $CWF::Common::SCRATCH_BASE = $sbase;
     my $orig = cwd();
     chdir $repo or die "chdir $repo: $!";
     my $root = CWF::Common::find_git_root();
-    my ($parent, $err);
-    {
-        delete local $ENV{TMPDIR};
-        local $CWF::Common::SANDBOX_TMP_PROBE = '';
-        ($parent, $err) = scratch_parent();
-    }
+    my ($scratch, $err) = scratch_dir('206');
     chdir $orig;
 
-    is($err, undef, 'no error');
-    is($parent, expected_parent($root, '/tmp'), 'empty probe -> /tmp base');
+    my $parent = "$sbase/cwf" . dash($root);
+    is($err, undef, 'no error creating an absent base');
+    ok(-d $scratch, 'leaf created');
+    is(((stat($sbase))[2]  & 07777), 0700, 'intermediate base mode 0700');
+    is(((stat($parent))[2] & 07777), 0700, 'cwf<dash> parent mode 0700');
+};
+
+subtest 'TC-13: scratch_fail_hint names the base for base-related kinds only' => sub {
+    plan tests => 6;
+    local $CWF::Common::SCRATCH_BASE = '/tmp/claude-TESTBASE';
+
+    like(scratch_fail_hint('mkdir_failed'), qr/\Q$CWF::Common::SCRATCH_BASE\E/,
+        'mkdir_failed hint names the base');
+    like(scratch_fail_hint('symlink_parent'), qr/\Q$CWF::Common::SCRATCH_BASE\E/,
+        'symlink_parent hint names the base');
+    is(scratch_fail_hint('bad_num'),    '', 'bad_num -> no hint');
+    is(scratch_fail_hint('not_a_repo'), '', 'not_a_repo -> no hint');
+    is(scratch_fail_hint(''),           '', "'' -> no hint");
+    is(scratch_fail_hint(undef),        '', 'undef -> no hint');
 };
