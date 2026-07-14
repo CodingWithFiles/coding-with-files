@@ -10,7 +10,7 @@ allowed-tools:
 
 ## Scope & Boundaries
 
-**This step**: Create a subtask within an existing parent task.
+**This step**: Create a subtask within an existing parent task, on its own git branch.
 **Not this step**: Planning, design, or implementation of the subtask.
 
 ## Context
@@ -86,7 +86,16 @@ checkout in either failure path.
 - Copy templates via `task-workflow create` with `--destination` pointing inside parent dir
 - Set `{{parentTask}}` to parent task number
 
-### 4. Provision the Scratch Directory
+### 4. Create Git Branch
+```bash
+git checkout -b "<type>/<num>-<slug>"
+```
+`<num>` is the subtask's full decimal (e.g. `48.1`); reuse the slug from the directory Step 3
+created — do not re-derive it. Branches off the current parent-branch `HEAD`, so the parent
+branch is an ancestor of the subtask branch — the precondition the retrospective's ff-merge
+back into the parent relies on.
+
+### 5. Provision the Scratch Directory
 Create this subtask's scratch leaf. It reuses the **same per-project parent**
 as every other task in this repo, with its own `task-<subnum>/` leaf. The
 `CWF PATHS` block injected into context each turn already carries that scratch
@@ -99,13 +108,12 @@ not prompt):
 mkdir -m 0700 -p <injected-scratch-parent>/task-<num>
 ```
 
-There is **no `git checkout -b`** in this skill — the subtask stays on the
-parent branch — so provisioning follows subtask creation directly.
 **Non-fatal**: a failed `mkdir` must NOT block subtask creation; do not print
 the path as if it exists on failure.
 
-### 5. Provide Next Steps
+### 6. Provide Next Steps
 - Subtask directory, parent link, structural map shown
+- Branch created and checked out — surface the branch name
 - Scratch dir provisioned (or noted as deferred to first use) — surface the path
 - Next action: `/cwf-task-plan <num>`
 
@@ -113,5 +121,6 @@ the path as if it exists on failure.
 - [ ] Parent task resolved and context loaded
 - [ ] Arguments parsed and validated
 - [ ] Subtask directory created with template files
+- [ ] Git branch created and checked out
 - [ ] Scratch dir provisioned (non-fatal) and path surfaced
 - [ ] Next steps suggested

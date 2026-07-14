@@ -73,6 +73,25 @@ task via the normal workflow. Ordered impact-desc, effort-asc:
 - **Incidental (bugfix, Low)** — Fix the `Wide character in print` UTF-8 output defect in
   `plan-mechanical-check`/`CWF::ArtefactHelpers.pm:73` (missing `binmode`/`PERL5OPT=-CDSLA`).
 
+## Task: Audit cwf-new-task step 4 for the same unpinned-slug ambiguity as cwf-new-subtask
+
+### Task-Type: chore
+### Priority: Low
+### Status: Follow-up from Task 230 (j-retrospective.md §Future Work)
+### Identified in: Task 230 changeset reviews (security, at f and g) and j-retrospective.md
+
+Task 230 added a branch-creation step to `cwf-new-subtask` and pinned its FR4(e) slug
+invariant inline: "reuse the slug from the directory Step 3 created — do not re-derive it",
+so the branch name carries only the script-sanitised slug. Multiple security reviewers noted
+that the mirror source `.claude/skills/cwf-new-task/SKILL.md` step 4 carries the **same latent
+ambiguity** — its `git checkout -b "<type>/<num>-<slug>"` does not state that `<slug>` must be
+the script-produced slug, so a future edit that re-slugified the raw description could bypass
+sanitisation and interpolate unsanitised text into the branch name. Safe today (the LLM reuses
+the created directory's slug in practice), so this is a documentation/robustness hardening, not
+a live defect. Scope: add the same one-line "reuse the script-produced slug — do not re-derive
+it" pin to `cwf-new-task` step 4, aligning the two creation skills. `.claude/skills/` is not
+hash-tracked, so no `script-hashes.json` refresh. Docs/prose only.
+
 ## Task: plan-mechanical-check — warn on hashed path missing script-hashes.json disclosure
 
 ### Task-Type: chore
