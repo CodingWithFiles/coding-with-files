@@ -1855,3 +1855,33 @@ Claude Code documents that a `Bash(<prefix>:*)` allow rule matches each subcomma
 ### Identified in: Task 229
 
 Task 229 hardcodes the scratch base to /tmp/claude-<euid>, which is the writable session temp only on Linux/WSL2. On a macOS Seatbelt sandbox the writable temp is under /var/folders, so /tmp/claude-<euid> fails closed. Once user data is in, formulate a platform-specific scratch base (detect OS/sandbox, choose the writable temp per platform) so scratch works on macOS and other platforms while keeping the mode-invariant property. Seeded by Task 229 requirements/design review (macOS known-limitation).
+
+## Task: security-review-changeset --wf-step=testing-exec misses tracked-file changes on re-execution
+
+### Task-Type: bugfix
+### Priority: Medium
+### Identified in: Task 231
+
+On a testing-exec **re-execution** (amending an already-committed `g-testing-exec.md`),
+`security-review-changeset --wf-step=testing-exec` captured only the untracked
+`j-retrospective.md` and omitted the tracked `g-testing-exec.md` change entirely — both
+while unstaged **and** after `git add`. The changeset `.out` handed to the security
+reviewer therefore did not contain the file under review; the reviewer flagged the gap and
+was given the real diff (assembled directly via `git diff`) to complete the review.
+
+This is the same family as Task 141 ("security-review-changeset blind to uncommitted") but
+a distinct sub-case: on re-execution the phase file is already committed at HEAD, and a
+subsequent modification (staged or unstaged) is not picked up, while a co-present untracked
+file is. Net effect: an amendment's changeset review can silently under-cover the very file
+being amended.
+
+**Repro**: on a task branch, amend a committed phase file, then run
+`security-review-changeset --wf-step=<phase>` and inspect the `.out` — the tracked-file
+change is absent.
+
+**Check during fix**: whether implementation-exec re-execution has the same gap (its first
+run captured committed files fine, but a re-execution amendment was not exercised there),
+and whether the anchor→working-tree diff should be the authoritative changeset for all
+phases regardless of what is committed vs uncommitted.
+
+Identified during Task 231 (scrub private data) while amending the f/g exec phases.
