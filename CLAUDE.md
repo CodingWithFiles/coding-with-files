@@ -29,6 +29,7 @@ The Coding with Files (CWF) system is **implemented and operational** (released 
 - `/cwf-delete-task <task-path> [--force]` - Delete the most-recent task (reverse of `/cwf-new-task`)
 - `/cwf-status [task-path]` - Show hierarchical progress
 - `/cwf-extract <task-path> <section-name>` - Extract sections (task-based, backward compatible)
+- `/cwf-current-task [push|pop|list|clear] [task]` - Manage the current-task stack (LIFO context tracking)
 
 **Workflow Skills**:
 - `/cwf-task-plan <task-path>` - Planning phase
@@ -45,6 +46,7 @@ The Coding with Files (CWF) system is **implemented and operational** (released 
 **Utility Skills**:
 - `/cwf-security-check [verify|report]` - Verify system integrity
 - `/cwf-config [init|list|reset]` - Configure CWF system
+- `/cwf-backlog-manager [list|add|modify|retire|delete|normalise|validate]` - Show or manipulate the project backlog
 - `.cwf/scripts/cwf-manage` - Manage CWF installation (status, update, rollback, list-releases)
 
 ## Conventions
@@ -127,13 +129,13 @@ needs goes in `docs/`; a rule any CWF-using project must honour goes in `.cwf/do
 
 **Progressive Disclosure Pattern**: Skills reference documentation (`.cwf/docs/workflow/`) rather than duplicating content. Helper scripts provide structural information, LLM decides what matters. Reduces token consumption while preserving agency.
 
-**Security Model**: u+rx (minimum 0500) permissions, SHA256 verification via `.cwf/security/script-hashes.json`, git-based version tracking.
+**Security Model**: recorded per-file `permissions` are an **upper bound** — `cwf-manage validate` flags a file only when it is *more* permissive than recorded and `fix-security` clamps it back down (`actual & recorded`), never raising a bit; recorded modes range from `0700`/`0500` (executables) to `0444` (read-only data). SHA256 content verification via `.cwf/security/script-hashes.json`; git-based version tracking.
 
 ## System Integration
 
 - **Helper Scripts**: `.cwf/scripts/command-helpers/` with self-documenting names
 - **Configuration**: Hierarchical config system with `cwf-project.json`
-- **Version Tracking**: Git-based versioning (`git describe` format, e.g. `v1.1.187-5-gcea1c19`)
+- **Version Tracking**: Git-based versioning (`git describe` format `<tag>-<commits-since>-g<short-sha>`, e.g. `v1.1.x-<n>-g<sha>`)
 - **Task Management**: Support for GitHub/GitLab/JIRA with internal fallback
 - **Task Stack**: `.cwf/task-stack` file stores current task context (managed via `/cwf-current-task`)
 

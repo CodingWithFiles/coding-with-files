@@ -75,9 +75,10 @@ place to maintain each fact.
 
 ## Security Model
 
-CWF treats its own installed files as integrity-critical. Helper scripts and skills are
-held at minimum permissions (`u+rx`, typically `0500`) and every hash-tracked file has a
-recorded SHA256 in `.cwf/security/script-hashes.json`. `cwf-manage validate` (and
+CWF treats its own installed files as integrity-critical. Each hash-tracked file carries a
+recorded permission ceiling (`0700`/`0500` for executables, `0444` for read-only data) — an
+upper bound `cwf-manage validate` flags only when a file is *more* permissive than recorded —
+and a recorded SHA256 in `.cwf/security/script-hashes.json`. `cwf-manage validate` (and
 `/cwf-security-check`) compare on-disk content against those hashes; a content change
 that is not accompanied by a matching hash refresh in the same commit fails validation.
 
@@ -93,7 +94,8 @@ the `.cwf/` tree and the skill set without creating a merge commit, keeping the 
 history clean. A plain file copy is the fallback for static or air-gapped installs.
 Git-subtree installation is deprecated and refused — it forced a merge commit into the
 host's history for no benefit the read-tree laydown does not already provide. Versions
-are tracked with `git describe` (e.g. `v1.1.187-5-gcea1c19`) so an installed tree's
+are tracked with `git describe` (format `<tag>-<commits-since>-g<short-sha>`, e.g.
+`v1.1.x-<n>-g<sha>`) so an installed tree's
 provenance is always recoverable.
 
 ## What This Buys

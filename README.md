@@ -62,7 +62,7 @@ We welcome issues, pull requests, and suggestions! This project aims to become a
 
 ### Hierarchical Workflow System
 - **Infinite Task Nesting**: Decimal numbering (1, 1.1, 1.1.1) with unlimited depth
-- **10-Phase Workflow**: Planning and execution phases separated for each stage (plan → exec)
+- **10-Phase Workflow**: Ten lettered phases (a–j), with planning and execution split into separate steps where applicable (implementation and testing)
 - **Token-Efficient Context Inheritance**: Parent context via structural maps (~50-100 tokens vs 500-1000)
 - **Progressive Disclosure**: Skills reference documentation rather than duplicating content
 - **Central Template Pool**: DRY principle with symlink-based templates per task type
@@ -115,8 +115,8 @@ See **[INSTALL.md](INSTALL.md)** for complete instructions, post-install setup, 
 
 ### Workflow Commands
 
-Execute structured workflow phases for any task. Phases are split into planning and
-execution steps — plan first, then execute separately:
+Execute structured workflow phases for any task. Where a stage benefits from it —
+implementation and testing — planning and execution are split into separate steps:
 
 - `/cwf-task-plan <task-path>` - Planning phase (goals, milestones, risks)
 - `/cwf-requirements-plan <task-path>` - Requirements phase (FR/NFR, acceptance criteria)
@@ -151,7 +151,7 @@ that manages the installed CWF version:
 ## Task Types
 
 Each task type runs a subset of the 10 available workflow phases, matched to its scope.
-Phases are always split into a planning step and a separate execution step.
+Phases are split into a planning step and a separate execution step where applicable.
 
 ### Feature Tasks (10 phases)
 Full development lifecycle:
@@ -212,8 +212,8 @@ Minimal `cwf-project.json` in the validated schema (see `CWF-PROJECT-SPEC.md` fo
     "branch-naming-convention": "{task-type}/{task-id}-{task-description}"
   },
   "versioning": {
-    "major_minor": "v1.0",
-    "last_released": "v1.0.0"
+    "major_minor": "v1.1",
+    "last_released": "v1.1.232"
   }
 }
 ```

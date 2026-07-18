@@ -49,7 +49,7 @@ file as "nothing to check", not an error.
 ### `versioning` (optional)
 - **Type**: Object. Absent ⇒ no check.
 - **`major_minor`** (optional): string matching `/^v\d+\.\d+$/`, e.g. `"v1.1"`.
-- **`last_released`** (optional): string matching `/^v\d+\.\d+\.\d+$/`, e.g. `"v1.1.188"`.
+- **`last_released`** (optional): string matching `/^v\d+\.\d+\.\d+$/`, e.g. `"v1.1.232"`.
 - Either sub-key may be present independently; each is validated only if present.
 
 ### `wf_step_config` (optional)
@@ -119,7 +119,7 @@ The smallest config that passes `cwf-manage validate`:
   },
   "versioning": {
     "major_minor": "v1.1",
-    "last_released": "v1.1.188"
+    "last_released": "v1.1.232"
   },
   "wf_step_config": {
     "retrospective": { "bump_version": true, "tag_version": false }
